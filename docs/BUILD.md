@@ -1,230 +1,109 @@
-# Build Instructions
+# Free Open Source Syndicate
 
-This document provides platform-specific instructions for building Free Open Source Syndicate on Linux, macOS, and Windows.
+An open-source recreation of the classic 1993 DOS game **Syndicate**, inspired by both the original and Syndicate Wars.
 
-## Prerequisites (All Platforms)
+## Project Overview
 
-- **CMake** 3.15 or higher
-- **C++17** compatible compiler
-- **Git**
+**Free Open Source Syndicate** aims to recreate the gameplay, mechanics, and aesthetic of the original 1993 Syndicate game:
+- **Real-time tactical squad-based gameplay** with 4 cyborg agents
+- **Isometric perspective** rendering of dystopian urban environments
+- **Mission-driven campaign** across a globe divided by mega-corporations
+- **Agent customization & upgrades** (weapons, cybernetics, abilities)
+- **Syndicate management metagame** (research, finance, territory control)
+- **Environmental destruction** and tactical options
 
-## Linux / Ubuntu / Linux Mint
+## Technology Stack
 
-### Install Dependencies
+- **Engine:** Cocos2d-x (C++)
+- **Build System:** CMake + helper scripts
+- **Language:** C++17
+- **Target Platforms:** Linux, macOS, Windows
+- **License:** MIT
 
-```bash
-# Ubuntu/Debian-based systems
-sudo apt-get update
-sudo apt-get install -y \
-    build-essential \
-    cmake \
-    git \
-    libx11-dev \
-    libxrandr-dev \
-    libxinerama-dev \
-    libxcursor-dev \
-    libxi-dev \
-    libgl1-mesa-dev \
-    libglu1-mesa-dev \
-    pkg-config \
-    libogg-dev \
-    libvorbis-dev \
-    libopenal-dev
-
-# For Linux Mint (based on Ubuntu)
-# Same commands as above
-```
-
-### Build Steps
+## Setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/FreeOpenSourceSyndicate/FreeOpenSourceSyndicate.git
-cd FreeOpenSourceSyndicate
+# Fetch the Cocos2d-x dependency
+./scripts/fetch_cocos2dx.sh
 
-# Create build directory
-mkdir build && cd build
-
-# Configure and build
-cmake ..
-make -j$(nproc)
-
-# Run the game
-./FreeOpenSourceSyndicate
+# Configure and build the project
+./scripts/build.sh
 ```
 
-### Troubleshooting (Linux)
+The repository now contains a minimal but real Cocos2d-x integration path, including dependency fetch scripts and platform-aware build notes.
 
-**Missing OpenGL libraries:**
-```bash
-sudo apt-get install -y libglvnd-dev libglvnd0
+## Project Structure
+
+```text
+FreeOpenSourceSyndicate/
+├── CMakeLists.txt              # Root CMake configuration
+├── build/                      # Build output (generated)
+├── src/
+│   ├── CMakeLists.txt
+│   ├── main.cpp                # Entry point
+│   ├── game/
+│   │   ├── GameManager.h/.cpp
+│   │   ├── GameScene.h/.cpp
+│   │   └── scenes/
+│   ├── entities/
+│   │   ├── Agent.h/.cpp
+│   │   ├── Entity.h/.cpp
+│   │   ├── Enemy.h/.cpp
+│   │   └── NPC.h/.cpp
+│   ├── systems/
+│   │   ├── RenderSystem.h/.cpp
+│   │   ├── InputSystem.h/.cpp
+│   │   ├── PathfindingSystem.h/.cpp
+│   │   ├── CombatSystem.h/.cpp
+│   │   └── AISystem.h/.cpp
+│   ├── world/
+│   │   ├── Tilemap.h/.cpp
+│   │   ├── Camera.h/.cpp
+│   │   └── Environment.h/.cpp
+│   ├── equipment/
+│   │   ├── Weapon.h/.cpp
+│   │   ├── Equipment.h/.cpp
+│   │   └── Upgrades.h/.cpp
+│   ├── ui/
+│   │   ├── HUD.h/.cpp
+│   │   ├── Menu.h/.cpp
+│   │   └── Widgets.h/.cpp
+│   └── utils/
+│       ├── Math.h/.cpp
+│       ├── Config.h/.cpp
+│       └── Logger.h/.cpp
+├── assets/
+│   ├── sprites/
+│   ├── tilesets/
+│   ├── ui/
+│   ├── sounds/
+│   ├── music/
+│   └── maps/
+├── docs/
+│   ├── BUILD.md
+│   ├── ARCHITECTURE.md
+│   ├── GAMEPLAY.md
+│   └── CONTRIBUTING.md
+├── scripts/
+│   ├── fetch_cocos2dx.sh
+│   └── build.sh
+├── tests/
+│   ├── CMakeLists.txt
+│   └── unit_tests.cpp
+└── third_party/
+    └── cocos2d-x/             # downloaded engine dependency
 ```
 
-**CMake can't find packages:**
-```bash
-cmake .. -DCMAKE_BUILD_TYPE=Debug
-```
+## Roadmap
 
----
+### Phase 1: Foundation (Current)
+- [x] Repository foundation
+- [x] Build documentation for Linux/macOS/Windows
+- [x] Cocos2d-x dependency fetch script
+- [ ] Full Cocos2d-x engine integration
+- [ ] Isometric rendering system
+- [ ] Basic agent movement
 
-## macOS
+## License
 
-### Install Dependencies
-
-```bash
-# Using Homebrew
-brew install cmake git
-
-# Xcode Command Line Tools (required for compilation)
-xcode-select --install
-```
-
-### Build Steps
-
-```bash
-# Clone the repository
-git clone https://github.com/FreeOpenSourceSyndicate/FreeOpenSourceSyndicate.git
-cd FreeOpenSourceSyndicate
-
-# Create build directory
-mkdir build && cd build
-
-# Configure for Xcode
-cmake .. -G Xcode
-
-# Build via Xcode
-xcodebuild -configuration Release
-
-# Or build via Make
-cmake ..
-make -j$(sysctl -n hw.ncpu)
-
-# Run the game
-./Release/FreeOpenSourceSyndicate
-```
-
-### Troubleshooting (macOS)
-
-**Xcode license agreement not accepted:**
-```bash
-sudo xcode-select --reset
-sudo xcode-select --install
-sudo xcodebuild -license accept
-```
-
-**CMake not found:**
-```bash
-brew install cmake
-```
-
----
-
-## Windows
-
-### Install Dependencies
-
-**Visual Studio 2019 or later (Recommended):**
-- Download from https://visualstudio.microsoft.com/
-- Install "Desktop development with C++" workload
-- Include CMake support
-
-**Or use MinGW:**
-- Download from https://www.mingw-w64.org/
-- Add to system PATH
-
-**CMake:**
-- Download from https://cmake.org/download/
-- Run installer and add to PATH
-
-**Git:**
-- Download from https://git-scm.com/
-- Install with default options
-
-### Build Steps (Visual Studio)
-
-```cmd
-# Clone the repository
-git clone https://github.com/FreeOpenSourceSyndicate/FreeOpenSourceSyndicate.git
-cd FreeOpenSourceSyndicate
-
-# Create build directory
-mkdir build && cd build
-
-# Generate Visual Studio project
-cmake .. -G "Visual Studio 16 2019" -A x64
-
-# Build (Release configuration)
-cmake --build . --config Release
-
-# Run the game
-.\Release\FreeOpenSourceSyndicate.exe
-```
-
-### Build Steps (MinGW)
-
-```cmd
-# Clone the repository
-git clone https://github.com/FreeOpenSourceSyndicate/FreeOpenSourceSyndicate.git
-cd FreeOpenSourceSyndicate
-
-# Create build directory
-mkdir build && cd build
-
-# Generate MinGW Makefiles
-cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
-
-# Build
-cmake --build . -j%NUMBER_OF_PROCESSORS%
-
-# Run the game
-FreeOpenSourceSyndicate.exe
-```
-
-### Troubleshooting (Windows)
-
-**Visual Studio not found:**
-- Ensure VS is installed with C++ support
-- Run from "Developer Command Prompt for VS"
-
-**MinGW compiler errors:**
-```cmd
-gcc --version
-g++ --version
-```
-Ensure both are in PATH.
-
-**CMake configuration fails:**
-```cmd
-cmake .. -G "Visual Studio 16 2019" -A x64 -DCMAKE_GENERATOR_PLATFORM=x64
-```
-
----
-
-## General Troubleshooting
-
-### Clean build
-```bash
-cd build
-rm -rf *          # Linux/macOS
-del /q *          # Windows CMD
-cd ..
-```
-
-### Enable verbose output
-```bash
-cmake .. -DCMAKE_VERBOSE_MAKEFILE=ON
-make VERBOSE=1    # Linux/macOS
-```
-
-### Check CMake version
-```bash
-cmake --version
-```
-
-Must be 3.15 or higher.
-
----
-
-## Next Steps
-
-Once built successfully, see [ARCHITECTURE.md](ARCHITECTURE.md) for development guidelines.
+MIT License
