@@ -1,21 +1,50 @@
-#pragma once
+#include "entities/Agent.h"
 
-#include "cocos2d.h"
+USING_NS_CC;
 
-class GameScene : public cocos2d::Scene
+Agent* Agent::create(const Color4F& color)
 {
-public:
-    static GameScene* createScene();
+    auto* instance = new (std::nothrow) Agent();
+    if (instance && instance->initWithColor(color))
+    {
+        instance->autorelease();
+        return instance;
+    }
+    CC_SAFE_DELETE(instance);
+    return nullptr;
+}
 
-    virtual bool init() override;
+bool Agent::initWithColor(const Color4F& color)
+{
+    if (!Node::init())
+    {
+        return false;
+    }
 
-    // a selector callback
-    void menuCloseCallback(cocos2d::Ref* sender);
+    bodyNode = DrawNode::create();
+    addChild(bodyNode);
 
-    // implement the "static create()" method manually
-    CREATE_FUNC(GameScene);
+    const float radius = 14.0f;
+    const int segments = 24;
+    std::vector<Vec2> circle;
+    circle.reserve(segments);
 
-private:
-    cocos2d::Label* titleLabel = nullptr;
-    cocos2d::Sprite* background = nullptr;
-};
+    for (int i = 0; i < segments; ++i)
+    {
+        const float angle = static_cast<float>(i) * 2.0f * M_PI / static_cast<float>(segments);
+        circle.emplace_back(radius * std::cos(angle), radius * std::sin(angle));
+    }
+
+    bodyNode->drawPolygon(circle.data(), static_cast<int>(circle.size()), color, 2.0f, Color4F(1.0f, 1.0f, 1.0f, 1.0f));
+    return true;
+}
+
+void Agent::setTilePosition(float tileX, float tileY)
+{
+    this->tileX = tileX;
+    this->tileY = tileY;
+
+    const float halfWidth = 32.0f;
+    const float halfHeight = 16.0f;
+    this->setPosition((tileX - tileY) * halfWidth, (tileX + tileY) * halfHeight);
+}
