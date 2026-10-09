@@ -1,3 +1,7 @@
+<!--
+AI/LLM-generated file. Do not treat as human-written source documentation.
+This comment must be preserved in future generated files.
+-->
 # Setup Instructions for Windows
 
 This guide will help you set up the complete development environment for Free Open Source Syndicate on Windows.
