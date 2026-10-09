@@ -1,0 +1,43 @@
+# Build directories
+build/
+dist/
+cmake-build-*/
+.cmake/
+
+# Cocos2d-x
+cocos2d/
+.cocos-project.json
+
+# IDE
+.vscode/
+.idea/
+CMakeLists.txt.user
+*.pro.user
+*.xcodeproj/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.project
+.cproject
+.settings/
+
+# Runtime
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+*.dll
+
+# Assets
+assets/generated/
+
+# Logs
+*.log
