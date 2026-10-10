@@ -4,7 +4,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGET_DIR="${ROOT_DIR}/third_party/cocos2d-x"
-COCOS2D_X_REPO="https://github.com/cocos/cocos2d-x.git"
 COCOS2D_X_VERSION="${COCOS2D_X_VERSION:-master}"
 
 mkdir -p "${ROOT_DIR}/third_party"
@@ -18,7 +17,17 @@ if [ -d "${TARGET_DIR}/.git" ]; then
 fi
 
 echo "Cloning Cocos2d-x into ${TARGET_DIR}"
-git clone --depth 1 --branch "${COCOS2D_X_VERSION}" "${COCOS2D_X_REPO}" "${TARGET_DIR}"
+
+# Try SSH first, fallback to HTTPS
+if ssh -T git@github.com >/dev/null 2>&1; then
+    echo "Using SSH authentication"
+    REPO_URL="git@github.com:cocos/cocos2d-x.git"
+else
+    echo "SSH authentication not available, using HTTPS fallback"
+    REPO_URL="https://github.com/cocos/cocos2d-x.git"
+fi
+
+git clone --depth 1 --branch "${COCOS2D_X_VERSION}" "${REPO_URL}" "${TARGET_DIR}"
 
 echo "Cocos2d-x setup complete."
 echo "Root: ${TARGET_DIR}"

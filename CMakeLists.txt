@@ -19,15 +19,33 @@ endif()
 
 if(NOT EXISTS "${COCOS2D_X_ROOT}/CMakeLists.txt")
     message(STATUS "Cocos2d-x not found in ${COCOS2D_X_ROOT}; attempting to fetch it.")
+    message(STATUS "Trying SSH authentication first, will fallback to HTTPS if needed.")
+    
+    # Try SSH first
     execute_process(
-        COMMAND git clone --depth 1 --branch master https://github.com/cocos/cocos2d-x.git "${COCOS2D_X_ROOT}"
-        RESULT_VARIABLE clone_result
-        OUTPUT_VARIABLE clone_output
-        ERROR_VARIABLE clone_error
+        COMMAND git clone --depth 1 --branch master git@github.com:cocos/cocos2d-x.git "${COCOS2D_X_ROOT}"
+        RESULT_VARIABLE ssh_result
+        OUTPUT_VARIABLE ssh_output
+        ERROR_VARIABLE ssh_error
     )
 
-    if(NOT clone_result EQUAL 0)
-        message(FATAL_ERROR "Failed to fetch Cocos2d-x.\n${clone_output}\n${clone_error}")
+    # If SSH fails, try HTTPS
+    if(NOT ssh_result EQUAL 0)
+        message(STATUS "SSH clone failed, attempting HTTPS fallback...")
+        execute_process(
+            COMMAND git clone --depth 1 --branch master https://github.com/cocos/cocos2d-x.git "${COCOS2D_X_ROOT}"
+            RESULT_VARIABLE https_result
+            OUTPUT_VARIABLE https_output
+            ERROR_VARIABLE https_error
+        )
+
+        if(NOT https_result EQUAL 0)
+            message(FATAL_ERROR "Failed to fetch Cocos2d-x via both SSH and HTTPS.\nSSH error: ${ssh_error}\nHTTPS error: ${https_error}")
+        else()
+            message(STATUS "Successfully cloned Cocos2d-x via HTTPS")
+        endif()
+    else()
+        message(STATUS "Successfully cloned Cocos2d-x via SSH")
     endif()
 endif()
 
