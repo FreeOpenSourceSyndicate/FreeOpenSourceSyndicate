@@ -18,13 +18,25 @@ fi
 
 echo "Cloning Cocos2d-x into ${TARGET_DIR}"
 
-# Determine the best Git URL based on SSH availability
-# Check if SSH_AUTH_SOCK is set (SSH agent available) or if ssh-add can list keys
-if [ -n "${SSH_AUTH_SOCK:-}" ] || ssh-add -l >/dev/null 2>&1; then
+if [ -n "${COCOS2D_X_REPO_URL:-}" ]; then
+    REPO_URL="${COCOS2D_X_REPO_URL}"
+elif [ -n "${SSH_AUTH_SOCK:-}" ] && ssh-add -l >/dev/null 2>&1; then
     echo "Using SSH authentication"
     REPO_URL="git@github.com:cocos/cocos2d-x.git"
+elif [ -t 0 ]; then
+    echo "SSH authentication is not available in this shell session."
+    read -rp "Use HTTPS fallback instead? [Y/n] " answer
+    case "${answer,,}" in
+        n|no)
+            echo "Aborting. Configure SSH or export COCOS2D_X_REPO_URL manually."
+            exit 1
+            ;;
+        *)
+            REPO_URL="https://github.com/cocos/cocos2d-x.git"
+            ;;
+    esac
 else
-    echo "SSH authentication not available, using HTTPS fallback"
+    echo "SSH authentication not available in this non-interactive session; using HTTPS fallback"
     REPO_URL="https://github.com/cocos/cocos2d-x.git"
 fi
 
