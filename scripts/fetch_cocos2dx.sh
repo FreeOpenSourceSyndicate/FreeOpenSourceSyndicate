@@ -18,7 +18,9 @@ fi
 
 echo "Cloning Cocos2d-x into ${TARGET_DIR}"
 
-# Try SSH first, fallback to HTTPS
+# Test SSH connectivity to GitHub
+# ssh -T outputs to stderr on success ("Hi username! You've successfully authenticated..."),
+# so we need to check the exit code, not the output
 if ssh -T git@github.com >/dev/null 2>&1; then
     echo "Using SSH authentication"
     REPO_URL="git@github.com:cocos/cocos2d-x.git"

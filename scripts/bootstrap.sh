@@ -17,7 +17,8 @@ fi
 
 echo "Fetching Cocos2d-x into ${COCOS2D_X_ROOT}"
 
-# Try SSH first, fallback to HTTPS
+# Test SSH connectivity to GitHub
+# ssh -T outputs to stderr on success, so we capture both stdout and stderr
 if ssh -T git@github.com >/dev/null 2>&1; then
     echo "Using SSH authentication"
     REPO_URL="git@github.com:cocos/cocos2d-x.git"
