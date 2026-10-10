@@ -20,39 +20,17 @@ echo "Cloning Cocos2d-x into ${TARGET_DIR}"
 
 if [ -n "${COCOS2D_X_REPO_URL:-}" ]; then
     REPO_URL="${COCOS2D_X_REPO_URL}"
-elif [ -n "${SSH_AUTH_SOCK:-}" ] && ssh-add -l >/dev/null 2>&1; then
-    echo "Attempting SSH authentication"
-    REPO_URL="git@github.com:cocos/cocos2d-x.git"
-elif [ -t 0 ]; then
-    echo "SSH authentication is not available in this shell session."
-    read -rp "Use HTTPS instead? [Y/n] " answer
-    case "${answer,,}" in
-        n|no)
-            echo "Aborting. Configure SSH or export COCOS2D_X_REPO_URL manually."
-            exit 1
-            ;;
-        *)
-            REPO_URL="https://github.com/cocos/cocos2d-x.git"
-            ;;
-    esac
+    echo "Using explicitly configured repo URL"
+elif [ "${COCOS2D_X_USE_SSH:-0}" = "1" ]; then
+    REPO_URL="git@github.com:cocos2d/cocos2d-x.git"
+    echo "Using SSH"
 else
-    echo "SSH authentication not available in this non-interactive session; using HTTPS fallback"
-    REPO_URL="https://github.com/cocos/cocos2d-x.git"
+    REPO_URL="https://github.com/cocos2d/cocos2d-x.git"
+    echo "Using HTTPS (default)"
 fi
 
 echo "Cloning from: $REPO_URL"
-if ! git clone --depth 1 --branch "${COCOS2D_X_VERSION}" "${REPO_URL}" "${TARGET_DIR}" 2>&1; then
-    # If SSH clone failed, try HTTPS as fallback
-    if [[ "${REPO_URL}" == git@github.com:* ]]; then
-        echo "SSH clone failed. Retrying with HTTPS..."
-        rm -rf "${TARGET_DIR}"
-        REPO_URL="https://github.com/cocos/cocos2d-x.git"
-        git clone --depth 1 --branch "${COCOS2D_X_VERSION}" "${REPO_URL}" "${TARGET_DIR}"
-    else
-        echo "Clone failed. Check your internet connection and repository access."
-        exit 1
-    fi
-fi
+git clone --depth 1 --branch "${COCOS2D_X_VERSION}" "${REPO_URL}" "${TARGET_DIR}"
 
 echo "Cocos2d-x setup complete."
 echo "Root: ${TARGET_DIR}"
