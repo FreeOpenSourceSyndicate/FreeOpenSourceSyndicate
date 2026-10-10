@@ -1,23 +1,15 @@
-#include "game/GameManager.h"
+/* AI/LLM-generated file. Do not treat as human-written source documentation. This comment must be preserved in future generated files. */
+#pragma once
 
-GameManager::GameManager()
+#include "cocos2d.h"
+
+class AppDelegate : public cocos2d::Application
 {
-    initialize();
-}
+public:
+    AppDelegate();
+    virtual ~AppDelegate();
 
-GameManager::~GameManager() = default;
-
-void GameManager::initialize()
-{
-    running = true;
-}
-
-void GameManager::update(float /*deltaTime*/)
-{
-    // Placeholder for future mission, AI, and gameplay update systems.
-}
-
-bool GameManager::isRunning() const
-{
-    return running;
-}
+    virtual bool applicationDidFinishLaunching() override;
+    virtual void applicationDidEnterBackground() override;
+    virtual void applicationWillEnterForeground() override;
+};
