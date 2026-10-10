@@ -9,9 +9,9 @@ mkdir -p "${ROOT_DIR}/third_party"
 
 if [ -d "${COCOS2D_X_ROOT}/.git" ]; then
     echo "Cocos2d-x already present at ${COCOS2D_X_ROOT}"
-    echo "Updating to latest master..."
+    echo "Updating to latest v4 branch..."
     git -C "${COCOS2D_X_ROOT}" fetch --all --tags --prune
-    git -C "${COCOS2D_X_ROOT}" checkout master
+    git -C "${COCOS2D_X_ROOT}" checkout v4
     exit 0
 fi
 
@@ -29,7 +29,7 @@ else
     echo "Using HTTPS (default)"
 fi
 
-echo "Cloning from: $REPO_URL"
-git clone --depth 1 --branch master "${REPO_URL}" "${COCOS2D_X_ROOT}"
+echo "Cloning from: $REPO_URL (branch: v4)"
+git clone --depth 1 --branch v4 "${REPO_URL}" "${COCOS2D_X_ROOT}"
 
 echo "Cocos2d-x bootstrap complete."
