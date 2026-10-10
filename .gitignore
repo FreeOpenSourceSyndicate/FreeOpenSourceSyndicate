@@ -7,7 +7,7 @@ cmake-build-*/
 .cmake/
 
 # Cocos2d-x
-cocos2d/
+cocos2d-x/
 .cocos-project.json
 
 # IDE
