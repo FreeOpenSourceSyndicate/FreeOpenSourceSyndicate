@@ -10,6 +10,10 @@ everything from scratch — no original assets, code, names, or trademarks.
 > **Contributing with an AI agent?** Read [`AGENTS.md`](AGENTS.md) first. It is
 > the shared rulebook for all AI (and human) contributors.
 
+> **Want to try it?** The current build is a playable single mission. See
+> [`CHANGELOG.md`](CHANGELOG.md) for what's in it and
+> [`docs/BUILD.md`](docs/BUILD.md) for build + play instructions.
+
 ## Project Overview
 
 **Free Open Source Syndicate** aims to recreate the gameplay, mechanics, and aesthetic of the original 1993 Syndicate game:
