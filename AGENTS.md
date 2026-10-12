@@ -234,9 +234,14 @@ game target locally and note the result in the PR.
 ## 10. Known gaps / TODO for the next agent
 
 - The game now has a **playable vertical slice**: an SDL2 isometric mission with
-  a four-agent squad, click-to-move orders, live combat (health, hit flashes,
-  kills), basic enemy AI, a HUD, a win/lose objective, and an attract mode
-  (`--demo`). See `docs/ROADMAP.md` Phase 1.5.
+  a four-agent squad, live combat (health, hit flashes, kills), basic enemy AI,
+  a HUD, a win/lose objective, and an attract mode (`--demo`). See
+  `docs/ROADMAP.md` Phase 1.5.
+- Player command layer (v0.2.0, "Command & Control"): individual agent selection
+  (click, shift-add, keys `1`–`4`, `A` for all) and focus-fire attack orders
+  (right-click / click an enemy). Agent orders live on `core::Agent`
+  (`orderedTarget`) and are driven through `Mission::orderAttack`/`clearOrder`;
+  the view only picks indices. Keep new orders in the core, not the view.
 - Combat/AI/mission logic lives in `src/core/sim/` (`Agent`, `Mission`, `Weapon`)
   and is unit-tested; keep it SDL-free.
 - Still markers, not sprites: no animation, zoom, or minimap yet (Phase 2).
@@ -246,3 +251,5 @@ game target locally and note the result in the PR.
   and `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke` and
   `game_demo` cover the SDL layer headlessly.
 - Engine-layer changes are covered by the CI `core + game` job (ADR-0005).
+- Tested releases are tagged (`v0.1.0`, `v0.2.0`) with a matching
+  `release/vX.Y.Z-*` branch for hands-on testing, plus a GitHub Release page.
