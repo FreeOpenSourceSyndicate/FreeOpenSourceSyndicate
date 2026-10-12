@@ -6,7 +6,9 @@ All notable changes to Free Open Source Syndicate. This project is an
 independent, from-scratch recreation of the *gameplay* of 1993's Syndicate; it
 contains no original assets, code, names, or trademarks.
 
-## [Unreleased]
+## [0.2.0] — 2026-10-12 — "Command & Control"
+
+Direct control over *which* agents you command and *what* they shoot.
 
 ### Added
 
