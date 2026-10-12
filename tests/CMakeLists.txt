@@ -9,6 +9,7 @@ set(FOSS_TEST_SOURCES
     test_isometric.cpp
     test_tilegrid.cpp
     test_pathfinding.cpp
+    test_agent.cpp
 )
 
 add_executable(run_tests ${FOSS_TEST_SOURCES})

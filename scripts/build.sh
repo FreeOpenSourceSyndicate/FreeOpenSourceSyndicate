@@ -8,7 +8,11 @@ BUILD_DIR="${ROOT_DIR}/build"
 mkdir -p "${BUILD_DIR}"
 cd "${BUILD_DIR}"
 
-cmake .. -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}"
-cmake --build . --config "${CMAKE_BUILD_TYPE:-Release}"
+# Full build by default: core + tests + the SDL2 game target.
+# Pass FOSS_BUILD_GAME=OFF to skip the game (no SDL2 needed).
+cmake .. \
+    -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}" \
+    -DFOSS_BUILD_GAME="${FOSS_BUILD_GAME:-ON}"
+cmake --build . --config "${CMAKE_BUILD_TYPE:-Release}" -j"$(nproc)"
 
-echo "Build complete."
+echo "Build complete. Binary: ${BUILD_DIR}/src/FreeOpenSourceSyndicate"

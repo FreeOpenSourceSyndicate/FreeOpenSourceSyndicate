@@ -2,14 +2,14 @@
 
 # Build directories
 build/
+build-core/
+build-*/
 dist/
 cmake-build-*/
 .cmake/
 
-# Cocos2d-x (fetched dependency; see scripts/fetch_cocos2dx.sh)
+# Fetched third-party dependencies
 third_party/
-cocos2d-x/
-.cocos-project.json
 
 # IDE
 .vscode/

@@ -15,7 +15,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure (core only, no engine dependency)
+      - name: Install SDL2
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
+
+      - name: Configure (core + SDL2 game target)
+        run: cmake -S . -B build -DFOSS_BUILD_GAME=ON -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release -j"$(nproc)"
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  core-only:
+    name: Core build (no graphics dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (core only)
         run: cmake -S . -B build -DFOSS_BUILD_GAME=OFF -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
