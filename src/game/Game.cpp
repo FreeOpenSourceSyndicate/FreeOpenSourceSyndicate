@@ -17,13 +17,24 @@ constexpr std::uint32_t rgba(int r, int g, int b, int a = 255)
     return static_cast<std::uint32_t>((a << 24) | (b << 16) | (g << 8) | r);
 }
 
-// Palette kept deliberately small and flat (prototype art, no external assets).
+// Flat palette (prototype art, no external assets).
 constexpr std::uint32_t kTileLight = rgba(58, 66, 58);
 constexpr std::uint32_t kTileDark = rgba(46, 53, 46);
 constexpr std::uint32_t kTileBlocked = rgba(30, 34, 30);
 constexpr std::uint32_t kBlockedEdge = rgba(90, 96, 90);
 constexpr std::uint32_t kGridLine = rgba(24, 27, 24);
 constexpr std::uint32_t kBackground = rgba(12, 13, 12);
+
+// Agent body colours.
+constexpr std::uint8_t kPlayerBody[3] = {40, 170, 60};
+constexpr std::uint8_t kPlayerBodySelected[3] = {90, 230, 130};
+constexpr std::uint8_t kEnemyBody[3] = {200, 55, 45};
+constexpr std::uint8_t kEnemyBodyFlash[3] = {255, 210, 90};
+
+constexpr SDL_Color kHudText{225, 235, 225, 255};
+constexpr SDL_Color kHudGood{120, 230, 140, 255};
+constexpr SDL_Color kHudBad{235, 110, 90, 255};
+constexpr SDL_Color kHudDim{150, 160, 150, 255};
 
 void setPixel(SDL_Surface* surface, int x, int y, std::uint32_t color)
 {
@@ -90,24 +101,32 @@ bool Game::init(int width, int height, bool headless)
         return false;
     }
 
-    buildMap();
-    buildMapTexture();
-    spawnAgents();
+    // Smooth the health bars / diamonds a little. Harmless on old hardware.
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
 
-    // Center the view on the squad's first agent.
-    if (!agents_.empty())
+    if (!font_.init(renderer_, 2))
     {
-        const core::Vec2 focus = tileToScreen(agents_.front().position());
-        cameraX_ += focus.x - static_cast<float>(screenWidth_) * 0.5f;
-        cameraY_ += focus.y - static_cast<float>(screenHeight_) * 0.5f;
+        std::fprintf(stderr, "font init failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    buildMission();
+    buildMapTexture();
+
+    // Center the view on the squad.
+    const auto& agents = mission_.agents();
+    if (!agents.empty())
+    {
+        centerOn(agents.front().position());
     }
 
     running_ = true;
     return true;
 }
 
-void Game::buildMap()
+void Game::buildMission()
 {
+    // Clear tiles.
     for (int y = 0; y < kMapHeight; ++y)
     {
         for (int x = 0; x < kMapWidth; ++x)
@@ -117,19 +136,68 @@ void Game::buildMap()
         }
     }
 
-    // A simple wall layout: a border of buildings plus an interior block.
-    for (int x = 4; x <= 8; ++x)
-    {
-        grid_.setWalkable(x, 6, false);
-    }
-    for (int y = 10; y <= 15; ++y)
+    // Some building blocks to make the map read as a place. Original layout.
+    auto wallRect = [this](int x0, int y0, int x1, int y1) {
+        for (int y = y0; y <= y1; ++y)
+        {
+            for (int x = x0; x <= x1; ++x)
+            {
+                if (x == x0 || x == x1 || y == y0 || y == y1)
+                {
+                    grid_.setWalkable(x, y, false);
+                }
+            }
+        }
+    };
+    wallRect(5, 5, 8, 8);
+    wallRect(14, 4, 18, 7);
+    wallRect(6, 15, 10, 19);
+    wallRect(16, 16, 20, 20);
+    for (int y = 10; y <= 13; ++y)
     {
         grid_.setWalkable(12, y, false);
     }
-    for (int x = 15; x <= 18; ++x)
+
+    mission_ = core::Mission(grid_, seed_);
+
+    auto makeAgent = [](float x, float y, core::Team team, const std::string& name,
+                        core::Weapon weapon, float health) {
+        core::Agent agent(x, y, 3.0f);
+        agent.setTeam(team);
+        agent.setName(name);
+        agent.setWeapon(std::move(weapon));
+        agent.setMaxHealth(health);
+        return agent;
+    };
+
+    // Player squad: four cyborgs, mirroring the classic four-agent team.
+    mission_.addAgent(makeAgent(1.5f, 1.5f, core::Team::Player, "ALPHA", core::makeRifle(), 100.0f));
+    mission_.addAgent(makeAgent(2.5f, 1.5f, core::Team::Player, "BRAVO", core::makePistol(), 90.0f));
+    mission_.addAgent(makeAgent(1.5f, 2.5f, core::Team::Player, "CHARLIE", core::makeUzi(), 80.0f));
+    mission_.addAgent(makeAgent(2.5f, 2.5f, core::Team::Player, "DELTA", core::makePistol(), 90.0f));
+
+    // Enemy pickets scattered across the map.
+    mission_.addAgent(makeAgent(11.5f, 3.5f, core::Team::Enemy, "GUARD-1", core::makePistol(), 60.0f));
+    mission_.addAgent(makeAgent(19.5f, 11.5f, core::Team::Enemy, "GUARD-2", core::makeRifle(), 70.0f));
+    mission_.addAgent(makeAgent(13.5f, 18.5f, core::Team::Enemy, "GUARD-3", core::makePistol(), 60.0f));
+    mission_.addAgent(makeAgent(21.5f, 2.5f, core::Team::Enemy, "GUARD-4", core::makeUzi(), 55.0f));
+    mission_.addAgent(makeAgent(9.5f, 12.5f, core::Team::Enemy, "GUARD-5", core::makeRifle(), 70.0f));
+
+    selected_.clear();
+    for (std::size_t i = 0; i < mission_.agents().size(); ++i)
     {
-        grid_.setWalkable(x, 12, false);
+        if (mission_.agents()[i].team() == core::Team::Player)
+        {
+            selected_.push_back(i);
+        }
     }
+}
+
+void Game::restart()
+{
+    seed_ = seed_ * 6364136223846793005ull + 1442695040888963407ull;
+    buildMission();
+    centerOn(mission_.agents().front().position());
 }
 
 void Game::buildMapTexture()
@@ -145,6 +213,10 @@ void Game::buildMapTexture()
     mapSurfaceWidth_ = static_cast<int>((kMapWidth + kMapHeight) * halfW + kTileWidth);
     mapSurfaceHeight_ = static_cast<int>((kMapWidth + kMapHeight) * halfH + kTileHeight * 2.0f);
 
+    if (mapTexture_ != nullptr)
+    {
+        SDL_DestroyTexture(mapTexture_);
+    }
     mapTexture_ = SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_ARGB8888,
                                     SDL_TEXTUREACCESS_STATIC, mapSurfaceWidth_, mapSurfaceHeight_);
     if (mapTexture_ == nullptr)
@@ -174,13 +246,13 @@ void Game::buildMapTexture()
             const int cy = static_cast<int>(center.y + mapOffsetY_);
 
             const bool walkable = grid_.isWalkable(x, y);
-            std::uint32_t color = walkable ? (((x + y) % 2 == 0) ? kTileLight : kTileDark)
-                                           : kTileBlocked;
+            const std::uint32_t color = walkable
+                                            ? (((x + y) % 2 == 0) ? kTileLight : kTileDark)
+                                            : kTileBlocked;
             fillDiamond(surface, cx, cy, halfW, halfH, color);
 
             if (!walkable)
             {
-                // Outline blocked tiles so walls read clearly.
                 fillDiamond(surface, cx, cy, halfW * 0.85f, halfH * 0.85f, kBlockedEdge);
                 fillDiamond(surface, cx, cy, halfW * 0.7f, halfH * 0.7f, kTileBlocked);
             }
@@ -196,18 +268,6 @@ void Game::buildMapTexture()
     SDL_FreeSurface(surface);
 }
 
-void Game::spawnAgents()
-{
-    // Four agents, in the spirit of a Syndicate squad. For now they stand at
-    // fixed posts; the player orders the selected one around with the mouse.
-    agents_.clear();
-    agents_.emplace_back(2.0f, 2.0f, 3.0f);
-    agents_.emplace_back(3.0f, 2.0f, 3.0f);
-    agents_.emplace_back(2.0f, 3.0f, 3.0f);
-    agents_.emplace_back(3.0f, 3.0f, 3.0f);
-    selected_ = 0;
-}
-
 core::Vec2 Game::tileToScreen(const core::Vec2& tile) const
 {
     const core::Vec2 world = core::tileToWorld(tile.x, tile.y, kTileWidth, kTileHeight);
@@ -220,7 +280,23 @@ core::TilePos Game::screenToTile(int screenX, int screenY) const
     const float worldY = static_cast<float>(screenY) + cameraY_ - mapOffsetY_;
     const core::Vec2 tile = core::worldToTile(worldX, worldY, kTileWidth, kTileHeight);
     return core::TilePos{static_cast<int>(std::floor(tile.x + 0.5f)),
-                   static_cast<int>(std::floor(tile.y + 0.5f))};
+                         static_cast<int>(std::floor(tile.y + 0.5f))};
+}
+
+void Game::centerOn(const core::Vec2& tile)
+{
+    const core::Vec2 screen = tileToScreen(tile);
+    cameraX_ += screen.x - static_cast<float>(screenWidth_) * 0.5f;
+    cameraY_ += screen.y - static_cast<float>(screenHeight_) * 0.5f;
+    clampCamera();
+}
+
+void Game::clampCamera()
+{
+    const float maxX = std::max(0.0f, static_cast<float>(mapSurfaceWidth_ - screenWidth_));
+    const float maxY = std::max(0.0f, static_cast<float>(mapSurfaceHeight_ - screenHeight_));
+    cameraX_ = std::max(0.0f, std::min(cameraX_, maxX));
+    cameraY_ = std::max(0.0f, std::min(cameraY_, maxY));
 }
 
 void Game::fillDiamond(SDL_Surface* surface, int centerX, int centerY, float halfW, float halfH,
@@ -246,6 +322,34 @@ void Game::fillDiamond(SDL_Surface* surface, int centerX, int centerY, float hal
     }
 }
 
+void Game::fillDiamondWorld(const core::Vec2& worldCenter, float radius, std::uint8_t r,
+                            std::uint8_t g, std::uint8_t b)
+{
+    // A small isometric diamond footprint, drawn as a few horizontal spans.
+    const float halfW = radius * (kTileWidth * 0.5f);
+    const float halfH = radius * (kTileHeight * 0.5f);
+    const core::Vec2 screen = core::Vec2{worldCenter.x + mapOffsetX_ - cameraX_,
+                                         worldCenter.y + mapOffsetY_ - cameraY_};
+    SDL_SetRenderDrawColor(renderer_, r, g, b, 255);
+    const int minY = static_cast<int>(screen.y - halfH);
+    const int maxY = static_cast<int>(screen.y + halfH);
+    for (int py = minY; py <= maxY; ++py)
+    {
+        const float dy = (static_cast<float>(py) - screen.y) / halfH;
+        const float span = 1.0f - std::fabs(dy);
+        if (span <= 0.0f)
+        {
+            continue;
+        }
+        SDL_Rect line;
+        line.x = static_cast<int>(screen.x - halfW * span);
+        line.w = static_cast<int>(2.0f * halfW * span) + 1;
+        line.y = py;
+        line.h = 1;
+        SDL_RenderFillRect(renderer_, &line);
+    }
+}
+
 void Game::handleEvents(bool& running)
 {
     SDL_Event event;
@@ -262,35 +366,48 @@ void Game::handleEvents(bool& running)
             case SDLK_ESCAPE:
                 running = false;
                 break;
-            case SDLK_TAB:
-                if (!agents_.empty())
-                {
-                    selected_ = (selected_ + 1) % static_cast<int>(agents_.size());
-                }
+            case SDLK_r:
+                restart();
                 break;
             case SDLK_LEFT:
                 cameraX_ -= kTileWidth;
+                clampCamera();
                 break;
             case SDLK_RIGHT:
                 cameraX_ += kTileWidth;
+                clampCamera();
                 break;
             case SDLK_UP:
                 cameraY_ -= kTileHeight;
+                clampCamera();
                 break;
             case SDLK_DOWN:
                 cameraY_ += kTileHeight;
+                clampCamera();
                 break;
             default:
                 break;
             }
             break;
         case SDL_MOUSEBUTTONDOWN:
-            if (event.button.button == SDL_BUTTON_LEFT && !agents_.empty())
+            if (event.button.button == SDL_BUTTON_LEFT)
             {
                 const core::TilePos goal = screenToTile(event.button.x, event.button.y);
                 if (grid_.inBounds(goal.x, goal.y) && grid_.isWalkable(goal.x, goal.y))
                 {
-                    agents_[static_cast<std::size_t>(selected_)].moveTo(grid_, goal);
+                    // Spread the squad over a small 2-wide formation around the
+                    // clicked tile so agents do not stack on one another.
+                    for (std::size_t i = 0; i < selected_.size(); ++i)
+                    {
+                        const core::TilePos offset{static_cast<int>(i % 2) - 1,
+                                                   static_cast<int>(i / 2)};
+                        core::TilePos target{goal.x + offset.x, goal.y + offset.y};
+                        if (!grid_.inBounds(target.x, target.y) || !grid_.isWalkable(target.x, target.y))
+                        {
+                            target = goal; // fall back to the clicked tile
+                        }
+                        mission_.orderMove(selected_[i], target);
+                    }
                 }
             }
             break;
@@ -302,9 +419,260 @@ void Game::handleEvents(bool& running)
 
 void Game::update(float dt)
 {
-    for (core::Agent& agent : agents_)
+    if (autoPlay_)
     {
-        agent.update(dt);
+        updateAutoPlay(dt);
+        followSquad(dt);
+    }
+    mission_.update(dt);
+}
+
+void Game::updateAutoPlay(float dt)
+{
+    autoPlayTimer_ -= dt;
+    if (mission_.state() != core::MissionState::Running)
+    {
+        // Auto-restart after the mission ends, for a looping demo.
+        autoPlayTimer_ -= dt;
+        if (autoPlayTimer_ <= 0.0f)
+        {
+            restart();
+            autoPlayTimer_ = 0.0f;
+        }
+        return;
+    }
+    if (autoPlayTimer_ > 0.0f)
+    {
+        return;
+    }
+    autoPlayTimer_ = 0.75f;
+
+    // Every agent advances on the nearest enemy unless already engaged.
+    const auto& agents = mission_.agents();
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        const core::Agent& agent = agents[i];
+        if (!agent.isAlive() || agent.team() != core::Team::Player)
+        {
+            continue;
+        }
+        int best = -1;
+        float bestDistance = 0.0f;
+        for (std::size_t j = 0; j < agents.size(); ++j)
+        {
+            if (!agents[j].isAlive() || agents[j].team() != core::Team::Enemy)
+            {
+                continue;
+            }
+            const float dx = agents[j].position().x - agent.position().x;
+            const float dy = agents[j].position().y - agent.position().y;
+            const float distance = dx * dx + dy * dy;
+            if (best == -1 || distance < bestDistance)
+            {
+                best = static_cast<int>(j);
+                bestDistance = distance;
+            }
+        }
+        if (best < 0)
+        {
+            continue;
+        }
+        const core::Agent& target = agents[static_cast<std::size_t>(best)];
+        const float range = agent.weapon().range;
+        const float dx = target.position().x - agent.position().x;
+        const float dy = target.position().y - agent.position().y;
+        if (dx * dx + dy * dy > range * range * 0.64f)
+        {
+            mission_.orderMove(i, target.tile());
+        }
+        else
+        {
+            mission_.orderMove(i, agent.tile());
+        }
+    }
+}
+
+void Game::followSquad(float dt)
+{
+    // Smoothly keep the camera on the living members of the squad.
+    const auto& agents = mission_.agents();
+    core::Vec2 centroid{0.0f, 0.0f};
+    int count = 0;
+    for (const core::Agent& agent : agents)
+    {
+        if (agent.isAlive() && agent.team() == core::Team::Player)
+        {
+            centroid = centroid + agent.position();
+            ++count;
+        }
+    }
+    if (count == 0)
+    {
+        return;
+    }
+    centroid = centroid * (1.0f / static_cast<float>(count));
+
+    const core::Vec2 wantScreen = tileToScreen(centroid);
+    const float wantX = cameraX_ + wantScreen.x - static_cast<float>(screenWidth_) * 0.5f;
+    const float wantY = cameraY_ + wantScreen.y - static_cast<float>(screenHeight_) * 0.5f;
+
+    const float t = std::min(1.0f, dt * 4.0f);
+    cameraX_ += (wantX - cameraX_) * t;
+    cameraY_ += (wantY - cameraY_) * t;
+    clampCamera();
+}
+
+void Game::renderAgents()
+{
+    const auto& agents = mission_.agents();
+
+    // Draw non-selected agents first so selected ones (and the marker) sit on top.
+    std::vector<std::size_t> order(agents.size());
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        order[i] = i;
+    }
+    std::sort(order.begin(), order.end(), [&agents, this](std::size_t a, std::size_t b) {
+        const bool sa = std::find(selected_.begin(), selected_.end(), a) != selected_.end();
+        const bool sb = std::find(selected_.begin(), selected_.end(), b) != selected_.end();
+        if (sa != sb)
+        {
+            return !sa; // non-selected first
+        }
+        return agents[a].position().y < agents[b].position().y;
+    });
+
+    for (std::size_t index : order)
+    {
+        const core::Agent& agent = agents[index];
+        if (!agent.isAlive())
+        {
+            continue;
+        }
+
+        const bool isSelected = std::find(selected_.begin(), selected_.end(), index) != selected_.end();
+        const core::Vec2 world = core::tileToWorld(agent.position().x, agent.position().y, kTileWidth,
+                                                   kTileHeight);
+
+        // Enemy hit-flash brightens the body briefly.
+        if (agent.team() == core::Team::Enemy)
+        {
+            if (agent.hitFlash() > 0.0f)
+            {
+                fillDiamondWorld(world, 0.34f, kEnemyBodyFlash[0], kEnemyBodyFlash[1],
+                                 kEnemyBodyFlash[2]);
+            }
+            else
+            {
+                fillDiamondWorld(world, 0.34f, kEnemyBody[0], kEnemyBody[1], kEnemyBody[2]);
+            }
+        }
+        else if (isSelected)
+        {
+            fillDiamondWorld(world, 0.36f, kPlayerBodySelected[0], kPlayerBodySelected[1],
+                             kPlayerBodySelected[2]);
+        }
+        else
+        {
+            fillDiamondWorld(world, 0.34f, kPlayerBody[0], kPlayerBody[1], kPlayerBody[2]);
+        }
+
+        // Health bar above the agent (players and enemies alike).
+        const core::Vec2 screen = tileToScreen(agent.position());
+        const int barW = 20;
+        const int barH = 3;
+        const int barX = static_cast<int>(screen.x) - barW / 2;
+        const int barY = static_cast<int>(screen.y) - 18;
+
+        SDL_SetRenderDrawColor(renderer_, 20, 20, 20, 255);
+        SDL_Rect back{barX - 1, barY - 1, barW + 2, barH + 2};
+        SDL_RenderFillRect(renderer_, &back);
+
+        const float fraction = agent.healthFraction();
+        const int filled = static_cast<int>(fraction * static_cast<float>(barW));
+        SDL_SetRenderDrawColor(renderer_, fraction > 0.5f ? 90 : 235,
+                               fraction > 0.5f ? 210 : 90, fraction > 0.5f ? 110 : 70, 255);
+        SDL_Rect fore{barX, barY, filled, barH};
+        SDL_RenderFillRect(renderer_, &fore);
+
+        if (isSelected)
+        {
+            // A bright ring under the selected agent.
+            fillDiamondWorld(world, 0.5f, 250, 250, 250);
+            fillDiamondWorld(world, 0.44f, kPlayerBodySelected[0], kPlayerBodySelected[1],
+                             kPlayerBodySelected[2]);
+        }
+    }
+}
+
+void Game::renderHud()
+{
+    const int margin = 8;
+    const int lineH = font_.lineHeight();
+
+    // Semi-transparent top bar.
+    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 170);
+    SDL_Rect topBar{0, 0, screenWidth_, lineH + margin};
+    SDL_RenderFillRect(renderer_, &topBar);
+
+    font_.draw(renderer_, margin, margin / 2, "FREE OPEN SOURCE SYNDICATE", kHudText);
+    const std::string objective =
+        "OBJECTIVE: ELIMINATE ALL " + std::to_string(mission_.aliveCount(core::Team::Enemy)) +
+        " ENEMY AGENTS   [R] RESTART   [CLICK] MOVE SQUAD";
+    font_.draw(renderer_, screenWidth_ - font_.textWidth(objective) - margin, margin / 2, objective,
+               kHudDim);
+
+    // Squad panel (bottom-left).
+    const auto& agents = mission_.agents();
+    int panelLines = 1;
+    for (const core::Agent& agent : agents)
+    {
+        if (agent.team() == core::Team::Player)
+        {
+            ++panelLines;
+        }
+    }
+    const int panelH = lineH * panelLines + margin;
+    const int panelY = screenHeight_ - panelH;
+
+    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 170);
+    SDL_Rect panel{0, panelY, 320, panelH};
+    SDL_RenderFillRect(renderer_, &panel);
+
+    int y = panelY + margin / 2;
+    font_.draw(renderer_, margin, y, "SQUAD", kHudText);
+    y += lineH;
+    for (const core::Agent& agent : agents)
+    {
+        if (agent.team() != core::Team::Player)
+        {
+            continue;
+        }
+        const int hp = static_cast<int>(std::ceil(agent.healthFraction() * 100.0f));
+        std::string row = agent.name() + "  " + agent.weapon().name + "  HP " + std::to_string(hp);
+        const SDL_Color color = agent.isAlive() ? (hp > 50 ? kHudGood : kHudBad) : kHudDim;
+        font_.draw(renderer_, margin, y, row, color);
+        y += lineH;
+    }
+
+    // Centre banner when the mission ends.
+    if (mission_.state() != core::MissionState::Running)
+    {
+        const bool won = mission_.state() == core::MissionState::Won;
+        const std::string message = mission_.stateName();
+        const std::string sub = won ? "PRESS R TO RUN IT AGAIN" : "PRESS R TO RETRY";
+        const int cx = screenWidth_ / 2;
+
+        SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 190);
+        SDL_Rect banner{0, screenHeight_ / 2 - lineH * 2, screenWidth_, lineH * 4};
+        SDL_RenderFillRect(renderer_, &banner);
+
+        const SDL_Color color = won ? kHudGood : kHudBad;
+        font_.draw(renderer_, cx - font_.textWidth(message) / 2, screenHeight_ / 2 - lineH * 3 / 2,
+                   message, color);
+        font_.draw(renderer_, cx - font_.textWidth(sub) / 2, screenHeight_ / 2 + lineH / 2, sub,
+                   kHudText);
     }
 }
 
@@ -323,31 +691,8 @@ void Game::render()
         SDL_RenderCopy(renderer_, mapTexture_, nullptr, &dst);
     }
 
-    for (std::size_t i = 0; i < agents_.size(); ++i)
-    {
-        const core::Vec2 screen = tileToScreen(agents_[i].position());
-        const bool isSelected = static_cast<int>(i) == selected_;
-
-        SDL_SetRenderDrawColor(renderer_, isSelected ? 90 : 40, isSelected ? 220 : 140,
-                               isSelected ? 120 : 40, 255);
-        SDL_Rect body;
-        body.w = 12;
-        body.h = 12;
-        body.x = static_cast<int>(screen.x) - body.w / 2;
-        body.y = static_cast<int>(screen.y) - body.h / 2;
-        SDL_RenderFillRect(renderer_, &body);
-
-        if (isSelected)
-        {
-            SDL_SetRenderDrawColor(renderer_, 250, 250, 250, 255);
-            SDL_Rect marker;
-            marker.w = 20;
-            marker.h = 20;
-            marker.x = static_cast<int>(screen.x) - marker.w / 2;
-            marker.y = static_cast<int>(screen.y) - marker.h / 2;
-            SDL_RenderDrawRect(renderer_, &marker);
-        }
-    }
+    renderAgents();
+    renderHud();
 
     SDL_RenderPresent(renderer_);
 }

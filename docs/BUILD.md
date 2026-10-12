@@ -49,9 +49,37 @@ cmake --build build -j
 # Run the game
 ./build/src/FreeOpenSourceSyndicate
 
+# Watch the attract mode (the squad fights on its own — good for demos)
+./build/src/FreeOpenSourceSyndicate --demo
+
 # Run the tests
 ctest --test-dir build --output-on-failure
 ```
+
+## Playing the demo
+
+The current build is a **playable prototype mission**: eliminate all enemy
+agents before your squad is wiped out.
+
+| Input | Action |
+|-------|--------|
+| **Left click** | Order the selected squad to move (spreads into a 2-wide formation) |
+| **Arrow keys** | Scroll the camera |
+| **R** | Restart the mission (new seed) |
+| **Esc** | Quit |
+
+The squad is the four green agents (bottom-left of the map); enemies are red.
+Health bars float above every agent. The HUD shows the objective, the squad
+roster (name, weapon, HP), and a win/lose banner.
+
+### Command-line flags
+
+| Flag | Effect |
+|------|--------|
+| `--demo` | Attract mode: the squad advances on the nearest enemy automatically |
+| `--headless` | Use the dummy video driver (no display needed) |
+| `--frames N` | Run N frames then exit |
+| `--screenshot PATH` | Render one frame to a BMP and exit (with `--frames` first, simulates then captures) |
 
 ### Core-only build (no SDL2 needed)
 

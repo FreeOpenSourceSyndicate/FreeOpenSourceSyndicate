@@ -9,6 +9,7 @@ set(FOSS_CORE_SOURCES
     world/TileGrid.cpp
     world/Pathfinding.cpp
     sim/Agent.cpp
+    sim/Mission.cpp
 )
 
 add_library(foss_core STATIC ${FOSS_CORE_SOURCES})

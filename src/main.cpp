@@ -9,6 +9,7 @@ int main(int argc, char** argv)
 {
     int maxFrames = 0;
     bool headless = false;
+    bool demo = false;
     const char* screenshot = nullptr;
 
     for (int i = 1; i < argc; ++i)
@@ -25,6 +26,10 @@ int main(int argc, char** argv)
         {
             screenshot = argv[++i];
         }
+        else if (std::strcmp(argv[i], "--demo") == 0)
+        {
+            demo = true;
+        }
     }
 
     foss::game::Game game;
@@ -33,9 +38,15 @@ int main(int argc, char** argv)
         std::fprintf(stderr, "Failed to start the game.\n");
         return 1;
     }
+    game.setAutoPlay(demo);
 
     if (screenshot != nullptr)
     {
+        // Optionally advance the simulation first (e.g. to capture mid-combat).
+        if (maxFrames > 0)
+        {
+            game.run(maxFrames);
+        }
         const bool ok = game.saveScreenshot(screenshot);
         std::printf(ok ? "wrote %s\n" : "failed to write %s\n", screenshot);
         return ok ? 0 : 1;
