@@ -299,6 +299,70 @@ void Game::clampCamera()
     cameraY_ = std::max(0.0f, std::min(cameraY_, maxY));
 }
 
+int Game::agentAtScreen(int x, int y) const
+{
+    // Returns the index of the living player agent nearest the click, or -1.
+    // Agents are ~12px wide, so accept clicks within a small radius.
+    const float pickRadius = 16.0f;
+    const auto& agents = mission_.agents();
+    int best = -1;
+    float bestDistance = pickRadius * pickRadius;
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (!agents[i].isAlive() || agents[i].team() != core::Team::Player)
+        {
+            continue;
+        }
+        const core::Vec2 screen = tileToScreen(agents[i].position());
+        const float dx = static_cast<float>(x) - screen.x;
+        const float dy = static_cast<float>(y) - screen.y;
+        const float distance = dx * dx + dy * dy;
+        if (distance <= bestDistance)
+        {
+            best = static_cast<int>(i);
+            bestDistance = distance;
+        }
+    }
+    return best;
+}
+
+void Game::selectOnly(std::size_t index)
+{
+    selected_.clear();
+    selected_.push_back(index);
+}
+
+void Game::toggleSelect(std::size_t index)
+{
+    const auto it = std::find(selected_.begin(), selected_.end(), index);
+    if (it != selected_.end())
+    {
+        selected_.erase(it);
+    }
+    else
+    {
+        selected_.push_back(index);
+    }
+    if (selected_.empty())
+    {
+        // Never leave the player with nothing selected; fall back to the agent.
+        selected_.push_back(index);
+    }
+}
+
+void Game::selectAllPlayers()
+{
+    selected_.clear();
+    const auto& agents = mission_.agents();
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (agents[i].isAlive() && agents[i].team() == core::Team::Player)
+        {
+            selected_.push_back(i);
+        }
+    }
+}
+
 void Game::fillDiamond(SDL_Surface* surface, int centerX, int centerY, float halfW, float halfH,
                        std::uint32_t color)
 {
@@ -369,6 +433,33 @@ void Game::handleEvents(bool& running)
             case SDLK_r:
                 restart();
                 break;
+            case SDLK_a:
+                selectAllPlayers();
+                break;
+            case SDLK_1:
+            case SDLK_2:
+            case SDLK_3:
+            case SDLK_4:
+            {
+                // Map number keys to the Nth living player agent.
+                const int wanted = event.key.keysym.sym - SDLK_1;
+                int seen = 0;
+                const auto& agents = mission_.agents();
+                for (std::size_t i = 0; i < agents.size(); ++i)
+                {
+                    if (!agents[i].isAlive() || agents[i].team() != core::Team::Player)
+                    {
+                        continue;
+                    }
+                    if (seen == wanted)
+                    {
+                        selectOnly(i);
+                        break;
+                    }
+                    ++seen;
+                }
+                break;
+            }
             case SDLK_LEFT:
                 cameraX_ -= kTileWidth;
                 clampCamera();
@@ -392,21 +483,47 @@ void Game::handleEvents(bool& running)
         case SDL_MOUSEBUTTONDOWN:
             if (event.button.button == SDL_BUTTON_LEFT)
             {
-                const core::TilePos goal = screenToTile(event.button.x, event.button.y);
-                if (grid_.inBounds(goal.x, goal.y) && grid_.isWalkable(goal.x, goal.y))
+                const bool shift =
+                    (SDL_GetModState() & KMOD_SHIFT) != 0;
+                const int picked = agentAtScreen(event.button.x, event.button.y);
+                if (picked >= 0)
                 {
-                    // Spread the squad over a small 2-wide formation around the
-                    // clicked tile so agents do not stack on one another.
-                    for (std::size_t i = 0; i < selected_.size(); ++i)
+                    // Clicking an agent selects it (shift toggles it in/out).
+                    const std::size_t index = static_cast<std::size_t>(picked);
+                    if (shift)
                     {
-                        const core::TilePos offset{static_cast<int>(i % 2) - 1,
-                                                   static_cast<int>(i / 2)};
-                        core::TilePos target{goal.x + offset.x, goal.y + offset.y};
-                        if (!grid_.inBounds(target.x, target.y) || !grid_.isWalkable(target.x, target.y))
+                        toggleSelect(index);
+                    }
+                    else
+                    {
+                        selectOnly(index);
+                    }
+                }
+                else
+                {
+                    // Clicking the ground orders the current selection there.
+                    const core::TilePos goal = screenToTile(event.button.x, event.button.y);
+                    if (grid_.inBounds(goal.x, goal.y) && grid_.isWalkable(goal.x, goal.y))
+                    {
+                        // A lone agent goes exactly where you clicked; a group
+                        // spreads over a small 2-wide formation so agents do not
+                        // stack on one another.
+                        for (std::size_t i = 0; i < selected_.size(); ++i)
                         {
-                            target = goal; // fall back to the clicked tile
+                            core::TilePos target = goal;
+                            if (selected_.size() > 1)
+                            {
+                                const core::TilePos offset{static_cast<int>(i % 2) - 1,
+                                                           static_cast<int>(i / 2)};
+                                const core::TilePos candidate{goal.x + offset.x, goal.y + offset.y};
+                                if (grid_.inBounds(candidate.x, candidate.y) &&
+                                    grid_.isWalkable(candidate.x, candidate.y))
+                                {
+                                    target = candidate;
+                                }
+                            }
+                            mission_.orderMove(selected_[i], target);
                         }
-                        mission_.orderMove(selected_[i], target);
                     }
                 }
             }
@@ -619,7 +736,7 @@ void Game::renderHud()
     font_.draw(renderer_, margin, margin / 2, "FREE OPEN SOURCE SYNDICATE", kHudText);
     const std::string objective =
         "OBJECTIVE: ELIMINATE ALL " + std::to_string(mission_.aliveCount(core::Team::Enemy)) +
-        " ENEMY AGENTS   [R] RESTART   [CLICK] MOVE SQUAD";
+        " ENEMY AGENTS   [R] RESTART   [CLICK] MOVE   [1-4] SELECT   [A]LL";
     font_.draw(renderer_, screenWidth_ - font_.textWidth(objective) - margin, margin / 2, objective,
                kHudDim);
 
@@ -643,15 +760,20 @@ void Game::renderHud()
     int y = panelY + margin / 2;
     font_.draw(renderer_, margin, y, "SQUAD", kHudText);
     y += lineH;
-    for (const core::Agent& agent : agents)
+    for (std::size_t i = 0; i < agents.size(); ++i)
     {
+        const core::Agent& agent = agents[i];
         if (agent.team() != core::Team::Player)
         {
             continue;
         }
+        const bool isSelected =
+            std::find(selected_.begin(), selected_.end(), i) != selected_.end();
         const int hp = static_cast<int>(std::ceil(agent.healthFraction() * 100.0f));
-        std::string row = agent.name() + "  " + agent.weapon().name + "  HP " + std::to_string(hp);
-        const SDL_Color color = agent.isAlive() ? (hp > 50 ? kHudGood : kHudBad) : kHudDim;
+        const std::string marker = isSelected ? "> " : "  ";
+        std::string row =
+            marker + agent.name() + "  " + agent.weapon().name + "  HP " + std::to_string(hp);
+        const SDL_Color color = agent.isAlive() ? (isSelected ? kHudText : kHudDim) : kHudDim;
         font_.draw(renderer_, margin, y, row, color);
         y += lineH;
     }

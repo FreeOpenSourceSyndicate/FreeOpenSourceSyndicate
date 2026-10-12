@@ -63,7 +63,11 @@ agents before your squad is wiped out.
 
 | Input | Action |
 |-------|--------|
-| **Left click** | Order the selected squad to move (spreads into a 2-wide formation) |
+| **Left click an agent** | Select that agent (highlighted) |
+| **Shift + left click an agent** | Add/remove that agent from the selection |
+| **Keys `1`–`4`** | Select the 1st–4th living agent |
+| **`A`** | Select the whole squad |
+| **Left click the ground** | Order the selected agents to move (2-wide formation) |
 | **Arrow keys** | Scroll the camera |
 | **R** | Restart the mission (new seed) |
 | **Esc** | Quit |

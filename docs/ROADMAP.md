@@ -69,7 +69,8 @@ A shippable demo, deliberately original in code and art.
 - [ ] Depth-sorted sprite pass and animation (still markers, not sprites)
 - [ ] Zoom and a minimap
 - [ ] Interpolated rendering over fixed-step sim
-- [ ] True click-to-select individual agents
+- [x] Click-to-select individual agents (click, shift-add, `1`–`4`, `A` for all)
+- [ ] Control-group hotkeys and per-agent waypoint queue
 
 **Deliverable:** the Phase 1 scenario playable with mouse/keyboard.
 
