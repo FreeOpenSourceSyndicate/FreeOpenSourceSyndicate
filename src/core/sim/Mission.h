@@ -41,6 +41,17 @@ public:
     // Issues a move order to the agent at `index` (no-op if dead or invalid).
     void orderMove(std::size_t index, TilePos goal);
 
+    // Orders the agent at `index` to focus fire on `targetIndex`. Any agent may
+    // target any living agent; typically the player targets an enemy.
+    void orderAttack(std::size_t index, std::size_t targetIndex);
+
+    // Clears any explicit attack order for the agent at `index`.
+    void clearOrder(std::size_t index);
+
+    // Index of the nearest living agent on `enemyTeam` to (x, y) in tile space,
+    // or -1 if none. Used by the view to pick a target under the cursor.
+    int nearestEnemyTo(float tileX, float tileY, Team enemyTeam) const;
+
     // Advances the simulation by `dt` seconds: movement, AI, weapon fire,
     // damage, and win/lose evaluation.
     void update(float dt);

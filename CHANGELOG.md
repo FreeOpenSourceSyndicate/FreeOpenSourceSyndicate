@@ -10,6 +10,9 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **Focus-fire / attack orders:** right-click (or left-click) an enemy to order
+  the selected agents to engage it; a white/red reticle marks the target. The
+  order clears on a move order or when the target dies.
 - **Individual agent selection:** click an agent to select it, shift-click to
   add/remove, keys `1`–`4` for the Nth living agent, `A` for the whole squad.
   Orders apply to the current selection; the HUD roster marks selected agents

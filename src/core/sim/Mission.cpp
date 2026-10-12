@@ -48,10 +48,71 @@ void Mission::orderMove(std::size_t index, TilePos goal)
     {
         return;
     }
+    // A move order cancels any standing attack order.
+    agent.clearOrderedTarget();
     if (grid_ != nullptr)
     {
         agent.moveTo(*grid_, goal);
     }
+}
+
+void Mission::orderAttack(std::size_t index, std::size_t targetIndex)
+{
+    if (index >= agents_.size() || targetIndex >= agents_.size())
+    {
+        return;
+    }
+    Agent& agent = agents_[index];
+    Agent& target = agents_[targetIndex];
+    if (!agent.isAlive() || !target.isAlive() || index == targetIndex)
+    {
+        return;
+    }
+    agent.setOrderedTarget(static_cast<int>(targetIndex));
+
+    // Close to within weapon range if not already there.
+    if (grid_ != nullptr)
+    {
+        const float distance = distanceBetween(index, targetIndex);
+        if (distance > agent.weapon().range * 0.9f)
+        {
+            agent.moveTo(*grid_, target.tile());
+        }
+        else
+        {
+            agent.stop();
+        }
+    }
+}
+
+void Mission::clearOrder(std::size_t index)
+{
+    if (index < agents_.size())
+    {
+        agents_[index].clearOrderedTarget();
+    }
+}
+
+int Mission::nearestEnemyTo(float tileX, float tileY, Team enemyTeam) const
+{
+    int best = -1;
+    float bestDistance = 0.0f;
+    for (std::size_t i = 0; i < agents_.size(); ++i)
+    {
+        const Agent& agent = agents_[i];
+        if (!agent.isAlive() || agent.team() != enemyTeam)
+        {
+            continue;
+        }
+        const Vec2 delta = agent.position() - Vec2{tileX, tileY};
+        const float distance = length(delta);
+        if (best == -1 || distance < bestDistance)
+        {
+            best = static_cast<int>(i);
+            bestDistance = distance;
+        }
+    }
+    return best;
 }
 
 std::size_t Mission::aliveCount(Team team) const
@@ -164,7 +225,23 @@ void Mission::resolveFire()
         }
 
         const Team enemyTeam = attacker.team() == Team::Player ? Team::Enemy : Team::Player;
-        const int target = nearestEnemy(i, enemyTeam);
+
+        // Honour an explicit attack order if it still points at a living enemy;
+        // otherwise auto-acquire the nearest enemy.
+        int target = -1;
+        const int ordered = attacker.orderedTarget();
+        if (ordered >= 0 && static_cast<std::size_t>(ordered) < agents_.size())
+        {
+            const Agent& candidate = agents_[static_cast<std::size_t>(ordered)];
+            if (candidate.isAlive() && candidate.team() == enemyTeam)
+            {
+                target = ordered;
+            }
+        }
+        if (target < 0)
+        {
+            target = nearestEnemy(i, enemyTeam);
+        }
         if (target < 0)
         {
             continue;
