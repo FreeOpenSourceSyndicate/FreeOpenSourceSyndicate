@@ -59,9 +59,11 @@ private:
 
     // Selection helpers, all clamped to living player agents.
     int agentAtScreen(int x, int y) const;
+    int enemyAtScreen(int x, int y) const;
     void selectOnly(std::size_t index);
     void toggleSelect(std::size_t index);
     void selectAllPlayers();
+    void orderAttackOn(int targetIndex);
 
     core::Vec2 tileToScreen(const core::Vec2& tile) const;
     core::TilePos screenToTile(int screenX, int screenY) const;

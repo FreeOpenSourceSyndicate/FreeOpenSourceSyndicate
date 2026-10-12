@@ -92,6 +92,15 @@ public:
     float thinkTimer() const { return thinkTimer_; }
     void setThinkTimer(float seconds) { thinkTimer_ = seconds; }
 
+    // --- orders -----------------------------------------------------------
+
+    // An explicit attack order: the agent index to focus fire on, or -1 for
+    // "no order" (the mission then auto-acquires the nearest enemy). The index
+    // is validated by Mission each step, so a stale index is harmless.
+    int orderedTarget() const { return orderedTarget_; }
+    void setOrderedTarget(int index) { orderedTarget_ = index; }
+    void clearOrderedTarget() { orderedTarget_ = -1; }
+
     // True when the agent is alive and armed.
     bool canAttack() const { return isAlive(); }
 
@@ -110,6 +119,7 @@ private:
     float fireCooldown_ = 0.0f;
     float hitFlash_ = 0.0f;
     float thinkTimer_ = 0.0f;
+    int orderedTarget_ = -1;
 };
 
 } // namespace foss::core

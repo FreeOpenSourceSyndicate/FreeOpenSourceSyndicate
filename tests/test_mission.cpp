@@ -134,3 +134,66 @@ FOSS_TEST(Mission, NoOrdersStalemateStaysRunning)
     }
     FOSS_CHECK(mission.state() == MissionState::Running);
 }
+
+FOSS_TEST(Mission, AttackOrderFocusesFireOnChosenTarget)
+{
+    TileGrid grid(30, 30);
+    Mission mission(grid, 3u);
+    // The hero is far from both enemies; the near one is closer, so auto-acquire
+    // would pick it. The order must make the hero shoot the far one first.
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 500.0f,
+                               Weapon{"Test", 1000.0f, 20.0f, 10.0f, 1.0f}));
+    mission.addAgent(makeAgent(6.0f, 2.0f, Team::Enemy, 30.0f));  // near, index 1
+    mission.addAgent(makeAgent(16.0f, 2.0f, Team::Enemy, 30.0f)); // far, index 2
+
+    mission.orderAttack(0, 2);
+    FOSS_CHECK_EQ(mission.agents()[0].orderedTarget(), 2);
+
+    for (int i = 0; i < 40 && mission.agents()[2].isAlive(); ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSS_CHECK(!mission.agents()[2].isAlive()); // far target eliminated first
+    FOSS_CHECK(mission.agents()[1].isAlive());  // near target still standing
+}
+
+FOSS_TEST(Mission, MoveOrderClearsAttackOrder)
+{
+    TileGrid grid(30, 30);
+    Mission mission(grid, 4u);
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    mission.addAgent(makeAgent(8.0f, 2.0f, Team::Enemy, 100.0f));
+
+    mission.orderAttack(0, 1);
+    FOSS_CHECK_EQ(mission.agents()[0].orderedTarget(), 1);
+
+    mission.orderMove(0, TilePos{3, 3});
+    FOSS_CHECK_EQ(mission.agents()[0].orderedTarget(), -1);
+}
+
+FOSS_TEST(Mission, DeadTargetFallsBackToNearestEnemy)
+{
+    TileGrid grid(30, 30);
+    Mission mission(grid, 6u);
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 500.0f,
+                               Weapon{"Test", 1000.0f, 20.0f, 10.0f, 1.0f}));
+    mission.addAgent(makeAgent(6.0f, 2.0f, Team::Enemy, 30.0f));   // near, index 1
+    mission.addAgent(makeAgent(16.0f, 2.0f, Team::Enemy, 1000.0f)); // far, index 2
+
+    // Order fire on the near enemy until it dies, then the hero should continue
+    // firing at the surviving enemy rather than stalling.
+    mission.orderAttack(0, 1);
+    for (int i = 0; i < 60 && mission.agents()[1].isAlive(); ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSS_CHECK(!mission.agents()[1].isAlive());
+
+    const float farHealthBefore = mission.agents()[2].health();
+    for (int i = 0; i < 40; ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSS_CHECK(mission.agents()[2].health() < farHealthBefore);
+}
+

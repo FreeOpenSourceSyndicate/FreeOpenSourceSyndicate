@@ -363,6 +363,45 @@ void Game::selectAllPlayers()
     }
 }
 
+int Game::enemyAtScreen(int x, int y) const
+{
+    // Nearest living enemy agent to the click, or -1 (for attack orders).
+    const float pickRadius = 16.0f;
+    const auto& agents = mission_.agents();
+    int best = -1;
+    float bestDistance = pickRadius * pickRadius;
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (!agents[i].isAlive() || agents[i].team() != core::Team::Enemy)
+        {
+            continue;
+        }
+        const core::Vec2 screen = tileToScreen(agents[i].position());
+        const float dx = static_cast<float>(x) - screen.x;
+        const float dy = static_cast<float>(y) - screen.y;
+        const float distance = dx * dx + dy * dy;
+        if (distance <= bestDistance)
+        {
+            best = static_cast<int>(i);
+            bestDistance = distance;
+        }
+    }
+    return best;
+}
+
+void Game::orderAttackOn(int targetIndex)
+{
+    if (targetIndex < 0)
+    {
+        return;
+    }
+    const std::size_t target = static_cast<std::size_t>(targetIndex);
+    for (const std::size_t index : selected_)
+    {
+        mission_.orderAttack(index, target);
+    }
+}
+
 void Game::fillDiamond(SDL_Surface* surface, int centerX, int centerY, float halfW, float halfH,
                        std::uint32_t color)
 {
@@ -481,23 +520,28 @@ void Game::handleEvents(bool& running)
             }
             break;
         case SDL_MOUSEBUTTONDOWN:
-            if (event.button.button == SDL_BUTTON_LEFT)
+            if (event.button.button == SDL_BUTTON_LEFT || event.button.button == SDL_BUTTON_RIGHT)
             {
-                const bool shift =
-                    (SDL_GetModState() & KMOD_SHIFT) != 0;
-                const int picked = agentAtScreen(event.button.x, event.button.y);
-                if (picked >= 0)
+                const bool right = event.button.button == SDL_BUTTON_RIGHT;
+                const bool shift = (SDL_GetModState() & KMOD_SHIFT) != 0;
+
+                // Right-click, or clicking an enemy, is an attack order.
+                const int enemy = enemyAtScreen(event.button.x, event.button.y);
+                if (right || (enemy >= 0 && !shift))
                 {
-                    // Clicking an agent selects it (shift toggles it in/out).
-                    const std::size_t index = static_cast<std::size_t>(picked);
-                    if (shift)
-                    {
-                        toggleSelect(index);
-                    }
-                    else
-                    {
-                        selectOnly(index);
-                    }
+                    orderAttackOn(enemy);
+                    break;
+                }
+
+                // Otherwise it is a selection or a move order.
+                const int picked = agentAtScreen(event.button.x, event.button.y);
+                if (picked >= 0 && !shift)
+                {
+                    selectOnly(static_cast<std::size_t>(picked));
+                }
+                else if (picked >= 0)
+                {
+                    toggleSelect(static_cast<std::size_t>(picked));
                 }
                 else
                 {
@@ -604,7 +648,8 @@ void Game::updateAutoPlay(float dt)
         }
         else
         {
-            mission_.orderMove(i, agent.tile());
+            // In range: focus fire on the chosen enemy (also draws the reticle).
+            mission_.orderAttack(i, static_cast<std::size_t>(best));
         }
     }
 }
@@ -720,6 +765,38 @@ void Game::renderAgents()
                              kPlayerBodySelected[2]);
         }
     }
+
+    // Attack-order reticles: any agent a selected squadmate has focused fire on.
+    for (std::size_t target : order)
+    {
+        const core::Agent& agent = agents[target];
+        if (!agent.isAlive())
+        {
+            continue;
+        }
+        bool focused = false;
+        for (std::size_t index : selected_)
+        {
+            if (agents[index].orderedTarget() == static_cast<int>(target))
+            {
+                focused = true;
+                break;
+            }
+        }
+        if (!focused)
+        {
+            continue;
+        }
+        const core::Vec2 world = core::tileToWorld(agent.position().x, agent.position().y, kTileWidth,
+                                                   kTileHeight);
+        // A white outer ring with a red core reads clearly as "engaged".
+        fillDiamondWorld(world, 0.6f, 250, 250, 250);
+        fillDiamondWorld(world, 0.52f, 235, 90, 70);
+        fillDiamondWorld(world, 0.34f,
+                         agent.team() == core::Team::Enemy ? kEnemyBody[0] : kPlayerBody[0],
+                         agent.team() == core::Team::Enemy ? kEnemyBody[1] : kPlayerBody[1],
+                         agent.team() == core::Team::Enemy ? kEnemyBody[2] : kPlayerBody[2]);
+    }
 }
 
 void Game::renderHud()
@@ -736,7 +813,7 @@ void Game::renderHud()
     font_.draw(renderer_, margin, margin / 2, "FREE OPEN SOURCE SYNDICATE", kHudText);
     const std::string objective =
         "OBJECTIVE: ELIMINATE ALL " + std::to_string(mission_.aliveCount(core::Team::Enemy)) +
-        " ENEMY AGENTS   [R] RESTART   [CLICK] MOVE   [1-4] SELECT   [A]LL";
+        " ENEMY AGENTS   [L] MOVE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] SELECT   [A]LL   [R] RESTART";
     font_.draw(renderer_, screenWidth_ - font_.textWidth(objective) - margin, margin / 2, objective,
                kHudDim);
 
