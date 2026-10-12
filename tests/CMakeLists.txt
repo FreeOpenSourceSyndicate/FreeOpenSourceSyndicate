@@ -10,6 +10,8 @@ set(FOSS_TEST_SOURCES
     test_tilegrid.cpp
     test_pathfinding.cpp
     test_agent.cpp
+    test_rng.cpp
+    test_mission.cpp
 )
 
 add_executable(run_tests ${FOSS_TEST_SOURCES})

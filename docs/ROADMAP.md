@@ -28,41 +28,63 @@ rendered**. That keeps the project parallelizable across many agents.
 
 The heart of the game, engine-independent and unit-tested.
 
-- [ ] `core/math`: `Vec2`, isometric ↔ world transforms, fixed-timestep loop
-- [ ] `core/world`: tile grid model, walkability, tile properties
-- [ ] `core/world`: A* pathfinding on the grid
-- [ ] `core/sim`: entity model (agents, civilians, vehicles, structures)
-- [ ] `core/sim`: movement/steering along paths
-- [ ] `core/sim`: squad model (4 agents, selection, orders)
-- [ ] `core/sim`: combat (hitscan/projectile, damage, hit chance)
-- [ ] `core/sim`: vision/fog, line-of-sight
-- [ ] Deterministic replay of a scripted scenario in a test
+- [x] `core/math`: `Vec2`, isometric ↔ world transforms
+- [x] `core/world`: tile grid model, walkability, tile properties
+- [x] `core/world`: A* pathfinding on the grid
+- [x] `core/sim`: agent entity with team, health, weapon
+- [x] `core/sim`: movement along paths (fixed-timestep)
+- [x] `core/sim`: squad of four agents with orders
+- [x] `core/sim`: combat (hit chance with range falloff, damage, cooldowns)
+- [x] `core/sim`: enemy AI (sight, chase, engage)
+- [x] `core/sim`: mission objectives + win/lose
+- [x] Deterministic RNG (xorshift64*) for reproducible outcomes
+- [x] Deterministic scenario tests (same seed ⇒ same result)
 
-**Deliverable:** a test that runs a tiny mission entirely headless and asserts
-outcomes (agent A kills agent B, reaches tile X, etc.).
+**Deliverable:** done — `tests/test_mission.cpp` runs missions headless and
+asserts outcomes (squad wipes the enemy ⇒ `Won`, squad dies ⇒ `Lost`).
 
-## Phase 2 — Render the simulation
+## Phase 1.5 — Playable vertical slice ("show it to someone") ✅
 
-- [ ] Engine layer consumes `core` state and draws it
-- [ ] Isometric tile renderer with depth sorting
-- [ ] Agent sprites + animation driven by sim state
-- [ ] Camera: pan, zoom, follow squad
-- [ ] Input: point-to-move, click-to-select, squad commands
-- [ ] HUD: agent portraits, health, weapon, minimap
+A shippable demo, deliberately original in code and art.
+
+- [x] SDL2 windowed game with the squad on an isometric city map
+- [x] Click-to-move squad orders with a 2-wide formation
+- [x] Live combat: health bars, hit flashes, kills
+- [x] Enemy AI that closes and fights
+- [x] On-screen HUD: objective, squad roster, win/lose banner
+- [x] Embedded bitmap font (no SDL_ttf dependency)
+- [x] Attract mode (`--demo`) for hands-off demos and CI
+- [x] Restart (`R`) and camera follow
+
+**Deliverable:** done — run the binary and play, or `--demo` to watch. See
+`docs/BUILD.md` for the two commands.
+
+## Phase 2 — Render the simulation (polish)
+
+- [x] Engine layer consumes `core` state and draws it
+- [x] Agent markers + selection + health bars
+- [x] Camera: pan (arrows), follow squad (auto)
+- [x] Input: point-to-move, squad commands
+- [x] HUD: objective, squad roster, mission state
+- [ ] Depth-sorted sprite pass and animation (still markers, not sprites)
+- [ ] Zoom and a minimap
 - [ ] Interpolated rendering over fixed-step sim
+- [ ] True click-to-select individual agents
 
 **Deliverable:** the Phase 1 scenario playable with mouse/keyboard.
 
 ## Phase 3 — Game systems
 
 - [ ] Weapons: pistol, uzi, minigun, flamethrower, rocket launcher, laser
+      (started: pistol, rifle, uzi)
 - [ ] Gadgets: Persuadertron, shield, medikit, scanner
 - [ ] Cybernetic upgrades (speed, accuracy, health, perception)
 - [ ] Vehicles: cars/trains, hijacking, mounted weapons
 - [ ] Destructible environment
-- [ ] Enemy AI: patrol, engage, retreat, call backup
+- [x] Enemy AI: engage (basic chase + fire)
+- [ ] Enemy AI: patrol, retreat, call backup
 - [ ] Civilian/persuasion behaviour
-- [ ] Mission objectives + win/lose
+- [x] Mission objectives + win/lose (demo: eliminate all enemies)
 
 ## Phase 4 — Metagame
 

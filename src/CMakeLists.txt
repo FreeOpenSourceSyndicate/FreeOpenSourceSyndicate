@@ -7,6 +7,7 @@
 set(FOSS_GAME_SOURCES
     main.cpp
     game/Game.cpp
+    game/Font.cpp
 )
 
 add_executable(FreeOpenSourceSyndicate ${FOSS_GAME_SOURCES})
@@ -41,4 +42,8 @@ set_target_properties(FreeOpenSourceSyndicate PROPERTIES
 if(BUILD_TESTS)
     add_test(NAME game_smoke
              COMMAND FreeOpenSourceSyndicate --headless --frames 30)
+    # Attract mode: runs the squad AI through combat and win/lose headless. Guards
+    # against crashes in the mission loop without needing a display.
+    add_test(NAME game_demo
+             COMMAND FreeOpenSourceSyndicate --headless --demo --frames 3000)
 endif()

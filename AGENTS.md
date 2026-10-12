@@ -233,12 +233,16 @@ game target locally and note the result in the PR.
 
 ## 10. Known gaps / TODO for the next agent
 
-- Cocos2d-x was dropped (ADR-0001/ADR-0006). The `src/game/` layer now runs on
-  SDL2: a window, a software-capable renderer, a pre-rendered isometric map, and
-  a four-agent squad that moves along A* paths.
-- The game target is still a skeleton. There is **no combat, AI, vision, or HUD
-  yet** — those are Phase 1/3 work in `docs/ROADMAP.md`.
-- `--headless --frames N` and `--headless --screenshot out.bmp` exist for
-  automated verification (the `game_smoke` ctest uses the first).
-- Data format for content is still undecided (ADR-0003).
+- The game now has a **playable vertical slice**: an SDL2 isometric mission with
+  a four-agent squad, click-to-move orders, live combat (health, hit flashes,
+  kills), basic enemy AI, a HUD, a win/lose objective, and an attract mode
+  (`--demo`). See `docs/ROADMAP.md` Phase 1.5.
+- Combat/AI/mission logic lives in `src/core/sim/` (`Agent`, `Mission`, `Weapon`)
+  and is unit-tested; keep it SDL-free.
+- Still markers, not sprites: no animation, zoom, or minimap yet (Phase 2).
+- Content is still hard-coded in `Game::buildMission`; the data format is
+  undecided (ADR-0003), so do not add a JSON dependency yet.
+- Verification flags: `--headless --frames N`, `--headless --demo --frames N`,
+  and `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke` and
+  `game_demo` cover the SDL layer headlessly.
 - Engine-layer changes are covered by the CI `core + game` job (ADR-0005).

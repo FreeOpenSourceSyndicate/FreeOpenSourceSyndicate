@@ -114,3 +114,33 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
   - The Cocos2d-x bootstrap scripts are obsolete and will be removed.
   - Supersedes ADR-0001.
 
+---
+
+## ADR-0007 — Simulation owns gameplay; the SDL2 layer is a thin view
+
+- **Status:** Accepted
+- **Date:** 2026-10-12
+- **Context:** To reach something playable and demonstrable quickly, we needed
+  combat, enemy AI, and a win/lose condition. The risk is putting those rules in
+  the renderer, which would break the core/sim boundary (ADR-0002), make them
+  hard to test, and block parallel work by other agents.
+- **Options:**
+  1. **All gameplay in `src/core/sim/` (`Mission` orchestrates agents, AI, fire,
+     win/lose); `src/game/` only reads state and draws it.** Engine-agnostic,
+     fully unit-testable, deterministic.
+  2. Gameplay rules in `Game` (the SDL layer). Faster to write once, but
+     untestable headless and breaks the boundary.
+- **Decision:** Option 1. `core::Mission` steps movement, AI, weapon fire, and
+  outcome evaluation on a fixed timestep using a deterministic RNG
+  (`core::Rng`, xorshift64*). `Game` translates input into `Mission` orders and
+  renders `Mission` state. The scene is described by data passed to
+  `Mission::addAgent`, not baked into the renderer.
+- **Consequences:**
+  - Missions are reproducible: same seed + same orders ⇒ same result, enabling
+    deterministic tests (`tests/test_mission.cpp`).
+  - The renderer stays replaceable and lightweight (old-hardware goal, ADR-0006).
+  - Content is still hard-coded in `Game::buildMission` for now; moving it to a
+    data file remains ADR-0003.
+  - A tiny embedded bitmap font (`src/game/Font.{h,cpp}`) avoids an SDL_ttf
+    dependency; glyphs are original and baked once into an atlas texture.
+
