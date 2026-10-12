@@ -1,18 +1,43 @@
 <!-- AI/LLM-generated file. Do not treat as human-written source documentation. This comment must be preserved in future generated files. -->
 # Contributing to Free Open Source Syndicate
 
+> **AI agents: read [`AGENTS.md`](../AGENTS.md) first.** It is the authoritative
+> rulebook (golden rules, branch/commit conventions, coordination protocol).
+> This file is the human-facing summary.
+
 ## Code of Conduct
 
 Be respectful, collaborative, and professional. This is an open-source community project.
 
 ## Getting Started
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Make your changes
-4. Test on Linux, and ideally macOS/Windows
-5. Commit with clear messages
-6. Push and open a pull request
+1. Read `AGENTS.md` and `docs/COORDINATION.md`.
+2. Find or open an issue for your task and claim it (comment `claiming this`).
+3. Create a branch using the naming scheme in `AGENTS.md` §6:
+   `feat/…`, `fix/…`, `docs/…`, `chore/…`, `refactor/…`, `test/…`.
+4. Make your changes — put game logic in `src/core/`, not the engine layer.
+5. Build and test the core (see below). Keep the build warning-free.
+6. Commit with Conventional Commit messages (`AGENTS.md` §8).
+7. Open a PR using the template, including the handoff block and the model used.
+
+## Golden rules (short version)
+
+Full list in `AGENTS.md` §4. The essentials:
+
+- **Never push to `main`.** Everything lands via PR.
+- **`src/core/` is engine-agnostic** — no `cocos2d.h`. All game logic lives there
+  and must be unit-testable with a plain compiler.
+- **Every new core system ships with tests.**
+- **No copyrighted assets, code, or names** (`docs/LEGAL.md`).
+- **One task = one branch = one small PR.**
+
+## Building and testing (core only — no engine needed)
+
+```bash
+cmake -S . -B build -DFOSS_BUILD_GAME=OFF
+cmake --build build -j
+ctest --test-dir build --output-on-failure
+```
 
 ## Code Style
 

@@ -154,13 +154,25 @@ All pathfinding and movement logic uses world coordinates; only rendering uses s
 
 ## File Organization
 
-- **src/game/** — Game flow and scene management
-- **src/entities/** — Entity classes and base types
-- **src/systems/** — Core gameplay systems
-- **src/world/** — World state and environment
-- **src/equipment/** — Weapons, gadgets, upgrades
-- **src/ui/** — User interface components
-- **src/utils/** — Utility functions, math, logging, configuration
+The most important boundary in the codebase is **core vs. engine**:
+
+- **src/core/** — Engine-agnostic game logic. **Must not include `cocos2d.h`** or
+  any engine header. Builds and is unit-tested with a plain compiler; this is
+  what CI runs. Everything here is portable and parallelizable across agents.
+  - `core/math/` — `Vec2`, isometric ↔ world transforms
+  - `core/world/` — tile grid model, A* pathfinding
+  - `core/sim/` — (future) agents, combat, AI, economy — headless
+- **src/game/** — Cocos2d-x app shell: AppDelegate, GameScene, GameManager
+- **src/entities/** — Engine-side entity views (sprites/nodes)
+- **src/world/** — Engine-side map rendering
+- **src/ui/** — User interface components (engine-side)
+- **src/equipment/** — (future) Weapons, gadgets, upgrades as data + rules
+
+**Boundary rule:** if a decision can be made without drawing a pixel or reading
+input, it belongs in `src/core/`. See `AGENTS.md` §4 and ADR-0002.
+
+The engine layer is a thin adapter: it reads core state and renders it, and it
+translates input into core commands. It must not contain gameplay rules.
 
 ## Performance Considerations
 

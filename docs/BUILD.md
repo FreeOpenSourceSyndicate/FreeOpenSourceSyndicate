@@ -3,6 +3,26 @@
 
 This document provides platform-specific instructions for building Free Open Source Syndicate on Linux, macOS, and Windows.
 
+## Two build modes
+
+The project builds in two modes:
+
+| Mode | Command flag | Needs the engine? | Use for |
+|------|--------------|-------------------|---------|
+| **Core** (default) | `-DFOSS_BUILD_GAME=OFF` | No | All game logic, unit tests, CI |
+| **Full game** | `-DFOSS_BUILD_GAME=ON` | Yes (Cocos2d-x) | Running the actual game |
+
+**Prefer the core build while developing.** Game logic lives in `src/core/` and
+must build without the engine (see `AGENTS.md`, ADR-0002).
+
+### Core build (fast)
+
+```bash
+cmake -S . -B build -DFOSS_BUILD_GAME=OFF
+cmake --build build -j
+ctest --test-dir build --output-on-failure
+```
+
 ## Prerequisites (All Platforms)
 
 - **CMake** 3.15 or higher

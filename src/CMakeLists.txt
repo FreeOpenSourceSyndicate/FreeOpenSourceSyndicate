@@ -27,6 +27,12 @@ target_include_directories(FreeOpenSourceSyndicate PRIVATE
     ${COCOS2D_X_ROOT}/external
 )
 
+# The game layer sits on top of the engine-agnostic core (ADR-0002).
+target_link_libraries(FreeOpenSourceSyndicate PRIVATE foss_core)
+
+# NOTE: linking against Cocos2d-x itself is still pending. See docs/DECISIONS.md
+# ADR-0001; the engine target is not guaranteed to compile until that is settled.
+
 set_target_properties(FreeOpenSourceSyndicate PROPERTIES
     VERSION 0.1.0
 )
