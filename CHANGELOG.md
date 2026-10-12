@@ -6,6 +6,15 @@ All notable changes to Free Open Source Syndicate. This project is an
 independent, from-scratch recreation of the *gameplay* of 1993's Syndicate; it
 contains no original assets, code, names, or trademarks.
 
+## [Unreleased]
+
+### Added
+
+- **Individual agent selection:** click an agent to select it, shift-click to
+  add/remove, keys `1`–`4` for the Nth living agent, `A` for the whole squad.
+  Orders apply to the current selection; the HUD roster marks selected agents
+  with `>`.
+
 ## [0.1.0] — 2026-10-12 — "Playable Slice"
 
 The first build worth putting in front of a person: a single playable mission.
