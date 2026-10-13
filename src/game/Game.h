@@ -43,6 +43,11 @@ public:
     // Used for headless verification and as an attract mode for demos.
     void setAutoPlay(bool enabled) { autoPlay_ = enabled; }
 
+    // Sets the mission file to load (already resolved by main from the config
+    // file, a CLI flag, or the fallback search). An empty path means "use the
+    // copy embedded in the binary". Call before init().
+    void setMissionPath(const std::string& path) { missionPath_ = path; }
+
     // Renders one frame and saves it to `path` as a BMP. Returns false on
     // failure. Used for headless verification.
     bool saveScreenshot(const std::string& path);
@@ -105,6 +110,9 @@ private:
 
     core::TileGrid grid_{kMapWidth, kMapHeight};
     core::Mission mission_{grid_};
+
+    // Resolved mission file, or empty to use the embedded copy (ADR-0003).
+    std::string missionPath_;
 
     BitmapFont font_;
 

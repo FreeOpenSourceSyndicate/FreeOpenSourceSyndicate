@@ -131,19 +131,28 @@ bool Game::init(int width, int height, bool headless, bool lowSpec)
 
 void Game::buildMission()
 {
-    // Content comes from data, not code (ADR-0003). Prefer an external file so
-    // the mission can be edited without a rebuild; fall back to the copy
-    // embedded at build time so the game still runs as a single self-contained
-    // executable on a machine with no data files (AGENTS.md 1b).
+    // Content comes from data, not code (ADR-0003). `missionPath_` was already
+    // resolved by main (config file, then CLI flag, then the fallback search);
+    // an empty path means "use the copy embedded at build time", so the game
+    // still runs as a single self-contained executable (AGENTS.md 1b).
     core::MissionData data;
     std::string error;
-    const char* kMissionPath = "assets/data/missions/demo.json";
-    if (!core::MissionData::loadFromFile(kMissionPath, data, error))
+    bool loaded = false;
+    if (!missionPath_.empty())
+    {
+        loaded = core::MissionData::loadFromFile(missionPath_, data, error);
+        if (!loaded)
+        {
+            std::fprintf(stderr, "mission data error (%s): %s\n", missionPath_.c_str(),
+                         error.c_str());
+        }
+    }
+    if (!loaded)
     {
         core::Json root = core::Json::parse(kDemoMissionJson, error);
         if (!core::MissionData::fromJson(root, data, error))
         {
-            std::fprintf(stderr, "mission data error: %s\n", error.c_str());
+            std::fprintf(stderr, "embedded mission data error: %s\n", error.c_str());
         }
     }
 

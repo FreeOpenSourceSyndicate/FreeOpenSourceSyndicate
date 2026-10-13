@@ -14,6 +14,7 @@ set(FOSS_TEST_SOURCES
     test_mission.cpp
     test_json.cpp
     test_missiondata.cpp
+    test_config.cpp
 )
 
 add_executable(run_tests ${FOSS_TEST_SOURCES})

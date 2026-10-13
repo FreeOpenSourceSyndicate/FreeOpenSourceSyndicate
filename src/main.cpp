@@ -2,8 +2,52 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
+#include <string>
+#include <vector>
 
+#include "core/data/Config.h"
+#include "core/data/ContentPaths.h"
 #include "game/Game.h"
+
+#if defined(__linux__)
+#include <unistd.h>
+#endif
+
+namespace
+{
+
+// Directory containing the running executable, or "" if it cannot be found.
+// Used to locate mission data and config files next to the binary.
+std::string executableDir(const char* argv0)
+{
+#if defined(__linux__)
+    char buffer[4096];
+    const ssize_t n = ::readlink("/proc/self/exe", buffer, sizeof(buffer) - 1);
+    if (n > 0)
+    {
+        buffer[n] = '\0';
+        std::string path(buffer);
+        const std::size_t slash = path.find_last_of('/');
+        if (slash != std::string::npos)
+        {
+            return path.substr(0, slash);
+        }
+    }
+#endif
+    // Fall back to the directory of argv[0] if it contains a slash.
+    if (argv0 != nullptr)
+    {
+        const std::string path(argv0);
+        const std::size_t slash = path.find_last_of('/');
+        if (slash != std::string::npos)
+        {
+            return path.substr(0, slash);
+        }
+    }
+    return "";
+}
+
+} // namespace
 
 int main(int argc, char** argv)
 {
@@ -12,6 +56,8 @@ int main(int argc, char** argv)
     bool demo = false;
     bool lowSpec = false;
     const char* screenshot = nullptr;
+    std::string cliMission;   // --mission <path>
+    std::string cliConfig;    // --config <path>
 
     for (int i = 1; i < argc; ++i)
     {
@@ -35,6 +81,14 @@ int main(int argc, char** argv)
         {
             lowSpec = true;
         }
+        else if (std::strcmp(argv[i], "--mission") == 0 && i + 1 < argc)
+        {
+            cliMission = argv[++i];
+        }
+        else if (std::strcmp(argv[i], "--config") == 0 && i + 1 < argc)
+        {
+            cliConfig = argv[++i];
+        }
     }
 
 #if defined(FOSS_LOW_SPEC_BUILD)
@@ -42,11 +96,60 @@ int main(int argc, char** argv)
     lowSpec = true;
 #endif
 
+    // Resolve which mission to load: config file first, then a CLI --mission
+    // flag overrides it; if neither gives a path, scan the built-in fallback
+    // locations and take the first that exists; otherwise use the embedded copy.
+    const std::string exeDir = executableDir(argc > 0 ? argv[0] : nullptr);
+
+    foss::core::GameConfig config;
+    std::string configError;
+    if (!cliConfig.empty())
+    {
+        bool found = false;
+        if (!foss::core::loadConfigFile(cliConfig, config, found, configError))
+        {
+            std::fprintf(stderr, "config error (%s): %s\n", cliConfig.c_str(), configError.c_str());
+            return 1;
+        }
+    }
+    else
+    {
+        for (const std::string& candidate : foss::core::defaultConfigPaths(exeDir))
+        {
+            bool found = false;
+            if (!foss::core::loadConfigFile(candidate, config, found, configError))
+            {
+                std::fprintf(stderr, "config error (%s): %s\n", candidate.c_str(),
+                             configError.c_str());
+                return 1;
+            }
+            if (found)
+            {
+                break;
+            }
+        }
+    }
+
+    std::string missionPath;
+    foss::core::MissionSource missionSource = foss::core::MissionSource::None;
+    std::string missionError;
+    if (!foss::core::resolveMissionPath(config, cliMission, exeDir, missionPath, missionSource,
+                                        missionError))
+    {
+        std::fprintf(stderr, "mission path error: %s\n", missionError.c_str());
+        return 1;
+    }
+    if (missionSource != foss::core::MissionSource::None)
+    {
+        std::printf("mission: %s\n", missionPath.c_str());
+    }
+
     // Default window size; the low-spec profile shrinks it (ADR-0008).
     int width = lowSpec ? 320 : 960;
     int height = lowSpec ? 200 : 600;
 
     foss::game::Game game;
+    game.setMissionPath(missionPath);
     if (!game.init(width, height, headless, lowSpec))
     {
         std::fprintf(stderr, "Failed to start the game.\n");
