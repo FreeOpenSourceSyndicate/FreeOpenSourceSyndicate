@@ -295,7 +295,8 @@ change touches `src/core/` or `tests/`, all must pass. If it touches
   `Engage`, `Retreat`) and is driven by `Mission::updateCombatantAI`. Enemies
   patrol an assigned route (`Agent::setPatrolRoute`) when no target is in sight,
   engage once a target is within sight range, and retreat when wounded below
-  `kRetreatHealthFraction` (35%). On first engaging they call backup
+  `kRetreatHealthFraction` (35%) — a retreating agent moves away and holds fire
+  until it recovers. On first engaging they call backup
   (`Mission::alertAllies`, radius `kAlertRadius`) so nearby allies focus the same
   target. Transitions use no RNG, so missions stay deterministic. Keep new AI
   state on the core, not the view.

@@ -522,6 +522,13 @@ void Mission::resolveFire()
         {
             continue;
         }
+        // A wounded enemy breaks off and holds fire until it recovers (see
+        // Mission::updateCombatantAI). Keyed off health, not aiState, so it also
+        // applies on the first tick before the staggered AI has run.
+        if (attacker.team() == Team::Enemy && attacker.healthFraction() < kRetreatHealthFraction)
+        {
+            continue;
+        }
 
         const Team enemyTeam = opposingTeam(attacker.team());
 

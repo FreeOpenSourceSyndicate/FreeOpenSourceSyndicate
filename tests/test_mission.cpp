@@ -336,6 +336,28 @@ FOSS_TEST(Mission, HealthyEnemyDoesNotRetreat)
     FOSS_CHECK(mission.agents()[foeIndex].aiState() == AiState::Engage);
 }
 
+FOSS_TEST(Mission, RetreatingEnemyHoldsFire)
+{
+    // A retreating enemy is breaking off: even with a lethal weapon in range it
+    // must not fire while withdrawing.
+    TileGrid grid(40, 40);
+    Mission mission(grid, 25u);
+    mission.addAgent(makeAgent(5.0f, 5.0f, Team::Player, 1000.0f,
+                               Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+    const std::size_t foeIndex = mission.addAgent(
+        makeAgent(7.0f, 5.0f, Team::Enemy, 100.0f, Weapon{"Test", 1000.0f, 20.0f, 10.0f, 1.0f}));
+    mission.agents()[foeIndex].applyDamage(80.0f); // 20 health -> retreat
+
+    const float playerHealthBefore = mission.agents()[0].health();
+    for (int i = 0; i < 60; ++i) // 3 seconds
+    {
+        mission.update(0.05f);
+    }
+
+    FOSS_CHECK(mission.agents()[foeIndex].aiState() == AiState::Retreat);
+    FOSS_CHECK_NEAR(mission.agents()[0].health(), playerHealthBefore);
+}
+
 FOSS_TEST(Mission, EngagedEnemyAlertsNearbyAllies)
 {
     // E0 sees the player and calls backup. E1 is within the alert radius of E0
