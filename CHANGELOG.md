@@ -10,6 +10,14 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **Enemy AI: patrol, retreat, call backup:** enemies now run a small state
+  machine (`AiState` on `core::Agent`) instead of always charging. With no target
+  in sight they walk an assigned patrol route; once a target is in sight they
+  engage; and when wounded below 35% health they break off and retreat. On first
+  engaging, an enemy calls backup (`Mission::alertAllies`), pulling same-team
+  allies within 8 tiles onto the same target. All transitions are deterministic
+  (no RNG), so seeded missions stay reproducible. Core only; the demo mission is
+  unchanged (enemies simply behave better).
 - **Content data format (ADR-0003):** missions are now described in JSON under
   `assets/data/missions/` and loaded by a small, dependency-free reader in
   `src/core/data/` (`Json`, `MissionData`). Schema in `docs/DATA_FORMAT.md`.

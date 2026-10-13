@@ -22,6 +22,20 @@ enum class Team
     Civilian,
 };
 
+// What a combatant is currently doing, as decided by the mission AI. Kept on the
+// agent so it is inspectable (and unit-testable) without reaching into Mission.
+enum class AiState
+{
+    // No target and no route: hold position.
+    Idle,
+    // No target in sight, walking the assigned patrol route.
+    Patrol,
+    // A target is in sight: close to weapon range and fire.
+    Engage,
+    // Badly wounded: break off and move away from the threat.
+    Retreat,
+};
+
 // A squad member: a cyborg agent that moves along a path at a fixed speed and
 // carries a weapon.
 //
@@ -119,6 +133,27 @@ public:
     // True when the agent is alive and armed.
     bool canAttack() const { return isAlive() && isCombatant(); }
 
+    // --- AI state ---------------------------------------------------------
+
+    // What the mission AI is currently doing with this agent. Set by
+    // Mission::updateAI; meaningful only for combatants.
+    AiState aiState() const { return aiState_; }
+    void setAiState(AiState state) { aiState_ = state; }
+
+    // Patrol route in tile coordinates, walked in order and looped. Empty means
+    // "no patrol". Deterministic: no RNG is involved in following it.
+    const std::vector<TilePos>& patrolRoute() const { return patrolRoute_; }
+    void setPatrolRoute(std::vector<TilePos> route)
+    {
+        patrolRoute_ = std::move(route);
+        patrolIndex_ = 0;
+    }
+    bool hasPatrolRoute() const { return !patrolRoute_.empty(); }
+
+    // Index of the next patrol waypoint to head for.
+    std::size_t patrolIndex() const { return patrolIndex_; }
+    void setPatrolIndex(std::size_t index) { patrolIndex_ = index; }
+
 private:
     Vec2 position_;
     float tilesPerSecond_ = 2.0f;
@@ -136,6 +171,10 @@ private:
     float hitFlash_ = 0.0f;
     float thinkTimer_ = 0.0f;
     int orderedTarget_ = -1;
+
+    AiState aiState_ = AiState::Idle;
+    std::vector<TilePos> patrolRoute_;
+    std::size_t patrolIndex_ = 0;
 };
 
 } // namespace foss::core
