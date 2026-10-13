@@ -14,6 +14,12 @@ contains no original assets, code, names, or trademarks.
   smaller, `-Os`, stripped binary; `--low-spec` (or a low-spec build) runs a
   320x200 window with the software renderer. A dedicated CI job builds this
   profile so old-hardware support cannot bit-rot.
+- **Civilians and collateral damage:** unarmed bystanders roam the map, flee from
+  nearby gunfire, and can be killed by stray shots. They are never auto-targeted
+  and do not affect win/lose; player-caused civilian deaths are counted as
+  *collateral* and shown in the HUD. Core: `Team::Civilian`, deterministic flee
+  AI, and stray-fire collateral in `Mission`. View: paler civilian markers and a
+  HUD counter.
 
 ## [0.2.0] — 2026-10-12 — "Command & Control"
 

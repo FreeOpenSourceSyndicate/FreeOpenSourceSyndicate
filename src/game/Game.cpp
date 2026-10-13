@@ -30,6 +30,7 @@ constexpr std::uint8_t kPlayerBody[3] = {40, 170, 60};
 constexpr std::uint8_t kPlayerBodySelected[3] = {90, 230, 130};
 constexpr std::uint8_t kEnemyBody[3] = {200, 55, 45};
 constexpr std::uint8_t kEnemyBodyFlash[3] = {255, 210, 90};
+constexpr std::uint8_t kCivilianBody[3] = {205, 200, 180};
 
 constexpr SDL_Color kHudText{225, 235, 225, 255};
 constexpr SDL_Color kHudGood{120, 230, 140, 255};
@@ -183,6 +184,15 @@ void Game::buildMission()
     mission_.addAgent(makeAgent(13.5f, 18.5f, core::Team::Enemy, "GUARD-3", core::makePistol(), 60.0f));
     mission_.addAgent(makeAgent(21.5f, 2.5f, core::Team::Enemy, "GUARD-4", core::makeUzi(), 55.0f));
     mission_.addAgent(makeAgent(9.5f, 12.5f, core::Team::Enemy, "GUARD-5", core::makeRifle(), 70.0f));
+
+    // Civilians: unarmed bystanders scattered along the streets. They flee from
+    // gunfire and can be caught by stray shots (collateral damage).
+    mission_.addAgent(makeAgent(6.5f, 10.5f, core::Team::Civilian, "CIVILIAN", core::makePistol(), 20.0f));
+    mission_.addAgent(makeAgent(12.5f, 8.5f, core::Team::Civilian, "CIVILIAN", core::makePistol(), 20.0f));
+    mission_.addAgent(makeAgent(15.5f, 12.5f, core::Team::Civilian, "CIVILIAN", core::makePistol(), 20.0f));
+    mission_.addAgent(makeAgent(8.5f, 20.5f, core::Team::Civilian, "CIVILIAN", core::makePistol(), 20.0f));
+    mission_.addAgent(makeAgent(20.5f, 14.5f, core::Team::Civilian, "CIVILIAN", core::makePistol(), 20.0f));
+    mission_.addAgent(makeAgent(3.5f, 12.5f, core::Team::Civilian, "CIVILIAN", core::makePistol(), 20.0f));
 
     selected_.clear();
     for (std::size_t i = 0; i < mission_.agents().size(); ++i)
@@ -717,6 +727,13 @@ void Game::renderAgents()
         const core::Vec2 world = core::tileToWorld(agent.position().x, agent.position().y, kTileWidth,
                                                    kTileHeight);
 
+        // Bystanders are drawn smaller and paler, with no health bar or reticle.
+        if (agent.team() == core::Team::Civilian)
+        {
+            fillDiamondWorld(world, 0.26f, kCivilianBody[0], kCivilianBody[1], kCivilianBody[2]);
+            continue;
+        }
+
         // Enemy hit-flash brightens the body briefly.
         if (agent.team() == core::Team::Enemy)
         {
@@ -812,9 +829,13 @@ void Game::renderHud()
     SDL_RenderFillRect(renderer_, &topBar);
 
     font_.draw(renderer_, margin, margin / 2, "FREE OPEN SOURCE SYNDICATE", kHudText);
-    const std::string objective =
+    std::string objective =
         "OBJECTIVE: ELIMINATE ALL " + std::to_string(mission_.aliveCount(core::Team::Enemy)) +
         " ENEMY AGENTS   [L] MOVE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] SELECT   [A]LL   [R] RESTART";
+    if (mission_.civilianKills() > 0)
+    {
+        objective = "COLLATERAL: " + std::to_string(mission_.civilianKills()) + "   " + objective;
+    }
     font_.draw(renderer_, screenWidth_ - font_.textWidth(objective) - margin, margin / 2, objective,
                kHudDim);
 

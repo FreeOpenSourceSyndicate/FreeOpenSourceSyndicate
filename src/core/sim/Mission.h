@@ -66,11 +66,21 @@ public:
     int playerKills() const { return playerKills_; }
     int enemyKills() const { return enemyKills_; }
 
+    // Civilians killed by player fire (collateral damage). Tracked for scoring;
+    // does not affect the win/lose condition.
+    int civilianKills() const { return civilianKills_; }
+
     Rng& rng() { return rng_; }
 
 private:
     void updateAI(float dt);
+    void updateCivilian(std::size_t index);
     void resolveFire();
+
+    // A missed shot near `target` can wound a civilian bystander. Deterministic;
+    // never affects combatants, so combat outcomes are unchanged.
+    void applyStrayFire(std::size_t attacker, std::size_t target, float damage);
+
     void evaluateOutcome();
 
     // Index of the nearest living agent on `enemyTeam`, or -1.
@@ -85,6 +95,7 @@ private:
     MissionState state_ = MissionState::Running;
     int playerKills_ = 0;
     int enemyKills_ = 0;
+    int civilianKills_ = 0;
 };
 
 } // namespace foss::core

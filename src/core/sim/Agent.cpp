@@ -84,6 +84,7 @@ void Agent::update(float dt)
     }
 
     fireCooldown_ = std::max(0.0f, fireCooldown_ - dt);
+    gunfireTimer_ = std::max(0.0f, gunfireTimer_ - dt);
     hitFlash_ = std::max(0.0f, hitFlash_ - dt);
     thinkTimer_ = std::max(0.0f, thinkTimer_ - dt);
 
