@@ -19,6 +19,12 @@ target_include_directories(FreeOpenSourceSyndicate PRIVATE
 # The game layer sits on top of the engine-agnostic core (ADR-0002).
 target_link_libraries(FreeOpenSourceSyndicate PRIVATE foss_core)
 
+# Release version, shown in the window title and HUD so playtesters can tell
+# builds apart (AGENTS.md 6a). Set once in the root CMakeLists project().
+target_compile_definitions(FreeOpenSourceSyndicate PRIVATE
+    FOSS_VERSION="${PROJECT_VERSION}"
+)
+
 # SDL2: prefer the CMake config package, fall back to pkg-config.
 find_package(SDL2 QUIET)
 if(TARGET SDL2::SDL2)
@@ -34,7 +40,7 @@ else()
 endif()
 
 set_target_properties(FreeOpenSourceSyndicate PROPERTIES
-    VERSION 0.1.0
+    VERSION ${PROJECT_VERSION}
 )
 
 # Headless smoke test: boots the game with the dummy video driver, runs a few

@@ -82,7 +82,11 @@ bool Game::init(int width, int height, bool headless, bool lowSpec)
     screenWidth_ = width;
     screenHeight_ = height;
 
-    window_ = SDL_CreateWindow("Free Open Source Syndicate", SDL_WINDOWPOS_CENTERED,
+    // Stamp the release version into the title so a playtester can tell builds
+    // apart at a glance (AGENTS.md 6a: every release is visibly different).
+    const std::string windowTitle =
+        std::string("Free Open Source Syndicate v") + FOSS_VERSION;
+    window_ = SDL_CreateWindow(windowTitle.c_str(), SDL_WINDOWPOS_CENTERED,
                                SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_SHOWN);
     if (window_ == nullptr)
     {
@@ -828,7 +832,9 @@ void Game::renderHud()
     SDL_Rect topBar{0, 0, screenWidth_, lineH + margin};
     SDL_RenderFillRect(renderer_, &topBar);
 
-    font_.draw(renderer_, margin, margin / 2, "FREE OPEN SOURCE SYNDICATE", kHudText);
+    const std::string title =
+        std::string("FREE OPEN SOURCE SYNDICATE v") + FOSS_VERSION;
+    font_.draw(renderer_, margin, margin / 2, title, kHudText);
     std::string objective =
         "OBJECTIVE: ELIMINATE ALL " + std::to_string(mission_.aliveCount(core::Team::Enemy)) +
         " ENEMY AGENTS   [L] MOVE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] SELECT   [A]LL   [R] RESTART";

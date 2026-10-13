@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+AI/LLM-generated file. Do not treat as human-written source documentation.
+Original vector art for Free Open Source Syndicate. No third-party or
+copyrighted material. Authored as SVG per AGENTS.md golden rule 8.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="200" viewBox="0 0 640 200"
+     role="img" aria-label="Free Open Source Syndicate banner">
+  <title>Free Open Source Syndicate</title>
+
+  <!-- Background -->
+  <rect width="640" height="200" fill="#12141a"/>
+
+  <!-- Isometric floor grid (light lines) -->
+  <g stroke="#2a2f3a" stroke-width="1" fill="none">
+    <path d="M0 120 L320 40 L640 120 L320 200 Z"/>
+    <path d="M80 100 L400 20 M160 120 L480 40 M240 140 L560 60 M320 160 L640 80"/>
+    <path d="M0 120 L320 200 M160 100 L480 180 M320 80 L640 160"/>
+  </g>
+
+  <!-- Four squad diamonds (player colour), a nod to the in-game markers -->
+  <g fill="#5aa9e6" stroke="#eaf2ff" stroke-width="2">
+    <path d="M200 96 L216 112 L200 128 L184 112 Z"/>
+    <path d="M248 80 L264 96 L248 112 L232 96 Z"/>
+    <path d="M296 96 L312 112 L296 128 L280 112 Z"/>
+    <path d="M344 80 L360 96 L344 112 L328 96 Z"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="320" y="168" text-anchor="middle"
+        font-family="monospace" font-size="26" letter-spacing="3" fill="#eaf2ff">
+    FREE OPEN SOURCE SYNDICATE
+  </text>
+</svg>

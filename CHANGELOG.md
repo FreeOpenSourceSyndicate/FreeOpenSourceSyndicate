@@ -8,6 +8,17 @@ contains no original assets, code, names, or trademarks.
 
 ## [Unreleased]
 
+_No changes yet._
+
+## [0.3.0] — 2026-10-13 — "Bystanders"
+
+The city is alive: bystanders walk the streets, react to gunfire, and can be
+caught in the crossfire. Also the first release with an explicit old-hardware
+profile.
+
+**Visibly different from v0.2.0:** pale civilians on the map, a `COLLATERAL`
+counter in the HUD, and the version `v0.3.0` shown in the window title and HUD.
+
 ### Added
 
 - **Low-spec / old-hardware profile (ADR-0008):** `-DFOSS_LOW_SPEC=ON` builds a
@@ -20,6 +31,15 @@ contains no original assets, code, names, or trademarks.
   *collateral* and shown in the HUD. Core: `Team::Civilian`, deterministic flee
   AI, and stray-fire collateral in `Mission`. View: paler civilian markers and a
   HUD counter.
+- **On-screen version stamp:** the window title and HUD show the release version
+  (`FOSS_VERSION`, set once from the CMake project version), so playtesters can
+  tell builds apart at a glance.
+
+### Release
+
+- Branch `release/v0.3.0-bystanders`, tag `v0.3.0`; per-version build, play, and
+  copy-to-another-computer instructions in
+  [`docs/releases/v0.3.0-bystanders.md`](docs/releases/v0.3.0-bystanders.md).
 
 ## [0.2.0] — 2026-10-12 — "Command & Control"
 

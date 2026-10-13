@@ -30,10 +30,10 @@ group is fine (e.g. "agent sprite sheet, 8 directions").
 
 | Path | Type | Author/Tool | License | Source / prompt | Notes |
 |------|------|-------------|---------|-----------------|-------|
-| _(example)_ `assets/tiles/grass_iso.png` | tile | OpenHands (Stable Diffusion) | CC0 | prompt: "isometric grass tile, 64x32" | placeholder |
+| `assets/ui/banner.svg` | UI art | OpenHands (hand-authored SVG) | CC0 | original vector art | Release banner; not loaded at runtime |
 
-> The row above is an example format only; delete it when the first real asset
-> is added.
+> Add a row for every asset you introduce. Replace the example row above when
+> real art arrives.
 
 ## Rules
 
