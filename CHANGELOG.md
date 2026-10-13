@@ -48,7 +48,7 @@ contains no original assets, code, names, or trademarks.
 
 ### Changed
 
-- **Project renamed to FOSSynd** (ADR-0009). The short name `FOSS` collided with
+- **Project renamed to FOSSynd** (ADR-0010). The short name `FOSS` collided with
   the generic term *Free and Open Source Software*, so the project is now
   **FOSSynd** ("Free, Open-Source Syndicate"). Build options use the `FOSSYND_*`
   prefix, the core library is `fossynd_core`, the C++ namespace is `fossynd::`,
