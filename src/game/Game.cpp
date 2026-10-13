@@ -65,7 +65,7 @@ Game::~Game()
     SDL_Quit();
 }
 
-bool Game::init(int width, int height, bool headless)
+bool Game::init(int width, int height, bool headless, bool lowSpec)
 {
     if (headless)
     {
@@ -89,9 +89,10 @@ bool Game::init(int width, int height, bool headless)
         return false;
     }
 
-    // Prefer a software renderer so the game runs on machines without a GPU.
+    // Prefer a software renderer so the game runs on machines without a GPU. In
+    // the low-spec profile (ADR-0008) it is required, not merely preferred.
     renderer_ = SDL_CreateRenderer(window_, -1, SDL_RENDERER_SOFTWARE);
-    if (renderer_ == nullptr)
+    if (renderer_ == nullptr && !lowSpec)
     {
         renderer_ = SDL_CreateRenderer(window_, -1, SDL_RENDERER_ACCELERATED);
     }

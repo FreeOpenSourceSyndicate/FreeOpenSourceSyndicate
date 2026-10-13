@@ -18,6 +18,28 @@ and Windows are supported and documented, not tested regularly.
 Game logic lives in `src/core/` and builds without SDL2 (ADR-0002), so you can
 work on gameplay with just a compiler.
 
+## Running on very old hardware
+
+The game must always run on low-end machines (ADR-0006, ADR-0008). Two things
+guarantee that:
+
+- The renderer is **software-capable** and the code uses no per-pixel effects on
+  the critical path, so no GPU is required.
+- A **low-spec profile** favours a small binary and a small window:
+
+```bash
+# Build the old-hardware profile (small, -Os, stripped)
+cmake -S . -B build -DFOSS_BUILD_GAME=ON -DFOSS_LOW_SPEC=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+
+# Or run any build in low-spec mode at runtime (320x200 + software renderer)
+./build/src/FreeOpenSourceSyndicate --low-spec
+```
+
+A `FOSS_LOW_SPEC=ON` build runs in low-spec mode automatically. CI builds this
+profile on every change so it cannot bit-rot. If the game does not start on very
+old hardware, that is a bug — please report it.
+
 ## Prerequisites
 
 - CMake ≥ 3.15

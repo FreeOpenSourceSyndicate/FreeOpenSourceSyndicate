@@ -12,6 +12,17 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
 option(FOSS_BUILD_GAME "Build the SDL2 game target (requires libsdl2-dev)" OFF)
 option(BUILD_TESTS "Build core unit tests" ON)
 
+# Low-spec profile: optimise for very old, low-end hardware (AGENTS.md 1b,
+# ADR-0008). Favours a small binary over raw speed; the runtime also defaults to
+# a small window and the software renderer when this is set.
+option(FOSS_LOW_SPEC "Optimise the build for very old, low-end hardware" OFF)
+if(FOSS_LOW_SPEC)
+    add_compile_options(-Os -fno-unwind-tables -fno-asynchronous-unwind-tables)
+    add_link_options(-s)
+    add_compile_definitions(FOSS_LOW_SPEC_BUILD=1)
+    message(STATUS "Low-spec profile enabled (-Os, stripped, low-res defaults)")
+endif()
+
 if(WIN32)
     message(STATUS "Building for Windows")
 elseif(APPLE)

@@ -41,3 +41,24 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
+  low-spec:
+    name: Low-spec build (old hardware)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SDL2
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
+
+      - name: Configure (low-spec profile)
+        run: cmake -S . -B build -DFOSS_BUILD_GAME=ON -DFOSS_LOW_SPEC=ON -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release -j"$(nproc)"
+
+      - name: Test (incl. low-spec smoke run)
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Report binary size
+        run: ls -l build/src/FreeOpenSourceSyndicate

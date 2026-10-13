@@ -63,6 +63,10 @@ Practical rules:
   tiles/sprites and cached surfaces.
 - Do not assume a dedicated GPU, large VRAM, or a fast CPU.
 - Profile assumptions: target smooth play on integrated graphics from ~2010.
+- Build the low-spec profile (`-DFOSS_LOW_SPEC=ON`) or run with `--low-spec` to
+  get the smallest binary, a small window, and the software renderer (ADR-0008).
+  CI builds this profile on every change. A game that will not start on very old
+  hardware is a bug.
 
 ## 1c. Dependencies — open source first
 

@@ -46,4 +46,7 @@ if(BUILD_TESTS)
     # against crashes in the mission loop without needing a display.
     add_test(NAME game_demo
              COMMAND FreeOpenSourceSyndicate --headless --demo --frames 3000)
+    # Low-spec runtime path (ADR-0008): small window + software renderer, headless.
+    add_test(NAME game_low_spec
+             COMMAND FreeOpenSourceSyndicate --headless --low-spec --frames 30)
 endif()

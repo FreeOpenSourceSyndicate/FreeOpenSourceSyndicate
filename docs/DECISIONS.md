@@ -144,3 +144,38 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
   - A tiny embedded bitmap font (`src/game/Font.{h,cpp}`) avoids an SDL_ttf
     dependency; glyphs are original and baked once into an atlas texture.
 
+
+---
+
+## ADR-0008 — Low-spec profile for very old hardware
+
+- **Status:** Accepted
+- **Date:** 2026-10-12
+- **Context:** Development happens on whatever machine is available at the time,
+  which is frequently very old, low-end hardware (AGENTS.md 1b). The game must
+  *always* run there, not merely "be portable in principle". ADR-0006 already
+  chose a software-capable renderer; this ADR makes the low-end target explicit
+  and gives it a build profile and a runtime mode that CI exercises.
+- **Options:**
+  1. **A build option (`-DFOSS_LOW_SPEC=ON`) plus a runtime `--low-spec` flag.**
+     The build favours a small binary (`-Os`, stripped, no unwind tables); the
+     runtime defaults to a small window and forces the SDL software renderer.
+  2. A separate "minimal" renderer/backend. More work, more code to maintain,
+     and unnecessary while `SDL_Renderer`'s software path exists.
+  3. Nothing — rely on the compiler defaults and the existing software fallback.
+     Rejected: no explicit target means old-hardware support silently rots.
+- **Decision:** Option 1.
+  - CMake: `FOSS_LOW_SPEC` adds `-Os -fno-unwind-tables
+    -fno-asynchronous-unwind-tables`, `-s` at link, and defines
+    `FOSS_LOW_SPEC_BUILD`.
+  - Runtime: `--low-spec` (and the build default) selects a **320x200** window
+    and a **software** renderer. Any machine that can open a window can run it.
+  - The game runs without a GPU and without large dependencies either way; the
+    profile only makes that guarantee explicit and testable.
+- **Consequences:**
+  - A dedicated CI job always builds `-DFOSS_LOW_SPEC=ON` so the profile cannot
+    bit-rot (ADR-0005).
+  - The low-spec binary is also the smallest artifact for packaging (Phase 5).
+  - Low-spec does not change gameplay or determinism: the engine-agnostic core
+    (ADR-0002, ADR-0007) is compiled identically in all profiles.
+
