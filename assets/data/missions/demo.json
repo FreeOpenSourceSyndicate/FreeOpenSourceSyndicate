@@ -1,0 +1,43 @@
+{
+  "name": "Downtown Sweep",
+  "width": 24,
+  "height": 24,
+  "buildings": [
+    { "x": 5, "y": 5, "width": 4, "height": 4 },
+    { "x": 14, "y": 4, "width": 5, "height": 4 },
+    { "x": 6, "y": 15, "width": 5, "height": 5 },
+    { "x": 16, "y": 16, "width": 5, "height": 5 }
+  ],
+  "blocked": [
+    { "x": 12, "y": 10 }, { "x": 12, "y": 11 },
+    { "x": 12, "y": 12 }, { "x": 12, "y": 13 }
+  ],
+  "agents": [
+    { "name": "ALPHA", "team": "player", "x": 1.5, "y": 1.5, "health": 100,
+      "weapon": { "name": "Rifle", "damage": 8, "range": 9, "fireRate": 4, "accuracy": 0.65 } },
+    { "name": "BRAVO", "team": "player", "x": 2.5, "y": 1.5, "health": 90,
+      "weapon": { "name": "Pistol", "damage": 10, "range": 6, "fireRate": 2.5, "accuracy": 0.72 } },
+    { "name": "CHARLIE", "team": "player", "x": 1.5, "y": 2.5, "health": 80,
+      "weapon": { "name": "Uzi", "damage": 5, "range": 5, "fireRate": 9, "accuracy": 0.55 } },
+    { "name": "DELTA", "team": "player", "x": 2.5, "y": 2.5, "health": 90,
+      "weapon": { "name": "Pistol", "damage": 10, "range": 6, "fireRate": 2.5, "accuracy": 0.72 } },
+
+    { "name": "GUARD-1", "team": "enemy", "x": 11.5, "y": 3.5, "health": 60,
+      "weapon": { "name": "Pistol", "damage": 10, "range": 6, "fireRate": 2.5, "accuracy": 0.72 } },
+    { "name": "GUARD-2", "team": "enemy", "x": 19.5, "y": 11.5, "health": 70,
+      "weapon": { "name": "Rifle", "damage": 8, "range": 9, "fireRate": 4, "accuracy": 0.65 } },
+    { "name": "GUARD-3", "team": "enemy", "x": 13.5, "y": 18.5, "health": 60,
+      "weapon": { "name": "Pistol", "damage": 10, "range": 6, "fireRate": 2.5, "accuracy": 0.72 } },
+    { "name": "GUARD-4", "team": "enemy", "x": 21.5, "y": 2.5, "health": 55,
+      "weapon": { "name": "Uzi", "damage": 5, "range": 5, "fireRate": 9, "accuracy": 0.55 } },
+    { "name": "GUARD-5", "team": "enemy", "x": 9.5, "y": 12.5, "health": 70,
+      "weapon": { "name": "Rifle", "damage": 8, "range": 9, "fireRate": 4, "accuracy": 0.65 } },
+
+    { "name": "CIVILIAN", "team": "civilian", "x": 6.5, "y": 10.5, "health": 20 },
+    { "name": "CIVILIAN", "team": "civilian", "x": 12.5, "y": 8.5, "health": 20 },
+    { "name": "CIVILIAN", "team": "civilian", "x": 15.5, "y": 12.5, "health": 20 },
+    { "name": "CIVILIAN", "team": "civilian", "x": 8.5, "y": 20.5, "health": 20 },
+    { "name": "CIVILIAN", "team": "civilian", "x": 20.5, "y": 14.5, "health": 20 },
+    { "name": "CIVILIAN", "team": "civilian", "x": 3.5, "y": 12.5, "health": 20 }
+  ]
+}

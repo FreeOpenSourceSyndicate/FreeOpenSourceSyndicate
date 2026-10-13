@@ -45,16 +45,42 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
 
 ## ADR-0003 — Gameplay data format
 
-- **Status:** Proposed
-- **Date:** 2026-10-12
+- **Status:** Accepted (2026-10-13)
+- **Date:** 2026-10-12, accepted 2026-10-13
 - **Context:** Content (weapons, agents, missions, balance) must be editable
-  without C++ changes and without merge conflicts between agents.
-- **Options:** JSON (ubiquitous, easy for LLMs, needs a parser), YAML (friendlier,
-  needs a parser), custom text/INI (no dependency, more code), binary (no).
-- **Recommendation:** JSON once a parser dependency is chosen (e.g. nlohmann/json,
-  MIT). Until then, keep data out of C++ where practical.
-- **Decision:** _Pending._
-- **Consequences:** Do not hard-code designer-tweakable values in `src/core`.
+  without C++ changes and without merge conflicts between agents. The project
+  targets very old, low-end hardware and prizes a tiny dependency footprint
+  (AGENTS.md §1b, §1c), so a large parser dependency is undesirable. Content
+  files are also read and written by many LLM agents, so a format that is easy
+  to generate and diff matters more than one that is compact.
+- **Options:**
+  1. **JSON (subset), hand-rolled parser in `src/core/data/`.** Ubiquitous,
+     LLM-friendly, and human-diffable. No third-party dependency if we implement
+     a small, allocation-light parser that supports only what our content needs:
+     objects, arrays, strings, numbers, booleans, `null`. Comments and trailing
+     commas are rejected, so the files stay valid JSON.
+  2. JSON via `nlohmann/json` (MIT). Battle-tested, but a large header to compile
+     and pull in, against §1b.
+  3. YAML. Friendlier to hand-edit but needs a parser and is easier to get wrong.
+  4. A custom text/INI format. No dependency, but non-standard and more code to
+     maintain, with worse tooling.
+  5. Binary. Not editable; rejected.
+- **Decision:** **Option 1.** Content lives in `assets/data/` as JSON, parsed by a
+  small, dependency-free reader in `src/core/data/` (`Json.h`, `Json.cpp`,
+  `MissionData.h`, `MissionData.cpp`). The schema is documented in
+  `docs/DATA_FORMAT.md`. Weapons and agents are defined inline per mission for
+  now; shared weapon/agent libraries can be added later without breaking the
+  format.
+- **Consequences:**
+  - Content authors edit `assets/data/missions/*.json`; two agents can add
+    missions without touching the same C++ file (§4.7, "data over code").
+  - The parser is deliberately small: it is not a general JSON implementation,
+    and the game rejects malformed or unsupported input with an error string.
+  - No new third-party dependency; the low-spec binary stays small (§1b).
+  - The loader lives in `core`, so it is unit-tested headlessly and stays
+    SDL-free (ADR-0002). The engine layer only decides *where* the file is.
+  - Missions may later reference a shared weapon catalogue; that is a
+    non-breaking extension.
 
 ---
 

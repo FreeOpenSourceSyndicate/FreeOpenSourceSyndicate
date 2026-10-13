@@ -4,8 +4,11 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <string>
 
+#include "core/data/MissionData.h"
 #include "core/math/Isometric.h"
+#include "game/EmbeddedMission.h"
 
 namespace foss::game
 {
@@ -128,71 +131,25 @@ bool Game::init(int width, int height, bool headless, bool lowSpec)
 
 void Game::buildMission()
 {
-    // Clear tiles.
-    for (int y = 0; y < kMapHeight; ++y)
+    // Content comes from data, not code (ADR-0003). Prefer an external file so
+    // the mission can be edited without a rebuild; fall back to the copy
+    // embedded at build time so the game still runs as a single self-contained
+    // executable on a machine with no data files (AGENTS.md 1b).
+    core::MissionData data;
+    std::string error;
+    const char* kMissionPath = "assets/data/missions/demo.json";
+    if (!core::MissionData::loadFromFile(kMissionPath, data, error))
     {
-        for (int x = 0; x < kMapWidth; ++x)
+        core::Json root = core::Json::parse(kDemoMissionJson, error);
+        if (!core::MissionData::fromJson(root, data, error))
         {
-            grid_.setWalkable(x, y, true);
-            grid_.setTileType(x, y, (x + y) % 2);
+            std::fprintf(stderr, "mission data error: %s\n", error.c_str());
         }
     }
 
-    // Some building blocks to make the map read as a place. Original layout.
-    auto wallRect = [this](int x0, int y0, int x1, int y1) {
-        for (int y = y0; y <= y1; ++y)
-        {
-            for (int x = x0; x <= x1; ++x)
-            {
-                if (x == x0 || x == x1 || y == y0 || y == y1)
-                {
-                    grid_.setWalkable(x, y, false);
-                }
-            }
-        }
-    };
-    wallRect(5, 5, 8, 8);
-    wallRect(14, 4, 18, 7);
-    wallRect(6, 15, 10, 19);
-    wallRect(16, 16, 20, 20);
-    for (int y = 10; y <= 13; ++y)
-    {
-        grid_.setWalkable(12, y, false);
-    }
-
+    grid_ = core::buildGrid(data);
     mission_ = core::Mission(grid_, seed_);
-
-    auto makeAgent = [](float x, float y, core::Team team, const std::string& name,
-                        core::Weapon weapon, float health) {
-        core::Agent agent(x, y, 3.0f);
-        agent.setTeam(team);
-        agent.setName(name);
-        agent.setWeapon(std::move(weapon));
-        agent.setMaxHealth(health);
-        return agent;
-    };
-
-    // Player squad: four cyborgs, mirroring the classic four-agent team.
-    mission_.addAgent(makeAgent(1.5f, 1.5f, core::Team::Player, "ALPHA", core::makeRifle(), 100.0f));
-    mission_.addAgent(makeAgent(2.5f, 1.5f, core::Team::Player, "BRAVO", core::makePistol(), 90.0f));
-    mission_.addAgent(makeAgent(1.5f, 2.5f, core::Team::Player, "CHARLIE", core::makeUzi(), 80.0f));
-    mission_.addAgent(makeAgent(2.5f, 2.5f, core::Team::Player, "DELTA", core::makePistol(), 90.0f));
-
-    // Enemy pickets scattered across the map.
-    mission_.addAgent(makeAgent(11.5f, 3.5f, core::Team::Enemy, "GUARD-1", core::makePistol(), 60.0f));
-    mission_.addAgent(makeAgent(19.5f, 11.5f, core::Team::Enemy, "GUARD-2", core::makeRifle(), 70.0f));
-    mission_.addAgent(makeAgent(13.5f, 18.5f, core::Team::Enemy, "GUARD-3", core::makePistol(), 60.0f));
-    mission_.addAgent(makeAgent(21.5f, 2.5f, core::Team::Enemy, "GUARD-4", core::makeUzi(), 55.0f));
-    mission_.addAgent(makeAgent(9.5f, 12.5f, core::Team::Enemy, "GUARD-5", core::makeRifle(), 70.0f));
-
-    // Civilians: unarmed bystanders scattered along the streets. They flee from
-    // gunfire and can be caught by stray shots (collateral damage).
-    mission_.addAgent(makeAgent(6.5f, 10.5f, core::Team::Civilian, "CIVILIAN", core::makePistol(), 20.0f));
-    mission_.addAgent(makeAgent(12.5f, 8.5f, core::Team::Civilian, "CIVILIAN", core::makePistol(), 20.0f));
-    mission_.addAgent(makeAgent(15.5f, 12.5f, core::Team::Civilian, "CIVILIAN", core::makePistol(), 20.0f));
-    mission_.addAgent(makeAgent(8.5f, 20.5f, core::Team::Civilian, "CIVILIAN", core::makePistol(), 20.0f));
-    mission_.addAgent(makeAgent(20.5f, 14.5f, core::Team::Civilian, "CIVILIAN", core::makePistol(), 20.0f));
-    mission_.addAgent(makeAgent(3.5f, 12.5f, core::Team::Civilian, "CIVILIAN", core::makePistol(), 20.0f));
+    core::populateMission(data, mission_);
 
     selected_.clear();
     for (std::size_t i = 0; i < mission_.agents().size(); ++i)
@@ -218,11 +175,12 @@ void Game::buildMapTexture()
     const float halfW = kTileWidth * 0.5f;
     const float halfH = kTileHeight * 0.5f;
 
-    mapOffsetX_ = static_cast<float>(kMapHeight) * halfW + kTileWidth;
+    mapOffsetX_ = static_cast<float>(grid_.height()) * halfW + kTileWidth;
     mapOffsetY_ = kTileHeight;
 
-    mapSurfaceWidth_ = static_cast<int>((kMapWidth + kMapHeight) * halfW + kTileWidth);
-    mapSurfaceHeight_ = static_cast<int>((kMapWidth + kMapHeight) * halfH + kTileHeight * 2.0f);
+    mapSurfaceWidth_ = static_cast<int>((grid_.width() + grid_.height()) * halfW + kTileWidth);
+    mapSurfaceHeight_ =
+        static_cast<int>((grid_.width() + grid_.height()) * halfH + kTileHeight * 2.0f);
 
     if (mapTexture_ != nullptr)
     {
@@ -247,9 +205,9 @@ void Game::buildMapTexture()
     }
     SDL_FillRect(surface, nullptr, kBackground);
 
-    for (int y = 0; y < kMapHeight; ++y)
+    for (int y = 0; y < grid_.height(); ++y)
     {
-        for (int x = 0; x < kMapWidth; ++x)
+        for (int x = 0; x < grid_.width(); ++x)
         {
             const core::Vec2 center = core::tileToWorld(static_cast<float>(x), static_cast<float>(y),
                                                         kTileWidth, kTileHeight);

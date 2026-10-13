@@ -10,6 +10,8 @@ set(FOSS_CORE_SOURCES
     world/Pathfinding.cpp
     sim/Agent.cpp
     sim/Mission.cpp
+    data/Json.cpp
+    data/MissionData.cpp
 )
 
 add_library(foss_core STATIC ${FOSS_CORE_SOURCES})

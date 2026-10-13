@@ -10,6 +10,13 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **Content data format (ADR-0003):** missions are now described in JSON under
+  `assets/data/missions/` and loaded by a small, dependency-free reader in
+  `src/core/data/` (`Json`, `MissionData`). Schema in `docs/DATA_FORMAT.md`.
+  `Game::buildMission` now loads the demo mission from
+  `assets/data/missions/demo.json`, preferring an external file and falling back
+  to the copy embedded at build time so the binary stays self-contained. The
+  demo mission moved out of C++ into data; no third-party dependency was added.
 - **Low-spec / old-hardware profile (ADR-0008):** `-DFOSS_LOW_SPEC=ON` builds a
   smaller, `-Os`, stripped binary; `--low-spec` (or a low-spec build) runs a
   320x200 window with the software renderer. A dedicated CI job builds this
