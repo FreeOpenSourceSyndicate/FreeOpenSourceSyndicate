@@ -13,6 +13,10 @@ everything from scratch — no original assets, code, names, or trademarks.
 > **Want to try it?** The current build is a playable single mission. See
 > [`CHANGELOG.md`](CHANGELOG.md) for what's in it and
 > [`docs/BUILD.md`](docs/BUILD.md) for build + play instructions.
+>
+> **Playtesting a release?** Each release is a frozen, playable snapshot on a
+> `release/vX.Y.Z-*` branch with version-specific build, play, and
+> copy-to-another-computer instructions under [`docs/releases/`](docs/releases/).
 
 ## Project Overview
 

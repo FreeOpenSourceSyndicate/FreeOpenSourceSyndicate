@@ -135,7 +135,11 @@ These are non-negotiable unless an ADR supersedes them.
    data files (see §7), not hard-coded constants, so multiple agents can extend
    content without merge conflicts in C++.
 8. **Assets are original or explicitly licensed.** No ripped sprites, sounds,
-   fonts, or names. See `docs/ASSETS.md`.
+   fonts, or names. See `docs/ASSETS.md`. Author external graphic files as
+   **SVG** wherever possible: it is resolution-independent (good for old,
+   low-resolution displays and the low-spec 320x200 window), tiny,
+   text-diffable, and needs no proprietary tooling. Rasterise only at
+   build/load time, or when a target format genuinely cannot be SVG.
 9. **Warnings are errors in spirit.** The build uses `-Wall -Wextra -Wpedantic`.
    Do not merge code that adds warnings.
 10. **Small commits, descriptive messages** (§8).
@@ -194,6 +198,35 @@ PR requirements:
 - CI (`.github/workflows/ci.yml`) must pass.
 - Link the issue with `Closes #<n>` when it completes one.
 
+## 6a. Releases and release branches
+
+A **release** is a snapshot a human can playtest. Cut one whenever a hands-on
+playtest is useful — in practice, whenever gameplay has changed enough to show
+something to (potential) players. Do not wait for a "finished" game.
+
+Rules:
+
+1. **One release = one tag = one `release/vX.Y.Z-<slug>` branch** off `main`,
+   plus a GitHub Release page. Follow SemVer and keep a matching `CHANGELOG.md`
+   entry. Existing examples: `release/v0.1.0-playable-slice`,
+   `release/v0.2.0-command-control`.
+2. **Every release must be visibly different from the previous one.** A player
+   who runs both builds should immediately see *something* changed. While the
+   game is small, this is strict: the change must be obvious, not subtle. Once
+   the game is complex enough, changes may be small enough that casual players
+   miss them — but never ship a release that looks identical to the last.
+3. **Every release branch carries version-specific build & play instructions**
+   in `docs/releases/vX.Y.Z-<slug>.md`. They must be specific to *that* tag and
+   branch (e.g. checking out the correct branch/tag after cloning), and must
+   include **how to copy which files and directories where** to get a runnable
+   copy of the game onto another computer.
+4. **Graphics** follow golden rule 8: author external graphic files as **SVG**
+   where possible.
+5. Update `AGENTS.md` §10 and the roadmap when a release ships.
+
+A release branch is a frozen, playable snapshot: keep it building and playable,
+and do not let unrelated work drift onto it.
+
 ## 7. Data & content
 
 - Balance/content data lives in `assets/data/` (e.g. `weapons.json`,
@@ -219,11 +252,12 @@ cmake --build build-core -j
 ctest --test-dir build-core --output-on-failure
 ```
 
-CI runs two jobs: a **core + game** job (installs `libsdl2-dev`, builds with
+CI runs three jobs: a **core + game** job (installs `libsdl2-dev`, builds with
 `-DFOSS_BUILD_GAME=ON`, runs `ctest`, which includes the headless `game_smoke`
-test) and a **core-only** job (no graphics deps). If your change touches
-`src/core/` or `tests/`, both must pass. If it touches `src/game/`, also run the
-game target locally and note the result in the PR.
+test), a **core-only** job (no graphics deps), and a **low-spec** job
+(`-DFOSS_LOW_SPEC=ON`, ADR-0008) so old-hardware support cannot bit-rot. If your
+change touches `src/core/` or `tests/`, all must pass. If it touches
+`src/game/`, also run the game target locally and note the result in the PR.
 
 ## 9. Definition of Done
 
@@ -236,6 +270,10 @@ game target locally and note the result in the PR.
 - [ ] PR description uses the handoff format and names the model used.
 - [ ] No copyrighted asset, name, or code introduced (`docs/LEGAL.md`).
 - [ ] Change stays lightweight enough for the target hardware (§1b).
+- [ ] If this is a release: a `release/vX.Y.Z-*` branch, tag, GitHub Release,
+      `CHANGELOG.md` entry, and `docs/releases/vX.Y.Z-*.md` (build/play + copy
+      instructions) all exist, and the release is visibly different from the
+      last (§6a).
 
 ## 10. Known gaps / TODO for the next agent
 
@@ -264,5 +302,11 @@ game target locally and note the result in the PR.
   `game_demo`, and `game_low_spec` cover the SDL layer headlessly.
 - Engine-layer changes are covered by the CI `core + game` job (ADR-0005). The
   CI `low-spec` job builds the old-hardware profile (ADR-0008).
-- Tested releases are tagged (`v0.1.0`, `v0.2.0`) with a matching
-  `release/vX.Y.Z-*` branch for hands-on testing, plus a GitHub Release page.
+- **Releases are playtest snapshots** (§6a): a `release/vX.Y.Z-*` branch + tag +
+  GitHub Release, a matching `CHANGELOG.md` entry, version-specific
+  `docs/releases/vX.Y.Z-*.md` (build/play + copy-to-another-computer steps), and
+  a change the player can actually see. Latest shipped: `v0.2.0`.
+- **Release process note:** when cutting a release, create the branch first,
+  commit the release doc(s) on it, then tag the branch tip and push both — so the
+  tag points at a commit whose instructions are already present on the branch.
+  Graphics for releases should be **SVG** (golden rule 8).
