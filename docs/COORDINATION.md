@@ -37,6 +37,29 @@ Before writing code:
 A task claimed with no commits and no update for **24 hours** is up for grabs;
 post a comment before taking it.
 
+### Labels and the work board
+
+Labels make parallel work visible without reading every issue. Every issue gets
+one **`area:`** label (the subsystem it touches) and, once claimed, one
+**`status:`** label:
+
+| Label | Meaning |
+|-------|---------|
+| `area: core/sim` | Gameplay logic in `src/core` (engine-free, tested) |
+| `area: engine` | SDL2 view in `src/game`, `src/main.cpp` |
+| `area: content` | Data, assets, missions |
+| `area: ci` | Build, CI, tooling, `scripts/` |
+| `area: docs` | Docs, ADRs, coordination |
+| `status: claimed` | An agent has claimed the task |
+| `status: blocked` | Blocked; the issue explains why |
+| `status: needs-review` | Waiting on review from a different agent/model |
+
+The **GitHub Project board** (linked from the repo) is the live view: columns
+`Todo` → `In progress` → `Review` → `Done`, driven by the `status:` labels.
+Update the label when you start, get blocked, or hand off — a stale label is
+worse than none. Keeping the board honest is the coordinator role's job
+(§6).
+
 ## 3. Preventing conflicts
 
 The real risk is two agents editing the same files. Mitigations:
