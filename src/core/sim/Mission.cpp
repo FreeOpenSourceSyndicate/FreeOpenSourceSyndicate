@@ -30,6 +30,19 @@ constexpr float kCivilianFleeSpeed = 3.2f;
 constexpr float kStrayRadius = 1.5f;
 constexpr float kStrayDamageScale = 0.5f;
 
+// Enemy AI state machine. All transitions are pure functions of health and
+// distance, so no RNG is drawn and missions stay deterministic.
+// Below this fraction of health a combatant breaks off and retreats.
+constexpr float kRetreatHealthFraction = 0.35f;
+// When an engaged combatant first sees a target it alerts same-team allies
+// within this many tiles ("call backup").
+constexpr float kAlertRadius = 8.0f;
+// A retreating agent aims for a walkable tile this far (tiles) from its threat.
+constexpr float kRetreatDistance = 6.0f;
+// How close (tiles) an agent must get to a patrol waypoint to advance to the
+// next one.
+constexpr float kPatrolWaypointRadius = 0.6f;
+
 // The opposing combatant team for a given team. Civilians have no enemy.
 Team opposingTeam(Team team)
 {
@@ -215,32 +228,214 @@ void Mission::updateAI(float dt)
             continue;
         }
         agent.setThinkTimer(kThinkInterval);
+        updateCombatantAI(i);
+    }
+}
 
-        const int target = nearestEnemy(i, Team::Player);
-        if (target < 0 || grid_ == nullptr)
-        {
-            continue;
-        }
+// The enemy state machine: patrol when idle, engage when a target is in sight,
+// and retreat when badly wounded. Deterministic (no RNG).
+void Mission::updateCombatantAI(std::size_t index)
+{
+    Agent& agent = agents_[index];
+    if (grid_ == nullptr)
+    {
+        return;
+    }
 
-        const float distance = distanceBetween(i, static_cast<std::size_t>(target));
-        if (distance > kSightRange)
+    // Retreat takes priority: a badly wounded combatant breaks off from the
+    // nearest threat, whatever else it was doing.
+    const int threat = nearestEnemy(index, opposingTeam(agent.team()));
+    if (agent.healthFraction() < kRetreatHealthFraction && threat >= 0)
+    {
+        agent.setAiState(AiState::Retreat);
+        if (!stepAwayFrom(index, static_cast<std::size_t>(threat)))
         {
             agent.stop();
-            continue;
         }
+        return;
+    }
 
-        const float weaponRange = agent.weapon().range;
-        if (distance > weaponRange * 0.9f)
+    const int target = nearestEnemy(index, Team::Player);
+    if (target < 0)
+    {
+        // No target in sight: patrol the assigned route, or hold position.
+        if (agent.hasPatrolRoute())
         {
-            // Close to within weapon range: step toward the target.
-            agent.moveTo(*grid_, agents_[static_cast<std::size_t>(target)].tile());
+            updatePatrol(index);
         }
         else
         {
-            // In range: hold position and fire.
+            agent.setAiState(AiState::Idle);
             agent.stop();
         }
+        return;
     }
+
+    const std::size_t targetIndex = static_cast<std::size_t>(target);
+    const float distance = distanceBetween(index, targetIndex);
+
+    // Only engage once the target is actually in sight; otherwise keep patrolling
+    // rather than chasing across the whole map.
+    if (distance > kSightRange)
+    {
+        if (agent.hasPatrolRoute())
+        {
+            updatePatrol(index);
+        }
+        else
+        {
+            agent.setAiState(AiState::Idle);
+            agent.stop();
+        }
+        return;
+    }
+
+    // Newly engaged: call nearby allies onto the same target.
+    if (agent.aiState() != AiState::Engage)
+    {
+        agent.setOrderedTarget(target);
+        alertAllies(index, kAlertRadius);
+    }
+    agent.setAiState(AiState::Engage);
+
+    const float weaponRange = agent.weapon().range;
+    if (distance > weaponRange * 0.9f)
+    {
+        // Close to within weapon range: step toward the target.
+        agent.moveTo(*grid_, agents_[targetIndex].tile());
+    }
+    else
+    {
+        // In range: hold position and fire.
+        agent.stop();
+    }
+}
+
+// Walks the agent along its patrol route, advancing to the next waypoint when it
+// arrives and looping at the end.
+void Mission::updatePatrol(std::size_t index)
+{
+    Agent& agent = agents_[index];
+    agent.setAiState(AiState::Patrol);
+
+    const std::vector<TilePos>& route = agent.patrolRoute();
+    if (route.empty())
+    {
+        agent.stop();
+        return;
+    }
+
+    std::size_t waypoint = agent.patrolIndex() % route.size();
+    const Vec2 goal = Vec2{static_cast<float>(route[waypoint].x), static_cast<float>(route[waypoint].y)};
+    if (length(goal - agent.position()) <= kPatrolWaypointRadius)
+    {
+        waypoint = (waypoint + 1) % route.size();
+        agent.setPatrolIndex(waypoint);
+    }
+
+    const TilePos tile = route[waypoint];
+    if (grid_->inBounds(tile.x, tile.y) && grid_->isWalkable(tile.x, tile.y))
+    {
+        agent.moveTo(*grid_, tile);
+    }
+    else
+    {
+        // A malformed route (blocked/out-of-bounds waypoint) must not stall the
+        // whole patrol: skip it.
+        agent.setPatrolIndex((waypoint + 1) % route.size());
+    }
+}
+
+// Moves the agent to the walkable tile furthest from `threat` along the line
+// away from it, falling back to nearer tiles. Deterministic; no pathfinding.
+bool Mission::stepAwayFrom(std::size_t index, std::size_t threat)
+{
+    Agent& agent = agents_[index];
+    if (grid_ == nullptr || threat >= agents_.size())
+    {
+        return false;
+    }
+
+    const Vec2 away = normalized(agent.position() - agents_[threat].position());
+    if (away.x == 0.0f && away.y == 0.0f)
+    {
+        return false;
+    }
+    const int stepX = away.x >= 0.0f ? 1 : -1;
+    const int stepY = away.y >= 0.0f ? 1 : -1;
+
+    const TilePos here = agent.tile();
+    for (int dist = static_cast<int>(kRetreatDistance); dist >= 2; --dist)
+    {
+        const int gx = here.x + stepX * dist;
+        const int gy = here.y + stepY * dist;
+        if (grid_->inBounds(gx, gy) && grid_->isWalkable(gx, gy))
+        {
+            agent.moveTo(*grid_, TilePos{gx, gy});
+            return true;
+        }
+    }
+    return false;
+}
+
+std::size_t Mission::alertAllies(std::size_t source, float radius)
+{
+    if (source >= agents_.size())
+    {
+        return 0;
+    }
+    Agent& caller = agents_[source];
+    if (!caller.isAlive() || !caller.isCombatant())
+    {
+        return 0;
+    }
+
+    // The caller's target: its explicit order if still valid, else the nearest
+    // enemy it can see.
+    const Team enemyTeam = opposingTeam(caller.team());
+    int target = -1;
+    const int ordered = caller.orderedTarget();
+    if (ordered >= 0 && static_cast<std::size_t>(ordered) < agents_.size())
+    {
+        const Agent& candidate = agents_[static_cast<std::size_t>(ordered)];
+        if (candidate.isAlive() && candidate.team() == enemyTeam)
+        {
+            target = ordered;
+        }
+    }
+    if (target < 0)
+    {
+        target = nearestEnemy(source, enemyTeam);
+    }
+    if (target < 0)
+    {
+        return 0;
+    }
+
+    std::size_t alerted = 0;
+    for (std::size_t i = 0; i < agents_.size(); ++i)
+    {
+        if (i == source)
+        {
+            continue;
+        }
+        Agent& ally = agents_[i];
+        if (!ally.isAlive() || ally.team() != caller.team() || !ally.isCombatant())
+        {
+            continue;
+        }
+        if (distanceBetween(source, i) > radius)
+        {
+            continue;
+        }
+        ally.setOrderedTarget(target);
+        if (ally.aiState() != AiState::Engage)
+        {
+            ally.setAiState(AiState::Engage);
+        }
+        ++alerted;
+    }
+    return alerted;
 }
 
 void Mission::updateCivilian(std::size_t index)

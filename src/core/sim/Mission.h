@@ -48,6 +48,12 @@ public:
     // Clears any explicit attack order for the agent at `index`.
     void clearOrder(std::size_t index);
 
+    // "Call backup": orders living combatants on the same team as the agent at
+    // `source` that are within `radius` tiles to focus fire on the agent's
+    // current target (its ordered target if set, otherwise the nearest enemy it
+    // can see). Returns the number of allies alerted. Deterministic; no RNG.
+    std::size_t alertAllies(std::size_t source, float radius);
+
     // Index of the nearest living agent on `enemyTeam` to (x, y) in tile space,
     // or -1 if none. Used by the view to pick a target under the cursor.
     int nearestEnemyTo(float tileX, float tileY, Team enemyTeam) const;
@@ -75,6 +81,9 @@ public:
 private:
     void updateAI(float dt);
     void updateCivilian(std::size_t index);
+    void updateCombatantAI(std::size_t index);
+    void updatePatrol(std::size_t index);
+    bool stepAwayFrom(std::size_t index, std::size_t threat);
     void resolveFire();
 
     // A missed shot near `target` can wound a civilian bystander. Deterministic;

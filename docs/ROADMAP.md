@@ -86,7 +86,7 @@ A shippable demo, deliberately original in code and art.
 - [ ] Vehicles: cars/trains, hijacking, mounted weapons
 - [ ] Destructible environment
 - [x] Enemy AI: engage (basic chase + fire)
-- [ ] Enemy AI: patrol, retreat, call backup
+- [x] Enemy AI: patrol, retreat, call backup
 - [x] Civilians: flee from gunfire, killed as collateral damage
 - [ ] Civilian/persuasion behaviour (Persuadertron recruitment)
 - [x] Mission objectives + win/lose (demo: eliminate all enemies)

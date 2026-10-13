@@ -291,6 +291,14 @@ change touches `src/core/` or `tests/`, all must pass. If it touches
   the view only picks indices. Keep new orders in the core, not the view.
 - Combat/AI/mission logic lives in `src/core/sim/` (`Agent`, `Mission`, `Weapon`)
   and is unit-tested; keep it SDL-free.
+- **Enemy AI state machine** lives on `core::Agent` (`AiState`: `Idle`, `Patrol`,
+  `Engage`, `Retreat`) and is driven by `Mission::updateCombatantAI`. Enemies
+  patrol an assigned route (`Agent::setPatrolRoute`) when no target is in sight,
+  engage once a target is within sight range, and retreat when wounded below
+  `kRetreatHealthFraction` (35%). On first engaging they call backup
+  (`Mission::alertAllies`, radius `kAlertRadius`) so nearby allies focus the same
+  target. Transitions use no RNG, so missions stay deterministic. Keep new AI
+  state on the core, not the view.
 - **Civilians** are `Team::Civilian` agents: unarmed bystanders that flee nearby
   gunfire (deterministic, no RNG) and can be killed by stray shots
   (`Mission::applyStrayFire`). They are never auto-targeted and never count

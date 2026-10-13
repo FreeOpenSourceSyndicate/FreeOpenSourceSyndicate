@@ -266,3 +266,118 @@ FOSS_TEST(Mission, CiviliansFleeGunfire)
     FOSS_CHECK_NEAR(length(mission.agents()[3].position() - farStart), 0.0f);
 }
 
+FOSS_TEST(Mission, EnemyPatrolsAssignedRoute)
+{
+    // No target in sight (the player is far away and unarmed), so an enemy with
+    // a patrol route should walk it instead of standing still.
+    TileGrid grid(40, 40);
+    Mission mission(grid, 20u);
+    mission.addAgent(makeAgent(1.0f, 1.0f, Team::Player, 100.0f,
+                               Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+
+    Agent patrol = makeAgent(30.0f, 30.0f, Team::Enemy, 100.0f,
+                             Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f});
+    patrol.setPatrolRoute({TilePos{35, 30}, TilePos{35, 35}, TilePos{30, 35}});
+    const std::size_t patrolIndex = mission.addAgent(std::move(patrol));
+
+    const Vec2 start = mission.agents()[patrolIndex].position();
+    for (int i = 0; i < 60; ++i) // 3 seconds
+    {
+        mission.update(0.05f);
+    }
+
+    // It moved a real distance and is in the Patrol state.
+    FOSS_CHECK(length(mission.agents()[patrolIndex].position() - start) > 2.0f);
+    FOSS_CHECK(mission.agents()[patrolIndex].aiState() == AiState::Patrol);
+}
+
+FOSS_TEST(Mission, WoundedEnemyRetreats)
+{
+    // An enemy at low health near a player should break off and move away.
+    TileGrid grid(40, 40);
+    Mission mission(grid, 21u);
+    mission.addAgent(makeAgent(5.0f, 5.0f, Team::Player, 100.0f,
+                               Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+    const std::size_t foeIndex =
+        mission.addAgent(makeAgent(8.0f, 5.0f, Team::Enemy, 100.0f,
+                                   Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+    // Wound it below the retreat threshold (35% of 100).
+    mission.agents()[foeIndex].applyDamage(80.0f);
+
+    const float startDistance =
+        length(mission.agents()[foeIndex].position() - mission.agents()[0].position());
+    for (int i = 0; i < 40; ++i) // 2 seconds
+    {
+        mission.update(0.05f);
+    }
+    const float endDistance =
+        length(mission.agents()[foeIndex].position() - mission.agents()[0].position());
+
+    FOSS_CHECK(mission.agents()[foeIndex].aiState() == AiState::Retreat);
+    FOSS_CHECK(endDistance > startDistance + 2.0f);
+}
+
+FOSS_TEST(Mission, HealthyEnemyDoesNotRetreat)
+{
+    // The same setup at full health must engage, not retreat: the state machine
+    // keys off health, not proximity.
+    TileGrid grid(40, 40);
+    Mission mission(grid, 22u);
+    mission.addAgent(makeAgent(5.0f, 5.0f, Team::Player, 100.0f,
+                               Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+    const std::size_t foeIndex =
+        mission.addAgent(makeAgent(8.0f, 5.0f, Team::Enemy, 100.0f,
+                                   Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+
+    for (int i = 0; i < 20; ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSS_CHECK(mission.agents()[foeIndex].aiState() == AiState::Engage);
+}
+
+FOSS_TEST(Mission, EngagedEnemyAlertsNearbyAllies)
+{
+    // E0 sees the player and calls backup. E1 is within the alert radius of E0
+    // but too far from the player to have acquired it on its own, so its order
+    // can only have come from the alert.
+    TileGrid grid(40, 40);
+    Mission mission(grid, 23u);
+    const std::size_t playerIndex = mission.addAgent(
+        makeAgent(5.0f, 5.0f, Team::Player, 100.0f, Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+    const std::size_t e0 = mission.addAgent(
+        makeAgent(11.0f, 5.0f, Team::Enemy, 100.0f, Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+    const std::size_t e1 = mission.addAgent(
+        makeAgent(18.0f, 5.0f, Team::Enemy, 100.0f, Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+
+    // Sanity: E1 starts with no order and cannot see the player (distance 13).
+    FOSS_CHECK_EQ(mission.agents()[e1].orderedTarget(), -1);
+
+    for (int i = 0; i < 20; ++i)
+    {
+        mission.update(0.05f);
+    }
+
+    // E0 engaged the player and both now focus the player.
+    FOSS_CHECK_EQ(mission.agents()[e0].aiState(), AiState::Engage);
+    FOSS_CHECK_EQ(mission.agents()[e0].orderedTarget(), static_cast<int>(playerIndex));
+    FOSS_CHECK_EQ(mission.agents()[e1].orderedTarget(), static_cast<int>(playerIndex));
+}
+
+FOSS_TEST(Mission, AlertAlliesOnlyReachesWithinRadius)
+{
+    TileGrid grid(40, 40);
+    Mission mission(grid, 24u);
+    mission.addAgent(makeAgent(5.0f, 5.0f, Team::Player, 100.0f));
+    const std::size_t caller =
+        mission.addAgent(makeAgent(9.0f, 5.0f, Team::Enemy, 100.0f));
+    mission.addAgent(makeAgent(11.0f, 5.0f, Team::Enemy, 100.0f));  // 2 tiles: in
+    mission.addAgent(makeAgent(30.0f, 5.0f, Team::Enemy, 100.0f));  // 21 tiles: out
+
+    const std::size_t alerted = mission.alertAllies(caller, 8.0f);
+    FOSS_CHECK_EQ(alerted, static_cast<std::size_t>(1));
+    FOSS_CHECK_EQ(mission.agents()[2].orderedTarget(), 0);
+    FOSS_CHECK_EQ(mission.agents()[3].orderedTarget(), -1);
+}
+
+
