@@ -24,6 +24,12 @@ constexpr float kCivilianPanicRange = 5.0f;
 constexpr float kCivilianFleeDistance = 6.0f;
 constexpr float kCivilianFleeSpeed = 3.2f;
 
+// Followers: how far behind the leader they aim to trail, how close counts as
+// "caught up", and how often they re-path. Deterministic: no RNG.
+constexpr float kFollowerFollowDistance = 2.0f;
+constexpr float kFollowerCatchUp = 1.5f;
+constexpr float kFollowerSpeed = 3.0f;
+
 // A missed shot can still catch a bystander within this many tiles of the
 // intended target. Deterministic: no extra RNG draw, so combat outcomes are
 // unaffected (only civilians are ever hit by stray fire).
@@ -124,6 +130,87 @@ void Mission::clearOrder(std::size_t index)
     }
 }
 
+int Mission::persuade(std::size_t index)
+{
+    if (index >= agents_.size())
+    {
+        return -1;
+    }
+    Agent& user = agents_[index];
+    if (!user.isAlive() || !user.isCombatant() || user.persuadeCooldown() > 0.0f)
+    {
+        return -1;
+    }
+
+    // A use is consumed even on a miss, so mashing the key is not free.
+    user.beginPersuadeCooldown();
+
+    const float range = user.persuadertron().range;
+    int best = -1;
+    float bestDistance = 0.0f;
+    for (std::size_t i = 0; i < agents_.size(); ++i)
+    {
+        const Agent& candidate = agents_[i];
+        if (!candidate.isAlive() || candidate.team() != Team::Civilian || candidate.isFollower())
+        {
+            continue;
+        }
+        const float distance = length(candidate.position() - user.position());
+        if (distance > range)
+        {
+            continue;
+        }
+        if (best == -1 || distance < bestDistance)
+        {
+            best = static_cast<int>(i);
+            bestDistance = distance;
+        }
+    }
+    if (best < 0)
+    {
+        return -1;
+    }
+
+    Agent& recruit = agents_[static_cast<std::size_t>(best)];
+    recruit.setFollowerLeader(static_cast<int>(index));
+    recruit.setSpeed(kFollowerSpeed);
+    recruit.setThinkTimer(0.0f);
+    recruit.stop();
+    return best;
+}
+
+std::size_t Mission::freeFollowersOf(std::size_t index)
+{
+    if (index >= agents_.size())
+    {
+        return 0;
+    }
+    std::size_t freed = 0;
+    for (Agent& agent : agents_)
+    {
+        if (agent.followerLeader() == static_cast<int>(index))
+        {
+            agent.setFollowerLeader(-1);
+            agent.setSpeed(kCivilianFleeSpeed);
+            ++freed;
+        }
+    }
+    return freed;
+}
+
+std::size_t Mission::followerCount(std::size_t index) const
+{
+    std::size_t count = 0;
+    for (const Agent& agent : agents_)
+    {
+        if (agent.isAlive() && agent.followerLeader() == static_cast<int>(index))
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
 int Mission::nearestEnemyTo(float tileX, float tileY, Team enemyTeam) const
 {
     int best = -1;
@@ -220,7 +307,14 @@ void Mission::updateAI(float dt)
         if (agent.team() == Team::Civilian)
         {
             agent.setThinkTimer(kThinkInterval);
-            updateCivilian(i);
+            if (agent.isFollower())
+            {
+                updateFollower(i);
+            }
+            else
+            {
+                updateCivilian(i);
+            }
             continue;
         }
         if (agent.team() != Team::Enemy)
@@ -511,6 +605,58 @@ void Mission::updateCivilian(std::size_t index)
             return;
         }
     }
+}
+
+void Mission::updateFollower(std::size_t index)
+{
+    Agent& follower = agents_[index];
+    if (grid_ == nullptr)
+    {
+        return;
+    }
+
+    const int leader = follower.followerLeader();
+    if (leader < 0 || static_cast<std::size_t>(leader) >= agents_.size())
+    {
+        // The leader is gone (invalid index); the follower stands down.
+        follower.setFollowerLeader(-1);
+        return;
+    }
+
+    const Agent& lead = agents_[static_cast<std::size_t>(leader)];
+    if (!lead.isAlive())
+    {
+        follower.setFollowerLeader(-1);
+        return;
+    }
+
+    // Keep a fixed distance behind the leader; once close enough, hold position
+    // so followers do not jitter around the leader's tile.
+    const float distance = length(lead.position() - follower.position());
+    if (distance <= kFollowerCatchUp)
+    {
+        follower.stop();
+        return;
+    }
+
+    const Vec2 toLeader = lead.position() - follower.position();
+    const Vec2 direction = normalized(toLeader);
+    const Vec2 goalPoint = lead.position() - direction * kFollowerFollowDistance;
+
+    int goalX = static_cast<int>(goalPoint.x + 0.5f);
+    int goalY = static_cast<int>(goalPoint.y + 0.5f);
+    if (!grid_->inBounds(goalX, goalY) || !grid_->isWalkable(goalX, goalY))
+    {
+        goalX = lead.tile().x;
+        goalY = lead.tile().y;
+        if (!grid_->inBounds(goalX, goalY) || !grid_->isWalkable(goalX, goalY))
+        {
+            return;
+        }
+    }
+
+    follower.setSpeed(kFollowerSpeed);
+    follower.moveTo(*grid_, TilePos{goalX, goalY});
 }
 
 void Mission::resolveFire()

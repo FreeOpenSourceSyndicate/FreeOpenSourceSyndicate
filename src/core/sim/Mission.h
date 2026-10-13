@@ -54,6 +54,22 @@ public:
     // can see). Returns the number of allies alerted. Deterministic; no RNG.
     std::size_t alertAllies(std::size_t source, float radius);
 
+    // --- Persuadertron ----------------------------------------------------
+
+    // Uses the Persuadertron from the agent at `index`. Turns the nearest
+    // un-recruited civilian within range into a follower of `index` and returns
+    // its index, or -1 if there is no valid target (or the device is cooling
+    // down). The user is not the agent: persuasion is deterministic and never
+    // touches combat targeting. Consumes a use even when it misses.
+    int persuade(std::size_t index);
+
+    // Releases every follower of the agent at `index`; they resume normal
+    // civilian behaviour. Returns how many were freed.
+    std::size_t freeFollowersOf(std::size_t index);
+
+    // Number of living agents following the agent at `index`.
+    std::size_t followerCount(std::size_t index) const;
+
     // Index of the nearest living agent on `enemyTeam` to (x, y) in tile space,
     // or -1 if none. Used by the view to pick a target under the cursor.
     int nearestEnemyTo(float tileX, float tileY, Team enemyTeam) const;
@@ -84,6 +100,7 @@ private:
     void updateCombatantAI(std::size_t index);
     void updatePatrol(std::size_t index);
     bool stepAwayFrom(std::size_t index, std::size_t threat);
+    void updateFollower(std::size_t index);
     void resolveFire();
 
     // A missed shot near `target` can wound a civilian bystander. Deterministic;

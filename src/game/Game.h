@@ -79,6 +79,10 @@ private:
     void toggleSelect(std::size_t index);
     void selectAllPlayers();
     void orderAttackOn(int targetIndex);
+    // Each selected agent uses its Persuadertron on the nearest civilian in range.
+    void persuadeNearestCivilian();
+    // Releases the followers of every selected agent.
+    void freeSelectedFollowers();
 
     core::Vec2 tileToScreen(const core::Vec2& tile) const;
     core::TilePos screenToTile(int screenX, int screenY) const;

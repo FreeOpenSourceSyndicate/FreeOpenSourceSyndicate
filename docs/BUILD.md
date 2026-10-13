@@ -91,12 +91,19 @@ agents before your squad is wiped out.
 | **`A`** | Select the whole squad |
 | **Left click the ground** | Order the selected agents to move (2-wide formation) |
 | **Right click an enemy (or left-click it)** | Order the selection to focus fire on that enemy |
+| **`P`** | Use the selected agents' Persuadertrons to recruit the nearest civilian in range |
+| **`F`** | Release the selected agents' followers back into the crowd |
 | **Arrow keys** | Scroll the camera |
 | **R** | Restart the mission (new seed) |
 | **Esc** | Quit |
 
 An agent under a focus-fire order shows a white/red reticle; the order clears
 when you give that agent a move order, or automatically when the target dies.
+
+Recruited civilians ("followers") trail their recruiter in cyan. They are not
+combatants: they are never targeted, never fire, and never affect win/lose, so
+a follower is a walking hostage rather than a soldier. The HUD shows the
+current follower count.
 
 The squad is the four green agents (bottom-left of the map); enemies are red.
 Health bars float above every agent. The HUD shows the objective, the squad

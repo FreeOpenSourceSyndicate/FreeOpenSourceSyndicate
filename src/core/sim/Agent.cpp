@@ -87,6 +87,7 @@ void Agent::update(float dt)
     gunfireTimer_ = std::max(0.0f, gunfireTimer_ - dt);
     hitFlash_ = std::max(0.0f, hitFlash_ - dt);
     thinkTimer_ = std::max(0.0f, thinkTimer_ - dt);
+    persuadeCooldown_ = std::max(0.0f, persuadeCooldown_ - dt);
 
     if (!isAlive() || nextWaypoint_ >= path_.size())
     {

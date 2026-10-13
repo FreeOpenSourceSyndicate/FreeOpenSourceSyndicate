@@ -40,6 +40,7 @@ constexpr std::uint8_t kPlayerBodySelected[3] = {90, 230, 130};
 constexpr std::uint8_t kEnemyBody[3] = {200, 55, 45};
 constexpr std::uint8_t kEnemyBodyFlash[3] = {255, 210, 90};
 constexpr std::uint8_t kCivilianBody[3] = {205, 200, 180};
+constexpr std::uint8_t kFollowerBody[3] = {90, 205, 230};
 
 constexpr SDL_Color kHudText{225, 235, 225, 255};
 constexpr SDL_Color kHudGood{120, 230, 140, 255};
@@ -390,6 +391,22 @@ void Game::orderAttackOn(int targetIndex)
     }
 }
 
+void Game::persuadeNearestCivilian()
+{
+    for (const std::size_t index : selected_)
+    {
+        mission_.persuade(index);
+    }
+}
+
+void Game::freeSelectedFollowers()
+{
+    for (const std::size_t index : selected_)
+    {
+        mission_.freeFollowersOf(index);
+    }
+}
+
 void Game::fillDiamond(SDL_Surface* surface, int centerX, int centerY, float halfW, float halfH,
                        std::uint32_t color)
 {
@@ -484,6 +501,12 @@ void Game::handleEvents(bool& running)
                 break;
             case SDLK_a:
                 selectAllPlayers();
+                break;
+            case SDLK_p:
+                persuadeNearestCivilian();
+                break;
+            case SDLK_f:
+                freeSelectedFollowers();
                 break;
             case SDLK_1:
             case SDLK_2:
@@ -740,7 +763,15 @@ void Game::renderAgents()
         // Bystanders are drawn smaller and paler, with no health bar or reticle.
         if (agent.team() == core::Team::Civilian)
         {
-            fillDiamondWorld(world, 0.26f, kCivilianBody[0], kCivilianBody[1], kCivilianBody[2]);
+            // A recruited follower is tinted cyan so the crowd reads at a glance.
+            if (agent.isFollower())
+            {
+                fillDiamondWorld(world, 0.28f, kFollowerBody[0], kFollowerBody[1], kFollowerBody[2]);
+            }
+            else
+            {
+                fillDiamondWorld(world, 0.26f, kCivilianBody[0], kCivilianBody[1], kCivilianBody[2]);
+            }
             continue;
         }
 
@@ -841,7 +872,17 @@ void Game::renderHud()
     font_.draw(renderer_, margin, margin / 2, "FOSSYND v" FOSSYND_VERSION, kHudText);
     std::string objective =
         "OBJECTIVE: ELIMINATE ALL " + std::to_string(mission_.aliveCount(core::Team::Enemy)) +
-        " ENEMY AGENTS   [L] MOVE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] SELECT   [A]LL   [R] RESTART";
+        " ENEMY AGENTS   [L] MOVE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] SELECT   [A]LL   [P] PERSUADE   "
+        "[F] FREE   [R] RESTART";
+    std::size_t followers = 0;
+    for (std::size_t i = 0; i < mission_.agents().size(); ++i)
+    {
+        followers += mission_.followerCount(i);
+    }
+    if (followers > 0)
+    {
+        objective = "FOLLOWERS: " + std::to_string(followers) + "   " + objective;
+    }
     if (mission_.civilianKills() > 0)
     {
         objective = "COLLATERAL: " + std::to_string(mission_.civilianKills()) + "   " + objective;
