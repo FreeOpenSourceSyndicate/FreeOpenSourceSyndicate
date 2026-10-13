@@ -262,9 +262,10 @@ game target locally and note the result in the PR.
 - Still markers, not sprites: no animation, zoom, or minimap yet (Phase 2).
 - **Content format is decided (ADR-0003):** JSON in `assets/data/`, parsed by
   the dependency-free `core/data/` loader (`Json`, `MissionData`); schema in
-  `docs/DATA_FORMAT.md`. The core loader and tests are landed; the engine still
-  builds its mission in `Game::buildMission` and is being switched to load
-  `assets/data/missions/demo.json`.
+  `docs/DATA_FORMAT.md`. `Game::buildMission` loads
+  `assets/data/missions/demo.json`, preferring an external file and falling
+  back to the copy embedded at build time (so the binary stays self-contained).
+  To add a mission, add a JSON file — do not hard-code it in C++.
 - Verification flags: `--headless --frames N`, `--headless --demo --frames N`,
   and `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
   `game_demo`, and `game_low_spec` cover the SDL layer headlessly.

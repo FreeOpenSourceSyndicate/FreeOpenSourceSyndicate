@@ -10,6 +10,18 @@ set(FOSS_GAME_SOURCES
     game/Font.cpp
 )
 
+# Embed the demo mission JSON into the binary so the game stays a single,
+# self-contained executable (AGENTS.md 1b) while still being data-driven
+# (ADR-0003). The generated source is produced at configure time.
+set(FOSS_DEMO_MISSION_FILE "${CMAKE_SOURCE_DIR}/assets/data/missions/demo.json")
+file(READ "${FOSS_DEMO_MISSION_FILE}" FOSS_DEMO_MISSION_JSON)
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/game/EmbeddedMission.cpp.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/game/EmbeddedMission.cpp"
+    @ONLY
+)
+list(APPEND FOSS_GAME_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/game/EmbeddedMission.cpp")
+
 add_executable(FreeOpenSourceSyndicate ${FOSS_GAME_SOURCES})
 
 target_include_directories(FreeOpenSourceSyndicate PRIVATE
