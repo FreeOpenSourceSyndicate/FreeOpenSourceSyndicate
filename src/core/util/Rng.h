@@ -3,7 +3,7 @@
 
 #include <cstdint>
 
-namespace foss::core
+namespace fossynd::core
 {
 
 // A small, fully deterministic pseudo-random generator (xorshift64*).
@@ -66,4 +66,4 @@ private:
     std::uint64_t state_;
 };
 
-} // namespace foss::core
+} // namespace fossynd::core

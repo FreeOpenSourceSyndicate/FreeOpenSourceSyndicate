@@ -66,13 +66,13 @@ You only need a text editor and a terminal. Good open-source editors:
 
 ```bash
 git clone https://github.com/FreeOpenSourceSyndicate/FreeOpenSourceSyndicate.git
-cd FreeOpenSourceSyndicate
+cd FOSSynd
 
 # Full build (core + tests + game)
 ./scripts/build.sh
 
 # Run the game
-./build/src/FreeOpenSourceSyndicate
+./build/src/FOSSynd
 
 # Run the tests
 ctest --test-dir build --output-on-failure
@@ -81,7 +81,7 @@ ctest --test-dir build --output-on-failure
 If you do not want the SDL2 dependency, build the core only:
 
 ```bash
-cmake -S . -B build -DFOSS_BUILD_GAME=OFF
+cmake -S . -B build -DFOSSYND_BUILD_GAME=OFF
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
@@ -106,21 +106,21 @@ Any of these work; all are open source.
    **CMake Tools**.
 2. Open the repository folder.
 3. Let CMake Tools configure. If SDL2 is not found, set the CMake cache
-   variable `FOSS_BUILD_GAME=OFF` to work on the core only.
+   variable `FOSSYND_BUILD_GAME=OFF` to work on the core only.
 4. Build with the CMake Tools toolbar; run tests from the **Testing** view.
 
 ### CLion
 
 1. Open the repository folder; CLion detects `CMakeLists.txt`.
-2. In **Settings → Build → CMake**, add `-DFOSS_BUILD_GAME=ON`.
-3. Build and run the `FreeOpenSourceSyndicate` target; run `run_tests` for unit
+2. In **Settings → Build → CMake**, add `-DFOSSYND_BUILD_GAME=ON`.
+3. Build and run the `FOSSynd` target; run `run_tests` for unit
    tests.
 
 ### Qt Creator
 
 1. Open `CMakeLists.txt` as a project.
-2. Add the CMake argument `-DFOSS_BUILD_GAME=ON`.
-3. Build the `FreeOpenSourceSyndicate` target and run it.
+2. Add the CMake argument `-DFOSSYND_BUILD_GAME=ON`.
+3. Build the `FOSSynd` target and run it.
 
 ### KDevelop
 
@@ -129,7 +129,7 @@ Open the folder, let it configure the CMake project, and build as usual.
 ## Running the game
 
 ```bash
-./build/src/FreeOpenSourceSyndicate
+./build/src/FOSSynd
 ```
 
 Controls (prototype):
@@ -142,6 +142,6 @@ Controls (prototype):
 Headless options (used by tests and CI):
 
 ```bash
-./build/src/FreeOpenSourceSyndicate --headless --frames 30          # smoke test
-./build/src/FreeOpenSourceSyndicate --headless --screenshot out.bmp # one frame to a BMP
+./build/src/FOSSynd --headless --frames 30          # smoke test
+./build/src/FOSSynd --headless --screenshot out.bmp # one frame to a BMP
 ```

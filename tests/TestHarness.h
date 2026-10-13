@@ -13,9 +13,9 @@
 // require editing any other file (important when several agents add tests in
 // parallel).
 //
-//   FOSS_TEST(Isometric, RoundTrip) { ... FOSS_CHECK_EQ(a, b); }
+//   FOSSYND_TEST(Isometric, RoundTrip) { ... FOSSYND_CHECK_EQ(a, b); }
 
-namespace foss::test
+namespace fossynd::test
 {
 
 struct TestCase
@@ -54,31 +54,31 @@ inline bool nearlyEqual(float a, float b, float epsilon = 1e-4f)
     return std::fabs(a - b) <= epsilon;
 }
 
-} // namespace foss::test
+} // namespace fossynd::test
 
-#define FOSS_TEST(suite, name)                                                                     \
-    static void foss_test_##suite##_##name();                                                      \
-    static const bool foss_reg_##suite##_##name =                                                  \
-        ::foss::test::registerTest(#suite, #name, foss_test_##suite##_##name);                     \
-    static void foss_test_##suite##_##name()
+#define FOSSYND_TEST(suite, name)                                                                     \
+    static void fossynd_test_##suite##_##name();                                                      \
+    static const bool fossynd_reg_##suite##_##name =                                                  \
+        ::fossynd::test::registerTest(#suite, #name, fossynd_test_##suite##_##name);                     \
+    static void fossynd_test_##suite##_##name()
 
-#define FOSS_CHECK(cond)                                                                           \
+#define FOSSYND_CHECK(cond)                                                                           \
     do {                                                                                           \
         if (!(cond)) {                                                                             \
-            ::foss::test::reportFailure(__FILE__, __LINE__, "expected: " #cond);                   \
+            ::fossynd::test::reportFailure(__FILE__, __LINE__, "expected: " #cond);                   \
         }                                                                                          \
     } while (0)
 
-#define FOSS_CHECK_EQ(a, b)                                                                        \
+#define FOSSYND_CHECK_EQ(a, b)                                                                        \
     do {                                                                                           \
         if (!((a) == (b))) {                                                                       \
-            ::foss::test::reportFailure(__FILE__, __LINE__, "expected " #a " == " #b);             \
+            ::fossynd::test::reportFailure(__FILE__, __LINE__, "expected " #a " == " #b);             \
         }                                                                                          \
     } while (0)
 
-#define FOSS_CHECK_NEAR(a, b)                                                                      \
+#define FOSSYND_CHECK_NEAR(a, b)                                                                      \
     do {                                                                                           \
-        if (!::foss::test::nearlyEqual((a), (b))) {                                                \
-            ::foss::test::reportFailure(__FILE__, __LINE__, "expected " #a " ~= " #b);             \
+        if (!::fossynd::test::nearlyEqual((a), (b))) {                                                \
+            ::fossynd::test::reportFailure(__FILE__, __LINE__, "expected " #a " ~= " #b);             \
         }                                                                                          \
     } while (0)

@@ -2,17 +2,17 @@
 #include "TestHarness.h"
 #include "core/sim/Agent.h"
 
-using namespace foss::core;
+using namespace fossynd::core;
 
-FOSS_TEST(Agent, MoveToFindsPath)
+FOSSYND_TEST(Agent, MoveToFindsPath)
 {
     TileGrid grid(5, 5);
     Agent agent(0.0f, 0.0f, 2.0f);
-    FOSS_CHECK(agent.moveTo(grid, TilePos{4, 0}));
-    FOSS_CHECK(agent.hasPath());
+    FOSSYND_CHECK(agent.moveTo(grid, TilePos{4, 0}));
+    FOSSYND_CHECK(agent.hasPath());
 }
 
-FOSS_TEST(Agent, MoveToUnreachableStops)
+FOSSYND_TEST(Agent, MoveToUnreachableStops)
 {
     TileGrid grid(5, 5);
     for (int y = 0; y < 5; ++y)
@@ -20,11 +20,11 @@ FOSS_TEST(Agent, MoveToUnreachableStops)
         grid.setWalkable(2, y, false);
     }
     Agent agent(0.0f, 0.0f, 2.0f);
-    FOSS_CHECK(!agent.moveTo(grid, TilePos{4, 0}));
-    FOSS_CHECK(!agent.hasPath());
+    FOSSYND_CHECK(!agent.moveTo(grid, TilePos{4, 0}));
+    FOSSYND_CHECK(!agent.hasPath());
 }
 
-FOSS_TEST(Agent, ReachesGoalAfterEnoughTime)
+FOSSYND_TEST(Agent, ReachesGoalAfterEnoughTime)
 {
     TileGrid grid(5, 5);
     Agent agent(0.0f, 0.0f, 2.0f); // 2 tiles per second
@@ -36,24 +36,24 @@ FOSS_TEST(Agent, ReachesGoalAfterEnoughTime)
         agent.update(0.1f);
     }
 
-    FOSS_CHECK(!agent.hasPath());
-    FOSS_CHECK_NEAR(agent.position().x, 4.0f);
-    FOSS_CHECK_NEAR(agent.position().y, 0.0f);
+    FOSSYND_CHECK(!agent.hasPath());
+    FOSSYND_CHECK_NEAR(agent.position().x, 4.0f);
+    FOSSYND_CHECK_NEAR(agent.position().y, 0.0f);
 }
 
-FOSS_TEST(Agent, MovesIncrementallyAtFixedSpeed)
+FOSSYND_TEST(Agent, MovesIncrementallyAtFixedSpeed)
 {
     TileGrid grid(5, 5);
     Agent agent(0.0f, 0.0f, 1.0f); // 1 tile per second
     agent.moveTo(grid, TilePos{4, 0});
 
     agent.update(1.0f); // one second -> one tile
-    FOSS_CHECK_NEAR(agent.position().x, 1.0f);
-    FOSS_CHECK_NEAR(agent.position().y, 0.0f);
-    FOSS_CHECK(agent.hasPath());
+    FOSSYND_CHECK_NEAR(agent.position().x, 1.0f);
+    FOSSYND_CHECK_NEAR(agent.position().y, 0.0f);
+    FOSSYND_CHECK(agent.hasPath());
 }
 
-FOSS_TEST(Agent, ZeroOrNegativeDtIsNoOp)
+FOSSYND_TEST(Agent, ZeroOrNegativeDtIsNoOp)
 {
     TileGrid grid(5, 5);
     Agent agent(0.0f, 0.0f, 1.0f);
@@ -61,6 +61,6 @@ FOSS_TEST(Agent, ZeroOrNegativeDtIsNoOp)
 
     agent.update(0.0f);
     agent.update(-1.0f);
-    FOSS_CHECK_NEAR(agent.position().x, 0.0f);
-    FOSS_CHECK_NEAR(agent.position().y, 0.0f);
+    FOSSYND_CHECK_NEAR(agent.position().x, 0.0f);
+    FOSSYND_CHECK_NEAR(agent.position().y, 0.0f);
 }

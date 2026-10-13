@@ -5,7 +5,7 @@
 
 ## Overview
 
-Free Open Source Syndicate uses a component-based entity system with modular gameplay systems. This document outlines the high-level architecture and design patterns used throughout the codebase.
+FOSSynd uses a component-based entity system with modular gameplay systems. This document outlines the high-level architecture and design patterns used throughout the codebase.
 
 ## Core Design Principles
 

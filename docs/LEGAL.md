@@ -24,8 +24,9 @@ stay on the safe side of that line.
    or game code. Everything here is written from scratch.
 3. **No trademarks as branding.** "Syndicate" and "Syndicate Wars" are
    trademarks of their owners. Do not use them as the product name, logo, or in
-   a way that implies affiliation. The project name **Free Open Source
-   Syndicate** is our own; keep "Syndicate" descriptive, not as a brand mark.
+   a way that implies affiliation. The project name **FOSSynd** (Free,
+   Open-Source Syndicate) is our own; keep "Syndicate" descriptive, not as a
+   brand mark.
 4. **No verbatim text.** Do not copy mission briefings, manuals, in-game text,
    names of characters/factions/companies, or marketing copy from the originals.
    Write new lore.

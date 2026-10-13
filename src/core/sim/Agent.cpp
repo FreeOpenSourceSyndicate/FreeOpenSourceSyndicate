@@ -5,7 +5,7 @@
 
 #include "core/world/Pathfinding.h"
 
-namespace foss::core
+namespace fossynd::core
 {
 
 Agent::Agent(float tileX, float tileY, float tilesPerSecond)
@@ -121,4 +121,4 @@ void Agent::update(float dt)
     }
 }
 
-} // namespace foss::core
+} // namespace fossynd::core

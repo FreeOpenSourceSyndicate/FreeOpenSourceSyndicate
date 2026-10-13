@@ -4,7 +4,7 @@
 
 # Build Instructions
 
-Free Open Source Syndicate uses CMake and needs only **SDL2** beyond a C++17
+FOSSynd uses CMake and needs only **SDL2** beyond a C++17
 compiler. The **primary platform is Debian-based Linux** (Mint, Ubuntu); macOS
 and Windows are supported and documented, not tested regularly.
 
@@ -12,8 +12,8 @@ and Windows are supported and documented, not tested regularly.
 
 | Mode | Flag | Needs SDL2? | Use for |
 |------|------|-------------|---------|
-| **Core + game** (default) | `-DFOSS_BUILD_GAME=ON` | Yes | Running and developing the game |
-| **Core only** | `-DFOSS_BUILD_GAME=OFF` | No | Unit tests, CI, logic-only work |
+| **Core + game** (default) | `-DFOSSYND_BUILD_GAME=ON` | Yes | Running and developing the game |
+| **Core only** | `-DFOSSYND_BUILD_GAME=OFF` | No | Unit tests, CI, logic-only work |
 
 Game logic lives in `src/core/` and builds without SDL2 (ADR-0002), so you can
 work on gameplay with just a compiler.
@@ -29,14 +29,14 @@ guarantee that:
 
 ```bash
 # Build the old-hardware profile (small, -Os, stripped)
-cmake -S . -B build -DFOSS_BUILD_GAME=ON -DFOSS_LOW_SPEC=ON -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -DFOSSYND_BUILD_GAME=ON -DFOSSYND_LOW_SPEC=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 
 # Or run any build in low-spec mode at runtime (320x200 + software renderer)
-./build/src/FreeOpenSourceSyndicate --low-spec
+./build/src/FOSSynd --low-spec
 ```
 
-A `FOSS_LOW_SPEC=ON` build runs in low-spec mode automatically. CI builds this
+A `FOSSYND_LOW_SPEC=ON` build runs in low-spec mode automatically. CI builds this
 profile on every change so it cannot bit-rot. If the game does not start on very
 old hardware, that is a bug — please report it.
 
@@ -65,14 +65,14 @@ Windows (MSYS2 UCRT64): `pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-
 ./scripts/build.sh
 
 # Or manually
-cmake -S . -B build -DFOSS_BUILD_GAME=ON -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -DFOSSYND_BUILD_GAME=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 
 # Run the game
-./build/src/FreeOpenSourceSyndicate
+./build/src/FOSSynd
 
 # Watch the attract mode (the squad fights on its own — good for demos)
-./build/src/FreeOpenSourceSyndicate --demo
+./build/src/FOSSynd --demo
 
 # Run the tests
 ctest --test-dir build --output-on-failure
@@ -120,7 +120,7 @@ They flee when gunfire starts nearby. Civilian deaths you cause are counted as
 ### Core-only build (no SDL2 needed)
 
 ```bash
-cmake -S . -B build -DFOSS_BUILD_GAME=OFF
+cmake -S . -B build -DFOSSYND_BUILD_GAME=OFF
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
@@ -137,9 +137,9 @@ The commands above work as-is. This is the reference environment.
 
 ```bash
 brew install cmake sdl2
-cmake -S . -B build -DFOSS_BUILD_GAME=ON
+cmake -S . -B build -DFOSSYND_BUILD_GAME=ON
 cmake --build build -j
-./build/src/FreeOpenSourceSyndicate
+./build/src/FOSSynd
 ```
 
 ### Windows (MSYS2)
@@ -149,9 +149,9 @@ From a **UCRT64** shell:
 ```bash
 pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake \
     mingw-w64-ucrt-x86_64-SDL2 git
-cmake -S . -B build -G Ninja -DFOSS_BUILD_GAME=ON
+cmake -S . -B build -G Ninja -DFOSSYND_BUILD_GAME=ON
 cmake --build build
-./build/src/FreeOpenSourceSyndicate.exe
+./build/src/FOSSynd.exe
 ```
 
 ## Troubleshooting
@@ -161,7 +161,7 @@ cmake --build build
 Install the SDL2 development package (`libsdl2-dev`, `SDL2-devel`, or the MSYS2
 package above). If SDL2 is installed in a non-standard prefix, set
 `SDL2_DIR` or `CMAKE_PREFIX_PATH`. To skip the game entirely, build with
-`-DFOSS_BUILD_GAME=OFF`.
+`-DFOSSYND_BUILD_GAME=OFF`.
 
 ### The game window does not appear (headless machine / CI)
 
@@ -169,14 +169,14 @@ SDL needs a display. Use the headless flags, which select the dummy video
 driver:
 
 ```bash
-./build/src/FreeOpenSourceSyndicate --headless --frames 30
+./build/src/FOSSynd --headless --frames 30
 ```
 
 ### Clean rebuild
 
 ```bash
 rm -rf build
-cmake -S . -B build -DFOSS_BUILD_GAME=ON
+cmake -S . -B build -DFOSSYND_BUILD_GAME=ON
 cmake --build build -j
 ```
 

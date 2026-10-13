@@ -91,7 +91,7 @@ int main(int argc, char** argv)
         }
     }
 
-#if defined(FOSS_LOW_SPEC_BUILD)
+#if defined(FOSSYND_LOW_SPEC_BUILD)
     // A low-spec build always runs in low-spec mode unless the caller opts out.
     lowSpec = true;
 #endif
@@ -148,7 +148,7 @@ int main(int argc, char** argv)
     int width = lowSpec ? 320 : 960;
     int height = lowSpec ? 200 : 600;
 
-    foss::game::Game game;
+    fossynd::game::Game game;
     game.setMissionPath(missionPath);
     if (!game.init(width, height, headless, lowSpec))
     {

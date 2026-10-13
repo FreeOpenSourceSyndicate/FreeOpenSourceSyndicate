@@ -6,12 +6,12 @@
 int main()
 {
     int passed = 0;
-    for (const auto& test : foss::test::registry())
+    for (const auto& test : fossynd::test::registry())
     {
         std::printf("[ RUN  ] %s.%s\n", test.suite.c_str(), test.name.c_str());
-        const int before = foss::test::failureCount();
+        const int before = fossynd::test::failureCount();
         test.fn();
-        if (foss::test::failureCount() == before)
+        if (fossynd::test::failureCount() == before)
         {
             ++passed;
             std::printf("[  OK  ] %s.%s\n", test.suite.c_str(), test.name.c_str());
@@ -22,7 +22,7 @@ int main()
         }
     }
 
-    const int total = static_cast<int>(foss::test::registry().size());
-    std::printf("\n%d/%d tests passed, %d assertion failure(s)\n", passed, total, foss::test::failureCount());
-    return foss::test::failureCount() == 0 ? 0 : 1;
+    const int total = static_cast<int>(fossynd::test::registry().size());
+    std::printf("\n%d/%d tests passed, %d assertion failure(s)\n", passed, total, fossynd::test::failureCount());
+    return fossynd::test::failureCount() == 0 ? 0 : 1;
 }

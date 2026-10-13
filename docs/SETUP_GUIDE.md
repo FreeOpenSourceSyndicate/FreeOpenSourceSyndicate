@@ -31,7 +31,7 @@ sudo apt-get install -y build-essential cmake git libsdl2-dev
 
 ```bash
 git clone https://github.com/FreeOpenSourceSyndicate/FreeOpenSourceSyndicate.git
-cd FreeOpenSourceSyndicate
+cd FOSSynd
 ```
 
 ## 3. Build
@@ -45,7 +45,7 @@ This builds the engine-agnostic core, the unit tests, and the SDL2 game target.
 ## 4. Run
 
 ```bash
-./build/src/FreeOpenSourceSyndicate
+./build/src/FOSSynd
 ```
 
 ## 5. Test

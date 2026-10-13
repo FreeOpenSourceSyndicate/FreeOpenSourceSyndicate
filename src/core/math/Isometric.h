@@ -3,7 +3,7 @@
 
 #include "core/math/Vec2.h"
 
-namespace foss::core
+namespace fossynd::core
 {
 
 // Isometric projection helpers.
@@ -19,4 +19,4 @@ Vec2 tileToWorld(float tileX, float tileY, float tileWidth, float tileHeight);
 
 Vec2 worldToTile(float worldX, float worldY, float tileWidth, float tileHeight);
 
-} // namespace foss::core
+} // namespace fossynd::core

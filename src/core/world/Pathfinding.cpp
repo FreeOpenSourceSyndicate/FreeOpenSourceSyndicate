@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <queue>
 
-namespace foss::core
+namespace fossynd::core
 {
 namespace
 {
@@ -130,4 +130,4 @@ std::vector<TilePos> findPath(const TileGrid& grid, TilePos start, TilePos goal,
     return path;
 }
 
-} // namespace foss::core
+} // namespace fossynd::core

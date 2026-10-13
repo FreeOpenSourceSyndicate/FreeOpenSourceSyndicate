@@ -10,7 +10,7 @@
 #include "core/math/Isometric.h"
 #include "game/EmbeddedMission.h"
 
-namespace foss::game
+namespace fossynd::game
 {
 namespace
 {
@@ -85,7 +85,7 @@ bool Game::init(int width, int height, bool headless, bool lowSpec)
     screenWidth_ = width;
     screenHeight_ = height;
 
-    window_ = SDL_CreateWindow("Free Open Source Syndicate", SDL_WINDOWPOS_CENTERED,
+    window_ = SDL_CreateWindow("FOSSynd", SDL_WINDOWPOS_CENTERED,
                                SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_SHOWN);
     if (window_ == nullptr)
     {
@@ -795,7 +795,7 @@ void Game::renderHud()
     SDL_Rect topBar{0, 0, screenWidth_, lineH + margin};
     SDL_RenderFillRect(renderer_, &topBar);
 
-    font_.draw(renderer_, margin, margin / 2, "FREE OPEN SOURCE SYNDICATE", kHudText);
+    font_.draw(renderer_, margin, margin / 2, "FOSSYND", kHudText);
     std::string objective =
         "OBJECTIVE: ELIMINATE ALL " + std::to_string(mission_.aliveCount(core::Team::Enemy)) +
         " ENEMY AGENTS   [L] MOVE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] SELECT   [A]LL   [R] RESTART";
@@ -942,4 +942,4 @@ int Game::run(int maxFrames)
     return 0;
 }
 
-} // namespace foss::game
+} // namespace fossynd::game

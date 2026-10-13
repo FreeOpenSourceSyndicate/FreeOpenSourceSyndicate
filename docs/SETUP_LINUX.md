@@ -24,14 +24,14 @@ sudo apt-get install -y clangd ninja-build    # language server + fast builds
 
 ```bash
 git clone https://github.com/FreeOpenSourceSyndicate/FreeOpenSourceSyndicate.git
-cd FreeOpenSourceSyndicate
+cd FOSSynd
 ./scripts/build.sh
 ```
 
 ## 3. Run
 
 ```bash
-./build/src/FreeOpenSourceSyndicate
+./build/src/FOSSynd
 ```
 
 Controls (prototype): left-click a tile to move the selected agent, **Tab** to
@@ -48,7 +48,7 @@ ctest --test-dir build --output-on-failure
 Useful when you only touch `src/core/`:
 
 ```bash
-cmake -S . -B build -DFOSS_BUILD_GAME=OFF
+cmake -S . -B build -DFOSSYND_BUILD_GAME=OFF
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
@@ -65,10 +65,10 @@ a non-standard prefix, set `SDL2_DIR` or `CMAKE_PREFIX_PATH`.
 Use the headless flags, which select the dummy video driver:
 
 ```bash
-./build/src/FreeOpenSourceSyndicate --headless --frames 30
+./build/src/FOSSynd --headless --frames 30
 ```
 
 ### Wayland vs X11
 
 SDL2 chooses automatically. To force a driver, set `SDL_VIDEODRIVER`, e.g.
-`SDL_VIDEODRIVER=x11 ./build/src/FreeOpenSourceSyndicate`.
+`SDL_VIDEODRIVER=x11 ./build/src/FOSSynd`.

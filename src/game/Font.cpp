@@ -1,7 +1,7 @@
 /* AI/LLM-generated file. Do not treat as human-written source documentation. */
 #include "game/Font.h"
 
-namespace foss::game
+namespace fossynd::game
 {
 namespace
 {
@@ -216,4 +216,4 @@ void BitmapFont::draw(SDL_Renderer* renderer, int x, int y, const std::string& t
     SDL_SetTextureAlphaMod(atlas_, 255);
 }
 
-} // namespace foss::game
+} // namespace fossynd::game

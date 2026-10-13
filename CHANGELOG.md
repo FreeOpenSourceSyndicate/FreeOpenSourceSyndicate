@@ -2,7 +2,7 @@
 
 # Changelog
 
-All notable changes to Free Open Source Syndicate. This project is an
+All notable changes to FOSSynd. This project is an
 independent, from-scratch recreation of the *gameplay* of 1993's Syndicate; it
 contains no original assets, code, names, or trademarks.
 
@@ -35,7 +35,7 @@ contains no original assets, code, names, or trademarks.
 - **Install rules:** `cmake --install` now installs the binary plus
   `share/fossynd/missions/demo.json` and the example config, so an installed
   build finds its data via the fallback search.
-- **Low-spec / old-hardware profile (ADR-0008):** `-DFOSS_LOW_SPEC=ON` builds a
+- **Low-spec / old-hardware profile (ADR-0008):** `-DFOSSYND_LOW_SPEC=ON` builds a
   smaller, `-Os`, stripped binary; `--low-spec` (or a low-spec build) runs a
   320x200 window with the software renderer. A dedicated CI job builds this
   profile so old-hardware support cannot bit-rot.
@@ -100,9 +100,9 @@ The first build worth putting in front of a person: a single playable mission.
 
 ```bash
 sudo apt-get install -y build-essential cmake git libsdl2-dev
-cmake -S . -B build -DFOSS_BUILD_GAME=ON -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -DFOSSYND_BUILD_GAME=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
-./build/src/FreeOpenSourceSyndicate          # play
-./build/src/FreeOpenSourceSyndicate --demo   # hands-off attract mode
+./build/src/FOSSynd          # play
+./build/src/FOSSynd --demo   # hands-off attract mode
 ctest --test-dir build --output-on-failure   # 37 unit tests + 3 ctests
 ```

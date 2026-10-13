@@ -19,7 +19,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
 
       - name: Configure (core + SDL2 game target)
-        run: cmake -S . -B build -DFOSS_BUILD_GAME=ON -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -DFOSSYND_BUILD_GAME=ON -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: cmake --build build --config Release -j"$(nproc)"
@@ -34,7 +34,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configure (core only)
-        run: cmake -S . -B build -DFOSS_BUILD_GAME=OFF -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -DFOSSYND_BUILD_GAME=OFF -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: cmake --build build --config Release -j"$(nproc)"
@@ -52,7 +52,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
 
       - name: Configure (low-spec profile)
-        run: cmake -S . -B build -DFOSS_BUILD_GAME=ON -DFOSS_LOW_SPEC=ON -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -DFOSSYND_BUILD_GAME=ON -DFOSSYND_LOW_SPEC=ON -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: cmake --build build --config Release -j"$(nproc)"
@@ -61,4 +61,4 @@ jobs:
         run: ctest --test-dir build --output-on-failure
 
       - name: Report binary size
-        run: ls -l build/src/FreeOpenSourceSyndicate
+        run: ls -l build/src/FOSSynd
