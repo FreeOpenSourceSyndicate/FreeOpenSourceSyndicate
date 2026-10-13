@@ -49,6 +49,16 @@ set_target_properties(FreeOpenSourceSyndicate PROPERTIES
     VERSION 0.1.0
 )
 
+# Install rules: the binary, the mission data, and the example config. The game
+# searches these locations at runtime (see core/data/ContentPaths.h). Install is
+# optional; the binary is self-contained thanks to the embedded mission.
+include(GNUInstallDirs)
+install(TARGETS FreeOpenSourceSyndicate RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES "${CMAKE_SOURCE_DIR}/assets/data/missions/demo.json"
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd/missions)
+install(FILES "${CMAKE_SOURCE_DIR}/assets/data/fossynd.conf.example"
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd)
+
 # Headless smoke test: boots the game with the dummy video driver, runs a few
 # frames, and exits. Verifies the SDL layer initialises and ticks.
 if(BUILD_TESTS)

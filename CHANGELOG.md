@@ -25,6 +25,16 @@ contains no original assets, code, names, or trademarks.
   `assets/data/missions/demo.json`, preferring an external file and falling back
   to the copy embedded at build time so the binary stays self-contained. The
   demo mission moved out of C++ into data; no third-party dependency was added.
+- **Configurable mission selection:** the mission path can now come from a
+  `--mission` CLI flag or a `mission`/`mission_dir` key in a config file
+  (`--config`, else `./fossynd.conf`, `<exe-dir>/fossynd.conf`,
+  `/etc/fossynd.conf`, `/usr/local/etc/fossynd.conf`). With neither, the built-in
+  fallbacks are scanned and the first existing wins (repo-relative, next to the
+  executable, `/usr/local/share`, `/usr/share`); otherwise the embedded copy is
+  used. See `assets/data/fossynd.conf.example` and `docs/DATA_FORMAT.md`.
+- **Install rules:** `cmake --install` now installs the binary plus
+  `share/fossynd/missions/demo.json` and the example config, so an installed
+  build finds its data via the fallback search.
 - **Low-spec / old-hardware profile (ADR-0008):** `-DFOSS_LOW_SPEC=ON` builds a
   smaller, `-Os`, stripped binary; `--low-spec` (or a low-spec build) runs a
   320x200 window with the software renderer. A dedicated CI job builds this

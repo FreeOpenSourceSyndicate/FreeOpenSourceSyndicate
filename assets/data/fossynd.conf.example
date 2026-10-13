@@ -1,0 +1,20 @@
+# AI/LLM-generated file. Do not treat as human-written source documentation.
+#
+# FOSSynd configuration file (example).
+#
+# Copy this to one of the locations the game searches, or pass it explicitly
+# with `--config <path>`. Lines are `key = value`; `#` and `;` start a comment.
+#
+# Resolution order for the mission to load (highest priority first):
+#   1. `--mission <path>` on the command line
+#   2. `mission` below (an explicit path)
+#   3. `mission_dir` below (a directory; `<dir>/demo.json` is used)
+#   4. Built-in fallbacks, checked for existence in order (repo-relative,
+#      next to the executable, then /usr/local/share and /usr/share)
+#   5. The copy embedded in the binary (so the game always starts)
+
+# Explicit path to a mission file. Leave unset to use a directory or fallback.
+# mission = assets/data/missions/demo.json
+
+# Directory to search for the default mission file (demo.json).
+# mission_dir = /usr/share/fossynd/missions

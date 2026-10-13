@@ -12,6 +12,8 @@ set(FOSS_CORE_SOURCES
     sim/Mission.cpp
     data/Json.cpp
     data/MissionData.cpp
+    data/Config.cpp
+    data/ContentPaths.cpp
 )
 
 add_library(foss_core STATIC ${FOSS_CORE_SOURCES})

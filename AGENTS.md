@@ -395,6 +395,14 @@ change touches `src/core/` or `tests/`, all must pass. If it touches
   `assets/data/missions/demo.json`, preferring an external file and falling
   back to the copy embedded at build time (so the binary stays self-contained).
   To add a mission, add a JSON file — do not hard-code it in C++.
+- **Mission selection is configurable:** `--mission <path>` (CLI) overrides a
+  `mission`/`mission_dir` key in a config file (`--config <path>`, else
+  `./fossynd.conf`, `<exe-dir>/fossynd.conf`, `/etc/fossynd.conf`,
+  `/usr/local/etc/fossynd.conf`); if neither gives a path, the built-in
+  fallbacks are scanned (repo-relative, next to the exe, `/usr[/local]/share`),
+  and the first that exists wins; otherwise the embedded copy is used. Logic in
+  `core/data/Config.*` and `core/data/ContentPaths.*` (SDL-free, unit-tested).
+  Example: `assets/data/fossynd.conf.example`. Details: `docs/DATA_FORMAT.md`.
 - Verification flags: `--headless --frames N`, `--headless --demo --frames N`,
   and `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
   `game_demo`, and `game_low_spec` cover the SDL layer headlessly.

@@ -95,11 +95,35 @@ foss::core::populateMission(data, mission);
 The engine layer (`src/game/`) decides the file path and renders the result; it
 contains no schema knowledge.
 
+## Choosing which mission to load
+
+The path is resolved at startup, highest priority first:
+
+1. **`--mission <path>`** on the command line (an explicit file that must exist).
+2. **`mission = <path>`** in the config file (an explicit file that must exist).
+3. **`mission_dir = <dir>`** in the config file: `<dir>/demo.json` is used.
+4. **Built-in fallbacks**, checked for existence in order — the first that
+   exists wins: `assets/data/missions/demo.json` (a fresh build / run from the
+   repo root), next to the executable, `../share/fossynd/missions/`,
+   `/usr/local/share/fossynd/missions/`, then `/usr/share/fossynd/missions/`.
+5. **The copy embedded in the binary** (built from `demo.json` at configure
+   time), so the game always starts even with no data files present.
+
+The config file itself is found from `--config <path>`, else the first existing
+of `./fossynd.conf`, `<exe-dir>/fossynd.conf`, `/etc/fossynd.conf`,
+`/usr/local/etc/fossynd.conf`. See `assets/data/fossynd.conf.example`.
+
+An explicit path (steps 1–3) that does not exist is a startup error, because the
+user asked for it specifically. Nothing found (step 5) is not an error.
+
+The resolution logic lives in `core/data/Config.{h,cpp}` and
+`core/data/ContentPaths.{h,cpp}` (SDL-free, unit-tested).
+
 ## Adding content
 
 To add a mission, drop a new `assets/data/missions/<name>.json` file. Two agents
 can add missions in parallel without touching the same C++ file (AGENTS.md §4.7,
-"data over code").
+"data over code"). Point the game at it with `--mission` or a config file.
 
 ## Not yet covered
 
