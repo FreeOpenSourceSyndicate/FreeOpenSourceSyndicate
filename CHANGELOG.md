@@ -79,5 +79,5 @@ cmake -S . -B build -DFOSS_BUILD_GAME=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ./build/src/FreeOpenSourceSyndicate          # play
 ./build/src/FreeOpenSourceSyndicate --demo   # hands-off attract mode
-ctest --test-dir build --output-on-failure   # 31 unit tests + 3 ctests
+ctest --test-dir build --output-on-failure   # 37 unit tests + 3 ctests
 ```

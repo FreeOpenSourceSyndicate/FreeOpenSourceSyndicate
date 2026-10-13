@@ -21,8 +21,10 @@ rendered**. That keeps the project parallelizable across many agents.
 - [x] Prototype isometric scene + squad stub (now SDL2, playable skeleton)
 - [x] `AGENTS.md` coordination rules
 - [x] Decide engine (SDL2, ADR-0006) and lock it
-- [ ] CI green on `main`
+- [x] CI green on `main` (three jobs: core+game, core-only, low-spec)
 - [x] Core/sim test harness in place
+- [x] Release process: tagged `release/vX.Y.Z-*` branches with playtest docs
+      (`AGENTS.md` §6a)
 
 ## Phase 1 — Headless simulation core
 

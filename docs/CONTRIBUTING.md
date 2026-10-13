@@ -96,6 +96,21 @@ Examples:
 4. Provide a clear description of changes
 5. Link any related issues
 
+## Releases
+
+A **release** is a playable snapshot a human can try. Cut one whenever a hands-on
+playtest is useful, or when gameplay has changed enough to show players — you do
+not need a finished game. The rules live in `AGENTS.md` §6a; in short:
+
+1. Cut a `release/vX.Y.Z-<slug>` branch off `main` (SemVer), add a `CHANGELOG.md`
+   entry, and open a GitHub Release page.
+2. The release must be **visibly different** from the previous one. While the
+   game is small, make the change obvious to a casual player.
+3. Add version-specific instructions at `docs/releases/vX.Y.Z-<slug>.md`:
+   how to clone and check out *this* branch/tag, how to build and play it, and
+   **which files/directories to copy where** to run it on another computer.
+4. Author release graphics as **SVG** where possible (`docs/ASSETS.md`).
+
 ## Testing
 
 - Write unit tests for new systems in `tests/`

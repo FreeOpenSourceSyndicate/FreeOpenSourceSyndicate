@@ -35,6 +35,22 @@ group is fine (e.g. "agent sprite sheet, 8 directions").
 > The row above is an example format only; delete it when the first real asset
 > is added.
 
+## File formats — prefer SVG
+
+Author external graphic files as **SVG** (`assets/sprites/*.svg`,
+`assets/tiles/*.svg`, `assets/ui/*.svg`) wherever possible:
+
+- Resolution-independent, so the same art works on old, low-resolution displays
+  and in the low-spec 320x200 window (ADR-0008) without a second asset.
+- Tiny, plain text, and diff-friendly — good for a repo that many agents edit.
+- Needs no proprietary tooling and no licence-encumbered format.
+
+Rasterise SVG at build/load time, or keep a generated raster only when a target
+format genuinely cannot be SVG (e.g. a required `.png`). Record the SVG source in
+the registry below even when a raster is derived from it. Runtime-generated
+primitives (the current placeholder markers) remain the preferred placeholder
+strategy — see "Placeholder strategy".
+
 ## Rules
 
 1. **No unregistered assets.** If it is in `assets/` and not in the table above,

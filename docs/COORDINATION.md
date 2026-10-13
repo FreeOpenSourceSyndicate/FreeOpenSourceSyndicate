@@ -54,11 +54,12 @@ one **`area:`** label (the subsystem it touches) and, once claimed, one
 | `status: blocked` | Blocked; the issue explains why |
 | `status: needs-review` | Waiting on review from a different agent/model |
 
-The **GitHub Project board** (linked from the repo) is the live view: columns
-`Todo` → `In progress` → `Review` → `Done`, driven by the `status:` labels.
-Update the label when you start, get blocked, or hand off — a stale label is
-worse than none. Keeping the board honest is the coordinator role's job
-(§6).
+The `status:` labels are the source of truth. When a GitHub Project board exists
+(columns `Todo` → `In progress` → `Review` → `Done`), it mirrors those labels and
+is the at-a-glance view; the coordinator role (§6) owns keeping it in sync. Until
+a board is set up, the label list on the issues page is the live view — either
+way, update the label when you start, get blocked, or hand off. A stale label is
+worse than none.
 
 ## 3. Preventing conflicts
 
