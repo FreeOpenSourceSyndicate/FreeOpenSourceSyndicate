@@ -18,6 +18,24 @@ constexpr float kSightRange = 12.0f;
 // full at point-blank to this fraction at max range.
 constexpr float kAccuracyAtMaxRange = 0.35f;
 
+// Civilians: how close gunfire must be before a bystander panics and flees, and
+// how far/fast they run. Fleeing uses no RNG, so it stays deterministic.
+constexpr float kCivilianPanicRange = 5.0f;
+constexpr float kCivilianFleeDistance = 6.0f;
+constexpr float kCivilianFleeSpeed = 3.2f;
+
+// A missed shot can still catch a bystander within this many tiles of the
+// intended target. Deterministic: no extra RNG draw, so combat outcomes are
+// unaffected (only civilians are ever hit by stray fire).
+constexpr float kStrayRadius = 1.5f;
+constexpr float kStrayDamageScale = 0.5f;
+
+// The opposing combatant team for a given team. Civilians have no enemy.
+Team opposingTeam(Team team)
+{
+    return team == Team::Player ? Team::Enemy : Team::Player;
+}
+
 } // namespace
 
 Mission::Mission(const TileGrid& grid, std::uint64_t seed)
@@ -177,11 +195,22 @@ void Mission::updateAI(float dt)
     for (std::size_t i = 0; i < agents_.size(); ++i)
     {
         Agent& agent = agents_[i];
-        if (!agent.isAlive() || agent.team() != Team::Enemy)
+        if (!agent.isAlive())
         {
             continue;
         }
         if (agent.thinkTimer() > 0.0f)
+        {
+            continue;
+        }
+
+        if (agent.team() == Team::Civilian)
+        {
+            agent.setThinkTimer(kThinkInterval);
+            updateCivilian(i);
+            continue;
+        }
+        if (agent.team() != Team::Enemy)
         {
             continue;
         }
@@ -214,17 +243,92 @@ void Mission::updateAI(float dt)
     }
 }
 
+void Mission::updateCivilian(std::size_t index)
+{
+    Agent& civilian = agents_[index];
+    if (grid_ == nullptr)
+    {
+        return;
+    }
+
+    // Panic if any living combatant has fired recently nearby.
+    const Vec2 self = civilian.position();
+    bool panicking = false;
+    for (const Agent& other : agents_)
+    {
+        if (!other.isAlive() || !other.isCombatant())
+        {
+            continue;
+        }
+        if (other.gunfireTimer() <= 0.0f)
+        {
+            continue; // has not fired recently
+        }
+        if (length(other.position() - self) <= kCivilianPanicRange)
+        {
+            panicking = true;
+            break;
+        }
+    }
+
+    if (!panicking)
+    {
+        return;
+    }
+
+    civilian.setSpeed(kCivilianFleeSpeed);
+
+    // Flee directly away from the nearest combatant, to the first walkable tile
+    // in that direction. Deterministic and cheap: no pathfinding.
+    int nearest = -1;
+    float nearestDistance = 0.0f;
+    for (std::size_t i = 0; i < agents_.size(); ++i)
+    {
+        const Agent& other = agents_[i];
+        if (!other.isAlive() || !other.isCombatant())
+        {
+            continue;
+        }
+        const float distance = length(other.position() - self);
+        if (nearest < 0 || distance < nearestDistance)
+        {
+            nearest = static_cast<int>(i);
+            nearestDistance = distance;
+        }
+    }
+    if (nearest < 0)
+    {
+        return;
+    }
+
+    const Vec2 away = normalized(self - agents_[static_cast<std::size_t>(nearest)].position());
+    const int stepX = away.x >= 0.0f ? 1 : -1;
+    const int stepY = away.y >= 0.0f ? 1 : -1;
+
+    const TilePos here = civilian.tile();
+    for (int dist = static_cast<int>(kCivilianFleeDistance); dist >= 2; --dist)
+    {
+        const int gx = here.x + stepX * dist;
+        const int gy = here.y + stepY * dist;
+        if (grid_->inBounds(gx, gy) && grid_->isWalkable(gx, gy))
+        {
+            civilian.moveTo(*grid_, TilePos{gx, gy});
+            return;
+        }
+    }
+}
+
 void Mission::resolveFire()
 {
     for (std::size_t i = 0; i < agents_.size(); ++i)
     {
         Agent& attacker = agents_[i];
-        if (!attacker.isAlive() || !attacker.canFire())
+        if (!attacker.isAlive() || !attacker.canAttack() || !attacker.canFire())
         {
             continue;
         }
 
-        const Team enemyTeam = attacker.team() == Team::Player ? Team::Enemy : Team::Player;
+        const Team enemyTeam = opposingTeam(attacker.team());
 
         // Honour an explicit attack order if it still points at a living enemy;
         // otherwise auto-acquire the nearest enemy.
@@ -262,6 +366,8 @@ void Mission::resolveFire()
             attacker.weapon().accuracy * (kAccuracyAtMaxRange + (1.0f - kAccuracyAtMaxRange) * falloff);
         if (!rng_.chance(hitChance))
         {
+            // A miss can still catch a bystander near the target: stray fire.
+            applyStrayFire(i, static_cast<std::size_t>(target), attacker.weapon().damage);
             continue;
         }
 
@@ -273,10 +379,32 @@ void Mission::resolveFire()
             {
                 ++playerKills_;
             }
-            else
+            else if (victim.team() == Team::Player)
             {
                 ++enemyKills_;
             }
+        }
+    }
+}
+
+void Mission::applyStrayFire(std::size_t attacker, std::size_t target, float damage)
+{
+    const Vec2 impact = agents_[target].position();
+    for (std::size_t i = 0; i < agents_.size(); ++i)
+    {
+        Agent& bystander = agents_[i];
+        if (i == attacker || !bystander.isAlive() || bystander.team() != Team::Civilian)
+        {
+            continue;
+        }
+        if (length(bystander.position() - impact) > kStrayRadius)
+        {
+            continue;
+        }
+        bystander.applyDamage(damage * kStrayDamageScale);
+        if (!bystander.isAlive() && agents_[attacker].team() == Team::Player)
+        {
+            ++civilianKills_;
         }
     }
 }

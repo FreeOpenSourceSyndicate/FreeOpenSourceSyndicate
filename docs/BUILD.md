@@ -102,11 +102,17 @@ The squad is the four green agents (bottom-left of the map); enemies are red.
 Health bars float above every agent. The HUD shows the objective, the squad
 roster (name, weapon, HP), and a win/lose banner.
 
+Pale, unarmed **civilians** wander the streets. They are not targets: your agents
+never shoot at them on their own, but stray shots near an enemy can kill them.
+They flee when gunfire starts nearby. Civilian deaths you cause are counted as
+**COLLATERAL** in the top bar and do not affect the mission outcome.
+
 ### Command-line flags
 
 | Flag | Effect |
 |------|--------|
 | `--demo` | Attract mode: the squad advances on the nearest enemy automatically |
+| `--low-spec` | Old-hardware mode: 320x200 window + software renderer (ADR-0008) |
 | `--headless` | Use the dummy video driver (no display needed) |
 | `--frames N` | Run N frames then exit |
 | `--screenshot PATH` | Render one frame to a BMP and exit (with `--frames` first, simulates then captures) |

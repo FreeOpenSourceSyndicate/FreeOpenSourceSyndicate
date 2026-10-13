@@ -248,12 +248,19 @@ game target locally and note the result in the PR.
   the view only picks indices. Keep new orders in the core, not the view.
 - Combat/AI/mission logic lives in `src/core/sim/` (`Agent`, `Mission`, `Weapon`)
   and is unit-tested; keep it SDL-free.
+- **Civilians** are `Team::Civilian` agents: unarmed bystanders that flee nearby
+  gunfire (deterministic, no RNG) and can be killed by stray shots
+  (`Mission::applyStrayFire`). They are never auto-targeted and never count
+  toward win/lose; player-caused deaths increment `Mission::civilianKills`.
+  Civilian panic uses `Agent::gunfireTimer()`, set on each shot. Keep civilians
+  out of the combat target loop if you touch `resolveFire`.
 - Still markers, not sprites: no animation, zoom, or minimap yet (Phase 2).
 - Content is still hard-coded in `Game::buildMission`; the data format is
   undecided (ADR-0003), so do not add a JSON dependency yet.
 - Verification flags: `--headless --frames N`, `--headless --demo --frames N`,
-  and `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke` and
-  `game_demo` cover the SDL layer headlessly.
-- Engine-layer changes are covered by the CI `core + game` job (ADR-0005).
+  and `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
+  `game_demo`, and `game_low_spec` cover the SDL layer headlessly.
+- Engine-layer changes are covered by the CI `core + game` job (ADR-0005). The
+  CI `low-spec` job builds the old-hardware profile (ADR-0008).
 - Tested releases are tagged (`v0.1.0`, `v0.2.0`) with a matching
   `release/vX.Y.Z-*` branch for hands-on testing, plus a GitHub Release page.

@@ -197,3 +197,72 @@ FOSS_TEST(Mission, DeadTargetFallsBackToNearestEnemy)
     FOSS_CHECK(mission.agents()[2].health() < farHealthBefore);
 }
 
+
+FOSS_TEST(Mission, CivilianIsNotAutoTargeted)
+{
+    // The civilian is the closest agent to the player, but combat must ignore it
+    // and target the enemy. If civilians were auto-targeted the civilian would
+    // die first and be counted as a kill.
+    TileGrid grid(30, 30);
+    Mission mission(grid, 11u);
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                               Weapon{"Test", 1000.0f, 10.0f, 10.0f, 1.0f}));
+    mission.addAgent(makeAgent(3.0f, 2.0f, Team::Civilian, 100.0f));
+    mission.addAgent(makeAgent(8.0f, 2.0f, Team::Enemy, 100.0f,
+                               Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+
+    runUntilDone(mission, 10.0f);
+
+    FOSS_CHECK(mission.state() == MissionState::Won);
+    FOSS_CHECK(mission.agents()[1].isAlive());
+    FOSS_CHECK_EQ(mission.civilianKills(), 0);
+    FOSS_CHECK_EQ(mission.playerKills(), 1);
+}
+
+FOSS_TEST(Mission, StrayFireCanKillCivilians)
+{
+    // The player always misses (accuracy 0), so every shot is stray fire. A
+    // bystander standing next to the target is hit as collateral.
+    TileGrid grid(30, 30);
+    Mission mission(grid, 12u);
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                               Weapon{"Wild", 1000.0f, 20.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(6.0f, 2.0f, Team::Enemy, 100.0f,
+                               Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+    mission.addAgent(makeAgent(6.5f, 2.0f, Team::Civilian, 100.0f));
+
+    for (int i = 0; i < 20; ++i)
+    {
+        mission.update(0.05f);
+    }
+
+    FOSS_CHECK(!mission.agents()[2].isAlive());
+    FOSS_CHECK_EQ(mission.civilianKills(), 1);
+    // The enemy is untouched: stray fire only ever harms civilians.
+    FOSS_CHECK(mission.agents()[1].isAlive());
+}
+
+FOSS_TEST(Mission, CiviliansFleeGunfire)
+{
+    TileGrid grid(40, 40);
+    Mission mission(grid, 13u);
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                               Weapon{"Wild", 5.0f, 20.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(6.0f, 2.0f, Team::Enemy, 100.0f,
+                               Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+    mission.addAgent(makeAgent(5.0f, 5.0f, Team::Civilian, 100.0f));  // near the fire
+    mission.addAgent(makeAgent(30.0f, 30.0f, Team::Civilian, 100.0f)); // far away
+
+    const Vec2 nearStart = mission.agents()[2].position();
+    const Vec2 farStart = mission.agents()[3].position();
+
+    for (int i = 0; i < 20; ++i)
+    {
+        mission.update(0.05f);
+    }
+
+    // The bystander near the shooting runs; the distant one does not.
+    FOSS_CHECK(length(mission.agents()[2].position() - nearStart) > 1.0f);
+    FOSS_CHECK_NEAR(length(mission.agents()[3].position() - farStart), 0.0f);
+}
+

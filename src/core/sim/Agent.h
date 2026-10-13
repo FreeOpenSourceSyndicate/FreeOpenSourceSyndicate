@@ -17,6 +17,9 @@ enum class Team
 {
     Player,
     Enemy,
+    // A neutral bystander: not a combatant, does not count toward win/lose, but
+    // can be killed as collateral damage (see Mission::civilianKills).
+    Civilian,
 };
 
 // A squad member: a cyborg agent that moves along a path at a fixed speed and
@@ -81,8 +84,16 @@ public:
 
     // True when the weapon's cooldown has elapsed.
     bool canFire() const { return fireCooldown_ <= 0.0f; }
-    void beginFireCooldown() { fireCooldown_ = weapon_.cooldown(); }
+    void beginFireCooldown()
+    {
+        fireCooldown_ = weapon_.cooldown();
+        gunfireTimer_ = 0.75f;
+    }
     float fireCooldown() const { return fireCooldown_; }
+
+    // Counts down after the agent fires; lets nearby civilians notice gunfire
+    // even between their (slower) decision ticks.
+    float gunfireTimer() const { return gunfireTimer_; }
 
     // Counts down since the agent last took damage; used for a damage flash.
     float hitFlash() const { return hitFlash_; }
@@ -94,6 +105,10 @@ public:
 
     // --- orders -----------------------------------------------------------
 
+    // True when the agent is a combatant (player or enemy). Civilians never fire
+    // and are never auto-targeted.
+    bool isCombatant() const { return team_ != Team::Civilian; }
+
     // An explicit attack order: the agent index to focus fire on, or -1 for
     // "no order" (the mission then auto-acquires the nearest enemy). The index
     // is validated by Mission each step, so a stale index is harmless.
@@ -102,7 +117,7 @@ public:
     void clearOrderedTarget() { orderedTarget_ = -1; }
 
     // True when the agent is alive and armed.
-    bool canAttack() const { return isAlive(); }
+    bool canAttack() const { return isAlive() && isCombatant(); }
 
 private:
     Vec2 position_;
@@ -117,6 +132,7 @@ private:
     Weapon weapon_ = makePistol();
 
     float fireCooldown_ = 0.0f;
+    float gunfireTimer_ = 0.0f;
     float hitFlash_ = 0.0f;
     float thinkTimer_ = 0.0f;
     int orderedTarget_ = -1;
