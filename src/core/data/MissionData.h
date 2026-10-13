@@ -9,7 +9,7 @@
 #include "core/sim/Agent.h"
 #include "core/world/TileGrid.h"
 
-namespace foss::core
+namespace fossynd::core
 {
 
 class Mission;
@@ -70,4 +70,4 @@ TileGrid buildGrid(const MissionData& data);
 // grid built by `buildGrid(data)` (it stores a pointer to the grid).
 void populateMission(const MissionData& data, Mission& mission);
 
-} // namespace foss::core
+} // namespace fossynd::core

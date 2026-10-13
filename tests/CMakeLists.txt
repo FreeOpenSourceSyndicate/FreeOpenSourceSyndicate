@@ -25,7 +25,7 @@ target_include_directories(run_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Lets tests locate repository files (e.g. assets/data) regardless of the
 # directory ctest runs them from.
-target_compile_definitions(run_tests PRIVATE FOSS_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+target_compile_definitions(run_tests PRIVATE FOSSYND_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 set_target_properties(run_tests PROPERTIES
     CXX_STANDARD 17

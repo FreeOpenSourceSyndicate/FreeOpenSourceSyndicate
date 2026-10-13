@@ -80,16 +80,16 @@ A mission file describes one mission. Example:
 ```cpp
 #include "core/data/MissionData.h"
 
-foss::core::MissionData data;
+fossynd::core::MissionData data;
 std::string error;
-if (!foss::core::MissionData::loadFromFile(path, data, error))
+if (!fossynd::core::MissionData::loadFromFile(path, data, error))
 {
     // error is human-readable, e.g. "line 12: unknown team 'droid'"
 }
 
-foss::core::TileGrid grid = foss::core::buildGrid(data);
-foss::core::Mission mission(grid, seed);
-foss::core::populateMission(data, mission);
+fossynd::core::TileGrid grid = fossynd::core::buildGrid(data);
+fossynd::core::Mission mission(grid, seed);
+fossynd::core::populateMission(data, mission);
 ```
 
 The engine layer (`src/game/`) decides the file path and renders the result; it

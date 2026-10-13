@@ -3,7 +3,7 @@
 #include "core/data/MissionData.h"
 #include "core/sim/Mission.h"
 
-using namespace foss::core;
+using namespace fossynd::core;
 
 namespace
 {
@@ -24,114 +24,114 @@ const char* kDemoJson = R"({
 
 } // namespace
 
-FOSS_TEST(MissionData, ParsesGridBuildingsAndBlockedTiles)
+FOSSYND_TEST(MissionData, ParsesGridBuildingsAndBlockedTiles)
 {
     std::string error;
     const Json root = Json::parse(kDemoJson, error);
-    FOSS_CHECK(error.empty());
+    FOSSYND_CHECK(error.empty());
 
     MissionData data;
-    FOSS_CHECK(MissionData::fromJson(root, data, error));
-    FOSS_CHECK(error.empty());
-    FOSS_CHECK_EQ(data.name, std::string("Test"));
-    FOSS_CHECK_EQ(data.width, 8);
-    FOSS_CHECK_EQ(data.height, 6);
+    FOSSYND_CHECK(MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_EQ(data.name, std::string("Test"));
+    FOSSYND_CHECK_EQ(data.width, 8);
+    FOSSYND_CHECK_EQ(data.height, 6);
 
     const TileGrid grid = buildGrid(data);
-    FOSS_CHECK_EQ(grid.width(), 8);
-    FOSS_CHECK_EQ(grid.height(), 6);
+    FOSSYND_CHECK_EQ(grid.width(), 8);
+    FOSSYND_CHECK_EQ(grid.height(), 6);
     // Building perimeter is blocked, its centre is walkable.
-    FOSS_CHECK(!grid.isWalkable(2, 2));
-    FOSS_CHECK(!grid.isWalkable(4, 2));
-    FOSS_CHECK(!grid.isWalkable(3, 4));
-    FOSS_CHECK(grid.isWalkable(3, 3));
+    FOSSYND_CHECK(!grid.isWalkable(2, 2));
+    FOSSYND_CHECK(!grid.isWalkable(4, 2));
+    FOSSYND_CHECK(!grid.isWalkable(3, 4));
+    FOSSYND_CHECK(grid.isWalkable(3, 3));
     // Explicitly blocked tile.
-    FOSS_CHECK(!grid.isWalkable(0, 5));
+    FOSSYND_CHECK(!grid.isWalkable(0, 5));
     // Ordinary ground.
-    FOSS_CHECK(grid.isWalkable(0, 0));
+    FOSSYND_CHECK(grid.isWalkable(0, 0));
 }
 
-FOSS_TEST(MissionData, ParsesAgentsAndWeapons)
+FOSSYND_TEST(MissionData, ParsesAgentsAndWeapons)
 {
     std::string error;
     const Json root = Json::parse(kDemoJson, error);
     MissionData data;
-    FOSS_CHECK(MissionData::fromJson(root, data, error));
-    FOSS_CHECK_EQ(data.agents.size(), static_cast<std::size_t>(3));
+    FOSSYND_CHECK(MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK_EQ(data.agents.size(), static_cast<std::size_t>(3));
 
-    FOSS_CHECK_EQ(data.agents[0].name, std::string("HERO"));
-    FOSS_CHECK(data.agents[0].team == Team::Player);
-    FOSS_CHECK_NEAR(data.agents[0].health, 90.0f);
-    FOSS_CHECK_EQ(data.agents[0].weapon.name, std::string("Rifle"));
-    FOSS_CHECK_NEAR(data.agents[0].weapon.damage, 8.0f);
-    FOSS_CHECK_NEAR(data.agents[0].weapon.range, 9.0f);
+    FOSSYND_CHECK_EQ(data.agents[0].name, std::string("HERO"));
+    FOSSYND_CHECK(data.agents[0].team == Team::Player);
+    FOSSYND_CHECK_NEAR(data.agents[0].health, 90.0f);
+    FOSSYND_CHECK_EQ(data.agents[0].weapon.name, std::string("Rifle"));
+    FOSSYND_CHECK_NEAR(data.agents[0].weapon.damage, 8.0f);
+    FOSSYND_CHECK_NEAR(data.agents[0].weapon.range, 9.0f);
 
-    FOSS_CHECK(data.agents[1].team == Team::Enemy);
+    FOSSYND_CHECK(data.agents[1].team == Team::Enemy);
     // No weapon given: the default pistol is used.
-    FOSS_CHECK_EQ(data.agents[1].weapon.name, std::string("Pistol"));
+    FOSSYND_CHECK_EQ(data.agents[1].weapon.name, std::string("Pistol"));
 
-    FOSS_CHECK(data.agents[2].team == Team::Civilian);
+    FOSSYND_CHECK(data.agents[2].team == Team::Civilian);
 }
 
-FOSS_TEST(MissionData, PopulatesAMissionFromData)
+FOSSYND_TEST(MissionData, PopulatesAMissionFromData)
 {
     std::string error;
     const Json root = Json::parse(kDemoJson, error);
     MissionData data;
-    FOSS_CHECK(MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(MissionData::fromJson(root, data, error));
 
     const TileGrid grid = buildGrid(data);
     Mission mission(grid);
     populateMission(data, mission);
 
-    FOSS_CHECK_EQ(mission.agents().size(), static_cast<std::size_t>(3));
-    FOSS_CHECK_EQ(mission.aliveCount(Team::Player), static_cast<std::size_t>(1));
-    FOSS_CHECK_EQ(mission.aliveCount(Team::Enemy), static_cast<std::size_t>(1));
-    FOSS_CHECK_EQ(mission.agents()[0].name(), std::string("HERO"));
-    FOSS_CHECK_NEAR(mission.agents()[0].maxHealth(), 90.0f);
-    FOSS_CHECK(mission.agents()[2].team() == Team::Civilian);
+    FOSSYND_CHECK_EQ(mission.agents().size(), static_cast<std::size_t>(3));
+    FOSSYND_CHECK_EQ(mission.aliveCount(Team::Player), static_cast<std::size_t>(1));
+    FOSSYND_CHECK_EQ(mission.aliveCount(Team::Enemy), static_cast<std::size_t>(1));
+    FOSSYND_CHECK_EQ(mission.agents()[0].name(), std::string("HERO"));
+    FOSSYND_CHECK_NEAR(mission.agents()[0].maxHealth(), 90.0f);
+    FOSSYND_CHECK(mission.agents()[2].team() == Team::Civilian);
 }
 
-FOSS_TEST(MissionData, RejectsInvalidSchema)
+FOSSYND_TEST(MissionData, RejectsInvalidSchema)
 {
     std::string error;
 
     // No agents.
     Json root = Json::parse(R"({"width": 4, "height": 4, "agents": []})", error);
     MissionData data;
-    FOSS_CHECK(!MissionData::fromJson(root, data, error));
-    FOSS_CHECK(!error.empty());
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
 
     // Unknown team.
     error.clear();
     root = Json::parse(R"({"width": 4, "height": 4,
                            "agents": [{"name":"X","team":"droid","x":1,"y":1}]})", error);
-    FOSS_CHECK(!MissionData::fromJson(root, data, error));
-    FOSS_CHECK(!error.empty());
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
 
     // Agent without coordinates.
     error.clear();
     root = Json::parse(R"({"width": 4, "height": 4,
                            "agents": [{"name":"X","team":"player"}]})", error);
-    FOSS_CHECK(!MissionData::fromJson(root, data, error));
-    FOSS_CHECK(!error.empty());
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
 
     // Non-positive dimensions.
     error.clear();
     root = Json::parse(R"({"width": 0, "height": 4,
                            "agents": [{"name":"X","team":"player","x":1,"y":1}]})", error);
-    FOSS_CHECK(!MissionData::fromJson(root, data, error));
-    FOSS_CHECK(!error.empty());
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
 }
 
-FOSS_TEST(MissionData, LoadsTheDemoMissionFromDisk)
+FOSSYND_TEST(MissionData, LoadsTheDemoMissionFromDisk)
 {
     MissionData data;
     std::string error;
-    const std::string path = std::string(FOSS_SOURCE_DIR) + "/assets/data/missions/demo.json";
-    FOSS_CHECK(MissionData::loadFromFile(path, data, error));
-    FOSS_CHECK(error.empty());
-    FOSS_CHECK_EQ(data.agents.size(), static_cast<std::size_t>(15));
-    FOSS_CHECK_EQ(data.width, 24);
-    FOSS_CHECK_EQ(data.height, 24);
+    const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/missions/demo.json";
+    FOSSYND_CHECK(MissionData::loadFromFile(path, data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_EQ(data.agents.size(), static_cast<std::size_t>(15));
+    FOSSYND_CHECK_EQ(data.width, 24);
+    FOSSYND_CHECK_EQ(data.height, 24);
 }

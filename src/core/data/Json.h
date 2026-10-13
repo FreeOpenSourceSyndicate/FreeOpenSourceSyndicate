@@ -5,7 +5,7 @@
 #include <utility>
 #include <vector>
 
-namespace foss::core
+namespace fossynd::core
 {
 
 // A minimal, dependency-free JSON value used to load gameplay content
@@ -86,4 +86,4 @@ private:
     friend class JsonParser;
 };
 
-} // namespace foss::core
+} // namespace fossynd::core

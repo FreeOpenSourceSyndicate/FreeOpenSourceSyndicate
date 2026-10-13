@@ -5,7 +5,7 @@
 
 #include "core/sim/Mission.h"
 
-namespace foss::core
+namespace fossynd::core
 {
 namespace
 {
@@ -258,4 +258,4 @@ void populateMission(const MissionData& data, Mission& mission)
     }
 }
 
-} // namespace foss::core
+} // namespace fossynd::core
