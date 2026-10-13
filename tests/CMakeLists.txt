@@ -12,6 +12,8 @@ set(FOSS_TEST_SOURCES
     test_agent.cpp
     test_rng.cpp
     test_mission.cpp
+    test_json.cpp
+    test_missiondata.cpp
 )
 
 add_executable(run_tests ${FOSS_TEST_SOURCES})
@@ -19,6 +21,10 @@ add_executable(run_tests ${FOSS_TEST_SOURCES})
 target_link_libraries(run_tests PRIVATE foss_core)
 
 target_include_directories(run_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+# Lets tests locate repository files (e.g. assets/data) regardless of the
+# directory ctest runs them from.
+target_compile_definitions(run_tests PRIVATE FOSS_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 set_target_properties(run_tests PROPERTIES
     CXX_STANDARD 17

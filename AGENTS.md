@@ -196,9 +196,12 @@ PR requirements:
 
 ## 7. Data & content
 
-- Balance/content data lives in `assets/data/` (e.g. `weapons.json`,
-  `agents.json`, `missions/*.json`). **Format and schema are TBD — see
-  ADR-0003.** Until an ADR fixes it, do not add a JSON dependency.
+- Balance/content data lives in `assets/data/` as **JSON**, e.g.
+  `assets/data/missions/*.json`. The format is fixed by **ADR-0003** and
+  documented in `docs/DATA_FORMAT.md`; the dependency-free loader lives in
+  `src/core/data/` (`Json`, `MissionData`).
+- Do **not** add a third-party JSON dependency: the hand-rolled parser in
+  `core/data/Json.*` is the project's JSON reader (low-spec footprint, §1b).
 - Gameplay tuning must not require recompiling C++. If you add a constant that
   designers will tweak, plan for it to move to data.
 
@@ -257,8 +260,11 @@ game target locally and note the result in the PR.
   Civilian panic uses `Agent::gunfireTimer()`, set on each shot. Keep civilians
   out of the combat target loop if you touch `resolveFire`.
 - Still markers, not sprites: no animation, zoom, or minimap yet (Phase 2).
-- Content is still hard-coded in `Game::buildMission`; the data format is
-  undecided (ADR-0003), so do not add a JSON dependency yet.
+- **Content format is decided (ADR-0003):** JSON in `assets/data/`, parsed by
+  the dependency-free `core/data/` loader (`Json`, `MissionData`); schema in
+  `docs/DATA_FORMAT.md`. The core loader and tests are landed; the engine still
+  builds its mission in `Game::buildMission` and is being switched to load
+  `assets/data/missions/demo.json`.
 - Verification flags: `--headless --frames N`, `--headless --demo --frames N`,
   and `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
   `game_demo`, and `game_low_spec` cover the SDL layer headlessly.
