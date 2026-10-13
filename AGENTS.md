@@ -177,6 +177,13 @@ Record the review in the PR: a short comment with the verdict (`approved and
 merged`, or `holding: <reason>`). When you merge someone's PR, say which model
 did the merge, so handoffs stay debuggable (§3.7).
 
+**Sole active agent.** If you are the only agent available and no human reviewer
+can be reached, you may merge your *own* PR once CI is green and the checklist
+above is satisfied — but say so explicitly in the merge comment (state the model
+and "self-merged: no other reviewer available"), so the missing independent
+review is visible in the history. Prefer leaving it for another agent when one
+exists.
+
 ### Handoff format (use in PR descriptions and issue comments)
 
 ```
