@@ -10,6 +10,7 @@ int main(int argc, char** argv)
     int maxFrames = 0;
     bool headless = false;
     bool demo = false;
+    bool lowSpec = false;
     const char* screenshot = nullptr;
 
     for (int i = 1; i < argc; ++i)
@@ -30,10 +31,23 @@ int main(int argc, char** argv)
         {
             demo = true;
         }
+        else if (std::strcmp(argv[i], "--low-spec") == 0)
+        {
+            lowSpec = true;
+        }
     }
 
+#if defined(FOSS_LOW_SPEC_BUILD)
+    // A low-spec build always runs in low-spec mode unless the caller opts out.
+    lowSpec = true;
+#endif
+
+    // Default window size; the low-spec profile shrinks it (ADR-0008).
+    int width = lowSpec ? 320 : 960;
+    int height = lowSpec ? 200 : 600;
+
     foss::game::Game game;
-    if (!game.init(960, 600, headless))
+    if (!game.init(width, height, headless, lowSpec))
     {
         std::fprintf(stderr, "Failed to start the game.\n");
         return 1;

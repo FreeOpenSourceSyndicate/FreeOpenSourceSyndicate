@@ -30,8 +30,10 @@ public:
 
     // Creates the window and renderer and builds the mission. When `headless`
     // is true the dummy video driver is used so the game can run without a
-    // display (used for smoke tests). Returns false on failure.
-    bool init(int width, int height, bool headless);
+    // display (used for smoke tests). When `lowSpec` is true the software
+    // renderer is forced (old-hardware profile, ADR-0008). Returns false on
+    // failure.
+    bool init(int width, int height, bool headless, bool lowSpec = false);
 
     // Runs the main loop until the player quits. `maxFrames` > 0 runs that many
     // frames then returns (used for smoke tests).

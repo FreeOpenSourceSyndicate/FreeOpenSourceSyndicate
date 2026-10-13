@@ -104,6 +104,7 @@ A shippable demo, deliberately original in code and art.
 - [ ] Localization scaffolding
 - [ ] Modding / scripting layer (ADR-0004)
 - [ ] Packaging for Linux/macOS/Windows
+- [x] Low-spec / old-hardware profile (ADR-0008)
 
 ## Cross-cutting (every phase)
 

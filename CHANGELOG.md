@@ -6,6 +6,15 @@ All notable changes to Free Open Source Syndicate. This project is an
 independent, from-scratch recreation of the *gameplay* of 1993's Syndicate; it
 contains no original assets, code, names, or trademarks.
 
+## [Unreleased]
+
+### Added
+
+- **Low-spec / old-hardware profile (ADR-0008):** `-DFOSS_LOW_SPEC=ON` builds a
+  smaller, `-Os`, stripped binary; `--low-spec` (or a low-spec build) runs a
+  320x200 window with the software renderer. A dedicated CI job builds this
+  profile so old-hardware support cannot bit-rot.
+
 ## [0.2.0] — 2026-10-12 — "Command & Control"
 
 Direct control over *which* agents you command and *what* they shoot.
