@@ -31,6 +31,28 @@ name, or trademark. See `docs/LEGAL.md`.
   Windows are supported and documented, but not tested regularly.
 - **License:** MIT (see `LICENSE`)
 
+### Goal for v1.0.0 — faithful reproduction
+
+**v1.0.0 aims to reproduce the original 1993 game as closely as possible**
+within legal bounds: the same feel, the same systems, and — deliberately —
+the **same chunky pixel-art look**, because that *is* the original look and
+feel. So for v1.0.0, **prefer pixel graphics**: low-resolution raster art,
+palette-based, nearest-neighbour scaled, authored at the original's native
+scale. Vector art (e.g. SVG) and other "improved" graphics, higher-fidelity
+rendering, smoother/modern handling, and quality-of-life changes are **out of
+scope for v1.0.0** — they belong to a **v2.x.x** release or to a **fork**.
+
+Rules that follow from this:
+
+- Do **not** modernise the visuals or the interface as part of v1.0.0 work; match
+  the original instead.
+- The low-spec / old-hardware profile (ADR-0008) is aligned with this goal: the
+  original ran on hardware of that era, so a small, low-resolution, software-
+  rendered build is the faithful target, not a limitation to escape.
+- We still copy **no** original asset, sprite, palette file, code, name, or
+  trademark. Faithfulness means recreating the *feel* and the *look* with
+  original art, never shipping the original's files (see `docs/LEGAL.md`).
+
 ## 1a. AI attribution (mandatory)
 
 Every file generated or substantially edited by an LLM must be **marked as
@@ -102,6 +124,58 @@ Many models edit this repo. To avoid clobbering each other:
    Sonnet 4.5"). This makes handoffs debuggable.
 8. **Keep this file current.** When your PR changes how we build, test, or
    coordinate, update `AGENTS.md` in the same PR.
+9. **Review and merge each other's PRs.** See §3a. This applies to every agent
+   and to human maintainers.
+
+## 3a. Reviewing and merging other agents' pull requests
+
+Agents should keep the queue moving: **review open PRs that you did not author
+and merge them when they are good.** A stale, green PR that nobody merges is
+lost work.
+
+**Who may merge.** Any agent or maintainer may merge a PR **authored by someone
+else** once it satisfies the criteria below. Do **not** merge your own PR — the
+point is independent review; leave your own PR for another agent or a human.
+
+**Before merging, verify (in this order):**
+
+1. **Not your own** PR, and **not a draft**.
+2. **Scope and legality.** It matches its stated intent, stays within the
+   project's goals (§1 — for v1.0.0, pixel-faithful, no modernising), and
+   introduces no copyrighted asset, name, or code (`docs/LEGAL.md`).
+3. **CI is green** on the PR head (all jobs: core, core+game, low-spec).
+4. **Mergeable** — the PR is not conflicted with `main`. If it is conflicted,
+   the author must rebase; do not force it.
+5. **Review the diff.** Read it. Confirm tests exist for new `core` logic, no new
+   compiler warnings, and that new files carry the AI-attribution marker (§1a).
+6. **Sanity-check locally** when practical: build the PR's head (or trust green
+   CI if the environment cannot build it). For engine changes, run the game.
+7. **Tone of the change.** It follows the golden rules (§4) and does not smuggle
+   in unrelated churn.
+
+**How to merge.** Prefer a **squash merge** (one logical change per PR, §6),
+with the PR title as the commit subject. Use the async merge API and confirm the
+final status is `merged` (not merely `enqueued`):
+
+```bash
+gh api -X PUT repos/<OWNER>/<REPO>/pulls/<N>/merge-async -f merge_method=squash -f sha=<HEAD_SHA>
+# then poll until status != pending
+gh api repos/<OWNER>/<REPO>/pulls/<N>/merge-async/<UUID>
+```
+
+**When to hold instead.** Do not merge if any of these is true — leave a review
+comment explaining why and let the author respond:
+
+- The PR is a draft, is conflicted, or CI is red or still running.
+- You cannot tell what it changes, or it does not match its description.
+- It changes architecture without an ADR (§3.5), or touches `main` history.
+- It looks like it needs a human decision (e.g. a rename of the project, a
+  licensing question, a change to these very rules).
+- It is your own PR, or it was opened by a human who is actively iterating.
+
+Record the review in the PR: a short comment with the verdict (`approved and
+merged`, or `holding: <reason>`). When you merge someone's PR, say which model
+did the merge, so handoffs stay debuggable (§3.7).
 
 ### Handoff format (use in PR descriptions and issue comments)
 
@@ -135,11 +209,12 @@ These are non-negotiable unless an ADR supersedes them.
    data files (see §7), not hard-coded constants, so multiple agents can extend
    content without merge conflicts in C++.
 8. **Assets are original or explicitly licensed.** No ripped sprites, sounds,
-   fonts, or names. See `docs/ASSETS.md`. Author external graphic files as
-   **SVG** wherever possible: it is resolution-independent (good for old,
-   low-resolution displays and the low-spec 320x200 window), tiny,
-   text-diffable, and needs no proprietary tooling. Rasterise only at
-   build/load time, or when a target format genuinely cannot be SVG.
+   fonts, or names. See `docs/ASSETS.md`. **Prefer pixel art** for v1.0.0: the
+   goal is to match the original's chunky low-resolution look (§1). Author
+   sprites and tiles as low-resolution, palette-based raster images and scale
+   them nearest-neighbour. Vector/SVG art is not the v1.0.0 default; it is a
+   v2.x.x (or fork) concern. Runtime-generated primitives remain the placeholder
+   strategy until real pixel art exists.
 9. **Warnings are errors in spirit.** The build uses `-Wall -Wextra -Wpedantic`.
    Do not merge code that adds warnings.
 10. **Small commits, descriptive messages** (§8).
@@ -220,8 +295,8 @@ Rules:
    branch (e.g. checking out the correct branch/tag after cloning), and must
    include **how to copy which files and directories where** to get a runnable
    copy of the game onto another computer.
-4. **Graphics** follow golden rule 8: author external graphic files as **SVG**
-   where possible.
+4. **Graphics** follow golden rule 8 and §1: for v1.0.0 the target look is the
+   original's, so prefer **pixel art**. Do not gate a release on vector/SVG art.
 5. Update `AGENTS.md` §10 and the roadmap when a release ships.
 
 A release branch is a frozen, playable snapshot: keep it building and playable,
@@ -316,4 +391,5 @@ change touches `src/core/` or `tests/`, all must pass. If it touches
 - **Release process note:** when cutting a release, create the branch first,
   commit the release doc(s) on it, then tag the branch tip and push both — so the
   tag points at a commit whose instructions are already present on the branch.
-  Graphics for releases should be **SVG** (golden rule 8).
+  Graphics for releases should match the game's **pixel-art** look (§1, golden
+  rule 8).

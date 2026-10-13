@@ -205,3 +205,37 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
   - Low-spec does not change gameplay or determinism: the engine-agnostic core
     (ADR-0002, ADR-0007) is compiled identically in all profiles.
 
+---
+
+## ADR-0009 — v1.0.0 is a faithful, pixel-art reproduction; improvements are v2.x.x
+
+- **Status:** Accepted (2026-10-13)
+- **Date:** 2026-10-13
+- **Context:** The project must decide what "done" means for v1.0.0 and how to
+  treat visual and handling improvements. An earlier convention (AGENTS.md §6a)
+  told contributors to prefer **SVG** for graphics; the maintainer has since
+  decided that the original's chunky **pixel-art** look is what v1.0.0 should
+  reproduce, and that the SVG preference is retracted.
+- **Options:**
+  1. **Faithful reproduction for v1.0.0; improvements deferred.** Match the
+     original's systems, feel, and pixel look; put better graphics and smoother
+     handling in v2.x.x or a fork.
+  2. Modernise as we go (vector art, smooth scaling, QoL changes). Rejected: it
+     would drift away from the original, which is the whole point of v1.0.0.
+  3. Ship two visual modes now (pixel and "enhanced"). Rejected as premature;
+     that is a v2.x.x concern.
+- **Decision:** **Option 1.** v1.0.0 targets the original's look and feel,
+  including its **pixel graphics**. Prefer low-resolution, palette-based raster
+  art scaled nearest-neighbour. The earlier "prefer SVG" guidance is
+  **retracted**. Vector art, higher-fidelity rendering, and modern
+  handling/quality-of-life changes are **out of scope for v1.0.0** and belong to
+  a v2.x.x release or a fork.
+- **Consequences:**
+  - `AGENTS.md` §1 (goal), §6a (releases) and golden rule 8 updated; the SVG
+    section in `docs/ASSETS.md` replaced with a pixel-art section.
+  - The low-spec profile (ADR-0008) is aligned with, not opposed to, the v1.0.0
+    goal: a small, low-resolution, software-rendered build is faithful.
+  - Legal position unchanged: we recreate the *feel* and the *look* with
+    original art and copy no original sprite, palette, or code (`docs/LEGAL.md`).
+  - A v2.x.x/fork line is explicitly permitted to pursue the improvements.
+

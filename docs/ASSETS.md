@@ -35,21 +35,26 @@ group is fine (e.g. "agent sprite sheet, 8 directions").
 > The row above is an example format only; delete it when the first real asset
 > is added.
 
-## File formats — prefer SVG
+## File formats — prefer pixel art
 
-Author external graphic files as **SVG** (`assets/sprites/*.svg`,
-`assets/tiles/*.svg`, `assets/ui/*.svg`) wherever possible:
+**v1.0.0 reproduces the original's look and feel, and that look is pixel art**
+(AGENTS.md §1). Author sprites and tiles as **low-resolution, palette-based
+raster images** (e.g. indexed `.png`), sized at the original's native scale and
+scaled up **nearest-neighbour** so the pixels stay crisp and chunky:
 
-- Resolution-independent, so the same art works on old, low-resolution displays
-  and in the low-spec 320x200 window (ADR-0008) without a second asset.
-- Tiny, plain text, and diff-friendly — good for a repo that many agents edit.
-- Needs no proprietary tooling and no licence-encumbered format.
+- A pixel-art look is a goal, not a compromise: matching the original is the
+  point, so do not "improve" it with smooth scaling or vector art.
+- Small, palette-limited art keeps the binary and per-frame work tiny, which
+  suits the low-spec 320x200 profile (ADR-0008).
+- Keep the source art (the `.png` or the script that generates it) in the repo
+  and record it in the registry below.
 
-Rasterise SVG at build/load time, or keep a generated raster only when a target
-format genuinely cannot be SVG (e.g. a required `.png`). Record the SVG source in
-the registry below even when a raster is derived from it. Runtime-generated
-primitives (the current placeholder markers) remain the preferred placeholder
-strategy — see "Placeholder strategy".
+Vector art (SVG) and other higher-fidelity graphics are **not** the v1.0.0
+default; they belong to a v2.x.x release or a fork. If you add one anyway,
+record it like any other asset, but do not use it to replace the pixel look of
+v1.0.0. Runtime-generated primitives (the current placeholder markers) remain
+the preferred placeholder strategy until real pixel art exists — see
+"Placeholder strategy".
 
 ## Rules
 
@@ -66,10 +71,11 @@ strategy — see "Placeholder strategy".
 
 ## Placeholder strategy
 
-Until real art exists, prefer **procedurally drawn primitives** (like the current
-`DrawNode` circles/diamonds) over downloaded art. They are guaranteed original,
+Until real art exists, prefer **procedurally drawn primitives** (the current
+SDL diamonds and markers) over downloaded art. They are guaranteed original,
 tiny, and zero-legal-risk. Put them behind a "debug/placeholder" flag where
-practical.
+practical. When the first real pixel art lands, it should replace these
+primitives rather than sit beside them.
 
 ## Data assets
 

@@ -109,7 +109,8 @@ not need a finished game. The rules live in `AGENTS.md` §6a; in short:
 3. Add version-specific instructions at `docs/releases/vX.Y.Z-<slug>.md`:
    how to clone and check out *this* branch/tag, how to build and play it, and
    **which files/directories to copy where** to run it on another computer.
-4. Author release graphics as **SVG** where possible (`docs/ASSETS.md`).
+4. Author release graphics as **pixel art** to match the game's look
+   (`docs/ASSETS.md`, `AGENTS.md` §1).
 
 ## Testing
 
