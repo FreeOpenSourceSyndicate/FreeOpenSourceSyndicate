@@ -3,7 +3,7 @@
 
 #include <string>
 
-namespace foss::core
+namespace fossynd::core
 {
 
 // The small set of user-tunable options read from a config file. Kept in core
@@ -31,4 +31,4 @@ bool parseConfig(const std::string& text, GameConfig& out, std::string& error);
 // missing config file is not an error). Returns false only on a parse error.
 bool loadConfigFile(const std::string& path, GameConfig& out, bool& found, std::string& error);
 
-} // namespace foss::core
+} // namespace fossynd::core

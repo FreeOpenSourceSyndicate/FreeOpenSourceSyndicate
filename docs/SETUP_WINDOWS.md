@@ -28,15 +28,15 @@ pacman -S --needed git \
 
 ```bash
 git clone https://github.com/FreeOpenSourceSyndicate/FreeOpenSourceSyndicate.git
-cd FreeOpenSourceSyndicate
-cmake -S . -B build -G Ninja -DFOSS_BUILD_GAME=ON
+cd FOSSynd
+cmake -S . -B build -G Ninja -DFOSSYND_BUILD_GAME=ON
 cmake --build build
 ```
 
 ## 4. Run
 
 ```bash
-./build/src/FreeOpenSourceSyndicate.exe
+./build/src/FOSSynd.exe
 ```
 
 Controls (prototype): left-click a tile to move the selected agent, **Tab** to
@@ -51,7 +51,7 @@ ctest --test-dir build --output-on-failure
 ## Core-only build (no SDL2 needed)
 
 ```bash
-cmake -S . -B build -G Ninja -DFOSS_BUILD_GAME=OFF
+cmake -S . -B build -G Ninja -DFOSSYND_BUILD_GAME=OFF
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```

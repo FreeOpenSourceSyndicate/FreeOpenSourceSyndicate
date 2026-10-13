@@ -6,7 +6,7 @@
 
 #include "core/math/Vec2.h"
 
-namespace foss::core
+namespace fossynd::core
 {
 
 // A single layer of walkable/blocking tiles. Engine-agnostic.
@@ -35,4 +35,4 @@ private:
     std::vector<std::uint8_t> walkable_;
 };
 
-} // namespace foss::core
+} // namespace fossynd::core

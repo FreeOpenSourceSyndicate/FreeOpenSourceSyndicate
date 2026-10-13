@@ -4,7 +4,7 @@
 # Engine-agnostic game core. MUST NOT depend on SDL or any engine header.
 # See AGENTS.md and docs/DECISIONS.md (ADR-0002).
 
-set(FOSS_CORE_SOURCES
+set(FOSSYND_CORE_SOURCES
     math/Isometric.cpp
     world/TileGrid.cpp
     world/Pathfinding.cpp
@@ -16,11 +16,11 @@ set(FOSS_CORE_SOURCES
     data/ContentPaths.cpp
 )
 
-add_library(foss_core STATIC ${FOSS_CORE_SOURCES})
+add_library(fossynd_core STATIC ${FOSSYND_CORE_SOURCES})
 
-target_include_directories(foss_core PUBLIC ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(fossynd_core PUBLIC ${CMAKE_SOURCE_DIR}/src)
 
-set_target_properties(foss_core PROPERTIES
+set_target_properties(fossynd_core PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF

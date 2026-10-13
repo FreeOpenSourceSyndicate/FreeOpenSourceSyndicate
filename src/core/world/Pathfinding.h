@@ -6,7 +6,7 @@
 #include "core/math/Vec2.h"
 #include "core/world/TileGrid.h"
 
-namespace foss::core
+namespace fossynd::core
 {
 
 // A* over a TileGrid with 4-way movement and Manhattan heuristic.
@@ -20,4 +20,4 @@ namespace foss::core
 std::vector<TilePos> findPath(const TileGrid& grid, TilePos start, TilePos goal,
                               bool allowDiagonal = false);
 
-} // namespace foss::core
+} // namespace fossynd::core

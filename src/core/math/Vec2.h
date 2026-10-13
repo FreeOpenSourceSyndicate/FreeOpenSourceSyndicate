@@ -3,7 +3,7 @@
 
 #include <cmath>
 
-namespace foss::core
+namespace fossynd::core
 {
 
 // Engine-agnostic 2D vector. Never use engine types in core code.
@@ -44,4 +44,4 @@ inline Vec2 normalized(const Vec2& v)
     return Vec2{v.x / len, v.y / len};
 }
 
-} // namespace foss::core
+} // namespace fossynd::core

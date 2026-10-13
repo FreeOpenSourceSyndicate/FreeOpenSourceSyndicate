@@ -10,7 +10,7 @@
 #include "core/util/Rng.h"
 #include "core/world/TileGrid.h"
 
-namespace foss::core
+namespace fossynd::core
 {
 
 enum class MissionState
@@ -107,4 +107,4 @@ private:
     int civilianKills_ = 0;
 };
 
-} // namespace foss::core
+} // namespace fossynd::core

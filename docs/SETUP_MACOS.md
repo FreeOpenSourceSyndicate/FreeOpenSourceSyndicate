@@ -24,14 +24,14 @@ xcode-select --install
 
 ```bash
 git clone https://github.com/FreeOpenSourceSyndicate/FreeOpenSourceSyndicate.git
-cd FreeOpenSourceSyndicate
+cd FOSSynd
 ./scripts/build.sh
 ```
 
 ## 3. Run
 
 ```bash
-./build/src/FreeOpenSourceSyndicate
+./build/src/FOSSynd
 ```
 
 Controls (prototype): left-click a tile to move the selected agent, **Tab** to
@@ -46,7 +46,7 @@ ctest --test-dir build --output-on-failure
 ## Core-only build
 
 ```bash
-cmake -S . -B build -DFOSS_BUILD_GAME=OFF
+cmake -S . -B build -DFOSSYND_BUILD_GAME=OFF
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
@@ -59,7 +59,7 @@ Homebrew installs SDL2 under its prefix. If CMake does not find it, pass the
 prefix explicitly:
 
 ```bash
-cmake -S . -B build -DFOSS_BUILD_GAME=ON -DCMAKE_PREFIX_PATH="$(brew --prefix sdl2)"
+cmake -S . -B build -DFOSSYND_BUILD_GAME=ON -DCMAKE_PREFIX_PATH="$(brew --prefix sdl2)"
 ```
 
 ### Apple Silicon vs Intel

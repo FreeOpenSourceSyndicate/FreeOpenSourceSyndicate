@@ -3,7 +3,7 @@
 
 #include <cmath>
 
-namespace foss::core
+namespace fossynd::core
 {
 namespace
 {
@@ -641,4 +641,4 @@ const char* Mission::stateName() const
     return "?";
 }
 
-} // namespace foss::core
+} // namespace fossynd::core

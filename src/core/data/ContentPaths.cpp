@@ -4,7 +4,7 @@
 #include <fstream>
 #include <sstream>
 
-namespace foss::core
+namespace fossynd::core
 {
 
 const char* const kDefaultMissionFile = "demo.json";
@@ -136,4 +136,4 @@ bool resolveMissionPath(const GameConfig& config, const std::string& cliMission,
     return true;
 }
 
-} // namespace foss::core
+} // namespace fossynd::core

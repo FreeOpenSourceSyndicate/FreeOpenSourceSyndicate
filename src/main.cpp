@@ -91,7 +91,7 @@ int main(int argc, char** argv)
         }
     }
 
-#if defined(FOSS_LOW_SPEC_BUILD)
+#if defined(FOSSYND_LOW_SPEC_BUILD)
     // A low-spec build always runs in low-spec mode unless the caller opts out.
     lowSpec = true;
 #endif
@@ -101,12 +101,12 @@ int main(int argc, char** argv)
     // locations and take the first that exists; otherwise use the embedded copy.
     const std::string exeDir = executableDir(argc > 0 ? argv[0] : nullptr);
 
-    foss::core::GameConfig config;
+    fossynd::core::GameConfig config;
     std::string configError;
     if (!cliConfig.empty())
     {
         bool found = false;
-        if (!foss::core::loadConfigFile(cliConfig, config, found, configError))
+        if (!fossynd::core::loadConfigFile(cliConfig, config, found, configError))
         {
             std::fprintf(stderr, "config error (%s): %s\n", cliConfig.c_str(), configError.c_str());
             return 1;
@@ -114,10 +114,10 @@ int main(int argc, char** argv)
     }
     else
     {
-        for (const std::string& candidate : foss::core::defaultConfigPaths(exeDir))
+        for (const std::string& candidate : fossynd::core::defaultConfigPaths(exeDir))
         {
             bool found = false;
-            if (!foss::core::loadConfigFile(candidate, config, found, configError))
+            if (!fossynd::core::loadConfigFile(candidate, config, found, configError))
             {
                 std::fprintf(stderr, "config error (%s): %s\n", candidate.c_str(),
                              configError.c_str());
@@ -131,15 +131,15 @@ int main(int argc, char** argv)
     }
 
     std::string missionPath;
-    foss::core::MissionSource missionSource = foss::core::MissionSource::None;
+    fossynd::core::MissionSource missionSource = fossynd::core::MissionSource::None;
     std::string missionError;
-    if (!foss::core::resolveMissionPath(config, cliMission, exeDir, missionPath, missionSource,
+    if (!fossynd::core::resolveMissionPath(config, cliMission, exeDir, missionPath, missionSource,
                                         missionError))
     {
         std::fprintf(stderr, "mission path error: %s\n", missionError.c_str());
         return 1;
     }
-    if (missionSource != foss::core::MissionSource::None)
+    if (missionSource != fossynd::core::MissionSource::None)
     {
         std::printf("mission: %s\n", missionPath.c_str());
     }
@@ -148,7 +148,7 @@ int main(int argc, char** argv)
     int width = lowSpec ? 320 : 960;
     int height = lowSpec ? 200 : 600;
 
-    foss::game::Game game;
+    fossynd::game::Game game;
     game.setMissionPath(missionPath);
     if (!game.init(width, height, headless, lowSpec))
     {

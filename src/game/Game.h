@@ -12,12 +12,12 @@
 #include "core/world/TileGrid.h"
 #include "game/Font.h"
 
-namespace foss::game
+namespace fossynd::game
 {
 
 // The SDL2 application: window, main loop, input, and rendering.
 //
-// All game rules live in foss::core; this class only translates input into core
+// All game rules live in fossynd::core; this class only translates input into core
 // commands and draws core state. It must stay lightweight enough for old,
 // low-end hardware (see AGENTS.md 1b): the static map is rendered once to a
 // texture and blitted each frame, the font is a single atlas, and the renderer
@@ -127,4 +127,4 @@ private:
     bool running_ = false;
 };
 
-} // namespace foss::game
+} // namespace fossynd::game

@@ -9,7 +9,7 @@
 #include "core/sim/Weapon.h"
 #include "core/world/TileGrid.h"
 
-namespace foss::core
+namespace fossynd::core
 {
 
 // Which side an agent fights for.
@@ -177,4 +177,4 @@ private:
     std::size_t patrolIndex_ = 0;
 };
 
-} // namespace foss::core
+} // namespace fossynd::core

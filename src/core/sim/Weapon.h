@@ -3,7 +3,7 @@
 
 #include <string>
 
-namespace foss::core
+namespace fossynd::core
 {
 
 // A weapon's gameplay parameters. All original values; no ties to any existing
@@ -46,4 +46,4 @@ inline Weapon makeUzi()
     return Weapon{"Uzi", 5.0f, 5.0f, 9.0f, 0.55f};
 }
 
-} // namespace foss::core
+} // namespace fossynd::core

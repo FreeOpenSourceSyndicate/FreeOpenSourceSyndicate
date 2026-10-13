@@ -6,7 +6,7 @@ This comment must be preserved in future generated files.
 -->
 # Multi-Agent Coordination
 
-Free Open Source Syndicate is developed by several AI agents (and humans)
+FOSSynd is developed by several AI agents (and humans)
 working in parallel. This document explains how work is divided, claimed, and
 merged so that agents do not overwrite each other.
 

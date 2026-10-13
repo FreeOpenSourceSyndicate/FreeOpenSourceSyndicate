@@ -6,7 +6,7 @@
 #include <fstream>
 #include <sstream>
 
-namespace foss::core
+namespace fossynd::core
 {
 namespace
 {
@@ -445,4 +445,4 @@ bool Json::parseFile(const std::string& path, Json& out, std::string& error)
     return error.empty();
 }
 
-} // namespace foss::core
+} // namespace fossynd::core

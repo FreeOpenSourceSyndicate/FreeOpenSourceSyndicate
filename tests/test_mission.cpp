@@ -2,7 +2,7 @@
 #include "TestHarness.h"
 #include "core/sim/Mission.h"
 
-using namespace foss::core;
+using namespace fossynd::core;
 
 namespace
 {
@@ -27,29 +27,29 @@ void runUntilDone(Mission& mission, float maxSeconds, float dt = 0.05f)
 
 } // namespace
 
-FOSS_TEST(Mission, DamageKillsAgent)
+FOSSYND_TEST(Mission, DamageKillsAgent)
 {
     Agent agent(0.0f, 0.0f, 2.0f);
     agent.setMaxHealth(20.0f);
-    FOSS_CHECK(agent.isAlive());
-    FOSS_CHECK_NEAR(agent.applyDamage(15.0f), 15.0f);
-    FOSS_CHECK(agent.isAlive());
-    FOSS_CHECK_NEAR(agent.healthFraction(), 0.25f);
+    FOSSYND_CHECK(agent.isAlive());
+    FOSSYND_CHECK_NEAR(agent.applyDamage(15.0f), 15.0f);
+    FOSSYND_CHECK(agent.isAlive());
+    FOSSYND_CHECK_NEAR(agent.healthFraction(), 0.25f);
     agent.applyDamage(100.0f);
-    FOSS_CHECK(!agent.isAlive());
-    FOSS_CHECK_NEAR(agent.healthFraction(), 0.0f);
+    FOSSYND_CHECK(!agent.isAlive());
+    FOSSYND_CHECK_NEAR(agent.healthFraction(), 0.0f);
 }
 
-FOSS_TEST(Mission, DamageOnDeadAgentIsZero)
+FOSSYND_TEST(Mission, DamageOnDeadAgentIsZero)
 {
     Agent agent(0.0f, 0.0f, 2.0f);
     agent.setMaxHealth(10.0f);
     agent.applyDamage(10.0f);
-    FOSS_CHECK(!agent.isAlive());
-    FOSS_CHECK_NEAR(agent.applyDamage(5.0f), 0.0f);
+    FOSSYND_CHECK(!agent.isAlive());
+    FOSSYND_CHECK_NEAR(agent.applyDamage(5.0f), 0.0f);
 }
 
-FOSS_TEST(Mission, PlayerWinsWhenAllEnemiesDie)
+FOSSYND_TEST(Mission, PlayerWinsWhenAllEnemiesDie)
 {
     TileGrid grid(20, 20);
     Mission mission(grid, 1u);
@@ -61,11 +61,11 @@ FOSS_TEST(Mission, PlayerWinsWhenAllEnemiesDie)
     mission.orderMove(heroIndex, TilePos{4, 2});
     runUntilDone(mission, 5.0f);
 
-    FOSS_CHECK_EQ(mission.state(), MissionState::Won);
-    FOSS_CHECK_EQ(mission.playerKills(), 1);
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK_EQ(mission.playerKills(), 1);
 }
 
-FOSS_TEST(Mission, PlayerLosesWhenSquadDies)
+FOSSYND_TEST(Mission, PlayerLosesWhenSquadDies)
 {
     TileGrid grid(20, 20);
     Mission mission(grid, 2u);
@@ -76,11 +76,11 @@ FOSS_TEST(Mission, PlayerLosesWhenSquadDies)
 
     runUntilDone(mission, 5.0f);
 
-    FOSS_CHECK_EQ(mission.state(), MissionState::Lost);
-    FOSS_CHECK_EQ(mission.enemyKills(), 1);
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Lost);
+    FOSSYND_CHECK_EQ(mission.enemyKills(), 1);
 }
 
-FOSS_TEST(Mission, EnemyClosesToWeaponRange)
+FOSSYND_TEST(Mission, EnemyClosesToWeaponRange)
 {
     TileGrid grid(30, 30);
     Mission mission(grid, 3u);
@@ -98,11 +98,11 @@ FOSS_TEST(Mission, EnemyClosesToWeaponRange)
     }
     const float endDistance = mission.agents()[1].position().y - mission.agents()[0].position().y;
 
-    FOSS_CHECK(endDistance < startDistance);
-    FOSS_CHECK(mission.state() == MissionState::Running);
+    FOSSYND_CHECK(endDistance < startDistance);
+    FOSSYND_CHECK(mission.state() == MissionState::Running);
 }
 
-FOSS_TEST(Mission, SameSeedProducesIdenticalOutcome)
+FOSSYND_TEST(Mission, SameSeedProducesIdenticalOutcome)
 {
     auto runScenario = [](std::uint64_t seed) {
         TileGrid grid(20, 20);
@@ -116,11 +116,11 @@ FOSS_TEST(Mission, SameSeedProducesIdenticalOutcome)
 
     const auto a = runScenario(777u);
     const auto b = runScenario(777u);
-    FOSS_CHECK_EQ(a.first, b.first);
-    FOSS_CHECK_EQ(a.second, b.second);
+    FOSSYND_CHECK_EQ(a.first, b.first);
+    FOSSYND_CHECK_EQ(a.second, b.second);
 }
 
-FOSS_TEST(Mission, NoOrdersStalemateStaysRunning)
+FOSSYND_TEST(Mission, NoOrdersStalemateStaysRunning)
 {
     TileGrid grid(40, 40);
     Mission mission(grid, 5u);
@@ -132,10 +132,10 @@ FOSS_TEST(Mission, NoOrdersStalemateStaysRunning)
     {
         mission.update(0.05f);
     }
-    FOSS_CHECK(mission.state() == MissionState::Running);
+    FOSSYND_CHECK(mission.state() == MissionState::Running);
 }
 
-FOSS_TEST(Mission, AttackOrderFocusesFireOnChosenTarget)
+FOSSYND_TEST(Mission, AttackOrderFocusesFireOnChosenTarget)
 {
     TileGrid grid(30, 30);
     Mission mission(grid, 3u);
@@ -147,17 +147,17 @@ FOSS_TEST(Mission, AttackOrderFocusesFireOnChosenTarget)
     mission.addAgent(makeAgent(16.0f, 2.0f, Team::Enemy, 30.0f)); // far, index 2
 
     mission.orderAttack(0, 2);
-    FOSS_CHECK_EQ(mission.agents()[0].orderedTarget(), 2);
+    FOSSYND_CHECK_EQ(mission.agents()[0].orderedTarget(), 2);
 
     for (int i = 0; i < 40 && mission.agents()[2].isAlive(); ++i)
     {
         mission.update(0.05f);
     }
-    FOSS_CHECK(!mission.agents()[2].isAlive()); // far target eliminated first
-    FOSS_CHECK(mission.agents()[1].isAlive());  // near target still standing
+    FOSSYND_CHECK(!mission.agents()[2].isAlive()); // far target eliminated first
+    FOSSYND_CHECK(mission.agents()[1].isAlive());  // near target still standing
 }
 
-FOSS_TEST(Mission, MoveOrderClearsAttackOrder)
+FOSSYND_TEST(Mission, MoveOrderClearsAttackOrder)
 {
     TileGrid grid(30, 30);
     Mission mission(grid, 4u);
@@ -165,13 +165,13 @@ FOSS_TEST(Mission, MoveOrderClearsAttackOrder)
     mission.addAgent(makeAgent(8.0f, 2.0f, Team::Enemy, 100.0f));
 
     mission.orderAttack(0, 1);
-    FOSS_CHECK_EQ(mission.agents()[0].orderedTarget(), 1);
+    FOSSYND_CHECK_EQ(mission.agents()[0].orderedTarget(), 1);
 
     mission.orderMove(0, TilePos{3, 3});
-    FOSS_CHECK_EQ(mission.agents()[0].orderedTarget(), -1);
+    FOSSYND_CHECK_EQ(mission.agents()[0].orderedTarget(), -1);
 }
 
-FOSS_TEST(Mission, DeadTargetFallsBackToNearestEnemy)
+FOSSYND_TEST(Mission, DeadTargetFallsBackToNearestEnemy)
 {
     TileGrid grid(30, 30);
     Mission mission(grid, 6u);
@@ -187,18 +187,18 @@ FOSS_TEST(Mission, DeadTargetFallsBackToNearestEnemy)
     {
         mission.update(0.05f);
     }
-    FOSS_CHECK(!mission.agents()[1].isAlive());
+    FOSSYND_CHECK(!mission.agents()[1].isAlive());
 
     const float farHealthBefore = mission.agents()[2].health();
     for (int i = 0; i < 40; ++i)
     {
         mission.update(0.05f);
     }
-    FOSS_CHECK(mission.agents()[2].health() < farHealthBefore);
+    FOSSYND_CHECK(mission.agents()[2].health() < farHealthBefore);
 }
 
 
-FOSS_TEST(Mission, CivilianIsNotAutoTargeted)
+FOSSYND_TEST(Mission, CivilianIsNotAutoTargeted)
 {
     // The civilian is the closest agent to the player, but combat must ignore it
     // and target the enemy. If civilians were auto-targeted the civilian would
@@ -213,13 +213,13 @@ FOSS_TEST(Mission, CivilianIsNotAutoTargeted)
 
     runUntilDone(mission, 10.0f);
 
-    FOSS_CHECK(mission.state() == MissionState::Won);
-    FOSS_CHECK(mission.agents()[1].isAlive());
-    FOSS_CHECK_EQ(mission.civilianKills(), 0);
-    FOSS_CHECK_EQ(mission.playerKills(), 1);
+    FOSSYND_CHECK(mission.state() == MissionState::Won);
+    FOSSYND_CHECK(mission.agents()[1].isAlive());
+    FOSSYND_CHECK_EQ(mission.civilianKills(), 0);
+    FOSSYND_CHECK_EQ(mission.playerKills(), 1);
 }
 
-FOSS_TEST(Mission, StrayFireCanKillCivilians)
+FOSSYND_TEST(Mission, StrayFireCanKillCivilians)
 {
     // The player always misses (accuracy 0), so every shot is stray fire. A
     // bystander standing next to the target is hit as collateral.
@@ -236,13 +236,13 @@ FOSS_TEST(Mission, StrayFireCanKillCivilians)
         mission.update(0.05f);
     }
 
-    FOSS_CHECK(!mission.agents()[2].isAlive());
-    FOSS_CHECK_EQ(mission.civilianKills(), 1);
+    FOSSYND_CHECK(!mission.agents()[2].isAlive());
+    FOSSYND_CHECK_EQ(mission.civilianKills(), 1);
     // The enemy is untouched: stray fire only ever harms civilians.
-    FOSS_CHECK(mission.agents()[1].isAlive());
+    FOSSYND_CHECK(mission.agents()[1].isAlive());
 }
 
-FOSS_TEST(Mission, CiviliansFleeGunfire)
+FOSSYND_TEST(Mission, CiviliansFleeGunfire)
 {
     TileGrid grid(40, 40);
     Mission mission(grid, 13u);
@@ -262,11 +262,11 @@ FOSS_TEST(Mission, CiviliansFleeGunfire)
     }
 
     // The bystander near the shooting runs; the distant one does not.
-    FOSS_CHECK(length(mission.agents()[2].position() - nearStart) > 1.0f);
-    FOSS_CHECK_NEAR(length(mission.agents()[3].position() - farStart), 0.0f);
+    FOSSYND_CHECK(length(mission.agents()[2].position() - nearStart) > 1.0f);
+    FOSSYND_CHECK_NEAR(length(mission.agents()[3].position() - farStart), 0.0f);
 }
 
-FOSS_TEST(Mission, EnemyPatrolsAssignedRoute)
+FOSSYND_TEST(Mission, EnemyPatrolsAssignedRoute)
 {
     // No target in sight (the player is far away and unarmed), so an enemy with
     // a patrol route should walk it instead of standing still.
@@ -287,11 +287,11 @@ FOSS_TEST(Mission, EnemyPatrolsAssignedRoute)
     }
 
     // It moved a real distance and is in the Patrol state.
-    FOSS_CHECK(length(mission.agents()[patrolIndex].position() - start) > 2.0f);
-    FOSS_CHECK(mission.agents()[patrolIndex].aiState() == AiState::Patrol);
+    FOSSYND_CHECK(length(mission.agents()[patrolIndex].position() - start) > 2.0f);
+    FOSSYND_CHECK(mission.agents()[patrolIndex].aiState() == AiState::Patrol);
 }
 
-FOSS_TEST(Mission, WoundedEnemyRetreats)
+FOSSYND_TEST(Mission, WoundedEnemyRetreats)
 {
     // An enemy at low health near a player should break off and move away.
     TileGrid grid(40, 40);
@@ -313,11 +313,11 @@ FOSS_TEST(Mission, WoundedEnemyRetreats)
     const float endDistance =
         length(mission.agents()[foeIndex].position() - mission.agents()[0].position());
 
-    FOSS_CHECK(mission.agents()[foeIndex].aiState() == AiState::Retreat);
-    FOSS_CHECK(endDistance > startDistance + 2.0f);
+    FOSSYND_CHECK(mission.agents()[foeIndex].aiState() == AiState::Retreat);
+    FOSSYND_CHECK(endDistance > startDistance + 2.0f);
 }
 
-FOSS_TEST(Mission, HealthyEnemyDoesNotRetreat)
+FOSSYND_TEST(Mission, HealthyEnemyDoesNotRetreat)
 {
     // The same setup at full health must engage, not retreat: the state machine
     // keys off health, not proximity.
@@ -333,10 +333,10 @@ FOSS_TEST(Mission, HealthyEnemyDoesNotRetreat)
     {
         mission.update(0.05f);
     }
-    FOSS_CHECK(mission.agents()[foeIndex].aiState() == AiState::Engage);
+    FOSSYND_CHECK(mission.agents()[foeIndex].aiState() == AiState::Engage);
 }
 
-FOSS_TEST(Mission, RetreatingEnemyHoldsFire)
+FOSSYND_TEST(Mission, RetreatingEnemyHoldsFire)
 {
     // A retreating enemy is breaking off: even with a lethal weapon in range it
     // must not fire while withdrawing.
@@ -354,11 +354,11 @@ FOSS_TEST(Mission, RetreatingEnemyHoldsFire)
         mission.update(0.05f);
     }
 
-    FOSS_CHECK(mission.agents()[foeIndex].aiState() == AiState::Retreat);
-    FOSS_CHECK_NEAR(mission.agents()[0].health(), playerHealthBefore);
+    FOSSYND_CHECK(mission.agents()[foeIndex].aiState() == AiState::Retreat);
+    FOSSYND_CHECK_NEAR(mission.agents()[0].health(), playerHealthBefore);
 }
 
-FOSS_TEST(Mission, EngagedEnemyAlertsNearbyAllies)
+FOSSYND_TEST(Mission, EngagedEnemyAlertsNearbyAllies)
 {
     // E0 sees the player and calls backup. E1 is within the alert radius of E0
     // but too far from the player to have acquired it on its own, so its order
@@ -373,7 +373,7 @@ FOSS_TEST(Mission, EngagedEnemyAlertsNearbyAllies)
         makeAgent(18.0f, 5.0f, Team::Enemy, 100.0f, Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
 
     // Sanity: E1 starts with no order and cannot see the player (distance 13).
-    FOSS_CHECK_EQ(mission.agents()[e1].orderedTarget(), -1);
+    FOSSYND_CHECK_EQ(mission.agents()[e1].orderedTarget(), -1);
 
     for (int i = 0; i < 20; ++i)
     {
@@ -381,12 +381,12 @@ FOSS_TEST(Mission, EngagedEnemyAlertsNearbyAllies)
     }
 
     // E0 engaged the player and both now focus the player.
-    FOSS_CHECK_EQ(mission.agents()[e0].aiState(), AiState::Engage);
-    FOSS_CHECK_EQ(mission.agents()[e0].orderedTarget(), static_cast<int>(playerIndex));
-    FOSS_CHECK_EQ(mission.agents()[e1].orderedTarget(), static_cast<int>(playerIndex));
+    FOSSYND_CHECK_EQ(mission.agents()[e0].aiState(), AiState::Engage);
+    FOSSYND_CHECK_EQ(mission.agents()[e0].orderedTarget(), static_cast<int>(playerIndex));
+    FOSSYND_CHECK_EQ(mission.agents()[e1].orderedTarget(), static_cast<int>(playerIndex));
 }
 
-FOSS_TEST(Mission, AlertAlliesOnlyReachesWithinRadius)
+FOSSYND_TEST(Mission, AlertAlliesOnlyReachesWithinRadius)
 {
     TileGrid grid(40, 40);
     Mission mission(grid, 24u);
@@ -397,9 +397,9 @@ FOSS_TEST(Mission, AlertAlliesOnlyReachesWithinRadius)
     mission.addAgent(makeAgent(30.0f, 5.0f, Team::Enemy, 100.0f));  // 21 tiles: out
 
     const std::size_t alerted = mission.alertAllies(caller, 8.0f);
-    FOSS_CHECK_EQ(alerted, static_cast<std::size_t>(1));
-    FOSS_CHECK_EQ(mission.agents()[2].orderedTarget(), 0);
-    FOSS_CHECK_EQ(mission.agents()[3].orderedTarget(), -1);
+    FOSSYND_CHECK_EQ(alerted, static_cast<std::size_t>(1));
+    FOSSYND_CHECK_EQ(mission.agents()[2].orderedTarget(), 0);
+    FOSSYND_CHECK_EQ(mission.agents()[3].orderedTarget(), -1);
 }
 
 

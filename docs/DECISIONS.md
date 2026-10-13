@@ -104,9 +104,9 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
 - **Context:** The full game build needs the engine, which is too heavy to fetch
   reliably on a CI runner.
 - **Decision:** CI builds and tests the **core-only** target
-  (`-DFOSS_BUILD_GAME=OFF`) and runs `ctest`. It also runs a second job that
+  (`-DFOSSYND_BUILD_GAME=OFF`) and runs `ctest`. It also runs a second job that
   installs `libsdl2-dev`, builds the **core + game** target
-  (`-DFOSS_BUILD_GAME=ON`), and runs `ctest` including the headless `game_smoke`
+  (`-DFOSSYND_BUILD_GAME=ON`), and runs `ctest` including the headless `game_smoke`
   test. Engine-layer changes are therefore verified automatically.
 - **Consequences:** Core logic and the SDL2 shell are both continuously
   verified. This supersedes the earlier temporary gap (ADR-0001 is resolved by
@@ -183,7 +183,7 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
   chose a software-capable renderer; this ADR makes the low-end target explicit
   and gives it a build profile and a runtime mode that CI exercises.
 - **Options:**
-  1. **A build option (`-DFOSS_LOW_SPEC=ON`) plus a runtime `--low-spec` flag.**
+  1. **A build option (`-DFOSSYND_LOW_SPEC=ON`) plus a runtime `--low-spec` flag.**
      The build favours a small binary (`-Os`, stripped, no unwind tables); the
      runtime defaults to a small window and forces the SDL software renderer.
   2. A separate "minimal" renderer/backend. More work, more code to maintain,
@@ -191,15 +191,15 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
   3. Nothing — rely on the compiler defaults and the existing software fallback.
      Rejected: no explicit target means old-hardware support silently rots.
 - **Decision:** Option 1.
-  - CMake: `FOSS_LOW_SPEC` adds `-Os -fno-unwind-tables
+  - CMake: `FOSSYND_LOW_SPEC` adds `-Os -fno-unwind-tables
     -fno-asynchronous-unwind-tables`, `-s` at link, and defines
-    `FOSS_LOW_SPEC_BUILD`.
+    `FOSSYND_LOW_SPEC_BUILD`.
   - Runtime: `--low-spec` (and the build default) selects a **320x200** window
     and a **software** renderer. Any machine that can open a window can run it.
   - The game runs without a GPU and without large dependencies either way; the
     profile only makes that guarantee explicit and testable.
 - **Consequences:**
-  - A dedicated CI job always builds `-DFOSS_LOW_SPEC=ON` so the profile cannot
+  - A dedicated CI job always builds `-DFOSSYND_LOW_SPEC=ON` so the profile cannot
     bit-rot (ADR-0005).
   - The low-spec binary is also the smallest artifact for packaging (Phase 5).
   - Low-spec does not change gameplay or determinism: the engine-agnostic core
@@ -238,4 +238,40 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
   - Legal position unchanged: we recreate the *feel* and the *look* with
     original art and copy no original sprite, palette, or code (`docs/LEGAL.md`).
   - A v2.x.x/fork line is explicitly permitted to pursue the improvements.
+
+---
+
+## ADR-0010 — Project name: FOSSynd
+
+- **Status:** Accepted
+- **Date:** 2026-10-13
+- **Context:** The project was named **Free Open Source Syndicate**, shortened to
+  **FOSS**. "FOSS" is already the standard abbreviation for *Free and Open Source
+  Software*, so the short name was ambiguous and unsearchable, and the build
+  option prefix `FOSS_*` read like a generic open-source switch. A new short name
+  was needed: English/German only, not an acronym that collides with another
+  common term, and (as a bonus, not a requirement) able to nod to the *Syndicate*
+  heritage in the `FreeCiv`/`FreeCol` style.
+- **Options:**
+  1. **`FOSSynd`** — reads as "FOSS" + "syndicate", keeps the open-source
+     reference, and follows the `Free<Game>` naming pattern of FreeCiv/FreeCol
+     (there, "Free"; here, "FOSS"). Collision-free (0 GitHub results) and
+     distinct from the existing `FreeSynd` project and AMD's `FreeSync` mark.
+  2. `FreeSyn` — rejected: one letter from the existing open-source `FreeSynd`
+     *Syndicate* engine reimplementation and from AMD's trademarked `FreeSync`.
+  3. `Sovereign Cartel`, `Konzernstaat`, `Chartered Company` — all clear, but
+     none carries the open-source reference that was preferred.
+  4. Keep `FOSS` — rejected: ambiguous with the generic term (the original
+     problem).
+- **Decision:** Option 1. The project is **FOSSynd** ("Free, Open-Source
+  Syndicate"). "Syndicate" stays descriptive, never a brand mark (LEGAL.md §3).
+  The CMake option prefix becomes `FOSSYND_*`, the core library `fossynd_core`,
+  the C++ namespace `fossynd::`, the test macros `FOSSYND_TEST`/`FOSSYND_CHECK*`,
+  and the game binary `FOSSynd`.
+- **Consequences:**
+  - All build options, namespaces, macros, docs, and CI strings use `FOSSynd` /
+    `FOSSYND` / `fossynd`; the bare acronym `FOSS` no longer appears.
+  - The GitHub org/repo name (`FreeOpenSourceSyndicate/FreeOpenSourceSyndicate`)
+    is kept for now: `FOSSynd` is a valid abbreviation of it, so the clone URLs
+    and the working-directory name remain correct and need no change.
 

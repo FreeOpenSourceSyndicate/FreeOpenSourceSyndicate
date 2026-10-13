@@ -7,8 +7,8 @@ This comment must be preserved in future generated files.
 # AGENTS.md — Shared Memory for AI Contributors
 
 This file is the single source of truth for **any** AI agent (GitHub Copilot,
-Claude, GPT, Gemini, OpenHands, ...) working on Free Open Source Syndicate
-(FOSS). Read it fully before changing code. Human contributors should read it
+Claude, GPT, Gemini, OpenHands, ...) working on FOSSynd (Free, Open-Source
+Syndicate). Read it fully before changing code. Human contributors should read it
 too; the rules apply to everyone.
 
 If you learn something durable about this repo — a build quirk, a convention, a
@@ -85,7 +85,7 @@ Practical rules:
   tiles/sprites and cached surfaces.
 - Do not assume a dedicated GPU, large VRAM, or a fast CPU.
 - Profile assumptions: target smooth play on integrated graphics from ~2010.
-- Build the low-spec profile (`-DFOSS_LOW_SPEC=ON`) or run with `--low-spec` to
+- Build the low-spec profile (`-DFOSSYND_LOW_SPEC=ON`) or run with `--low-spec` to
   get the smallest binary, a small window, and the software renderer (ADR-0008).
   CI builds this profile on every change. A game that will not start on very old
   hardware is a bug.
@@ -327,20 +327,20 @@ and do not let unrelated work drift onto it.
 ./scripts/build.sh
 
 # Or manually (Debian/Ubuntu: sudo apt-get install libsdl2-dev)
-cmake -S . -B build -DFOSS_BUILD_GAME=ON
+cmake -S . -B build -DFOSSYND_BUILD_GAME=ON
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 
 # Core-only build + tests (no SDL needed) — this is what CI runs.
-cmake -S . -B build-core -DFOSS_BUILD_GAME=OFF
+cmake -S . -B build-core -DFOSSYND_BUILD_GAME=OFF
 cmake --build build-core -j
 ctest --test-dir build-core --output-on-failure
 ```
 
 CI runs three jobs: a **core + game** job (installs `libsdl2-dev`, builds with
-`-DFOSS_BUILD_GAME=ON`, runs `ctest`, which includes the headless `game_smoke`
+`-DFOSSYND_BUILD_GAME=ON`, runs `ctest`, which includes the headless `game_smoke`
 test), a **core-only** job (no graphics deps), and a **low-spec** job
-(`-DFOSS_LOW_SPEC=ON`, ADR-0008) so old-hardware support cannot bit-rot. If your
+(`-DFOSSYND_LOW_SPEC=ON`, ADR-0008) so old-hardware support cannot bit-rot. If your
 change touches `src/core/` or `tests/`, all must pass. If it touches
 `src/game/`, also run the game target locally and note the result in the PR.
 

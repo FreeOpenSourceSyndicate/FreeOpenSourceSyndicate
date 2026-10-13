@@ -1,7 +1,7 @@
 /* AI/LLM-generated file. Do not treat as human-written source documentation. */
 #include "core/world/TileGrid.h"
 
-namespace foss::core
+namespace fossynd::core
 {
 
 TileGrid::TileGrid(int width, int height)
@@ -59,4 +59,4 @@ void TileGrid::setTileType(int x, int y, int type)
     types_[index(x, y)] = type;
 }
 
-} // namespace foss::core
+} // namespace fossynd::core

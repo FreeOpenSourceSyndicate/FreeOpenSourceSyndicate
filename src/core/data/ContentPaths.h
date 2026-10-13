@@ -6,7 +6,7 @@
 
 #include "core/data/Config.h"
 
-namespace foss::core
+namespace fossynd::core
 {
 
 // The default mission file name, used when a directory (not a full path) is
@@ -48,4 +48,4 @@ std::vector<std::string> defaultMissionPaths(const std::string& exeDir);
 // `exeDir` may be empty.
 std::vector<std::string> defaultConfigPaths(const std::string& exeDir);
 
-} // namespace foss::core
+} // namespace fossynd::core

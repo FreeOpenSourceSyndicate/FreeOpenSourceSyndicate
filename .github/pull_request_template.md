@@ -19,7 +19,7 @@ Open questions: <list>
 ## Checklist
 
 - [ ] Branch is up to date with `main`
-- [ ] `cmake -S . -B build -DFOSS_BUILD_GAME=OFF && cmake --build build && ctest --test-dir build --output-on-failure` passes
+- [ ] `cmake -S . -B build -DFOSSYND_BUILD_GAME=OFF && cmake --build build && ctest --test-dir build --output-on-failure` passes
 - [ ] No new compiler warnings (`-Wall -Wextra -Wpedantic`)
 - [ ] New `src/core/` logic has unit tests
 - [ ] `AGENTS.md` / docs updated if conventions or commands changed

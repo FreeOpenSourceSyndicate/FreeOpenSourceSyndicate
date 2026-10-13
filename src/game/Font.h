@@ -5,7 +5,7 @@
 
 #include "SDL.h"
 
-namespace foss::game
+namespace fossynd::game
 {
 
 // A tiny, dependency-free bitmap font (5x7 glyphs, ASCII 32..126).
@@ -35,4 +35,4 @@ private:
     int scale_ = 1;
 };
 
-} // namespace foss::game
+} // namespace fossynd::game
