@@ -53,7 +53,7 @@ set_target_properties(FOSSynd PROPERTIES
 # searches these locations at runtime (see core/data/ContentPaths.h). Install is
 # optional; the binary is self-contained thanks to the embedded mission.
 include(GNUInstallDirs)
-install(TARGETS FreeOpenSourceSyndicate RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS FOSSynd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES "${CMAKE_SOURCE_DIR}/assets/data/missions/demo.json"
         DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd/missions)
 install(FILES "${CMAKE_SOURCE_DIR}/assets/data/fossynd.conf.example"

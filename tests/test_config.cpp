@@ -3,9 +3,9 @@
 #include "core/data/Config.h"
 #include "core/data/ContentPaths.h"
 
-using namespace foss::core;
+using namespace fossynd::core;
 
-FOSS_TEST(Config, ParsesKeysAndIgnoresComments)
+FOSSYND_TEST(Config, ParsesKeysAndIgnoresComments)
 {
     GameConfig config;
     std::string error;
@@ -14,58 +14,58 @@ FOSS_TEST(Config, ParsesKeysAndIgnoresComments)
                              "mission = assets/data/missions/demo.json\n"
                              "mission_dir =/usr/share/fossynd/missions\n"
                              "unknown_key = ignored\n";
-    FOSS_CHECK(parseConfig(text, config, error));
-    FOSS_CHECK(error.empty());
-    FOSS_CHECK_EQ(config.mission, std::string("assets/data/missions/demo.json"));
-    FOSS_CHECK_EQ(config.missionDir, std::string("/usr/share/fossynd/missions"));
+    FOSSYND_CHECK(parseConfig(text, config, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_EQ(config.mission, std::string("assets/data/missions/demo.json"));
+    FOSSYND_CHECK_EQ(config.missionDir, std::string("/usr/share/fossynd/missions"));
 }
 
-FOSS_TEST(Config, RejectsMalformedLine)
+FOSSYND_TEST(Config, RejectsMalformedLine)
 {
     GameConfig config;
     std::string error;
-    FOSS_CHECK(!parseConfig("mission assets/demo.json\n", config, error));
-    FOSS_CHECK(!error.empty());
+    FOSSYND_CHECK(!parseConfig("mission assets/demo.json\n", config, error));
+    FOSSYND_CHECK(!error.empty());
 }
 
-FOSS_TEST(Config, MissingFileIsNotAnError)
+FOSSYND_TEST(Config, MissingFileIsNotAnError)
 {
     GameConfig config;
     std::string error;
     bool found = true;
-    FOSS_CHECK(loadConfigFile("this/config/does/not/exist.conf", config, found, error));
-    FOSS_CHECK(!found);
-    FOSS_CHECK(error.empty());
+    FOSSYND_CHECK(loadConfigFile("this/config/does/not/exist.conf", config, found, error));
+    FOSSYND_CHECK(!found);
+    FOSSYND_CHECK(error.empty());
 }
 
-FOSS_TEST(ContentPaths, CliFlagWinsWhenItExists)
+FOSSYND_TEST(ContentPaths, CliFlagWinsWhenItExists)
 {
     GameConfig config;
-    config.mission = std::string(FOSS_SOURCE_DIR) + "/assets/data/missions/demo.json";
+    config.mission = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/missions/demo.json";
 
-    const std::string cli = std::string(FOSS_SOURCE_DIR) + "/assets/data/missions/demo.json";
+    const std::string cli = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/missions/demo.json";
     std::string out;
     MissionSource source = MissionSource::None;
     std::string error;
-    FOSS_CHECK(resolveMissionPath(config, cli, "", out, source, error));
-    FOSS_CHECK(source == MissionSource::CliFlag);
-    FOSS_CHECK_EQ(out, cli);
+    FOSSYND_CHECK(resolveMissionPath(config, cli, "", out, source, error));
+    FOSSYND_CHECK(source == MissionSource::CliFlag);
+    FOSSYND_CHECK_EQ(out, cli);
 }
 
-FOSS_TEST(ContentPaths, ConfigPathUsedWhenNoCliFlag)
+FOSSYND_TEST(ContentPaths, ConfigPathUsedWhenNoCliFlag)
 {
     GameConfig config;
-    config.mission = std::string(FOSS_SOURCE_DIR) + "/assets/data/missions/demo.json";
+    config.mission = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/missions/demo.json";
 
     std::string out;
     MissionSource source = MissionSource::None;
     std::string error;
-    FOSS_CHECK(resolveMissionPath(config, "", "", out, source, error));
-    FOSS_CHECK(source == MissionSource::ConfigFile);
-    FOSS_CHECK_EQ(out, config.mission);
+    FOSSYND_CHECK(resolveMissionPath(config, "", "", out, source, error));
+    FOSSYND_CHECK(source == MissionSource::ConfigFile);
+    FOSSYND_CHECK_EQ(out, config.mission);
 }
 
-FOSS_TEST(ContentPaths, MissingExplicitPathIsAnError)
+FOSSYND_TEST(ContentPaths, MissingExplicitPathIsAnError)
 {
     GameConfig config;
     config.mission = "does/not/exist.json";
@@ -73,30 +73,30 @@ FOSS_TEST(ContentPaths, MissingExplicitPathIsAnError)
     std::string out;
     MissionSource source = MissionSource::None;
     std::string error;
-    FOSS_CHECK(!resolveMissionPath(config, "", "", out, source, error));
-    FOSS_CHECK(!error.empty());
+    FOSSYND_CHECK(!resolveMissionPath(config, "", "", out, source, error));
+    FOSSYND_CHECK(!error.empty());
 }
 
-FOSS_TEST(ContentPaths, MissionDirResolvesTheDefaultFile)
+FOSSYND_TEST(ContentPaths, MissionDirResolvesTheDefaultFile)
 {
     GameConfig config;
-    config.missionDir = std::string(FOSS_SOURCE_DIR) + "/assets/data/missions";
+    config.missionDir = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/missions";
 
     std::string out;
     MissionSource source = MissionSource::None;
     std::string error;
-    FOSS_CHECK(resolveMissionPath(config, "", "", out, source, error));
-    FOSS_CHECK(source == MissionSource::ConfigDir);
-    FOSS_CHECK_EQ(out, config.missionDir + "/demo.json");
-    FOSS_CHECK(fileExists(out));
+    FOSSYND_CHECK(resolveMissionPath(config, "", "", out, source, error));
+    FOSSYND_CHECK(source == MissionSource::ConfigDir);
+    FOSSYND_CHECK_EQ(out, config.missionDir + "/demo.json");
+    FOSSYND_CHECK(fileExists(out));
 }
 
-FOSS_TEST(ContentPaths, DefaultMissionPathsAreOrdered)
+FOSSYND_TEST(ContentPaths, DefaultMissionPathsAreOrdered)
 {
     // Pure function, independent of the working directory.
     const std::vector<std::string> paths = defaultMissionPaths("/opt/fossynd/bin");
-    FOSS_CHECK(!paths.empty());
-    FOSS_CHECK_EQ(paths.front(), std::string("assets/data/missions/demo.json"));
+    FOSSYND_CHECK(!paths.empty());
+    FOSSYND_CHECK_EQ(paths.front(), std::string("assets/data/missions/demo.json"));
     bool hasShare = false;
     for (const std::string& p : paths)
     {
@@ -105,10 +105,10 @@ FOSS_TEST(ContentPaths, DefaultMissionPathsAreOrdered)
             hasShare = true;
         }
     }
-    FOSS_CHECK(hasShare);
+    FOSSYND_CHECK(hasShare);
 }
 
-FOSS_TEST(ContentPaths, FallsBackToTheFirstExistingLocation)
+FOSSYND_TEST(ContentPaths, FallsBackToTheFirstExistingLocation)
 {
     // No CLI flag and no config: the built-in fallbacks are checked in order.
     // Point exeDir at the source tree so a fallback exists regardless of the
@@ -117,23 +117,23 @@ FOSS_TEST(ContentPaths, FallsBackToTheFirstExistingLocation)
     std::string out;
     MissionSource source = MissionSource::None;
     std::string error;
-    FOSS_CHECK(resolveMissionPath(config, "", std::string(FOSS_SOURCE_DIR), out, source, error));
-    FOSS_CHECK(source == MissionSource::Fallback);
-    FOSS_CHECK(fileExists(out));
+    FOSSYND_CHECK(resolveMissionPath(config, "", std::string(FOSSYND_SOURCE_DIR), out, source, error));
+    FOSSYND_CHECK(source == MissionSource::Fallback);
+    FOSSYND_CHECK(fileExists(out));
     const std::string suffix = "assets/data/missions/demo.json";
-    FOSS_CHECK(out.size() >= suffix.size());
-    FOSS_CHECK_EQ(out.substr(out.size() - suffix.size()), suffix);
+    FOSSYND_CHECK(out.size() >= suffix.size());
+    FOSSYND_CHECK_EQ(out.substr(out.size() - suffix.size()), suffix);
 }
 
-FOSS_TEST(ContentPaths, DefaultConfigPathsAreOrdered)
+FOSSYND_TEST(ContentPaths, DefaultConfigPathsAreOrdered)
 {
     const std::vector<std::string> paths = defaultConfigPaths("/opt/fossynd/bin");
-    FOSS_CHECK(!paths.empty());
-    FOSS_CHECK_EQ(paths.front(), std::string("fossynd.conf"));
-    FOSS_CHECK_EQ(paths.back(), std::string("/usr/local/etc/fossynd.conf"));
+    FOSSYND_CHECK(!paths.empty());
+    FOSSYND_CHECK_EQ(paths.front(), std::string("fossynd.conf"));
+    FOSSYND_CHECK_EQ(paths.back(), std::string("/usr/local/etc/fossynd.conf"));
 }
 
-FOSS_TEST(ContentPaths, NothingFoundLeavesTheEmbeddedFallbackToTheCaller)
+FOSSYND_TEST(ContentPaths, NothingFoundLeavesTheEmbeddedFallbackToTheCaller)
 {
     // Point every fallback at a non-existent exeDir and no config/CLI. The
     // repo-relative fallback may still exist, so this test only asserts the
@@ -142,14 +142,14 @@ FOSS_TEST(ContentPaths, NothingFoundLeavesTheEmbeddedFallbackToTheCaller)
     std::string out;
     MissionSource source = MissionSource::None;
     std::string error;
-    FOSS_CHECK(resolveMissionPath(config, "", "/no/such/exe/dir", out, source, error));
-    FOSS_CHECK(error.empty());
+    FOSSYND_CHECK(resolveMissionPath(config, "", "/no/such/exe/dir", out, source, error));
+    FOSSYND_CHECK(error.empty());
     if (source == MissionSource::None)
     {
-        FOSS_CHECK(out.empty());
+        FOSSYND_CHECK(out.empty());
     }
     else
     {
-        FOSS_CHECK(fileExists(out));
+        FOSSYND_CHECK(fileExists(out));
     }
 }

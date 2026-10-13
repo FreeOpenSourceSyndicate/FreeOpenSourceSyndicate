@@ -5,7 +5,7 @@
 #include <fstream>
 #include <sstream>
 
-namespace foss::core
+namespace fossynd::core
 {
 namespace
 {
@@ -83,4 +83,4 @@ bool loadConfigFile(const std::string& path, GameConfig& out, bool& found, std::
     return parseConfig(buffer.str(), out, error);
 }
 
-} // namespace foss::core
+} // namespace fossynd::core
