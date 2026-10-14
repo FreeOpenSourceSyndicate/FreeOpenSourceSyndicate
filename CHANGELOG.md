@@ -8,6 +8,29 @@ contains no original assets, code, names, or trademarks.
 
 ## [Unreleased]
 
+### Added
+
+- **Interpolated rendering over a fixed-step simulation:** the view now drives
+  the mission with `core::FixedTimestep` (accumulate-then-step) instead of one
+  variable-`dt` update per frame, and draws every agent at
+  `Agent::interpolatedPosition(clock.alpha())`. Gameplay outcomes are now
+  independent of frame rate while motion stays smooth on any refresh rate
+  (AGENTS.md golden rule 4). No core change — this consumes the API from #43.
+  The renderer and the orders pass share one fixed step; the camera and walk
+  cycle remain view-only and follow real elapsed time. Issue #44.
+- **Control groups:** the squad view now supports four control-group slots.
+  **Ctrl+`1`–`4`** assigns the current selection to a slot and **`1`–`4`** recalls
+  it; dead members are dropped on recall and an empty group is a safe no-op.
+  **`5`–`8`** select the 1st–4th living agent (the previous meaning of `1`–`4`).
+  The squad panel shows each agent's group tag. View-only state; new ctest
+  `game_selection` (`--headless --check-selection`) covers it. Issue #33.
+- **Medikit gadget (heal a nearby ally):** a player agent can spend a medikit to
+  heal the most-wounded living same-team agent (itself or a team-mate) within
+  range, for a fixed amount. Kits are never wasted on a full-health target and
+  never cross teams; the choice is deterministic (ties break by agent index).
+  New `Agent::heal(amount)` primitive and `Mission::setMedikits` / `medikits` /
+  `useMedikit`. Engine-free, unit-tested. Issue #88.
+
 ### Changed
 
 - **The recruiter gadget is renamed to "Compliance Beacon"** (ADR-0018). The
@@ -46,20 +69,6 @@ survive), with a new sample mission to play.
 
 ### Added
 
-- **Interpolated rendering over a fixed-step simulation:** the view now drives
-  the mission with `core::FixedTimestep` (accumulate-then-step) instead of one
-  variable-`dt` update per frame, and draws every agent at
-  `Agent::interpolatedPosition(clock.alpha())`. Gameplay outcomes are now
-  independent of frame rate while motion stays smooth on any refresh rate
-  (AGENTS.md golden rule 4). No core change — this consumes the API from #43.
-  The renderer and the orders pass share one fixed step; the camera and walk
-  cycle remain view-only and follow real elapsed time. Issue #44.
-- **Control groups:** the squad view now supports four control-group slots.
-  **Ctrl+`1`–`4`** assigns the current selection to a slot and **`1`–`4`** recalls
-  it; dead members are dropped on recall and an empty group is a safe no-op.
-  **`5`–`8`** select the 1st–4th living agent (the previous meaning of `1`–`4`).
-  The squad panel shows each agent's group tag. View-only state; new ctest
-  `game_selection` (`--headless --check-selection`) covers it. Issue #33.
 - **Minimap:** a whole-board overview panel in the top-right HUD corner shows the
   static terrain and a live blip per living agent (players green, enemies red,
   civilians pale, followers cyan; selected players highlighted). The terrain is
