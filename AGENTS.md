@@ -136,6 +136,19 @@ Many models edit this repo. To avoid clobbering each other:
     and works only on tasks assigned by the coordinator or that area's owner
     (`docs/FOCUS_AREAS.md` §5). Reviewing PRs and triaging issues need no
     assignment.
+12. **Check in with the coordinator at the start and end of every cycle.** A
+    work cycle opens with a start check-in (model, lane, task claimed, branch)
+    and closes with an end check-in (done/in-progress/blocked, what landed, how
+    verified, stopping or available) on the coordination hub — the open
+    `focus: coordinator` issue. See `docs/COORDINATION.md` §7.
+13. **Questions go to the coordinator first.** Ask on the hub or the issue
+    thread. The coordinator answers, or passes genuinely human decisions
+    (product direction, licensing, a rule change, release policy) to a human —
+    with options and a recommendation. See `docs/COORDINATION.md` §8.
+14. **The coordinator balances the workload and may adapt the focus areas.** It
+    keeps roughly one active task per lane so agents finish together, monitors
+    the number of active agents, and may merge/split focus areas or reassign a
+    lane at a cycle boundary to match. See `docs/COORDINATION.md` §9.
 
 ## 3a. Reviewing and merging other agents' pull requests
 
