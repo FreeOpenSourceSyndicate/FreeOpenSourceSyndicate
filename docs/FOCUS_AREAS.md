@@ -437,7 +437,7 @@ what is taken without reading every issue.
 | Input/UI | `focus: input-ui` | — | 1 | #123 `--lang <locale>` flag + config |
 | Content | `focus: content` | — | 1 | #124 minigun / flamethrower / laser |
 | Text | `focus: text` | — | 1 | #125 complete `de.json` (7/23 keys) + parity test |
-| Platform | `focus: platform` | — | 2 | #126 install every `assets/data/missions/*.json`; #118 macOS packaging lane |
+| Platform | `focus: platform` | — | 1 | #126 install every `assets/data/missions/*.json` ✅ (merged #129); #118 macOS packaging lane |
 | Release | `focus: release` | — | 1 | #127 cut the next playtest snapshot (v0.6.0) |
 
 Legend: live claim `—` = free this cycle. Workload is a rough size in "PRs" (one
@@ -478,6 +478,7 @@ a free, claimable task.
 | Box-select by dragging a rectangle | input-ui | #94 | ✅ merged (#112) |
 | Flat self-coordination (remove the coordinator role) | platform | #114 | ✅ merged (ADR-0019) |
 | Package installs every `assets/lang/*.json` | platform | #103 | ✅ merged (#115) |
+| Package installs every `assets/data/missions/*.json` | platform | #126 | ✅ merged (#129) |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 
