@@ -173,6 +173,7 @@ They flee when gunfire starts nearby. Civilian deaths you cause are counted as
 | `--check-minimap` | Headless guard: exit non-zero if the minimap panel or blips fail |
 | `--check-selection` | Run the selection / control-group self-check headlessly and exit (ctest `game_selection`) |
 | `--check-waypoints` | Run the shift-click waypoint-queue self-check headlessly and exit (ctest `game_waypoints`) |
+| `--check-content [DIR]` | Validate the mission `weaponId`/`agentId` references against the catalogues in `DIR` (default `assets/data`) and exit; non-zero on a dangling reference (ctest `game_content`) |
 | `--check-lang` | Run the UI string-table self-check headlessly and exit (ctest `game_lang`) |
 
 ### Core-only build (no SDL2 needed)

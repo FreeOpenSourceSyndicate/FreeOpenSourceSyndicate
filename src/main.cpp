@@ -7,6 +7,7 @@
 
 #include "core/data/Config.h"
 #include "core/data/ContentPaths.h"
+#include "core/data/ContentValidation.h"
 #include "game/Game.h"
 
 #if defined(__linux__)
@@ -61,6 +62,7 @@ int main(int argc, char** argv)
     bool checkSelection = false;
     bool checkWaypoints = false;
     bool checkLang = false;
+    const char* checkContent = nullptr;   // --check-content [<dataDir>]
     const char* screenshot = nullptr;
     std::string cliMission;   // --mission <path>
     std::string cliConfig;    // --config <path>
@@ -111,6 +113,15 @@ int main(int argc, char** argv)
         {
             checkLang = true;
         }
+        else if (std::strcmp(argv[i], "--check-content") == 0)
+        {
+            // Optional data directory argument; defaults to the repo layout.
+            checkContent = "assets/data";
+            if (i + 1 < argc && argv[i + 1][0] != '-')
+            {
+                checkContent = argv[++i];
+            }
+        }
         else if (std::strcmp(argv[i], "--mission") == 0 && i + 1 < argc)
         {
             cliMission = argv[++i];
@@ -130,6 +141,22 @@ int main(int argc, char** argv)
     // flag overrides it; if neither gives a path, scan the built-in fallback
     // locations and take the first that exists; otherwise use the embedded copy.
     const std::string exeDir = executableDir(argc > 0 ? argv[0] : nullptr);
+
+    // Content validation (issue #81) needs no SDL, so run it before init() and
+    // exit: this lets CI and packagers check shipped data without a display.
+    if (checkContent != nullptr)
+    {
+        const fossynd::core::content::ValidationReport report =
+            fossynd::core::content::validateContentDir(checkContent);
+        std::fputs(fossynd::core::content::formatReport(report).c_str(), stdout);
+        if (report.ok())
+        {
+            std::printf("content: ok (%zu missions, %zu catalogue entries)\n",
+                        report.missionsChecked, report.cataloguesChecked);
+            return 0;
+        }
+        return 1;
+    }
 
     fossynd::core::GameConfig config;
     std::string configError;

@@ -130,6 +130,11 @@ if(BUILD_TESTS)
     # the real Mission queue headlessly. Exits non-zero on a broken invariant.
     add_test(NAME game_waypoints
              COMMAND FOSSynd --headless --check-waypoints)
+    # Content validation (issue #81): resolve every mission's weaponId/agentId
+    # against the catalogues in the shipped assets/data and exit non-zero on a
+    # dangling reference. Absolute path so it works from any build directory.
+    add_test(NAME game_content
+             COMMAND FOSSynd --headless --check-content ${CMAKE_SOURCE_DIR}/assets/data)
     # UI strings (issue #53): the string table loads (external file or embedded
     # copy) and resolves every key the HUD/title card reads. Exits non-zero if a
     # key is missing, so a broken assets/lang/en.json cannot hide behind the
