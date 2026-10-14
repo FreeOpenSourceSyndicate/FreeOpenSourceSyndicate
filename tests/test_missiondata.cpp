@@ -250,3 +250,242 @@ FOSSYND_TEST(MissionData, LoadsTheEscortMissionFromDisk)
     FOSSYND_CHECK_EQ(data.objective.tileY, 18);
     FOSSYND_CHECK_EQ(data.agents.size(), static_cast<std::size_t>(9));
 }
+
+// --- Shared weapon/agent catalogues (issue #34) ---------------------------
+
+FOSSYND_TEST(Catalogues, WeaponCatalogueLoadsAndFindsById)
+{
+    std::string error;
+    const Json root = Json::parse(R"({"weapons": [
+        { "id": "pistol", "name": "Pistol", "damage": 10, "range": 6, "fireRate": 2.5, "accuracy": 0.72 },
+        { "id": "rifle",  "name": "Rifle",  "damage": 8,  "range": 9, "fireRate": 4,   "accuracy": 0.65 }
+    ]})", error);
+    WeaponCatalogue catalogue;
+    FOSSYND_CHECK(catalogue.loadFromJson(root, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_EQ(catalogue.size(), static_cast<std::size_t>(2));
+
+    const Weapon* rifle = catalogue.find("rifle");
+    FOSSYND_CHECK(rifle != nullptr);
+    FOSSYND_CHECK_EQ(rifle->name, std::string("Rifle"));
+    FOSSYND_CHECK_NEAR(rifle->damage, 8.0f);
+    FOSSYND_CHECK_NEAR(rifle->range, 9.0f);
+    FOSSYND_CHECK(catalogue.find("plasma") == nullptr);
+}
+
+FOSSYND_TEST(Catalogues, WeaponCatalogueRejectsMalformedInput)
+{
+    std::string error;
+    WeaponCatalogue catalogue;
+
+    // Root is not an object.
+    FOSSYND_CHECK(!catalogue.loadFromJson(Json::parse("[]", error), error));
+    FOSSYND_CHECK(!error.empty());
+
+    // 'weapons' is not an array.
+    error.clear();
+    FOSSYND_CHECK(!catalogue.loadFromJson(Json::parse(R"({"weapons": 5})", error), error));
+    FOSSYND_CHECK(!error.empty());
+
+    // An entry without an id.
+    error.clear();
+    FOSSYND_CHECK(!catalogue.loadFromJson(Json::parse(R"({"weapons": [{"name": "X"}]})", error),
+                                          error));
+    FOSSYND_CHECK(!error.empty());
+
+    // A duplicate id.
+    error.clear();
+    FOSSYND_CHECK(!catalogue.loadFromJson(
+        Json::parse(R"({"weapons": [{"id":"a"}, {"id":"a"}]})", error), error));
+    FOSSYND_CHECK(!error.empty());
+
+    // A weapon with a non-positive fireRate.
+    error.clear();
+    FOSSYND_CHECK(!catalogue.loadFromJson(
+        Json::parse(R"({"weapons": [{"id":"a","fireRate":0}]})", error), error));
+    FOSSYND_CHECK(!error.empty());
+}
+
+FOSSYND_TEST(Catalogues, AgentCatalogueResolvesWeaponIds)
+{
+    std::string error;
+    WeaponCatalogue weapons;
+    FOSSYND_CHECK(weapons.loadFromJson(
+        Json::parse(R"({"weapons": [{"id":"rifle","name":"Rifle","damage":8,"range":9,
+                                     "fireRate":4,"accuracy":0.65}]})", error), error));
+
+    AgentCatalogue agents;
+    FOSSYND_CHECK(agents.loadFromJson(
+        Json::parse(R"({"agents": [
+            { "id": "guard", "name": "GUARD", "team": "enemy", "speed": 3, "health": 70,
+              "weaponId": "rifle" }
+        ]})", error), weapons, error));
+    FOSSYND_CHECK(error.empty());
+
+    const AgentEntry* guard = agents.find("guard");
+    FOSSYND_CHECK(guard != nullptr);
+    FOSSYND_CHECK(guard->spec.team == Team::Enemy);
+    FOSSYND_CHECK_NEAR(guard->spec.health, 70.0f);
+    FOSSYND_CHECK_EQ(guard->spec.weapon.name, std::string("Rifle"));
+    FOSSYND_CHECK_NEAR(guard->spec.weapon.range, 9.0f);
+}
+
+FOSSYND_TEST(Catalogues, AgentCatalogueRejectsBadWeaponReferences)
+{
+    WeaponCatalogue weapons; // empty
+
+    std::string error;
+    AgentCatalogue agents;
+    FOSSYND_CHECK(!agents.loadFromJson(
+        Json::parse(R"({"agents": [{"id":"g","weaponId":"rifle"}]})", error), weapons, error));
+    FOSSYND_CHECK(!error.empty());
+
+    error.clear();
+    FOSSYND_CHECK(!agents.loadFromJson(
+        Json::parse(R"({"agents": [{"id":"g","weapon":{},"weaponId":"rifle"}]})", error), weapons,
+                    error));
+    FOSSYND_CHECK(!error.empty());
+
+    // An unknown team is also a readable error.
+    error.clear();
+    FOSSYND_CHECK(!agents.loadFromJson(
+        Json::parse(R"({"agents": [{"id":"g","team":"droid"}]})", error), weapons, error));
+    FOSSYND_CHECK(!error.empty());
+}
+
+FOSSYND_TEST(Catalogues, MissionResolvesWeaponByIdAndInlineStillWorks)
+{
+    WeaponCatalogue weapons;
+    std::string error;
+    FOSSYND_CHECK(weapons.loadFromJson(
+        Json::parse(R"({"weapons": [{"id":"uzi","name":"Uzi","damage":5,"range":5,
+                                     "fireRate":9,"accuracy":0.55}]})", error), error));
+    const AgentCatalogue noAgents;
+
+    // An agent referencing a catalogue weapon.
+    MissionData data;
+    FOSSYND_CHECK(MissionData::fromJson(
+        Json::parse(R"({"width": 8, "height": 6,
+            "agents": [{"team":"player","x":1,"y":1,"weaponId":"uzi"}]})", error),
+        data, weapons, noAgents, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_EQ(data.agents[0].weapon.name, std::string("Uzi"));
+    FOSSYND_CHECK_NEAR(data.agents[0].weapon.fireRate, 9.0f);
+
+    // An unknown id is a readable error, not a silent default.
+    error.clear();
+    FOSSYND_CHECK(!MissionData::fromJson(
+        Json::parse(R"({"width": 8, "height": 6,
+            "agents": [{"team":"player","x":1,"y":1,"weaponId":"nope"}]})", error),
+        data, weapons, noAgents, error));
+    FOSSYND_CHECK(!error.empty());
+
+    // The inline form still works with no catalogues at all (regression).
+    error.clear();
+    FOSSYND_CHECK(MissionData::fromJson(
+        Json::parse(R"({"width": 8, "height": 6,
+            "agents": [{"team":"player","x":1,"y":1,
+                        "weapon":{"name":"Custom","damage":3,"fireRate":2}}]})", error),
+        data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_EQ(data.agents[0].weapon.name, std::string("Custom"));
+}
+
+FOSSYND_TEST(Catalogues, MissionInheritsAnAgentTemplateAndOverridesPosition)
+{
+    WeaponCatalogue weapons;
+    std::string error;
+    FOSSYND_CHECK(weapons.loadFromJson(
+        Json::parse(R"({"weapons": [{"id":"rifle","name":"Rifle","damage":8,"range":9,
+                                     "fireRate":4,"accuracy":0.65}]})", error), error));
+    AgentCatalogue agents;
+    FOSSYND_CHECK(agents.loadFromJson(
+        Json::parse(R"({"agents": [{"id":"guard","name":"GUARD","team":"enemy",
+                                    "speed":3,"health":70,"weaponId":"rifle"}]})", error),
+        weapons, error));
+
+    MissionData data;
+    FOSSYND_CHECK(MissionData::fromJson(
+        Json::parse(R"({"width": 8, "height": 6,
+            "agents": [{"agentId":"guard","x":5,"y":4},
+                       {"agentId":"guard","x":6,"y":1,"health":120}]})", error),
+        data, weapons, agents, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_EQ(data.agents.size(), static_cast<std::size_t>(2));
+    FOSSYND_CHECK_EQ(data.agents[0].name, std::string("GUARD"));
+    FOSSYND_CHECK(data.agents[0].team == Team::Enemy);
+    FOSSYND_CHECK_NEAR(data.agents[0].health, 70.0f);
+    FOSSYND_CHECK_EQ(data.agents[0].weapon.name, std::string("Rifle"));
+    FOSSYND_CHECK_NEAR(data.agents[0].x, 5.0f);
+    // The second agent overrides health but keeps the template's other fields.
+    FOSSYND_CHECK_NEAR(data.agents[1].health, 120.0f);
+    FOSSYND_CHECK_EQ(data.agents[1].name, std::string("GUARD"));
+
+    // An unknown template id is a readable error.
+    error.clear();
+    FOSSYND_CHECK(!MissionData::fromJson(
+        Json::parse(R"({"width": 8, "height": 6,
+            "agents": [{"agentId":"ghost","x":1,"y":1}]})", error),
+        data, weapons, agents, error));
+    FOSSYND_CHECK(!error.empty());
+}
+
+FOSSYND_TEST(Catalogues, CataloguePathForMissionResolvesTheSiblingFile)
+{
+    FOSSYND_CHECK_EQ(cataloguePathForMission("assets/data/missions/demo.json", "weapons.json"),
+                     std::string("assets/data/weapons.json"));
+    FOSSYND_CHECK_EQ(cataloguePathForMission("/abs/data/missions/escort.json", "agents.json"),
+                     std::string("/abs/data/agents.json"));
+    // No directory component: nothing to resolve.
+    FOSSYND_CHECK_EQ(cataloguePathForMission("demo.json", "weapons.json"), std::string(""));
+}
+
+FOSSYND_TEST(Catalogues, MissingCatalogueFileIsNotAnError)
+{
+    const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/does-not-exist.json";
+    WeaponCatalogue weapons;
+    AgentCatalogue agents;
+    bool found = true;
+    std::string error;
+    FOSSYND_CHECK(weapons.loadFromFile(path, found, error));
+    FOSSYND_CHECK(!found);
+    FOSSYND_CHECK(error.empty());
+
+    found = true;
+    FOSSYND_CHECK(agents.loadFromFile(path, weapons, found, error));
+    FOSSYND_CHECK(!found);
+    FOSSYND_CHECK(error.empty());
+}
+
+FOSSYND_TEST(Catalogues, LoadsTheShippedCataloguesFromDisk)
+{
+    const std::string dir = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/";
+    WeaponCatalogue weapons;
+    AgentCatalogue agents;
+    bool found = false;
+    std::string error;
+
+    FOSSYND_CHECK(weapons.loadFromFile(dir + "weapons.json", found, error));
+    FOSSYND_CHECK(found);
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(weapons.find("pistol") != nullptr);
+    FOSSYND_CHECK(weapons.find("rifle") != nullptr);
+    FOSSYND_CHECK(weapons.find("uzi") != nullptr);
+
+    FOSSYND_CHECK(agents.loadFromFile(dir + "agents.json", weapons, found, error));
+    FOSSYND_CHECK(found);
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(agents.find("trooper") != nullptr);
+    FOSSYND_CHECK(agents.find("guard") != nullptr);
+    FOSSYND_CHECK(agents.find("civilian") != nullptr);
+    // The shipped 'trooper' template references the rifle by id.
+    FOSSYND_CHECK_EQ(agents.find("trooper")->spec.weapon.name, std::string("Rifle"));
+
+    // A mission loaded from disk picks up the catalogues sitting beside it.
+    MissionData data;
+    const std::string missionPath =
+        std::string(FOSSYND_SOURCE_DIR) + "/assets/data/missions/escort.json";
+    FOSSYND_CHECK(MissionData::loadFromFile(missionPath, data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_EQ(data.agents.size(), static_cast<std::size_t>(9));
+}

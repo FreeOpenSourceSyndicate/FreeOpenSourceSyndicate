@@ -10,98 +10,46 @@ namespace fossynd::core
 namespace
 {
 
-Team parseTeam(const std::string& value, bool& ok)
-{
-    ok = true;
-    if (value == "player")
-    {
-        return Team::Player;
-    }
-    if (value == "enemy")
-    {
-        return Team::Enemy;
-    }
-    if (value == "civilian")
-    {
-        return Team::Civilian;
-    }
-    ok = false;
-    return Team::Player;
-}
-
-Weapon parseWeapon(const Json& node, bool& ok)
-{
-    ok = true;
-    if (!node.isObject())
-    {
-        ok = false;
-        return makePistol();
-    }
-    Weapon weapon;
-    if (node.has("name"))
-    {
-        weapon.name = node["name"].asString();
-    }
-    weapon.damage = node["damage"].asFloat(weapon.damage);
-    weapon.range = node["range"].asFloat(weapon.range);
-    weapon.fireRate = node["fireRate"].asFloat(weapon.fireRate);
-    weapon.accuracy = node["accuracy"].asFloat(weapon.accuracy);
-    if (weapon.fireRate <= 0.0f)
-    {
-        ok = false;
-    }
-    return weapon;
-}
-
-bool parseAgent(const Json& node, AgentSpec& out, std::string& error)
+bool parseAgent(const Json& node, const AgentCatalogue& agents, const WeaponCatalogue& weapons,
+                AgentSpec& out, std::string& error)
 {
     if (!node.isObject())
     {
         error = "each agent must be an object";
         return false;
     }
+
+    // A mission agent may inherit a template from the shared catalogue, then
+    // override any field inline. An unknown id is a readable error, never a
+    // silent fallback to the default.
+    if (node.has("agentId"))
+    {
+        const std::string id = node["agentId"].asString();
+        const AgentEntry* entry = agents.find(id);
+        if (entry == nullptr)
+        {
+            error = "unknown agentId '" + id + "' (no such agent in the catalogue)";
+            return false;
+        }
+        out = entry->spec;
+        out.id = id;
+    }
+
     if (!node.has("x") || !node.has("y"))
     {
         error = "each agent needs numeric 'x' and 'y'";
         return false;
     }
-
-    if (node.has("name"))
-    {
-        out.name = node["name"].asString();
-    }
-
-    if (node.has("team"))
-    {
-        bool ok = false;
-        out.team = parseTeam(node["team"].asString(), ok);
-        if (!ok)
-        {
-            error = "unknown team '" + node["team"].asString() +
-                    "' (expected player, enemy, or civilian)";
-            return false;
-        }
-    }
-
     out.x = node["x"].asFloat(out.x);
     out.y = node["y"].asFloat(out.y);
-    out.speed = node["speed"].asFloat(out.speed);
-    out.health = node["health"].asFloat(out.health);
-    if (out.speed <= 0.0f || out.health <= 0.0f)
+
+    if (!detail::applyAgentCommon(node, out, error))
     {
-        error = "agent 'speed' and 'health' must be positive";
         return false;
     }
-
-    if (node.has("weapon"))
+    if (!AgentCatalogue::applyWeaponToAgent(node, weapons, out.weapon, error))
     {
-        bool ok = false;
-        out.weapon = parseWeapon(node["weapon"], ok);
-        if (!ok)
-        {
-            error = "agent has an invalid 'weapon' (need an object with fireRate > 0)";
-            return false;
-        }
+        return false;
     }
     return true;
 }
@@ -195,7 +143,8 @@ bool MissionData::parseObjectiveJson(const Json& node, ObjectiveSpec& out, std::
     return true;
 }
 
-bool MissionData::fromJson(const Json& root, MissionData& out, std::string& error)
+bool MissionData::fromJson(const Json& root, MissionData& out, const WeaponCatalogue& weapons,
+                           const AgentCatalogue& agents, std::string& error)
 {
     if (!root.isObject())
     {
@@ -240,13 +189,23 @@ bool MissionData::fromJson(const Json& root, MissionData& out, std::string& erro
     for (std::size_t i = 0; i < root["agents"].size(); ++i)
     {
         AgentSpec spec;
-        if (!parseAgent(root["agents"][i], spec, error))
+        if (!parseAgent(root["agents"][i], agents, weapons, spec, error))
         {
             return false;
         }
         out.agents.push_back(std::move(spec));
     }
     return true;
+}
+
+bool MissionData::fromJson(const Json& root, MissionData& out, std::string& error)
+{
+    // Missions that inline their content (the demo and most sample missions)
+    // need no catalogues; a `weaponId`/`agentId` reference then reports a
+    // readable "unknown id" error instead of being ignored.
+    static const WeaponCatalogue kNoWeapons;
+    static const AgentCatalogue kNoAgents;
+    return fromJson(root, out, kNoWeapons, kNoAgents, error);
 }
 
 bool MissionData::loadFromFile(const std::string& path, MissionData& out, std::string& error)
@@ -256,7 +215,25 @@ bool MissionData::loadFromFile(const std::string& path, MissionData& out, std::s
     {
         return false;
     }
-    return fromJson(root, out, error);
+
+    // Load the shared catalogues that sit beside the mission (if present), so a
+    // mission can reference weapons/agents by id. A missing catalogue is fine;
+    // a malformed one is a readable error.
+    WeaponCatalogue weapons;
+    AgentCatalogue agents;
+    bool found = false;
+    const std::string weaponsPath = cataloguePathForMission(path, kWeaponsFileName);
+    if (!weaponsPath.empty() && !weapons.loadFromFile(weaponsPath, found, error))
+    {
+        return false;
+    }
+    const std::string agentsPath = cataloguePathForMission(path, kAgentsFileName);
+    if (!agentsPath.empty() && !agents.loadFromFile(agentsPath, weapons, found, error))
+    {
+        return false;
+    }
+
+    return fromJson(root, out, weapons, agents, error);
 }
 
 TileGrid buildGrid(const MissionData& data)
