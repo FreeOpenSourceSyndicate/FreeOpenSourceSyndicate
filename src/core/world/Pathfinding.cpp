@@ -2,8 +2,12 @@
 #include "core/world/Pathfinding.h"
 
 #include <algorithm>
+#include <cmath>
+#include <cstddef>
 #include <cstdlib>
 #include <queue>
+
+#include "core/world/LineOfSight.h"
 
 namespace fossynd::core
 {
@@ -20,6 +24,64 @@ struct GreaterF
 {
     bool operator()(const OpenNode& a, const OpenNode& b) const { return a.f > b.f; }
 };
+
+float distanceBetween(TilePos a, TilePos b)
+{
+    const float dx = static_cast<float>(b.x - a.x);
+    const float dy = static_cast<float>(b.y - a.y);
+    return std::sqrt(dx * dx + dy * dy);
+}
+
+// String-pulling: drop intermediate waypoints that the last kept waypoint can
+// see past, so the agent walks straight between corners instead of staircasing
+// across the grid. A shortcut is taken only when it actually shortens the route
+// (strictly shorter than the run it replaces), so genuine staircase detours
+// collapse while an already-straight run — including a pure diagonal — is left
+// untouched. Endpoints are never removed, so the route still ends on the goal,
+// and every retained segment is clear (checked with `hasLineOfSight`).
+std::vector<TilePos> simplifyPath(const TileGrid& grid, const std::vector<TilePos>& path)
+{
+    if (path.size() < 3)
+    {
+        return path;
+    }
+
+    // Cumulative length up to each waypoint, so a run's length is O(1).
+    std::vector<float> cumulative(path.size(), 0.0f);
+    for (std::size_t i = 1; i < path.size(); ++i)
+    {
+        cumulative[i] = cumulative[i - 1] + distanceBetween(path[i - 1], path[i]);
+    }
+
+    std::vector<TilePos> simplified;
+    simplified.reserve(path.size());
+    simplified.push_back(path.front());
+
+    std::size_t anchor = 0;
+    while (anchor + 1 < path.size())
+    {
+        // Reach as far ahead as the anchor can still see, then keep that tile as
+        // the next anchor. anchor+1 always qualifies, so this makes progress.
+        std::size_t next = anchor + 1;
+        for (std::size_t candidate = path.size() - 1; candidate > anchor; --candidate)
+        {
+            if (!hasLineOfSight(grid, path[anchor], path[candidate]))
+            {
+                continue;
+            }
+            const float direct = distanceBetween(path[anchor], path[candidate]);
+            const float run = cumulative[candidate] - cumulative[anchor];
+            if (direct < run - 1e-4f)
+            {
+                next = candidate;
+                break;
+            }
+        }
+        simplified.push_back(path[next]);
+        anchor = next;
+    }
+    return simplified;
+}
 
 constexpr float kStraightCost = 1.0f;
 constexpr float kDiagonalCost = 1.41421356f;
@@ -127,6 +189,13 @@ std::vector<TilePos> findPath(const TileGrid& grid, TilePos start, TilePos goal,
         }
     }
     std::reverse(path.begin(), path.end());
+
+    // 4-way paths are already minimal and string-pulling cannot improve them,
+    // so only the diagonal case (which produces staircases) is smoothed.
+    if (allowDiagonal)
+    {
+        return simplifyPath(grid, path);
+    }
     return path;
 }
 

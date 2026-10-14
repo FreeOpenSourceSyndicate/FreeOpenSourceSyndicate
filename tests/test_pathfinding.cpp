@@ -1,5 +1,6 @@
 /* AI/LLM-generated file. Do not treat as human-written source documentation. */
 #include "TestHarness.h"
+#include "core/world/LineOfSight.h"
 #include "core/world/Pathfinding.h"
 
 using namespace fossynd::core;
@@ -12,6 +13,20 @@ void blockColumn(TileGrid& grid, int x, int fromY, int toY)
     {
         grid.setWalkable(x, y, false);
     }
+}
+
+// Every consecutive pair on the route must have a clear line, i.e. no segment
+// crosses a blocked tile. This is the invariant string-pulling must preserve.
+bool everySegmentClear(const TileGrid& grid, const std::vector<TilePos>& path)
+{
+    for (std::size_t i = 1; i < path.size(); ++i)
+    {
+        if (!hasLineOfSight(grid, path[i - 1], path[i]))
+        {
+            return false;
+        }
+    }
+    return true;
 }
 } // namespace
 
@@ -102,4 +117,74 @@ FOSSYND_TEST(Pathfinding, DiagonalTakesShortcutWhenClear)
     FOSSYND_CHECK_EQ(static_cast<int>(path.size()), 4); // 3 diagonal steps + start
     FOSSYND_CHECK(path.front() == (TilePos{0, 0}));
     FOSSYND_CHECK(path.back() == (TilePos{3, 3}));
+}
+
+FOSSYND_TEST(Pathfinding, StringPullingStraightensStaircase)
+{
+    TileGrid grid(6, 6);
+
+    // A shallow slope: A* with diagonal movement can only staircase here (the
+    // run is not 45 degrees), so a two-point result is only possible if the
+    // post-processing collapsed the intermediate waypoints.
+    const auto path = findPath(grid, TilePos{0, 0}, TilePos{4, 1}, /*allowDiagonal=*/true);
+    FOSSYND_CHECK_EQ(static_cast<int>(path.size()), 2);
+    FOSSYND_CHECK(path.front() == (TilePos{0, 0}));
+    FOSSYND_CHECK(path.back() == (TilePos{4, 1}));
+    FOSSYND_CHECK(everySegmentClear(grid, path));
+}
+
+FOSSYND_TEST(Pathfinding, StringPullingKeepsStraightDiagonalUnchanged)
+{
+    TileGrid grid(6, 6);
+
+    // An exact 45-degree run is already a straight line: smoothing must not
+    // insert or drop waypoints (a shortcut would be the same length).
+    const auto path = findPath(grid, TilePos{0, 0}, TilePos{4, 4}, /*allowDiagonal=*/true);
+    FOSSYND_CHECK_EQ(static_cast<int>(path.size()), 5);
+    FOSSYND_CHECK(path.front() == (TilePos{0, 0}));
+    FOSSYND_CHECK(path.back() == (TilePos{4, 4}));
+}
+
+FOSSYND_TEST(Pathfinding, StringPullingRespectsWalls)
+{
+    TileGrid grid(7, 7);
+    // Vertical wall at x=3 with a single gap at y=3, so the route must funnel
+    // through the gap.
+    for (int y = 0; y < 7; ++y)
+    {
+        if (y != 3)
+        {
+            grid.setWalkable(3, y, false);
+        }
+    }
+
+    const auto path = findPath(grid, TilePos{0, 0}, TilePos{6, 0}, /*allowDiagonal=*/true);
+    FOSSYND_CHECK(!path.empty());
+    FOSSYND_CHECK(path.front() == (TilePos{0, 0}));
+    FOSSYND_CHECK(path.back() == (TilePos{6, 0}));
+    FOSSYND_CHECK(everySegmentClear(grid, path));
+
+    // The shortcut must not jump the wall: the route still passes the gap.
+    bool usedGap = false;
+    for (const auto& step : path)
+    {
+        FOSSYND_CHECK(grid.isWalkable(step.x, step.y));
+        if (step == (TilePos{3, 3}))
+        {
+            usedGap = true;
+        }
+    }
+    FOSSYND_CHECK(usedGap);
+}
+
+FOSSYND_TEST(Pathfinding, StringPullingShorterOrEqualThanRaw)
+{
+    TileGrid grid(6, 6);
+
+    // Smoothing never lengthens the route: the diagonal path must not be longer
+    // than the 4-way path over the same grid, which is the unsmoothed baseline.
+    const auto smoothed = findPath(grid, TilePos{0, 0}, TilePos{4, 1}, /*allowDiagonal=*/true);
+    const auto fourWay = findPath(grid, TilePos{0, 0}, TilePos{4, 1}, /*allowDiagonal=*/false);
+    FOSSYND_CHECK(smoothed.size() <= fourWay.size());
+    FOSSYND_CHECK(everySegmentClear(grid, smoothed));
 }
