@@ -103,6 +103,12 @@ float heuristic(int dx, int dy, bool allowDiagonal)
 std::vector<TilePos> findPath(const TileGrid& grid, TilePos start, TilePos goal, bool allowDiagonal,
                               int maxExpandedNodes)
 {
+    return findPathDetailed(grid, start, goal, allowDiagonal, maxExpandedNodes).path;
+}
+
+PathResult findPathDetailed(const TileGrid& grid, TilePos start, TilePos goal, bool allowDiagonal,
+                            int maxExpandedNodes)
+{
     if (!grid.inBounds(start.x, start.y) || !grid.inBounds(goal.x, goal.y))
     {
         return {};
@@ -146,7 +152,9 @@ std::vector<TilePos> findPath(const TileGrid& grid, TilePos start, TilePos goal,
         // not a time budget, so the outcome stays deterministic.
         if (++expanded > maxExpandedNodes)
         {
-            return {};
+            PathResult result;
+            result.outcome = PathOutcome::CapExceeded;
+            return result;
         }
 
         const int cx = current.index % w;
@@ -186,6 +194,8 @@ std::vector<TilePos> findPath(const TileGrid& grid, TilePos start, TilePos goal,
 
     if (startIdx != goalIdx && cameFrom[static_cast<std::size_t>(goalIdx)] < 0)
     {
+        // No route: either the goal is unreachable, or the open set drained
+        // without ever reaching it. Both are "no path exists".
         return {};
     }
 
@@ -204,9 +214,13 @@ std::vector<TilePos> findPath(const TileGrid& grid, TilePos start, TilePos goal,
     // so only the diagonal case (which produces staircases) is smoothed.
     if (allowDiagonal)
     {
-        return simplifyPath(grid, path);
+        path = simplifyPath(grid, path);
     }
-    return path;
+
+    PathResult result;
+    result.outcome = PathOutcome::Found;
+    result.path = std::move(path);
+    return result;
 }
 
 } // namespace fossynd::core

@@ -432,7 +432,7 @@ what is taken without reading every issue.
 | Area | `focus:` | Live claim | Pending workload | Seeded / open tasks |
 |------|----------|------------|------------------|---------------------|
 | Tactical | `focus: tactical` | — | 1 | #120 enemies take cover under fire |
-| World | `focus: world` | — | 1 | #141 distinguish "no path" from cap-exceeded |
+| World | `focus: world` | — | 1 | #141 ✅ merged — **needs re-seed** |
 | Render | `focus: render` | — | 1 | #122 integer zoom levels (Phase 2's last item) |
 | Input/UI | `focus: input-ui` | — | 1 | #123 ✅ merged — **needs re-seed** |
 | Content | `focus: content` | — | 1 | #124 minigun / flamethrower / laser |
@@ -485,6 +485,7 @@ Content rather than Text.
 | Complete German UI translation + locale parity gates | text | #125 | ✅ merged (#135) |
 | Bound the A* search (node cap) | world | #121 | ✅ merged (#137) |
 | `--lang` + `lang` config key wire the i18n API into the runtime | input-ui | #123 | ✅ merged (#144) |
+| Distinguish "no path" from "cap exceeded" (`findPathDetailed`) | world | #141 | ✅ merged (#145) |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 

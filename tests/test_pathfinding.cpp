@@ -270,3 +270,89 @@ FOSSYND_TEST(Pathfinding, NodeCapZeroStillResolvesStartEqualsGoal)
     FOSSYND_CHECK_EQ(static_cast<int>(path.size()), 1);
     FOSSYND_CHECK(path.front() == (TilePos{2, 2}));
 }
+
+FOSSYND_TEST(Pathfinding, DetailedReportsFound)
+{
+    // A reachable goal under the cap is "Found", and the path is non-empty and
+    // ends on the goal.
+    TileGrid grid(6, 6);
+    const PathResult result = findPathDetailed(grid, TilePos{0, 0}, TilePos{4, 0});
+    FOSSYND_CHECK(result.outcome == PathOutcome::Found);
+    FOSSYND_CHECK(result.found());
+    FOSSYND_CHECK(!result.path.empty());
+    FOSSYND_CHECK(result.path.front() == (TilePos{0, 0}));
+    FOSSYND_CHECK(result.path.back() == (TilePos{4, 0}));
+}
+
+FOSSYND_TEST(Pathfinding, DetailedDistinguishesNoPathFromCapExceeded)
+{
+    // The whole point of issue #141: an unreachable goal and a capped search must
+    // not read the same. Build a grid where both happen for the same endpoints —
+    // reachable with a generous cap, unreachable with a wall sealing the goal.
+    TileGrid grid(100, 100);
+    for (int y = 0; y < 100; ++y)
+    {
+        if (y != 99)
+        {
+            grid.setWalkable(50, y, false);
+        }
+    }
+
+    // Reachable but expensive: the default cap is hit first -> CapExceeded.
+    const PathResult capped = findPathDetailed(grid, TilePos{0, 0}, TilePos{99, 0}, false);
+    FOSSYND_CHECK(capped.outcome == PathOutcome::CapExceeded);
+    FOSSYND_CHECK(capped.path.empty());
+
+    // Same endpoints, but with the last gap sealed the goal is truly
+    // unreachable -> NoPath, not CapExceeded.
+    TileGrid sealed = grid;
+    sealed.setWalkable(50, 99, false);
+    const PathResult noRoute =
+        findPathDetailed(sealed, TilePos{0, 0}, TilePos{99, 0}, false, /*maxExpandedNodes=*/1000000);
+    FOSSYND_CHECK(noRoute.outcome == PathOutcome::NoPath);
+    FOSSYND_CHECK(noRoute.path.empty());
+}
+
+FOSSYND_TEST(Pathfinding, DetailedNoPathForOutOfBoundsAndBlockedGoal)
+{
+    // Out-of-bounds and blocked-goal requests are "NoPath", never "CapExceeded" —
+    // the cap cannot be the reason a search never started.
+    TileGrid grid(5, 5);
+    FOSSYND_CHECK(findPathDetailed(grid, TilePos{-1, 0}, TilePos{4, 4}).outcome ==
+                  PathOutcome::NoPath);
+    FOSSYND_CHECK(findPathDetailed(grid, TilePos{0, 0}, TilePos{9, 9}).outcome ==
+                  PathOutcome::NoPath);
+
+    grid.setWalkable(4, 4, false);
+    FOSSYND_CHECK(findPathDetailed(grid, TilePos{0, 0}, TilePos{4, 4}).outcome ==
+                  PathOutcome::NoPath);
+}
+
+FOSSYND_TEST(Pathfinding, DetailedCapZeroResolvesStartEqualsGoalAsFound)
+{
+    // start == goal is resolved before the cap, so it is "Found" even at a zero
+    // budget — the cap is not what stopped a search that never needed to run.
+    TileGrid grid(5, 5);
+    const PathResult result = findPathDetailed(grid, TilePos{2, 2}, TilePos{2, 2}, false, 0);
+    FOSSYND_CHECK(result.outcome == PathOutcome::Found);
+    FOSSYND_CHECK_EQ(static_cast<int>(result.path.size()), 1);
+}
+
+FOSSYND_TEST(Pathfinding, DetailedPathMatchesFindPath)
+{
+    // The thin wrapper must not change the returned path: findPath ==
+    // findPathDetailed(...).path for a found route and for each failure mode.
+    TileGrid grid(7, 7);
+    for (int y = 0; y < 7; ++y)
+    {
+        if (y != 3)
+        {
+            grid.setWalkable(3, y, false);
+        }
+    }
+
+    FOSSYND_CHECK(findPath(grid, TilePos{0, 0}, TilePos{6, 0}, true) ==
+                  findPathDetailed(grid, TilePos{0, 0}, TilePos{6, 0}, true).path);
+    FOSSYND_CHECK(findPath(grid, TilePos{0, 0}, TilePos{9, 9}).empty());
+    FOSSYND_CHECK(findPathDetailed(grid, TilePos{0, 0}, TilePos{9, 9}).path.empty());
+}

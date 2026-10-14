@@ -15,6 +15,27 @@ namespace fossynd::core
 // the target hardware (ADR-0008). Override per call for tests or a larger map.
 inline constexpr int kDefaultMaxExpandedNodes = 2048;
 
+// The outcome of a path search. `findPath` collapses all three to an empty
+// vector; `findPathDetailed` distinguishes them so a rejected order can say
+// *why* it failed — "no route exists" is a level-design fact, while "the node
+// cap was hit" means a route probably exists but the search was abandoned to
+// bound frame time (issue #141).
+enum class PathOutcome
+{
+    Found,       // a path was returned (path is non-empty)
+    NoPath,      // no route exists: goal unreachable, out of bounds, or blocked
+    CapExceeded, // the node cap was hit before the goal was popped
+};
+
+// The full result of a search: the outcome and the path (empty unless Found).
+struct PathResult
+{
+    PathOutcome outcome = PathOutcome::NoPath;
+    std::vector<TilePos> path;
+
+    bool found() const { return outcome == PathOutcome::Found; }
+};
+
 // A* over a TileGrid with 4-way movement and Manhattan heuristic.
 //
 // Returns the path from `start` to `goal` inclusive. Returns an empty vector
@@ -40,8 +61,18 @@ inline constexpr int kDefaultMaxExpandedNodes = 2048;
 // (ADR-0008). The cap only ever turns a would-be path into "no path"; when it is
 // not reached the result is identical to an unbounded search. Determinism is
 // preserved — the cap is a fixed node count, not a time budget.
+//
+// This is a thin wrapper over `findPathDetailed`; use that when the caller needs
+// to tell "no path exists" from "the cap was hit".
 std::vector<TilePos> findPath(const TileGrid& grid, TilePos start, TilePos goal,
                               bool allowDiagonal = false,
                               int maxExpandedNodes = kDefaultMaxExpandedNodes);
+
+// As `findPath`, but reports the outcome. `path` is non-empty exactly when
+// `outcome == PathOutcome::Found`; the two failure outcomes both leave it empty,
+// so existing callers see no behaviour change.
+PathResult findPathDetailed(const TileGrid& grid, TilePos start, TilePos goal,
+                            bool allowDiagonal = false,
+                            int maxExpandedNodes = kDefaultMaxExpandedNodes);
 
 } // namespace fossynd::core
