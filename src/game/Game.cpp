@@ -59,6 +59,12 @@ constexpr SDL_Color kHudGood{120, 230, 140, 255};
 constexpr SDL_Color kHudBad{235, 110, 90, 255};
 constexpr SDL_Color kHudDim{150, 160, 150, 255};
 
+// The objective label is tinted "urgent" near the end of the objective — a
+// survive timer within this many seconds, or this few enemies left to kill.
+// This highlights the endgame (the outcome is about to be decided).
+constexpr int kUrgentSurviveSeconds = 5;
+constexpr int kUrgentEnemiesLeft = 1;
+
 void setPixel(SDL_Surface* surface, int x, int y, std::uint32_t color)
 {
     if (x < 0 || y < 0 || x >= surface->w || y >= surface->h)
@@ -1347,6 +1353,7 @@ void Game::renderHud()
                    substitute(tr("app.version", "v{version}"), {{"version", FOSSYND_VERSION}}),
                kHudText);
     std::string objective;
+    bool urgent = false;
     switch (mission_.objective().kind)
     {
     case core::ObjectiveSpec::Kind::ReachTile:
@@ -1358,6 +1365,7 @@ void Game::renderHud()
     {
         const int remaining =
             static_cast<int>(mission_.objective().seconds - mission_.elapsedSeconds() + 0.999f);
+        urgent = remaining <= kUrgentSurviveSeconds;
         objective =
             substitute(tr("hud.objective.survive", "OBJECTIVE: SURVIVE {seconds}s"),
                        {{"seconds", std::to_string(remaining > 0 ? remaining : 0)}});
@@ -1365,33 +1373,54 @@ void Game::renderHud()
     }
     case core::ObjectiveSpec::Kind::EliminateAll:
     default:
-        objective = substitute(
-            tr("hud.objective.eliminate", "OBJECTIVE: ELIMINATE ALL {count} ENEMY AGENTS"),
-            {{"count", std::to_string(mission_.aliveCount(core::Team::Enemy))}});
+    {
+        const int left = static_cast<int>(mission_.aliveCount(core::Team::Enemy));
+        urgent = left <= kUrgentEnemiesLeft;
+        objective = substitute(tr("hud.objective.eliminate",
+                                  "OBJECTIVE: ELIMINATE ALL {count} ENEMY AGENTS"),
+                               {{"count", std::to_string(left)}});
         break;
     }
-    objective += "   " + tr("hud.controls",
-                            "[L] MOVE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   "
-                            "[P] PERSUADE   [F] FREE   [R] RESTART");
+    }
     std::size_t followers = 0;
     for (std::size_t i = 0; i < mission_.agents().size(); ++i)
     {
         followers += mission_.followerCount(i);
     }
+    // Followers/collateral are status prefixes; the controls hint is static
+    // chrome. Both stay dim so only the objective label carries the urgency
+    // tint.
+    std::string prefix;
     if (followers > 0)
     {
-        objective = substitute(tr("hud.followers", "FOLLOWERS: {count}"),
-                               {{"count", std::to_string(followers)}}) +
-                    "   " + objective;
+        prefix = substitute(tr("hud.followers", "FOLLOWERS: {count}"),
+                            {{"count", std::to_string(followers)}}) +
+                 "   ";
     }
     if (mission_.civilianKills() > 0)
     {
-        objective = substitute(tr("hud.collateral", "COLLATERAL: {count}"),
-                               {{"count", std::to_string(mission_.civilianKills())}}) +
-                    "   " + objective;
+        prefix = substitute(tr("hud.collateral", "COLLATERAL: {count}"),
+                            {{"count", std::to_string(mission_.civilianKills())}}) +
+                 "   " + prefix;
     }
-    font_.draw(renderer_, screenWidth_ - font_.textWidth(objective) - margin, margin / 2, objective,
-               kHudDim);
+    const std::string controls = tr("hud.controls",
+                                    "[L] MOVE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   "
+                                    "[P] PERSUADE   [F] FREE   [R] RESTART");
+    // The objective label is tinted by state; the static controls hint stays dim.
+    // Together they used to overflow the default width, which right-aligned the
+    // line and pushed the objective (its leftmost part) off-screen, so show the
+    // hint only when it fits and never draw past the left margin.
+    const SDL_Color objectiveColor = urgent ? kHudBad : kHudDim;
+    const std::string label = prefix + objective;
+    const bool showControls =
+        font_.textWidth(label + "   " + controls) <= screenWidth_ - 2 * margin;
+    const std::string tail = showControls ? "   " + controls : std::string();
+    int x = std::max(margin, screenWidth_ - margin - font_.textWidth(label + tail));
+    font_.draw(renderer_, x, margin / 2, label, objectiveColor);
+    if (showControls)
+    {
+        font_.draw(renderer_, x + font_.textWidth(label), margin / 2, tail, kHudDim);
+    }
 
     // Squad panel (bottom-left).
     const auto& agents = mission_.agents();
