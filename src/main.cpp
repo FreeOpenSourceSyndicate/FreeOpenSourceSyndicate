@@ -61,6 +61,7 @@ int main(int argc, char** argv)
     bool checkMinimap = false;
     bool checkSelection = false;
     bool checkWaypoints = false;
+    bool checkWaypointPath = false;
     bool checkLang = false;
     const char* checkContent = nullptr;   // --check-content [<dataDir>]
     const char* screenshot = nullptr;
@@ -108,6 +109,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-waypoints") == 0)
         {
             checkWaypoints = true;
+        }
+        else if (std::strcmp(argv[i], "--check-waypoint-path") == 0)
+        {
+            checkWaypointPath = true;
         }
         else if (std::strcmp(argv[i], "--check-lang") == 0)
         {
@@ -256,6 +261,16 @@ int main(int argc, char** argv)
         // otherwise only reachable through the interactive mouse handler.
         const bool ok = game.waypointSelfTest();
         std::printf(ok ? "waypoints: ok\n" : "waypoints: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkWaypointPath)
+    {
+        // Headless guard for the queued-route overlay (issue #89): the route the
+        // renderer would draw must start at the agent and visit every queued
+        // waypoint in order. Used by the game_waypoint_path ctest.
+        const bool ok = game.waypointPathSelfTest();
+        std::printf(ok ? "waypoint-path: ok\n" : "waypoint-path: FAILED\n");
         return ok ? 0 : 1;
     }
 

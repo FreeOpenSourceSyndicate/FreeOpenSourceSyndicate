@@ -139,6 +139,11 @@ if(BUILD_TESTS)
     # the real Mission queue headlessly. Exits non-zero on a broken invariant.
     add_test(NAME game_waypoints
              COMMAND FOSSynd --headless --check-waypoints)
+    # Queued-route overlay (issue #89): the screen-space route the renderer draws
+    # for a selected agent must start at the agent and visit every queued
+    # waypoint in order. Exits non-zero on a broken invariant.
+    add_test(NAME game_waypoint_path
+             COMMAND FOSSynd --headless --check-waypoint-path)
     # Content validation (issue #81): resolve every mission's weaponId/agentId
     # against the catalogues in the shipped assets/data and exit non-zero on a
     # dangling reference. Absolute path so it works from any build directory.

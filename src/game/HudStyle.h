@@ -29,6 +29,10 @@ constexpr std::uint8_t kEnemyBodyFlash[3] = {255, 210, 90};
 constexpr std::uint8_t kCivilianBody[3] = {205, 200, 180};
 constexpr std::uint8_t kFollowerBody[3] = {90, 205, 230};
 
+// Queued-route overlay (issue #89): the polyline and its numbered waypoint dots.
+constexpr std::uint8_t kWaypointLine[3] = {255, 236, 120};
+constexpr std::uint8_t kWaypointDot[3] = {60, 110, 220};
+
 // HUD text colours.
 constexpr SDL_Color kHudText{225, 235, 225, 255};
 constexpr SDL_Color kHudGood{120, 230, 140, 255};
