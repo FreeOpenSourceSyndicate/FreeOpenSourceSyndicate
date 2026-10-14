@@ -329,7 +329,7 @@ This table tracks the **current** state. Update it whenever a queue issue closes
 | Walls block sight/fire | core | #63 | ✅ merged (#77) |
 | Content validator (dangling `weaponId`/`agentId`) | content | #71 | ✅ merged (#80); flag wiring → #81 |
 | `--check-content` flag + `game_content` ctest | client | #81 | ✅ merged (#85) |
-| AoE weapon radius | core | #79 | ◑ in progress (this PR) |
+| AoE weapon radius | core | #79 | ✅ merged (#86) |
 | Reconcile `[0.5.0]` CHANGELOG with the tag | platform | #70 | ⬜ open (needs a user decision) |
 | Coordination hub | coordinator | #38 | this |
 
