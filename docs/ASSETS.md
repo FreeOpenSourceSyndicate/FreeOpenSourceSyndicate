@@ -30,10 +30,7 @@ group is fine (e.g. "agent sprite sheet, 8 directions").
 
 | Path | Type | Author/Tool | License | Source / prompt | Notes |
 |------|------|-------------|---------|-----------------|-------|
-| _(example)_ `assets/tiles/grass_iso.png` | tile | OpenHands (Stable Diffusion) | CC0 | prompt: "isometric grass tile, 64x32" | placeholder |
-
-> The row above is an example format only; delete it when the first real asset
-> is added.
+| `assets/ui/banner.png` | release banner (pixel art) | FOSSynd agent (`assets/ui/make_banner.py`, stdlib) | MIT (project) | Original art, procedurally generated; not from any prompt | 160x56 native, 12-colour indexed palette, 4x nearest-neighbour. Release-page banner; not loaded at runtime. Regenerate with `python3 assets/ui/make_banner.py`. |
 
 ## File formats — prefer pixel art
 
