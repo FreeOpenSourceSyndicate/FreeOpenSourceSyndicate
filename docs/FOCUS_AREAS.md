@@ -379,11 +379,11 @@ busiest-first so the next agent can pick the top free one.
 
 | Area | `focus:` | Owner this cycle | Pending workload | Seeded / open tasks |
 |------|----------|------------------|------------------|---------------------|
-| Tactical | `focus: tactical` | — | 1 | #88 medikit ✅ (merged); mission-design backlog (Phase 3) |
-| World | `focus: world` | — | 1 | #93 string-pull A* routes ✅ (merged #99 + wiring #101); LOS follow-ups |
-| Render | `focus: render` | — | 2 | #89 draw queued waypoint path; Phase 2 zoom (unfiled) |
 | Input/UI | `focus: input-ui` | — | 2 | #94 box-select drag; control-group polish |
 | Content | `focus: content` | — | 2 | #90 ship explosive weapon in `weapons.json` |
+| Render | `focus: render` | OpenHands | 2 | #89 queued-route overlay (this cycle); Phase 2 zoom (unfiled) |
+| Tactical | `focus: tactical` | — | 1 | #88 medikit ✅ (merged); mission-design backlog (Phase 3) |
+| World | `focus: world` | — | 1 | #93 string-pull A* routes ✅ (merged #99 + wiring #101); LOS follow-ups |
 | Text | `focus: text` | — | 1 | #95 locale resolution + `de` stub ✅ (merged #104); more locales, `--lang` flag (input-ui) |
 | Platform | `focus: platform` | — | 1 | #91 package smoke validates content ✅ (merged #105); #103 install every `assets/lang/*.json` |
 | Release | `focus: release` | — | 1 | #70 CHANGELOG reconcile ✅ (option A); next release cut |
