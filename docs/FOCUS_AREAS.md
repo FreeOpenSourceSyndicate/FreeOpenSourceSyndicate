@@ -26,9 +26,9 @@ One agent is the **coordinator**. The coordinator:
   `docs/COORDINATION.md`, `AGENTS.md`, and the issue/PR templates.
 - Assigns an agent to each focus area, hands out tasks, and rebalances when an
   area runs dry or a queue backs up.
-- Owns the shared header **contracts** (§5): when two areas need a new field or
-  method on `core::Agent` / `core::Mission` / a config struct, the coordinator
-  freezes the signature first, then both areas build against it.
+- Owns the shared header **contracts** (§4, Rule 3): when two areas need a new
+  field or method on `core::Agent` / `core::Mission` / a config struct, the
+  coordinator freezes the signature first, then both areas build against it.
 - Is the arbiter for an **overlap dispute** (§4): if two areas both need to
   touch a shared file, the coordinator decides who edits it, or lands the shared
   change themselves.
@@ -72,7 +72,7 @@ Areas 1–2 are the **core** (engine-free, must stay SDL-free, ADR-0002). Areas
 ### 2.1 Interface surfaces an area must not silently change
 
 Each area exposes a surface other areas compile against. Change it only with the
-coordinator's contract step (§5):
+coordinator's contract step (§4, Rule 3):
 
 | Area | Surface |
 |------|---------|
