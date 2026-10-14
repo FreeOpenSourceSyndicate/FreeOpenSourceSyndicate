@@ -50,7 +50,8 @@ A mission file describes one mission. Example:
 
   "agents": [                  // required, non-empty
     {
-      "name": "ALPHA",         // optional, defaults to "AGENT"
+      "agentId": "trooper",    // optional: inherit a template from agents.json
+      "name": "ALPHA",         // optional, defaults to "AGENT" (or the template's)
       "team": "player",        // "player" | "enemy" | "civilian"
       "x": 1.5, "y": 1.5,      // required, tile coordinates (fractional)
       "speed": 3.0,            // optional, tiles/second, > 0
@@ -61,7 +62,8 @@ A mission file describes one mission. Example:
         "range": 9,
         "fireRate": 4,         // shots/second, > 0
         "accuracy": 0.65       // [0, 1]
-      }
+      },
+      "weaponId": "rifle"      // optional: reference weapons.json by id
     }
   ]
 }
@@ -89,7 +91,51 @@ A mission file describes one mission. Example:
   `1.5, 1.5` is the centre of tile `(1, 1)`.
 - **`weapon`** is optional per agent. Omitted fields fall back to the pistol's
   values. `fireRate` must be greater than zero.
+- **`weaponId`** references a weapon in the shared catalogue by id (see below).
+  An agent may set either `weapon` (inline) **or** `weaponId`, not both; an
+  unknown id is a readable error.
+- **`agentId`** references an agent template in the shared catalogue. The
+  template supplies `name`, `team`, `speed`, `health`, and the weapon; any field
+  the mission also sets inline overrides the template. `x`/`y` always come from
+  the mission (a template has no position). An unknown id is a readable error.
 - Unknown keys are ignored, so the format can grow without breaking older files.
+
+## Shared catalogues (`weapons.json`, `agents.json`)
+
+Weapons and agent templates that several missions share live in two catalogue
+files at the **content root** (`assets/data/`), so they can be edited once and
+referenced by id instead of copied into every mission (ADR-0003):
+
+```jsonc
+// assets/data/weapons.json
+{
+  "weapons": [
+    { "id": "pistol", "name": "Pistol", "damage": 10, "range": 6, "fireRate": 2.5, "accuracy": 0.72 },
+    { "id": "rifle",  "name": "Rifle",  "damage": 8,  "range": 9, "fireRate": 4,   "accuracy": 0.65 }
+  ]
+}
+```
+
+```jsonc
+// assets/data/agents.json
+{
+  "agents": [
+    { "id": "guard", "name": "GUARD", "team": "enemy", "speed": 3, "health": 70, "weaponId": "rifle" }
+  ]
+}
+```
+
+- Each entry needs a non-empty **`id`**, unique within its file; a duplicate or
+  missing id is a readable error.
+- A weapon entry takes the same fields as an inline `weapon` object (plus `id`).
+- An agent entry takes the same fields as a mission agent (`id`, `name`, `team`,
+  `speed`, `health`) plus `weapon` or `weaponId`; it has no `x`/`y`.
+- **Both are optional.** A mission that inlines everything (such as `demo.json`)
+  needs no catalogues and behaves exactly as before. A missing catalogue file is
+  not an error; the game still starts (AGENTS.md §1b).
+- A mission loaded from disk (`MissionData::loadFromFile`) automatically loads
+  the catalogues **next to it**: a mission in `assets/data/missions/` finds
+  `assets/data/weapons.json` and `assets/data/agents.json`.
 
 ## Loading
 
@@ -141,7 +187,11 @@ To add a mission, drop a new `assets/data/missions/<name>.json` file. Two agents
 can add missions in parallel without touching the same C++ file (AGENTS.md §4.7,
 "data over code"). Point the game at it with `--mission` or a config file.
 
+To add a weapon or a reusable agent template, append an entry to
+`assets/data/weapons.json` or `assets/data/agents.json` and reference it by
+`weaponId` / `agentId`. Two agents can add catalogue entries in parallel too:
+each entry is one array element, so edits rarely collide.
+
 ## Not yet covered
 
-- Shared weapon / agent catalogues (referenced by id). A non-breaking extension.
 - Tile art / per-tile terrain types (the loader only sets walkability).

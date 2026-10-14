@@ -5,8 +5,9 @@
 #include <string>
 #include <vector>
 
+#include "core/data/Catalogues.h"
 #include "core/data/Json.h"
-#include "core/sim/Agent.h"
+#include "core/data/MissionSpecs.h"
 #include "core/sim/Objective.h"
 #include "core/world/TileGrid.h"
 
@@ -14,35 +15,6 @@ namespace fossynd::core
 {
 
 class Mission;
-
-// One agent as described in a mission data file.
-struct AgentSpec
-{
-    std::string name = "AGENT";
-    Team team = Team::Player;
-    float x = 0.0f;
-    float y = 0.0f;
-    float speed = 3.0f;
-    float health = 100.0f;
-    Weapon weapon = makePistol();
-};
-
-// A rectangular building footprint. Only the perimeter blocks movement, so the
-// inside stays walkable (matching the original hard-coded demo layout).
-struct BuildingSpec
-{
-    int x = 0;
-    int y = 0;
-    int width = 1;
-    int height = 1;
-};
-
-// A single tile that blocks movement.
-struct TileSpec
-{
-    int x = 0;
-    int y = 0;
-};
 
 // A mission described by data (ADR-0003). Engine-agnostic; the view decides
 // where the file lives and how to draw the result.
@@ -67,7 +39,15 @@ struct MissionData
     // failure (including a readable parse or schema error).
     static bool loadFromFile(const std::string& path, MissionData& out, std::string& error);
 
-    // Parses an already-parsed JSON document into `out`.
+    // Parses an already-parsed JSON document into `out`. `weapons` and `agents`
+    // are the shared catalogues; a mission may reference them by `weaponId` /
+    // `agentId`. Empty catalogues are fine for a mission that only inlines its
+    // content (the common case), but a reference then fails with a readable
+    // error rather than being silently ignored.
+    static bool fromJson(const Json& root, MissionData& out, const WeaponCatalogue& weapons,
+                         const AgentCatalogue& agents, std::string& error);
+
+    // Convenience overload for missions that do not use catalogue references.
     static bool fromJson(const Json& root, MissionData& out, std::string& error);
 };
 
