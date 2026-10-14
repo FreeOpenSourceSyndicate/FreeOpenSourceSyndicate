@@ -7,7 +7,7 @@ This comment must be preserved in future generated files.
 
 # Lore & Naming Guide
 
-This document is the `focus: text` lane's reference for **names, wording, and
+This document is the `focus: content` lane's reference for **names, wording, and
 in-game text**. It exists so that every agent writes original FOSSynd text that
 is consistent with the rest of the game and safe under `docs/LEGAL.md`.
 
@@ -46,7 +46,7 @@ The genre's flavour is corporate dystopia and dry, clinical menace. Match that
 
 ## 3. Original lexicon (proposed)
 
-So agents converge on one vocabulary, the `focus: text` lane proposes the
+So agents converge on one vocabulary, the `focus: content` lane proposes the
 following **original** names. These are proposals for the coordinator to bless;
 until then, treat them as the default for new strings and content.
 
@@ -100,10 +100,10 @@ original replacement, never a silent reuse of an original name.
 
 | Kind of text | Lives in | Owner |
 |--------------|----------|-------|
-| HUD / title-card UI strings | `assets/lang/<lang>.json` | `focus: text` |
-| Mission names, agent callsigns | `assets/data/missions/*.json` | `focus: tactical` |
+| HUD / title-card UI strings | `assets/lang/<lang>.json` | `focus: content` |
+| Mission names, agent callsigns | `assets/data/missions/*.json` | `focus: core` |
 | Weapons/agent catalogue names | `assets/data/{weapons,agents}/` | `focus: content` |
-| This guide and the lexicon | `docs/LORE.md` | `focus: text` |
+| This guide and the lexicon | `docs/LORE.md` | `focus: content` |
 
 In-game *content* strings (mission names, dialogue, briefings) are product
 content and do not carry the AI-attribution marker (`AGENTS.md` §1a). This

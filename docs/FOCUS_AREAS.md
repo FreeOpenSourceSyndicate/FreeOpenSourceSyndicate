@@ -8,9 +8,19 @@ This comment must be preserved in future generated files.
 # Focus Areas & Parallel Ownership
 
 `AGENTS.md` is the rulebook and `docs/COORDINATION.md` is the playbook. **This
-file is the assignment sheet**: it splits the repository into eight **focus
-areas**, one per parallel agent, and defines exactly which files each area owns
-and what happens when two areas meet.
+file is the assignment sheet**: it splits the repository into five **focus
+areas** — four parallel agent lanes plus the coordinator — and defines exactly
+which files each area owns and what happens when two areas meet.
+
+> **Reduced from eight to five lanes.** The team shrank (several agents could no
+> longer connect), so the thinnest, most-coupled lanes were merged into their
+> natural neighbours: `world` → `tactical`, `input-ui` → `client`,
+> `text` → `content`, `release` → `platform`. The result is one lane per
+> repository layer (**core / client / content / platform**), and the three
+> historic shared-file frictions (`Game.cpp` render-vs-input, `Agent.h`
+> world-vs-tactical, `assets/lang/en.json` text-vs-render) are now inside a single
+> lane. The retired labels are listed in §6; re-split a lane back out when the
+> agent count rises again (the merge is reversible).
 
 Read this together with `AGENTS.md` §3 (protocol) and `docs/COORDINATION.md`
 (claims, labels, review). Where this file and `AGENTS.md` disagree, `AGENTS.md`
@@ -41,33 +51,37 @@ the queue.
 
 ---
 
-## 2. The eight focus areas
+## 2. The five focus areas
 
 Each area has a `focus:` label, a single **owner** agent, and a set of files it
 owns. "Owns" means *only the owner (or a helper explicitly tasked by the owner)
-edits those files*.
+edits those files*. Two agents never share a lane; if the team grows, re-split
+(§8) rather than sharing.
 
 | # | Area | Label | Owns (primary files) | Typical work |
 |---|------|-------|----------------------|--------------|
-| 1 | **Tactical / Mission** | `focus: tactical` | `src/core/sim/Mission.{h,cpp}`, `src/core/sim/Weapon.h`, `tests/test_mission.cpp`, `assets/data/missions/*.json` | AI, combat rules, weapon balance, objectives, win/lose, orders, mission design |
-| 2 | **World / Simulation** | `focus: world` | `src/core/world/*`, `src/core/math/*`, `src/core/sim/Agent.{h,cpp}`, `src/core/util/*`, matching `tests/` | pathfinding, tile grid, agent model, RNG |
-| 3 | **Render / Engine** | `focus: render` | `src/game/Game.cpp` (render/hud/camera), `src/game/Font.{h,cpp}`, `src/game/Sprite.{h,cpp}`, `assets/sprites/**` | draw the sim, sprites, camera, HUD, low-spec |
-| 4 | **Input / UI / UX** | `focus: input-ui` | `src/main.cpp`, `src/game/Game.cpp` (input/selection/title) | flags, controls, selection, menus, screenshots |
-| 5 | **Content / Data** | `focus: content` | `src/core/data/*` (incl. `AgentSprites.{h,cpp}`), `assets/data/**` (except `missions/`), `docs/DATA_FORMAT.md`, matching `tests/` | JSON loader, catalogues, sprites parser, config |
-| 6 | **Text / i18n / Lore** | `focus: text` | `assets/lang/**`, `src/core/i18n/*`, string tables, `docs/LORE.md` | strings, localisation, in-game text, lore |
-| 7 | **Build / CI / Tooling** | `focus: platform` | `.github/**`, `CMakeLists.txt`, `src/CMakeLists.txt`, `src/core/CMakeLists.txt`, `tests/CMakeLists.txt`, `scripts/**` | CI, build options, packaging, deps |
-| 8 | **Release / Playtest** | `focus: release` | `CHANGELOG.md`, `docs/releases/**`, `assets/ui/**` (release art), tags/Release pages | cut releases, playtest docs, banners |
+| 1 | **Core / Simulation** | `focus: core` | `src/core/**` (`sim/`, `world/`, `math/`, `util/`), `tests/test_*.cpp` (except content), `assets/data/missions/*.json` | combat/AI, pathfinding, tile grid, agent model, RNG, objectives, weapon balance, mission design |
+| 2 | **Client / Rendering & UI** | `focus: client` | `src/game/**`, `src/main.cpp`, `assets/sprites/**` | draw the sim, sprites, camera, HUD, minimap, title card, input/selection, CLI flags, low-spec view |
+| 3 | **Content / Data & Text** | `focus: content` | `src/core/data/*`, `src/core/i18n/*`, `assets/data/**` (except `missions/`), `assets/lang/**`, `docs/{DATA_FORMAT,LORE}.md`, matching `tests/` | JSON loader, catalogues, sprites parser, config, UI strings, i18n, lore lexicon |
+| 4 | **Platform / Build & Release** | `focus: platform` | `.github/**`, `CMakeLists.txt`, `src/**/CMakeLists.txt`, `tests/CMakeLists.txt`, `scripts/**`, `CHANGELOG.md`, `docs/releases/**`, `assets/ui/**` | CI, build options, packaging, deps, releases, playtest docs, banners |
 
 **One deliberate sub-split inside `assets/data/`:** Content owns the loader,
-schema, and shared catalogues (`assets/data/{weapons,agents}/`), while
-**mission content** (`assets/data/missions/*.json`) belongs to **Tactical**,
-because a mission file *is* gameplay design. Content never edits
-`assets/data/missions/`; Tactical never edits the catalogues. This is the only
-place where a single top-level directory is split, and it is stated here so it
-is never in doubt.
+schema, and shared catalogues (`assets/data/{weapons,agents}.json`), while
+**mission content** (`assets/data/missions/*.json`) belongs to **Core**, because
+a mission file *is* gameplay design. Content never edits `assets/data/missions/`;
+Core never edits the catalogues.
 
-Areas 1–2 are the **core** (engine-free, must stay SDL-free, ADR-0002). Areas
-3–4 are the **engine layer**. Areas 5–8 are **content, tooling, and delivery**.
+Areas 1 and 3 are the **core library** (engine-free, must stay SDL-free,
+ADR-0002). Area 2 is the **engine layer** (the only place `<SDL.h>` appears).
+Area 4 is **tooling and delivery**. The four labels map 1:1 onto those layers,
+so the longest-lived files have exactly one writer.
+
+> **Merge history (why these four).** `world` folded into `core` (both are
+> `src/core`, and `Agent.*` was the boundary anyway). `input-ui` folded into the
+> new `client` (it and `render` shared `Game.cpp` and `main.cpp`; one owner
+> removes the turn-taking). `text` folded into `content` (both are data/schema
+> under `core/data` + `assets/`). `release` folded into `platform` (both are
+> tooling: CMake, CI, `CHANGELOG`, release docs).
 
 ### 2.1 Interface surfaces an area must not silently change
 
@@ -76,14 +90,10 @@ coordinator's contract step (§4, Rule 3):
 
 | Area | Surface |
 |------|---------|
-| Tactical | `Mission`, `Weapon`, public methods and outcome enum |
-| World | `Agent`, `TileGrid`, `Pathfinding`, `Rng` public APIs |
-| Render | nothing public (private `Game` methods) |
-| Input/UI | the CLI flags and the `Game::init`/`run`/`set*` surface used by `main.cpp` |
-| Content | `MissionData`, `Json`, `Config`, `ContentPaths`, `AgentSprites` public APIs and the JSON/sprite-text schema |
-| Text | the string lookup API and the `assets/lang` schema |
-| Platform | CMake options (`FOSSYND_*`), target names, CI job names |
-| Release | the `CHANGELOG.md` format and `docs/releases/*` layout |
+| Core | `Mission`, `Weapon`, `Agent`, `TileGrid`, `Pathfinding`, `Rng`, `ObjectiveSpec` public APIs |
+| Client | the CLI flags and the `Game::init`/`run`/`set*` surface used by `main.cpp` (nothing else is public) |
+| Content | `MissionData`, `Json`, `Config`, `ContentPaths`, `AgentSprites`, `StringTable` public APIs and the JSON / sprite-text / lang schemas |
+| Platform | CMake options (`FOSSYND_*`), target names, CI job names, the `CHANGELOG.md` format, `docs/releases/*` layout |
 
 ---
 
@@ -97,14 +107,10 @@ coordinator's contract step (§4, Rule 3):
 
    | Area | Branch prefix |
    |------|---------------|
-   | Tactical | `feat/sim-*`, `fix/sim-*` |
-   | World | `feat/world-*`, `fix/world-*`, `refactor/core-*` |
-   | Render | `feat/render-*`, `fix/render-*` |
-   | Input/UI | `feat/ui-*`, `feat/input-*`, `fix/ui-*` |
-   | Content | `feat/data-*`, `feat/content-*` |
-   | Text | `feat/i18n-*`, `docs/lore-*` |
-   | Platform | `chore/ci-*`, `build/*` |
-   | Release | `release/*`, `docs/release-*` |
+   | Core | `feat/sim-*`, `feat/world-*`, `refactor/core-*`, `fix/core-*` |
+   | Client | `feat/render-*`, `feat/ui-*`, `feat/input-*`, `fix/client-*` |
+   | Content | `feat/data-*`, `feat/content-*`, `feat/i18n-*`, `docs/lore-*` |
+   | Platform | `chore/ci-*`, `build/*`, `release/*`, `docs/release-*` |
 
 4. **Label every issue** with exactly one `focus:` label (§6).
 5. **Keep `main` green** (`AGENTS.md` §3.6). No new warnings; `ctest` passes in
@@ -125,36 +131,38 @@ edits an owned file directly**. It files a request instead (Rule 4).
 
 ### Rule 2 — Shared files: serialise, never co-edit
 
-Two files are genuinely shared and are the main collision risk:
+After the 8→5 merge, **no file is shared between areas** — the historic
+collisions (`Game.cpp` render-vs-input, `Agent.h` world-vs-tactical,
+`assets/lang/en.json` text-vs-render) are now inside a single lane:
 
-- **`src/game/Game.cpp`** — owned by **Render** (it is mostly drawing), but
-  **Input/UI** legitimately needs to change `handleEvents`, selection, and the
-  title-card start path in the same file.
-- **`tests/test_mission.cpp`** — owned by **Tactical**, but World and Content add
-  assertions to it.
+- **`src/game/Game.cpp`** — owned by **Client** (drawing *and* input/selection/
+  title all live here; one owner, no turn-taking).
+- **`tests/test_mission.cpp`** — owned by **Core**; it is a `src/core` test, and
+  Content adds catalogue assertions to its own test files, not this one.
 
-For these, use **turn-taking**, not parallel edits:
+Files are still **single-writer** (Rule 1). If a *new* file ever legitimately
+needs two areas, use turn-taking rather than parallel edits:
 
 1. The current holder opens a small PR touching only their concern.
 2. It is merged before the other area opens its PR touching the same file.
-3. Do **not** open two concurrent PRs that both modify `Game.cpp` (or
-   `test_mission.cpp`). If that happens, the second waits; the coordinator may
-   ask the first to rebase and land first.
-4. A PR that must touch the shared file says so in its description and names the
+3. Do **not** open two concurrent PRs that both modify the same file. If that
+   happens, the second waits; the coordinator may ask the first to rebase and
+   land first.
+4. A PR that must touch a shared file says so in its description and names the
    other area, so the coordinator can order the merges.
 
 Where practical, **split the file instead of sharing it**: new engine features
 go into new files (`src/game/Hud.cpp`, `src/game/Camera.cpp`,
-`src/game/Input.cpp`, `src/game/TitleCard.cpp`) so Render and Input/UI stop
-sharing `Game.cpp`. Splitting is the preferred long-term fix and a good task for
-whichever area gets there first — but it is one PR, coordinated through the
-coordinator, not a race.
+`src/game/Input.cpp`, `src/game/TitleCard.cpp`) rather than growing one owner's
+`Game.cpp`. Splitting is the preferred fix and a good task — but it is one PR,
+coordinated through the coordinator, not a race.
 
 ### Rule 3 — Core headers are a contract; the coordinator freezes them
 
 `core::Agent`, `core::Mission`, `core::Weapon`, `core::TileGrid`, the data
-structs, and the config structs are interfaces many areas build against. Adding
-a field or method is how areas communicate. To avoid churn:
+structs, and the config structs are interfaces the Client and Content areas
+build against. Adding a field or method is how areas communicate. To avoid
+churn:
 
 1. An area that needs a new member **requests it from the owning area** (§2.1).
 2. The owning area (or the coordinator) lands a **contract PR** that adds only
@@ -191,7 +199,7 @@ A few changes affect every area and must never be in flight twice:
   lands so other areas can rebase.
 - A rename or format change to shared data (JSON schema, config keys) — requires
   an ADR (`AGENTS.md` §3.5) and a deprecation window; **Content** owns it.
-- A change to `core::Vec2`/`TilePos` or the namespace — **World**, requires an
+- A change to `core::Vec2`/`TilePos` or the namespace — **Core**, requires an
   ADR, announced.
 
 ### Rule 6 — The coordinator decides ties
@@ -242,43 +250,46 @@ borrowed.
 ## 6. Labels
 
 Every issue gets **exactly one `focus:` label** — the fine-grained focus area
-from §2. It is the single source of truth for *who may edit which files*, and it
-replaces the older coarse `area:` label, which is **retired**:
+from §2. It is the single source of truth for *who may edit which files*:
 
 | `focus:` label |
 |----------------|
 | `focus: coordinator` |
-| `focus: tactical` |
-| `focus: world` |
-| `focus: render` |
-| `focus: input-ui` |
+| `focus: core` |
+| `focus: client` |
 | `focus: content` |
-| `focus: text` |
 | `focus: platform` |
-| `focus: release` |
 
-Plus the existing `status:` labels (`claimed`, `blocked`, `needs-review`). The
-`area:*` labels no longer exist; if you see one referenced anywhere, it is stale
-— replace it with the matching `focus:` label.
+Plus the `status:` labels (`claimed`, `blocked`, `needs-review`).
+
+**Retired labels (8→5 merge).** These no longer exist; if you see one on an open
+issue, relabel it to the merge target below:
+
+| Retired | Now |
+|---------|-----|
+| `focus: tactical` | `focus: core` |
+| `focus: world` | `focus: core` |
+| `focus: render` | `focus: client` |
+| `focus: input-ui` | `focus: client` |
+| `focus: text` | `focus: content` |
+| `focus: release` | `focus: platform` |
+
+`focus: content` was kept (its name already meant data+text); `focus: platform`
+absorbed release. Older `area:*` labels were retired earlier — same treatment.
 
 ---
 
 ## 7. Review matrix
 
-Review is always by a **different** agent/model (`AGENTS.md` §3a, §4). Because
-areas are disjoint, the most useful reviewer is usually a *neighbouring* area
-that consumes the changed interface:
+Review is always by a **different** agent/model (`AGENTS.md` §3a, §4). With four
+lanes, the useful reviewer is the neighbouring lane that consumes the interface:
 
 | PR area | Preferred reviewer(s) |
 |---------|-----------------------|
-| Tactical | World, Content |
-| World | Tactical, Render |
-| Render | Input/UI, World |
-| Input/UI | Render, Text |
-| Content | Tactical, Text |
-| Text | Content, Input/UI |
-| Platform | Release, any core area |
-| Release | Coordinator, Platform |
+| Core | Content, Client |
+| Client | Content, Core |
+| Content | Core, Client |
+| Platform | any other area |
 
 When the repo has only one active account, the sole-account self-merge rule
 applies (`AGENTS.md` §3a, ADR-0011) — but still do the review honestly and name
@@ -288,33 +299,40 @@ the merging model.
 
 ## 8. Current work → area (live queue)
 
-The kickoff queue has largely drained; this table tracks the **current** state.
-Update it whenever a kickoff/queue issue closes (coordinator owns this file).
+This table tracks the **current** state. Update it whenever a queue issue closes
+(coordinator owns this file).
 
 | Work | Area | Issue | State |
 |------|------|-------|-------|
-| Depth-sorted pixel-art sprites | Render | #32 | ✅ merged (#39, ADR-0013) |
-| Objectives beyond "eliminate all" | Tactical | #30 | ✅ merged (ADR-0014) |
-| Fixed-timestep interpolation | World/Render | #31 | ✅ merged (#43 core, #56 view) |
-| Shared weapon/agent catalogues | Content | #34 | ✅ merged (#60) |
-| Strings + `assets/lang` scaffolding | Text | #35 | ✅ merged (#54, ADR-0016) |
-| Sanitizer CI lane | Platform | #36 | ✅ merged (#47, ADR-0015) |
-| v0.5.0 release | Release | #37 | ✅ merged (#55) |
-| Line-of-sight primitive | World | #59 | ✅ merged (#62) |
-| CPack packaging (Linux) | Platform | #61 | ✅ merged (ADR-0017) |
-| Recruiter-gadget rename (legal) | Coordinator | #57 | ✅ merged (#64, ADR-0018) |
-| Control groups (hotkeys) | Input/UI | #33 | ◑ half-merged (#51); waypoint half → #42 |
-| HUD/title from string table | Render | #53 | 🔵 PR #65 (open) |
-| Title-card codename bump | Render | #48 | 🔵 folded into PR #65 |
-| Per-agent waypoint queue | Tactical | #42 | ⬜ open (needs interface freeze) |
-| Walls block sight/fire | Tactical | #63 | ⬜ open |
-| Coordination hub | Coordinator | #38 | this |
+| Depth-sorted pixel-art sprites | client | #32 | ✅ merged (#39, ADR-0013) |
+| Objectives beyond "eliminate all" | core | #30 | ✅ merged (ADR-0014) |
+| Fixed-timestep interpolation | core+client | #31 | ✅ merged (#43 core, #56 client) |
+| Shared weapon/agent catalogues | content | #34 | ✅ merged (#60) |
+| Strings + `assets/lang` scaffolding | content | #35 | ✅ merged (#54, ADR-0016) |
+| Sanitizer CI lane | platform | #36 | ✅ merged (#47, ADR-0015) |
+| v0.5.0 release | platform | #37 | ✅ merged (#55) |
+| Line-of-sight primitive | core | #59 | ✅ merged (#62) |
+| CPack packaging (Linux) | platform | #61 | ✅ merged (ADR-0017) |
+| Recruiter-gadget rename (legal) | coordinator | #57 | ✅ merged (#64, ADR-0018) |
+| HUD/title from string table + codename | client | #53, #48 | ✅ merged (#65) |
+| Control groups (hotkeys) | client | #33 | ◑ half-merged (#51); waypoint half → #42 |
+| Split `Game.cpp` into `Hud.cpp`/`TitleCard.cpp` | client | #69 | ⬜ open |
+| Per-agent waypoint queue | core | #42 | ⬜ open (needs `Mission` order-API freeze) |
+| Walls block sight/fire | core (+client cue) | #63 | ⬜ open (needs #42's order API) |
+| Content validator (dangling `weaponId`/`agentId`) | content | #71 | ⬜ open |
+| Reconcile `[0.5.0]` CHANGELOG with the tag | platform | #70 | ⬜ open (needs a user decision) |
+| Coordination hub | coordinator | #38 | this |
 
-Legend: ✅ merged · ◑ partially done · 🔵 in review · ⬜ open/unclaimed.
+Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 
-**Idle lanes.** `focus: world` and `focus: content` currently have **no open
-issues** — their owners should announce availability on #38 and take assigned
-review/helper work (`FOCUS_AREAS.md` §5), not start features unasked.
+**One concrete task per lane** is seeded so every agent has something to claim:
+**#42/#63** (`core`), **#69** (`client`), **#71** (`content`), **#70**
+(`platform`, blocked on a user decision). The `core` pair is serial (#63 depends
+on #42's `Mission` order-API contract); the other three lanes can proceed in
+parallel. A lane that drains announces availability on #38 and takes *assigned*
+review/helper work (§5), not self-started features.
 
-The coordinator seeds a first concrete task per area so every agent has
-something to claim; when a lane drains, rebalance here and post on #38.
+**Re-split trigger.** If the active agent count rises again, split a lane back
+out (reverse of the §6 table) — `client` → render + input-ui first, then
+`core` → tactical + world, then `content` → data + text. Split by *file*, never
+by *phase*.

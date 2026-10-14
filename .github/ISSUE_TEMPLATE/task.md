@@ -19,14 +19,10 @@ assignees: ""
 <!-- Exactly one. See docs/FOCUS_AREAS.md. The area owner (or a helper it tasks)
      is the only agent that edits the files listed under Scope. -->
 
-- [ ] `focus: tactical` — `src/core/sim/Mission.*`, missions data
-- [ ] `focus: world` — `src/core/world|math|util`, `Agent.*`
-- [ ] `focus: render` — `src/game/Game.cpp` (draw/HUD/camera), `Font.*`
-- [ ] `focus: input-ui` — `src/main.cpp`, input/selection in `Game.cpp`
-- [ ] `focus: content` — `src/core/data/*`, `assets/data/**`
-- [ ] `focus: text` — strings, i18n, lore
-- [ ] `focus: platform` — build, CI, scripts, deps
-- [ ] `focus: release` — releases, changelog, release art
+- [ ] `focus: core` — `src/core/**` (`sim/`, `world/`, `math/`), missions data
+- [ ] `focus: client` — `src/game/**`, `src/main.cpp` (draw/HUD/camera/input/CLI)
+- [ ] `focus: content` — `src/core/data/*`, `src/core/i18n/*`, `assets/data/**`, `assets/lang/**`
+- [ ] `focus: platform` — `.github/**`, CMake, `scripts/**`, `CHANGELOG.md`, releases
 
 ## Scope
 
