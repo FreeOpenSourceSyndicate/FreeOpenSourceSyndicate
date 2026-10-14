@@ -59,6 +59,7 @@ int main(int argc, char** argv)
     bool checkSprites = false;
     bool checkMinimap = false;
     bool checkSelection = false;
+    bool checkLang = false;
     const char* screenshot = nullptr;
     std::string cliMission;   // --mission <path>
     std::string cliConfig;    // --config <path>
@@ -100,6 +101,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-selection") == 0)
         {
             checkSelection = true;
+        }
+        else if (std::strcmp(argv[i], "--check-lang") == 0)
+        {
+            checkLang = true;
         }
         else if (std::strcmp(argv[i], "--mission") == 0 && i + 1 < argc)
         {
@@ -170,6 +175,7 @@ int main(int argc, char** argv)
 
     fossynd::game::Game game;
     game.setMissionPath(missionPath);
+    game.setExeDir(exeDir);
 
     // Show the authored title card for a real, interactive player. Automated
     // runs (headless, screenshots, attract mode) skip it and go straight to the
@@ -209,6 +215,16 @@ int main(int argc, char** argv)
         // which is otherwise only reachable through the interactive input path.
         const bool ok = game.selectionSelfTest();
         std::printf(ok ? "selection: ok\n" : "selection: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkLang)
+    {
+        // Headless guard for the UI string table (issue #53): the table must
+        // load and resolve every key the HUD/title card reads. Used by the
+        // game_lang ctest.
+        const bool ok = game.languageSelfTest();
+        std::printf(ok ? "language: ok\n" : "language: FAILED\n");
         return ok ? 0 : 1;
     }
 

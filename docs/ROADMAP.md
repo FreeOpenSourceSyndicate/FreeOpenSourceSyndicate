@@ -106,7 +106,7 @@ A shippable demo, deliberately original in code and art.
 - [ ] Mission editor / data pipeline
 - [ ] Original art and audio (`docs/ASSETS.md`)
 - [ ] Save/load
-- [ ] Localization scaffolding
+- [x] Localization scaffolding (string table + `assets/lang/en.json`; the HUD and title card read from it)
 - [ ] Modding / scripting layer (ADR-0004)
 - [ ] Packaging for Linux/macOS/Windows
 - [x] Low-spec / old-hardware profile (ADR-0008)

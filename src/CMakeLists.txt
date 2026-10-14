@@ -124,4 +124,10 @@ if(BUILD_TESTS)
     # invariant.
     add_test(NAME game_selection
              COMMAND FOSSynd --headless --check-selection)
+    # UI strings (issue #53): the string table loads (external file or embedded
+    # copy) and resolves every key the HUD/title card reads. Exits non-zero if a
+    # key is missing, so a broken assets/lang/en.json cannot hide behind the
+    # literal fallback.
+    add_test(NAME game_lang
+             COMMAND FOSSynd --headless --check-lang)
 endif()

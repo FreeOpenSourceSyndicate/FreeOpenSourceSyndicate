@@ -4,10 +4,15 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <initializer_list>
 #include <string>
+#include <utility>
 
+#include "core/data/ContentPaths.h"
+#include "core/data/Json.h"
 #include "core/data/MissionData.h"
 #include "core/math/Isometric.h"
+#include "game/EmbeddedLang.h"
 #include "game/EmbeddedMission.h"
 #include "game/EmbeddedSprites.h"
 
@@ -21,6 +26,12 @@ namespace fossynd::game
 {
 namespace
 {
+
+// The on-screen codename for the current release, shown on the title card.
+// Bumped each cut in one place (like FOSSYND_VERSION); the English value is
+// mirrored in assets/lang/en.json `app.tagline`, which can override it for
+// translation (issue #48).
+constexpr const char* kReleaseCodename = "RECRUITMENT";
 
 constexpr std::uint32_t rgba(int r, int g, int b, int a = 255)
 {
@@ -56,6 +67,46 @@ void setPixel(SDL_Surface* surface, int x, int y, std::uint32_t color)
     }
     auto* pixels = static_cast<std::uint32_t*>(surface->pixels);
     pixels[y * (surface->pitch / 4) + x] = color;
+}
+
+
+// Replaces every `{name}` token in `text` with the matching argument, in one
+// left-to-right pass so a substituted value is never rescanned. Keeps the
+// localised format strings plain data (ADR-0016).
+std::string substitute(std::string text,
+                       std::initializer_list<std::pair<const char*, std::string>> values)
+{
+    std::size_t pos = 0;
+    while (pos < text.size())
+    {
+        const std::size_t open = text.find('{', pos);
+        if (open == std::string::npos)
+        {
+            break;
+        }
+        const std::size_t close = text.find('}', open + 1);
+        if (close == std::string::npos)
+        {
+            break;
+        }
+        const std::string key = text.substr(open + 1, close - open - 1);
+        bool replaced = false;
+        for (const auto& value : values)
+        {
+            if (key == value.first)
+            {
+                text.replace(open, close - open + 1, value.second);
+                pos = open + value.second.size();
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced)
+        {
+            pos = close + 1;
+        }
+    }
+    return text;
 }
 
 } // namespace
@@ -124,6 +175,7 @@ bool Game::init(int width, int height, bool headless, bool lowSpec)
         return false;
     }
 
+    loadLanguage();
     buildMission();
     buildMapTexture();
     buildSprites();
@@ -142,6 +194,28 @@ bool Game::init(int width, int height, bool headless, bool lowSpec)
 
     running_ = true;
     return true;
+}
+
+void Game::loadLanguage()
+{
+    // The English table lives in assets/lang/en.json; prefer an external file
+    // (so translators can override it) and fall back to the copy embedded at
+    // build time (ADR-0016). A missing or unparsable file is not fatal: the
+    // table stays empty and every lookup uses its literal fallback, so the UI
+    // renders exactly today's text.
+    std::string error;
+    for (const std::string& path : core::i18n::defaultLangPaths(exeDir_, "en"))
+    {
+        if (core::fileExists(path) && lang_.loadFromFile(path, error))
+        {
+            return;
+        }
+    }
+    const core::Json root = core::Json::parse(kEnglishLangJson, error);
+    if (!lang_.loadFromJson(root, error))
+    {
+        std::fprintf(stderr, "language data error: %s\n", error.c_str());
+    }
 }
 
 void Game::buildMission()
@@ -443,6 +517,55 @@ void Game::recallControlGroup(int slot)
         // than leaving the player with nothing selected.
         selectAllPlayers();
     }
+}
+
+bool Game::languageSelfTest() const
+{
+    // The table must have loaded (from the external file or the embedded copy).
+    if (lang_.size() == 0)
+    {
+        std::fprintf(stderr, "language self-test: string table is empty\n");
+        return false;
+    }
+
+    // Every key the HUD/title card reads must resolve to a non-empty string — a
+    // missing or blank key would silently fall back to the literal and hide a
+    // broken en.json.
+    static const char* const kRequiredKeys[] = {
+        "app.title",           "app.version",          "app.tagline",
+        "title.prompt",        "title.controls.move",  "title.controls.attack",
+        "title.controls.select", "title.controls.misc", "title.footer",
+        "hud.objective.eliminate", "hud.objective.reach", "hud.objective.survive",
+        "hud.controls",        "hud.followers",        "hud.collateral",
+        "hud.squad",           "hud.agentRow",         "hud.winSub",
+        "hud.loseSub",         "state.won",            "state.lost",
+    };
+    for (const char* key : kRequiredKeys)
+    {
+        if (!lang_.has(key) || lang_.get(key, "").empty())
+        {
+            std::fprintf(stderr, "language self-test: missing key '%s'\n", key);
+            return false;
+        }
+    }
+
+    // An unknown key must fall back to the literal, never blank.
+    if (lang_.get("no.such.key", "FALLBACK") != "FALLBACK")
+    {
+        std::fprintf(stderr, "language self-test: fallback lookup mismatch\n");
+        return false;
+    }
+
+    // A format token must be substituted away by the real render helper.
+    const std::string row = substitute(lang_.get("hud.agentRow", "{marker}{name}"),
+                                       {{"marker", "> "}, {"name", "Ada"}, {"weapon", "Gun"},
+                                        {"hp", "100"}});
+    if (row.find('{') != std::string::npos || row.find("Ada") == std::string::npos)
+    {
+        std::fprintf(stderr, "language self-test: substitution failed ('%s')\n", row.c_str());
+        return false;
+    }
+    return true;
 }
 
 bool Game::selectionSelfTest()
@@ -1219,30 +1342,37 @@ void Game::renderHud()
     SDL_Rect topBar{0, 0, screenWidth_, lineH + margin};
     SDL_RenderFillRect(renderer_, &topBar);
 
-    font_.draw(renderer_, margin, margin / 2, "FOSSYND v" FOSSYND_VERSION, kHudText);
+    font_.draw(renderer_, margin, margin / 2,
+               tr("app.title", "FOSSYND") + " " +
+                   substitute(tr("app.version", "v{version}"), {{"version", FOSSYND_VERSION}}),
+               kHudText);
     std::string objective;
     switch (mission_.objective().kind)
     {
     case core::ObjectiveSpec::Kind::ReachTile:
-        objective = "OBJECTIVE: REACH TILE (" + std::to_string(mission_.objective().tileX) + "," +
-                    std::to_string(mission_.objective().tileY) + ")";
+        objective = substitute(tr("hud.objective.reach", "OBJECTIVE: REACH TILE ({x},{y})"),
+                               {{"x", std::to_string(mission_.objective().tileX)},
+                                {"y", std::to_string(mission_.objective().tileY)}});
         break;
     case core::ObjectiveSpec::Kind::Survive:
     {
         const int remaining =
             static_cast<int>(mission_.objective().seconds - mission_.elapsedSeconds() + 0.999f);
-        objective = "OBJECTIVE: SURVIVE " + std::to_string(remaining > 0 ? remaining : 0) + "s";
+        objective =
+            substitute(tr("hud.objective.survive", "OBJECTIVE: SURVIVE {seconds}s"),
+                       {{"seconds", std::to_string(remaining > 0 ? remaining : 0)}});
         break;
     }
     case core::ObjectiveSpec::Kind::EliminateAll:
     default:
-        objective = "OBJECTIVE: ELIMINATE ALL " +
-                    std::to_string(mission_.aliveCount(core::Team::Enemy)) + " ENEMY AGENTS";
+        objective = substitute(
+            tr("hud.objective.eliminate", "OBJECTIVE: ELIMINATE ALL {count} ENEMY AGENTS"),
+            {{"count", std::to_string(mission_.aliveCount(core::Team::Enemy))}});
         break;
     }
-    objective +=
-        "   [L] MOVE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   [P] PERSUADE   "
-        "[F] FREE   [R] RESTART";
+    objective += "   " + tr("hud.controls",
+                            "[L] MOVE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   "
+                            "[P] PERSUADE   [F] FREE   [R] RESTART");
     std::size_t followers = 0;
     for (std::size_t i = 0; i < mission_.agents().size(); ++i)
     {
@@ -1250,11 +1380,15 @@ void Game::renderHud()
     }
     if (followers > 0)
     {
-        objective = "FOLLOWERS: " + std::to_string(followers) + "   " + objective;
+        objective = substitute(tr("hud.followers", "FOLLOWERS: {count}"),
+                               {{"count", std::to_string(followers)}}) +
+                    "   " + objective;
     }
     if (mission_.civilianKills() > 0)
     {
-        objective = "COLLATERAL: " + std::to_string(mission_.civilianKills()) + "   " + objective;
+        objective = substitute(tr("hud.collateral", "COLLATERAL: {count}"),
+                               {{"count", std::to_string(mission_.civilianKills())}}) +
+                    "   " + objective;
     }
     font_.draw(renderer_, screenWidth_ - font_.textWidth(objective) - margin, margin / 2, objective,
                kHudDim);
@@ -1277,7 +1411,7 @@ void Game::renderHud()
     SDL_RenderFillRect(renderer_, &panel);
 
     int y = panelY + margin / 2;
-    font_.draw(renderer_, margin, y, "SQUAD", kHudText);
+    font_.draw(renderer_, margin, y, tr("hud.squad", "SQUAD"), kHudText);
     y += lineH;
     for (std::size_t i = 0; i < agents.size(); ++i)
     {
@@ -1301,8 +1435,13 @@ void Game::renderHud()
                 groupTag += " [" + std::to_string(slot + 1) + "]";
             }
         }
-        std::string row = marker + agent.name() + "  " + agent.weapon().name + "  HP " +
-                          std::to_string(hp) + groupTag;
+        std::string row =
+            substitute(tr("hud.agentRow", "{marker}{name}  {weapon}  HP {hp}"),
+                       {{"marker", marker},
+                        {"name", agent.name()},
+                        {"weapon", agent.weapon().name},
+                        {"hp", std::to_string(hp)}}) +
+            groupTag;
         const SDL_Color color = agent.isAlive() ? (isSelected ? kHudText : kHudDim) : kHudDim;
         font_.draw(renderer_, margin, y, row, color);
         y += lineH;
@@ -1312,8 +1451,9 @@ void Game::renderHud()
     if (mission_.state() != core::MissionState::Running)
     {
         const bool won = mission_.state() == core::MissionState::Won;
-        const std::string message = mission_.stateName();
-        const std::string sub = won ? "PRESS R TO RUN IT AGAIN" : "PRESS R TO RETRY";
+        const std::string message = tr(won ? "state.won" : "state.lost", mission_.stateName());
+        const std::string sub = won ? tr("hud.winSub", "PRESS R TO RUN IT AGAIN")
+                                    : tr("hud.loseSub", "PRESS R TO RETRY");
         const int cx = screenWidth_ / 2;
 
         SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 190);
@@ -1406,9 +1546,10 @@ void Game::renderTitleCard()
                      kPlayerBodySelected[1], kPlayerBodySelected[2]);
 
     // Title and version, centred.
-    const std::string title = "FOSSYND";
-    const std::string version = std::string("v") + FOSSYND_VERSION;
-    const std::string subtitle = "SMART ENEMIES";
+    const std::string title = tr("app.title", "FOSSYND");
+    const std::string version =
+        substitute(tr("app.version", "v{version}"), {{"version", FOSSYND_VERSION}});
+    const std::string subtitle = tr("app.tagline", kReleaseCodename);
 
     int y = static_cast<int>(static_cast<float>(h) * 0.40f);
     font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(title) / 2, y, title, kHudText);
@@ -1422,28 +1563,30 @@ void Game::renderTitleCard()
     const bool blinkOn = std::fmod(titleCardTime_, 1.0f) < 0.6f;
     if (blinkOn)
     {
-        const std::string prompt = "PRESS ANY KEY";
+        const std::string prompt = tr("title.prompt", "PRESS ANY KEY");
         y += lineH * 2;
         font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(prompt) / 2, y, prompt,
                    kHudText);
     }
 
     // Controls, centred lower down.
-    const char* controls[] = {
-        "CLICK / L  MOVE THE SQUAD",
-        "RIGHT-CLICK  FOCUS FIRE",
-        "1-4 RECALL  CTRL+1-4 SET  A  ALL",
-        "ARROWS  SCROLL   R  RESTART   ESC  QUIT",
+    const std::string controls[] = {
+        tr("title.controls.move", "CLICK / L  MOVE THE SQUAD"),
+        tr("title.controls.attack", "RIGHT-CLICK  FOCUS FIRE"),
+        tr("title.controls.select", "1-4 RECALL  CTRL+1-4 SET  A  ALL"),
+        tr("title.controls.misc", "ARROWS  SCROLL   R  RESTART   ESC  QUIT"),
     };
     int cy = static_cast<int>(static_cast<float>(h) * 0.68f);
-    for (const char* line : controls)
+    for (const std::string& line : controls)
     {
         font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(line) / 2, cy, line, kHudDim);
         cy += lineH;
     }
 
     // Small footer tag, so a screenshot self-identifies the build.
-    const std::string footer = "FOSSYND v" FOSSYND_VERSION "  -  FREE OPEN SOURCE SYNDICATE";
+    const std::string footer = substitute(
+        tr("title.footer", "FOSSYND v{version}  -  FREE OPEN SOURCE SYNDICATE"),
+        {{"version", FOSSYND_VERSION}});
     font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(footer) / 2, h - lineH - 6, footer,
                kHudDim);
 }

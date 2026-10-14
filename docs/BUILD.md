@@ -171,6 +171,7 @@ They flee when gunfire starts nearby. Civilian deaths you cause are counted as
 | `--check-sprites` | Headless guard: exit non-zero if the sprite sheet fails to bake |
 | `--check-minimap` | Headless guard: exit non-zero if the minimap panel or blips fail |
 | `--check-selection` | Run the selection / control-group self-check headlessly and exit (ctest `game_selection`) |
+| `--check-lang` | Run the UI string-table self-check headlessly and exit (ctest `game_lang`) |
 
 ### Core-only build (no SDL2 needed)
 

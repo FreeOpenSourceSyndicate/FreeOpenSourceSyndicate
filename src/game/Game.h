@@ -7,6 +7,7 @@
 
 #include "SDL.h"
 
+#include "core/i18n/StringTable.h"
 #include "core/math/Timestep.h"
 #include "core/math/Vec2.h"
 #include "core/sim/Mission.h"
@@ -51,6 +52,11 @@ public:
     // copy embedded in the binary". Call before init().
     void setMissionPath(const std::string& path) { missionPath_ = path; }
 
+    // Directory containing the executable, used to find an external language
+    // file. May be empty (relative search paths are then tried). Call before
+    // init().
+    void setExeDir(const std::string& dir) { exeDir_ = dir; }
+
     // Shows the authored pixel-art title card before play. Off by default so
     // automated runs (smoke tests, screenshots, attract mode) go straight to the
     // map; the interactive player sees it and presses a key to start.
@@ -78,11 +84,24 @@ public:
     // without a display.
     bool selectionSelfTest();
 
+    // Headless self-check for the UI string table (issue #53): the table must
+    // have loaded and resolve the keys the HUD/title card use, and a missing
+    // key must fall back to its literal. Used by --check-lang.
+    bool languageSelfTest() const;
+
 private:
+    // Looks up a localised UI string, falling back to the literal when the table
+    // has no such key (an empty table therefore renders today's text).
+    std::string tr(const char* key, const char* fallback) const
+    {
+        return lang_.get(key, fallback);
+    }
+
     void buildMission();
     void buildMapTexture();
     void buildSprites();
     void buildMinimap();
+    void loadLanguage();
     void restart();
     void handleEvents(bool& running);
     void update(float dt);
@@ -177,6 +196,14 @@ private:
 
     // Resolved mission file, or empty to use the embedded copy (ADR-0003).
     std::string missionPath_;
+
+    // Directory containing the executable, used to find an external language
+    // file (see loadLanguage).
+    std::string exeDir_;
+
+    // Localised UI strings (ADR-0016). Loaded once; empty means "no
+    // localisation", in which case every lookup falls back to the literal.
+    core::i18n::StringTable lang_;
 
     BitmapFont font_;
 
