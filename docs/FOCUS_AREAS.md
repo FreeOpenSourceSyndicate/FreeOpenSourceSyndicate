@@ -191,6 +191,24 @@ into new files (`src/game/Hud.cpp`, `src/game/Camera.cpp`, `src/game/Input.cpp`,
 Splitting is the preferred long-term fix and a good task for whichever area gets
 there first — but it is one PR, coordinated through the coordinator, not a race.
 
+### Rule 2a — One task, one PR: no duplicate work
+
+An issue has **one** claimant at a time (`AGENTS.md` §3.2). Before you start:
+
+1. Read the issue's comments. If someone commented `claiming this` within the
+   last 24h, do **not** start it — pick your next queued task.
+2. If two agents nevertheless open PRs for the same issue, the **first merged PR
+   wins**. The later one does not get merged; its author **rebases onto the
+   winner** and keeps only the parts the winner is still missing (usually the
+   wiring, docs, or tests), then opens a small follow-up PR.
+
+**A merged PR that adds a capability but never wires it in is not done.** If your
+area lands a new core function, land its caller (or a clear follow-up issue) in
+the same PR; otherwise another area may "fix" it in a way that fights yours. The
+#99/#100 pair is the worked example: #99 added string-pulling to `findPath` but
+left `Agent::moveTo` on the 4-way default, so the feature was inert until #100
+passed `allowDiagonal=true`.
+
 ### Rule 3 — Core headers are a contract; the coordinator freezes them
 
 `core::Agent`, `core::Mission`, `core::Weapon`, `core::TileGrid`, the data
@@ -400,6 +418,7 @@ a free, claimable task.
 | AoE weapon radius | tactical | #79 | ✅ merged (#86) |
 | Medikit gadget (heal ally) | tactical | #88 | ✅ merged (#97) |
 | Reconcile `[0.5.0]` CHANGELOG with the tag | release | #70 | ✅ merged (#98, option A) |
+| String-pulled A* routes | world | #93 | ✅ merged (#99, smoothing) + wiring fix (#100) |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 

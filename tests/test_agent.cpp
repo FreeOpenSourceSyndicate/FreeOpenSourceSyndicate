@@ -53,6 +53,23 @@ FOSSYND_TEST(Agent, MovesIncrementallyAtFixedSpeed)
     FOSSYND_CHECK(agent.hasPath());
 }
 
+FOSSYND_TEST(Agent, MoveToUsesSmoothDiagonalRoute)
+{
+    // Regression for the #99/#100 overlap: PR #99's string-pulling was gated
+    // behind allowDiagonal=true while moveTo passed the 4-way default, so agents
+    // still staircased in game. moveTo must now produce a diagonal route: a
+    // non-45-degree goal staircases under 4-way A*, but collapses to a straight
+    // line once smoothed.
+    TileGrid grid(8, 8);
+    Agent agent(0.0f, 0.0f, 2.0f);
+    FOSSYND_CHECK(agent.moveTo(grid, TilePos{5, 3}));
+
+    const auto& path = agent.path();
+    FOSSYND_CHECK_EQ(static_cast<int>(path.size()), 2); // just start + goal
+    FOSSYND_CHECK(path.front() == (TilePos{0, 0}));
+    FOSSYND_CHECK(path.back() == (TilePos{5, 3}));
+}
+
 FOSSYND_TEST(Agent, ZeroOrNegativeDtIsNoOp)
 {
     TileGrid grid(5, 5);
