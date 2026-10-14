@@ -359,3 +359,57 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
     copies to `main`, it does not edit any published branch or tag.
 
 
+
+---
+
+## ADR-0013 — Sprites are authored text baked in `core`, uploaded by the view
+
+- **Status:** Accepted (2026-10-13)
+- **Date:** 2026-10-13
+- **Context:** Phase 2 replaces the flat agent diamonds with pixel-art sprites
+  (depth-sorted, with a short walk cycle). Several hard constraints collide:
+  assets must be original and license-clean (`docs/ASSETS.md`) and authored by
+  LLM agents, so no binary art can be committed from a drawing tool; the game
+  must stay a single self-contained executable on very old hardware (AGENTS.md
+  §1b); and `src/core/` must not include `SDL.h` (ADR-0002, golden rule 1), so
+  the testable sprite logic cannot live in the view.
+- **Options:**
+  1. **Commit PNG/BMP art and load it with `SDL_image`.** Rejected: adds a
+     dependency, a second binary-asset pipeline, and (for hand-picked art)
+     licensing/attribution risk. Nothing here can be produced by a text-only
+     agent and diffed in review.
+  2. **Bake pixels directly in C++ as arrays.** Rejected: unreadable, hurts the
+     "data over code" rule (golden rule 7), and makes edits merge-conflict-prone.
+  3. **Author the sprites as plain text (`B`/`T`/`S`/`D` pixels + an `A`
+     anchor), parse and palette them in `core`, and upload the result to an SDL
+     texture in `game`.** Chosen: mirrors the existing `BitmapFont`
+     (dependency-free, authored) and the embedded-mission pattern
+     (`EmbeddedMission.cpp.in`), keeps the pixel logic engine-free and
+     unit-testable, and lets a text-only agent author or adjust art in review.
+- **Decision:** **Option 3.**
+  - `assets/sprites/agents.txt` is the authored sheet: one `frame <name>` block
+    per frame, pixels drawn with `B` (body), `T` (trim), `S` (skin), `D` (dark),
+    `.` (transparent), and exactly one `A` (anchor) for agent frames. Props
+    (crate, barrel) have no anchor; theirs defaults to bottom-centre so scenery
+    rests on its tile.
+  - `src/core/data/AgentSprites.{h,cpp}` parses and bakes this text into
+    RGBA8888 frames. It is engine-free and I/O-free (the caller reads the file or
+    the embedded string), so it is unit-tested with a plain compiler.
+  - `src/game/Sprite.{h,cpp}` uploads a baked sheet to one texture laid out
+    frames-left-to-right and blits a frame with its anchor. Per-role palettes give
+    players, enemies, civilians, and followers distinct colours from one sheet.
+  - The sheet is embedded at configure time via
+    `game/EmbeddedSprites.cpp.in` (as the demo mission is), so the binary stays
+    self-contained. A bad sheet is non-fatal: the view falls back to the old flat
+    diamonds, and the `game_sprites` ctest fails instead of the player.
+  - View-only animation state (facing, walk phase) lives in `Game` and is derived
+    from position deltas; it never feeds back into the simulation (golden rule 4).
+- **Consequences:**
+  - New content is authored as text and diffed like code; no binary assets and no
+    new dependency. Follow the `BitmapFont`/embedded-mission precedents.
+  - `core` gains a generic `bakeSheet` (usable for future content) plus the agent
+    wrapper. Both are covered by `tests/test_sprites.cpp`.
+  - `TileGrid` gains a presentational `Decor` layer (crates/barrels) placed only
+    on blocked tiles, so decor never competes with agents for a tile.
+  - Rendering is now a single painter's-algorithm pass (agents + props sorted by
+    screen Y), the depth-sorted sprite pass the roadmap called for.

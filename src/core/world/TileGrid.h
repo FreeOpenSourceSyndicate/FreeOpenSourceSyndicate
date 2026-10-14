@@ -9,6 +9,16 @@
 namespace fossynd::core
 {
 
+// Static board decoration drawn as a sprite on a tile. Only ever placed on
+// blocked tiles, so it never competes with an agent for the same tile. Purely
+// presentational; game logic ignores it.
+enum class Decor : std::uint8_t
+{
+    None,
+    Crate,
+    Barrel,
+};
+
 // A single layer of walkable/blocking tiles. Engine-agnostic.
 class TileGrid
 {
@@ -26,6 +36,10 @@ public:
     int tileType(int x, int y) const;
     void setTileType(int x, int y, int type);
 
+    // Board decoration sprite on a tile (presentational only).
+    Decor decor(int x, int y) const;
+    void setDecor(int x, int y, Decor decor);
+
 private:
     std::size_t index(int x, int y) const;
 
@@ -33,6 +47,7 @@ private:
     int height_ = 0;
     std::vector<int> types_;
     std::vector<std::uint8_t> walkable_;
+    std::vector<std::uint8_t> decor_;
 };
 
 } // namespace fossynd::core

@@ -11,6 +11,7 @@ TileGrid::TileGrid(int width, int height)
     const auto count = static_cast<std::size_t>(width_) * static_cast<std::size_t>(height_);
     types_.assign(count, 0);
     walkable_.assign(count, 1);
+    decor_.assign(count, 0);
 }
 
 std::size_t TileGrid::index(int x, int y) const
@@ -57,6 +58,24 @@ void TileGrid::setTileType(int x, int y, int type)
         return;
     }
     types_[index(x, y)] = type;
+}
+
+Decor TileGrid::decor(int x, int y) const
+{
+    if (!inBounds(x, y))
+    {
+        return Decor::None;
+    }
+    return static_cast<Decor>(decor_[index(x, y)]);
+}
+
+void TileGrid::setDecor(int x, int y, Decor decor)
+{
+    if (!inBounds(x, y))
+    {
+        return;
+    }
+    decor_[index(x, y)] = static_cast<std::uint8_t>(decor);
 }
 
 } // namespace fossynd::core

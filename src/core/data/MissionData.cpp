@@ -242,6 +242,35 @@ TileGrid buildGrid(const MissionData& data)
         grid.setWalkable(tile.x, tile.y, false);
     }
 
+    // Scatter presentational decor over some interior blocked tiles (crates and
+    // barrels) so the depth-sorted sprite pass has static scenery. Deterministic:
+    // chosen by a fixed integer hash of the tile, never by RNG, so layouts are
+    // stable. The outer ring is skipped so boundary walls stay plain, and lights
+    // are sparse so the board does not turn into a warehouse.
+    for (int y = 1; y < data.height - 1; ++y)
+    {
+        for (int x = 1; x < data.width - 1; ++x)
+        {
+            if (grid.isWalkable(x, y))
+            {
+                continue;
+            }
+            const unsigned hash =
+                static_cast<unsigned>(x * 73856093) ^ static_cast<unsigned>(y * 19349663);
+            switch (hash % 7u)
+            {
+            case 0:
+                grid.setDecor(x, y, Decor::Crate);
+                break;
+            case 1:
+                grid.setDecor(x, y, Decor::Barrel);
+                break;
+            default:
+                break;
+            }
+        }
+    }
+
     return grid;
 }
 

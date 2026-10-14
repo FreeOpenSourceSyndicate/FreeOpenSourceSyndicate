@@ -56,6 +56,7 @@ int main(int argc, char** argv)
     bool demo = false;
     bool lowSpec = false;
     bool title = false;
+    bool checkSprites = false;
     const char* screenshot = nullptr;
     std::string cliMission;   // --mission <path>
     std::string cliConfig;    // --config <path>
@@ -85,6 +86,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--title") == 0)
         {
             title = true;
+        }
+        else if (std::strcmp(argv[i], "--check-sprites") == 0)
+        {
+            checkSprites = true;
         }
         else if (std::strcmp(argv[i], "--mission") == 0 && i + 1 < argc)
         {
@@ -169,6 +174,15 @@ int main(int argc, char** argv)
         return 1;
     }
     game.setAutoPlay(demo);
+
+    if (checkSprites)
+    {
+        // Headless guard for the sprite pipeline: the authored sheet must bake
+        // into textures for every role. Used by the game_sprites ctest.
+        const bool ok = game.spritesValid();
+        std::printf(ok ? "sprites: ok\n" : "sprites: FAILED\n");
+        return ok ? 0 : 1;
+    }
 
     if (screenshot != nullptr)
     {
