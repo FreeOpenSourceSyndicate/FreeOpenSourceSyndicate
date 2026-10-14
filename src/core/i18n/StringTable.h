@@ -33,6 +33,23 @@ public:
     // missing/unreadable file or a schema error.
     bool loadFromFile(const std::string& path, std::string& error);
 
+    // Resolves and loads the table for `locale`, so a translator can add a
+    // language without touching C++.
+    //
+    // The locale file is looked up with `defaultLangPaths(exeDir, locale)` (the
+    // first existing path wins, e.g. `assets/lang/de.json`). The table is first
+    // filled from `fallback` (the English table the game passes), then the
+    // locale's own keys are overlaid on top, so a present key wins and any key
+    // the locale omits keeps its English value — an untranslated string shows
+    // English rather than the raw key.
+    //
+    // `locale` "en" (or empty) is a no-op: the table simply becomes `fallback`.
+    // Returns false and sets `error` when no locale file was found or it was
+    // malformed; the table is still populated from `fallback` and remains usable,
+    // so a missing translation is a warning, never a crash.
+    bool loadForLocale(const std::string& locale, const std::string& exeDir,
+                       const StringTable& fallback, std::string& error);
+
     // Returns the string for `key`. When the key is missing, returns `fallback`
     // if it is non-null, otherwise the key itself — so a missing key is always
     // visible in the UI rather than silently blank.
