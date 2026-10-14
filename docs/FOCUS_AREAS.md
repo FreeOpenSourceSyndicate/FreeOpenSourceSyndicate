@@ -368,7 +368,7 @@ busiest-first so the next agent can pick the top free one.
 | Content | `focus: content` | — | 2 | #90 ship explosive weapon in `weapons.json` |
 | Text | `focus: text` | — | 2 | #95 locale resolution + second-locale stub |
 | Platform | `focus: platform` | — | 2 | #91 package smoke validates content; CI upkeep |
-| Release | `focus: release` | — | 2 | #70 CHANGELOG reconcile (blocked: user decision); next release cut |
+| Release | `focus: release` | — | 1 | #70 CHANGELOG reconcile ✅ (option A); next release cut |
 
 Legend: owner `—` = free this cycle. Workload is a rough size in "PRs" (one
 small PR ≈ 1); all eight areas are seeded so the busiest-first pick always finds
@@ -399,6 +399,7 @@ a free, claimable task.
 | `--check-content` flag + `game_content` ctest | input-ui | #81 | ✅ merged (#85) |
 | AoE weapon radius | tactical | #79 | ✅ merged (#86) |
 | Medikit gadget (heal ally) | tactical | #88 | ✅ merged (#97) |
+| Reconcile `[0.5.0]` CHANGELOG with the tag | release | #70 | ✅ merged (#98, option A) |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 
