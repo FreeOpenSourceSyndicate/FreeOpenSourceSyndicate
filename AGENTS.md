@@ -240,7 +240,8 @@ src/
   game/        # SDL2 app shell: main loop, Game, rendering, input
 tests/         # unit tests for src/core (plain C++, run via ctest)
 docs/          # ARCHITECTURE, BUILD, CONTRIBUTING, COORDINATION, ROADMAP,
-               # LEGAL, ASSETS, DECISIONS, DEVELOPMENT_ENVIRONMENT, SETUP_*
+               # LEGAL, ASSETS, DECISIONS, DEVELOPMENT_ENVIRONMENT, SETUP_*,
+               # releases/ (per-version build & play docs, kept on main)
 scripts/       # bootstrap/fetch/build helpers
 assets/        # original/licensed game assets (see docs/ASSETS.md)
 ```
@@ -305,10 +306,20 @@ Rules:
    in `docs/releases/vX.Y.Z-<slug>.md`. They must be specific to *that* tag and
    branch (e.g. checking out the correct branch/tag after cloning), and must
    include **how to copy which files and directories where** to get a runnable
-   copy of the game onto another computer.
+   copy of the game onto another computer. The same file is **also kept on
+   `main`**, so the record is complete without checking out a tag (see the
+   history rule below).
 4. **Graphics** follow golden rule 8 and §1: for v1.0.0 the target look is the
    original's, so prefer **pixel art**. Do not gate a release on vector/SVG art.
 5. Update `AGENTS.md` §10 and the roadmap when a release ships.
+6. **`main` is the complete record.** Everything the project has shipped must be
+   visible on `main`: keep the full, numbered `CHANGELOG.md` history there (add
+   the new version's section to `main`, don't only write it on the release
+   branch), and keep each release's `docs/releases/vX.Y.Z-<slug>.md` on `main`
+   too. A release branch may carry an identical copy; it is not the only copy.
+   When a release ships, land these on `main` in the same change that records it
+   in §10. (This rule exists because v0.3.0 and v0.4.0 initially left their
+   changelog sections and release docs only on their release branches.)
 
 A release branch is a frozen, playable snapshot: keep it building and playable,
 and do not let unrelated work drift onto it.

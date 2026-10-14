@@ -314,4 +314,48 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
     ADR-0009 already governs all future art. No repair branch is needed.
   - Existing shipped releases (`v0.1.0`–`v0.3.0`) are frozen as of this ADR.
 
+---
+
+## ADR-0012 — `main` is the complete project record
+
+- **Status:** Accepted (2026-10-14)
+- **Date:** 2026-10-14
+- **Context:** The release process (`AGENTS.md` §6a) had agents write the
+  numbered `CHANGELOG.md` section and the `docs/releases/vX.Y.Z-<slug>.md`
+  playtest doc **only on the release branch**, then cut the tag. As a result,
+  `main` never showed `0.3.0` or `0.4.0` in its changelog, and `docs/releases/`
+  did not exist on `main` at all: the project's own history was only visible if
+  you checked out a tag. That makes `main` a poor source of truth for a human or
+  agent trying to understand what has shipped. (The same mistake stranded the
+  v0.3.0 on-screen version stamp's *code* on its release branch.)
+- **Options:**
+  1. **Keep release metadata only on the release branch.** Rejected: `main`
+     loses the history, and the tagged snapshot is the only place the record
+     lives — exactly the problem this ADR fixes.
+  2. **Keep release metadata only on `main`, not on the release branch.**
+     Rejected: the release doc is deliberately version-specific and belongs with
+     the frozen snapshot too, so a person who checks out the tag sees it.
+  3. **Keep it on both.** Chosen: the release branch carries the version-specific
+     doc and the numbered changelog section *for that snapshot*; `main` carries
+     the same numbered section and doc as the durable record. The two copies are
+     identical at the moment of the tag and may drift only if `main` later
+     corrects a typo (the release branch stays frozen — ADR-0011).
+- **Decision:** **Option 3.** Everything the project has shipped is visible on
+  `main`:
+  - `CHANGELOG.md` on `main` keeps the **full, numbered history**; the
+    `[Unreleased]` section only ever holds work that has not been released yet.
+  - `docs/releases/vX.Y.Z-<slug>.md` is committed to `main` as well as to the
+    release branch, and is listed in `docs/releases/README.md`.
+  - When a release ships, these land on `main` in the same change that updates
+    `AGENTS.md` §10.
+- **Consequences:**
+  - `AGENTS.md` §6a gains rule 6 ("`main` is the complete record");
+    `docs/CONTRIBUTING.md` mirrors it.
+  - Backfilled for the existing releases: `main` now carries the `0.3.0` and
+    `0.4.0` changelog sections and their `docs/releases/*.md` docs. The v0.1.0
+    and v0.2.0 changelog sections were already on `main`; they predate the
+    `docs/releases/` convention, so no per-version doc is backfilled for them.
+  - Release branches remain frozen and untouched (ADR-0011); this ADR only adds
+    copies to `main`, it does not edit any published branch or tag.
+
 
