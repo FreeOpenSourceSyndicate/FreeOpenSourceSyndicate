@@ -188,3 +188,85 @@ FOSSYND_TEST(Pathfinding, StringPullingShorterOrEqualThanRaw)
     FOSSYND_CHECK(smoothed.size() <= fourWay.size());
     FOSSYND_CHECK(everySegmentClear(grid, smoothed));
 }
+
+FOSSYND_TEST(Pathfinding, NodeCapBoundsWorstCaseSearch)
+{
+    // 100x100 with a wall at x=50 and a single gap on the bottom row: the
+    // optimal route detours far, and the Manhattan heuristic ignores the wall, so
+    // A* must expand several thousand nodes before it can pop the goal. That
+    // exceeds the default cap (issue #121).
+    TileGrid grid(100, 100);
+    for (int y = 0; y < 100; ++y)
+    {
+        if (y != 99)
+        {
+            grid.setWalkable(50, y, false);
+        }
+    }
+
+    // Reachable: a generous cap finds the path, so an empty result below is the
+    // cap at work, not an unreachable goal.
+    const auto generous = findPath(grid, TilePos{0, 0}, TilePos{99, 0}, /*allowDiagonal=*/false,
+                                   /*maxExpandedNodes=*/1000000);
+    FOSSYND_CHECK(!generous.empty());
+    FOSSYND_CHECK(generous.front() == (TilePos{0, 0}));
+    FOSSYND_CHECK(generous.back() == (TilePos{99, 0}));
+
+    // The shipped default bounds the same request to "no path" instead of
+    // expanding the rest of the grid.
+    FOSSYND_CHECK(findPath(grid, TilePos{0, 0}, TilePos{99, 0}, /*allowDiagonal=*/false).empty());
+
+    // A tiny cap bounds it harder still, and never hangs.
+    FOSSYND_CHECK(findPath(grid, TilePos{0, 0}, TilePos{99, 0}, false, /*maxExpandedNodes=*/10).empty());
+}
+
+FOSSYND_TEST(Pathfinding, NodeCapIsDeterministic)
+{
+    // The cap is a fixed node count, not a time budget, so a bounded search
+    // returns the same thing every time.
+    TileGrid grid(100, 100);
+    for (int y = 0; y < 100; ++y)
+    {
+        if (y != 99)
+        {
+            grid.setWalkable(50, y, false);
+        }
+    }
+
+    const auto first = findPath(grid, TilePos{0, 0}, TilePos{99, 0}, false, 100);
+    const auto second = findPath(grid, TilePos{0, 0}, TilePos{99, 0}, false, 100);
+    FOSSYND_CHECK(first.empty());
+    FOSSYND_CHECK(first == second);
+}
+
+FOSSYND_TEST(Pathfinding, NodeCapLeavesUnderCapResultsUnchanged)
+{
+    // When the cap is not reached the result is identical to an unbounded search:
+    // the bound only ever turns a would-be path into "no path", never reshapes a
+    // path it completes.
+    TileGrid grid(7, 7);
+    for (int y = 0; y < 7; ++y)
+    {
+        if (y != 3)
+        {
+            grid.setWalkable(3, y, false);
+        }
+    }
+
+    const auto withDefault = findPath(grid, TilePos{0, 0}, TilePos{6, 0}, /*allowDiagonal=*/true);
+    const auto withHugeCap =
+        findPath(grid, TilePos{0, 0}, TilePos{6, 0}, /*allowDiagonal=*/true, 1000000);
+    FOSSYND_CHECK(!withDefault.empty());
+    FOSSYND_CHECK(withDefault == withHugeCap);
+}
+
+FOSSYND_TEST(Pathfinding, NodeCapZeroStillResolvesStartEqualsGoal)
+{
+    // The goal check runs before the cap, so a degenerate request is resolved
+    // even under a zero budget.
+    TileGrid grid(5, 5);
+    const auto path = findPath(grid, TilePos{2, 2}, TilePos{2, 2}, /*allowDiagonal=*/false,
+                               /*maxExpandedNodes=*/0);
+    FOSSYND_CHECK_EQ(static_cast<int>(path.size()), 1);
+    FOSSYND_CHECK(path.front() == (TilePos{2, 2}));
+}

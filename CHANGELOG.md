@@ -48,6 +48,15 @@ contains no original assets, code, names, or trademarks.
 
 ### Changed
 
+- **The A* search is bounded by a node-expansion cap.** `findPath` now takes a
+  `maxExpandedNodes` budget (default `kDefaultMaxExpandedNodes`, 2048) and
+  returns "no path" instead of expanding the whole grid when it is exhausted, so
+  a pathological or very large request cannot stall a frame on the target
+  hardware (ADR-0008). The cap is a fixed node count, not a time budget, so the
+  search stays deterministic, and it only ever turns a would-be path into "no
+  path" — when it is not reached the result is unchanged. New tests in
+  `tests/test_pathfinding.cpp` cover the worst case, determinism, and the
+  unchanged-under-cap case. Issue #121.
 - **Coordination is flat; the coordinator role is removed** (ADR-0019). Agents
   abort mid-cycle, and a single role that owned the merge queue, overlap
   arbitration, and the workload plan was a single point of failure. Coordination
