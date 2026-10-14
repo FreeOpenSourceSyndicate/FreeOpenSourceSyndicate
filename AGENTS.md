@@ -511,6 +511,12 @@ run the game target locally and note the result in the PR.
   `assets/data/missions/demo.json`, preferring an external file and falling
   back to the copy embedded at build time (so the binary stays self-contained).
   To add a mission, add a JSON file — do not hard-code it in C++.
+- **Shared catalogues (ADR-0003, `focus: content`):** weapons and reusable agent
+  templates that several missions share live in `assets/data/weapons.json` and
+  `assets/data/agents.json`. To add a weapon or agent template, append an entry
+  to the matching file and reference it by `weaponId`/`agentId`; a mission that
+  inlines its content (e.g. `demo.json`) is unaffected. Schema in
+  `docs/DATA_FORMAT.md` ("Shared catalogues").
 - **Mission selection is configurable:** `--mission <path>` (CLI) overrides a
   `mission`/`mission_dir` key in a config file (`--config <path>`, else
   `./fossynd.conf`, `<exe-dir>/fossynd.conf`, `/etc/fossynd.conf`,
