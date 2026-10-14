@@ -383,7 +383,7 @@ busiest-first so the next agent can pick the top free one.
 | World | `focus: world` | — | 1 | #93 string-pull A* routes ✅ (merged #99 + wiring #101); LOS follow-ups |
 | Render | `focus: render` | — | 2 | #89 draw queued waypoint path; Phase 2 zoom (unfiled) |
 | Input/UI | `focus: input-ui` | — | 2 | #94 box-select drag; control-group polish |
-| Content | `focus: content` | — | 2 | #90 ship explosive weapon in `weapons.json` |
+| Content | `focus: content` | — | 1 | #90 explosive `launcher` ✅ (merged #107); more weapons / balance |
 | Text | `focus: text` | — | 1 | #95 locale resolution + `de` stub ✅ (merged #104); more locales, `--lang` flag (input-ui) |
 | Platform | `focus: platform` | — | 1 | #91 package smoke validates content ✅ (merged #105); #103 install every `assets/lang/*.json` |
 | Release | `focus: release` | — | 1 | #70 CHANGELOG reconcile ✅ (option A); next release cut |
@@ -421,6 +421,7 @@ a free, claimable task.
 | String-pulled A* routes | world | #93 | ✅ merged (#99, smoothing) + wiring fix (#101) |
 | Locale resolution + `de` stub | text | #95 | ✅ merged (#104) |
 | Package ships catalogues + validates content | platform | #91 | ✅ merged (#105) |
+| Explosive weapon (`launcher`) in the catalogue | content | #90 | ✅ merged (#107) |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 
