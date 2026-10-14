@@ -71,6 +71,15 @@ contains no original assets, code, names, or trademarks.
   from a single `kReleaseCodename` constant (mirrored in `app.tagline`) so the
   Release lane can bump it in one place each cut. Issue #48.
 
+### Fixed
+
+- **Packages now ship every locale, not just English.** The install rule listed
+  `assets/lang/en.json` explicitly, so a translator's file added to
+  `assets/lang/` never reached an installed/packaged game — it could only ever
+  find English. The rule now installs the whole directory
+  (`install(DIRECTORY ... FILES_MATCHING PATTERN "*.json")`), and the packaging
+  CI job asserts that every `assets/lang/*.json` appears in the TGZ. Issue #103.
+
 ## [0.5.0] — 2026-10-14 — "Recruitment"
 
 The squad is no longer four agents on a bare floor: agents are animated pixel-art

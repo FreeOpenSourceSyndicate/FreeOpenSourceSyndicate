@@ -97,8 +97,12 @@ install(FILES
         DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd)
 install(FILES "${CMAKE_SOURCE_DIR}/assets/data/fossynd.conf.example"
         DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd)
-install(FILES "${CMAKE_SOURCE_DIR}/assets/lang/en.json"
-        DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd/lang)
+# Ship the whole language directory, not just English: a translator's file added
+# to assets/lang/ must appear in the package, or an installed game can never load
+# a locale other than en (issue #103).
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/assets/lang/"
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd/lang
+        FILES_MATCHING PATTERN "*.json")
 
 # Ship the license and readme with the package (docs/LEGAL.md).
 install(FILES "${CMAKE_SOURCE_DIR}/LICENSE"
