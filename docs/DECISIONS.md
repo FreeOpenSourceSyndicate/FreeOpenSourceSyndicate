@@ -10,11 +10,11 @@ Every architectural decision is recorded here **before** it is implemented, so
 parallel agents can rely on it. Format: short, dated, with options and a
 decision. Supersede rather than delete.
 
-Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by ADR-NNNN`.
+Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN`.
 
 ---
 
-## ADR-0001 â€” Game engine / rendering stack
+## ADR-0001 — Game engine / rendering stack
 
 - **Status:** Superseded by ADR-0006
 - **Date:** 2026-10-12
@@ -29,7 +29,7 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
 
 ---
 
-## ADR-0002 â€” Engine-agnostic core (`src/core`)
+## ADR-0002 — Engine-agnostic core (`src/core`)
 
 - **Status:** Accepted
 - **Date:** 2026-10-12
@@ -43,14 +43,14 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
 
 ---
 
-## ADR-0003 â€” Gameplay data format
+## ADR-0003 — Gameplay data format
 
 - **Status:** Accepted (2026-10-13)
 - **Date:** 2026-10-12, accepted 2026-10-13
 - **Context:** Content (weapons, agents, missions, balance) must be editable
   without C++ changes and without merge conflicts between agents. The project
   targets very old, low-end hardware and prizes a tiny dependency footprint
-  (AGENTS.md Â§1b, Â§1c), so a large parser dependency is undesirable. Content
+  (AGENTS.md §1b, §1c), so a large parser dependency is undesirable. Content
   files are also read and written by many LLM agents, so a format that is easy
   to generate and diff matters more than one that is compact.
 - **Options:**
@@ -60,7 +60,7 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
      objects, arrays, strings, numbers, booleans, `null`. Comments and trailing
      commas are rejected, so the files stay valid JSON.
   2. JSON via `nlohmann/json` (MIT). Battle-tested, but a large header to compile
-     and pull in, against Â§1b.
+     and pull in, against §1b.
   3. YAML. Friendlier to hand-edit but needs a parser and is easier to get wrong.
   4. A custom text/INI format. No dependency, but non-standard and more code to
      maintain, with worse tooling.
@@ -73,10 +73,10 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
   format.
 - **Consequences:**
   - Content authors edit `assets/data/missions/*.json`; two agents can add
-    missions without touching the same C++ file (Â§4.7, "data over code").
+    missions without touching the same C++ file (§4.7, "data over code").
   - The parser is deliberately small: it is not a general JSON implementation,
     and the game rejects malformed or unsupported input with an error string.
-  - No new third-party dependency; the low-spec binary stays small (Â§1b).
+  - No new third-party dependency; the low-spec binary stays small (§1b).
   - The loader lives in `core`, so it is unit-tested headlessly and stays
     SDL-free (ADR-0002). The engine layer only decides *where* the file is.
   - Missions may later reference a shared weapon catalogue; that is a
@@ -84,7 +84,7 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
 
 ---
 
-## ADR-0004 â€” Scripting / modding layer
+## ADR-0004 — Scripting / modding layer
 
 - **Status:** Proposed
 - **Date:** 2026-10-12
@@ -97,7 +97,7 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
 
 ---
 
-## ADR-0005 â€” CI scope
+## ADR-0005 — CI scope
 
 - **Status:** Accepted
 - **Date:** 2026-10-12
@@ -114,7 +114,7 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
 
 ---
 
-## ADR-0006 â€” Adopt SDL2 + SDL_Renderer; drop Cocos2d-x
+## ADR-0006 — Adopt SDL2 + SDL_Renderer; drop Cocos2d-x
 
 - **Status:** Accepted
 - **Date:** 2026-10-12
@@ -124,25 +124,25 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
   too heavy and too hard to build and verify in CI. We need a small, fast,
   software-friendly renderer for an isometric tile game.
 - **Options:**
-  1. **SDL2 + `SDL_Renderer`** â€” ~1 MB library, permissive zlib license, stable
+  1. **SDL2 + `SDL_Renderer`** — ~1 MB library, permissive zlib license, stable
      C API, mature, available in every distro. `SDL_Renderer` can use the
      `software` backend, so it runs without a GPU. We write our own tiny
      sprite/tile blitter on top.
-  2. SDL2 + raw OpenGL â€” more control, but requires a GPU/driver and more code.
-  3. raylib / SFML â€” similar trade-offs; less ubiquitous than SDL2 on old
+  2. SDL2 + raw OpenGL — more control, but requires a GPU/driver and more code.
+  3. raylib / SFML — similar trade-offs; less ubiquitous than SDL2 on old
      Debian systems.
 - **Decision:** Use **SDL2 + `SDL_Renderer`** (software-capable). Keep the
   engine behind the `src/game/` boundary; `src/core/` stays SDL-free (ADR-0002).
 - **Consequences:**
   - Small dependency, easy CI, runs on old hardware.
-  - We own rendering/input/audio glue â€” more code, but simple for tiles/sprites.
+  - We own rendering/input/audio glue — more code, but simple for tiles/sprites.
   - SDL2 is zlib-licensed (MIT-compatible), satisfying the open-source-first rule.
   - The Cocos2d-x bootstrap scripts are obsolete and will be removed.
   - Supersedes ADR-0001.
 
 ---
 
-## ADR-0007 â€” Simulation owns gameplay; the SDL2 layer is a thin view
+## ADR-0007 — Simulation owns gameplay; the SDL2 layer is a thin view
 
 - **Status:** Accepted
 - **Date:** 2026-10-12
@@ -162,7 +162,7 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
   renders `Mission` state. The scene is described by data passed to
   `Mission::addAgent`, not baked into the renderer.
 - **Consequences:**
-  - Missions are reproducible: same seed + same orders â‡’ same result, enabling
+  - Missions are reproducible: same seed + same orders ⇒ same result, enabling
     deterministic tests (`tests/test_mission.cpp`).
   - The renderer stays replaceable and lightweight (old-hardware goal, ADR-0006).
   - Content is still hard-coded in `Game::buildMission` for now; moving it to a
@@ -173,7 +173,7 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
 
 ---
 
-## ADR-0008 â€” Low-spec profile for very old hardware
+## ADR-0008 — Low-spec profile for very old hardware
 
 - **Status:** Accepted
 - **Date:** 2026-10-12
@@ -188,7 +188,7 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
      runtime defaults to a small window and forces the SDL software renderer.
   2. A separate "minimal" renderer/backend. More work, more code to maintain,
      and unnecessary while `SDL_Renderer`'s software path exists.
-  3. Nothing â€” rely on the compiler defaults and the existing software fallback.
+  3. Nothing — rely on the compiler defaults and the existing software fallback.
      Rejected: no explicit target means old-hardware support silently rots.
 - **Decision:** Option 1.
   - CMake: `FOSSYND_LOW_SPEC` adds `-Os -fno-unwind-tables
@@ -207,12 +207,12 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
 
 ---
 
-## ADR-0009 â€” v1.0.0 is a faithful, pixel-art reproduction; improvements are v2.x.x
+## ADR-0009 — v1.0.0 is a faithful, pixel-art reproduction; improvements are v2.x.x
 
 - **Status:** Accepted (2026-10-13)
 - **Date:** 2026-10-13
 - **Context:** The project must decide what "done" means for v1.0.0 and how to
-  treat visual and handling improvements. An earlier convention (AGENTS.md Â§6a)
+  treat visual and handling improvements. An earlier convention (AGENTS.md §6a)
   told contributors to prefer **SVG** for graphics; the maintainer has since
   decided that the original's chunky **pixel-art** look is what v1.0.0 should
   reproduce, and that the SVG preference is retracted.
@@ -231,7 +231,7 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
   handling/quality-of-life changes are **out of scope for v1.0.0** and belong to
   a v2.x.x release or a fork.
 - **Consequences:**
-  - `AGENTS.md` Â§1 (goal), Â§6a (releases) and golden rule 8 updated; the SVG
+  - `AGENTS.md` §1 (goal), §6a (releases) and golden rule 8 updated; the SVG
     section in `docs/ASSETS.md` replaced with a pixel-art section.
   - The low-spec profile (ADR-0008) is aligned with, not opposed to, the v1.0.0
     goal: a small, low-resolution, software-rendered build is faithful.
@@ -241,7 +241,7 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
 
 ---
 
-## ADR-0010 â€” Project name: FOSSynd
+## ADR-0010 — Project name: FOSSynd
 
 - **Status:** Accepted
 - **Date:** 2026-10-13
@@ -253,18 +253,18 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
   common term, and (as a bonus, not a requirement) able to nod to the *Syndicate*
   heritage in the `FreeCiv`/`FreeCol` style.
 - **Options:**
-  1. **`FOSSynd`** â€” reads as "FOSS" + "syndicate", keeps the open-source
+  1. **`FOSSynd`** — reads as "FOSS" + "syndicate", keeps the open-source
      reference, and follows the `Free<Game>` naming pattern of FreeCiv/FreeCol
      (there, "Free"; here, "FOSS"). Collision-free (0 GitHub results) and
      distinct from the existing `FreeSynd` project and AMD's `FreeSync` mark.
-  2. `FreeSyn` â€” rejected: one letter from the existing open-source `FreeSynd`
+  2. `FreeSyn` — rejected: one letter from the existing open-source `FreeSynd`
      *Syndicate* engine reimplementation and from AMD's trademarked `FreeSync`.
-  3. `Sovereign Cartel`, `Konzernstaat`, `Chartered Company` â€” all clear, but
+  3. `Sovereign Cartel`, `Konzernstaat`, `Chartered Company` — all clear, but
      none carries the open-source reference that was preferred.
-  4. Keep `FOSS` â€” rejected: ambiguous with the generic term (the original
+  4. Keep `FOSS` — rejected: ambiguous with the generic term (the original
      problem).
 - **Decision:** Option 1. The project is **FOSSynd** ("Free, Open-Source
-  Syndicate"). "Syndicate" stays descriptive, never a brand mark (LEGAL.md Â§3).
+  Syndicate"). "Syndicate" stays descriptive, never a brand mark (LEGAL.md §3).
   The CMake option prefix becomes `FOSSYND_*`, the core library `fossynd_core`,
   the C++ namespace `fossynd::`, the test macros `FOSSYND_TEST`/`FOSSYND_CHECK*`,
   and the game binary `FOSSynd`.
@@ -277,7 +277,7 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
 
 ---
 
-## ADR-0011 â€” Published release branches are immutable; the sole account may self-merge
+## ADR-0011 — Published release branches are immutable; the sole account may self-merge
 
 - **Status:** Accepted (2026-10-13)
 - **Date:** 2026-10-13
@@ -287,7 +287,7 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
   A concrete case: the `v0.3.0` release carries a `assets/ui/banner.svg` that the
   later pixel-art decision (ADR-0009) no longer favours. (2) With only one
   GitHub account active on the project, requiring independent review of every PR
-  stalls the queue â€” the creator is also the only available reviewer.
+  stalls the queue — the creator is also the only available reviewer.
 - **Options:**
   1. **Freeze releases; allow creator self-merge for now.** Never touch a
      published release branch/tag except to keep it *working* (and then only on
@@ -299,7 +299,7 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
      without a second account; it just leaves green PRs unmerged.
 - **Decision:** **Option 1.**
   - **Release branches are immutable** once published. No commits, rewrites, or
-    re-tags â€” not for docs or cleanup. The only exception is a fix needed because
+    re-tags — not for docs or cleanup. The only exception is a fix needed because
     the release would otherwise **break** (e.g. a required library disappeared) or
     because the law requires it; such a fix goes on a **new branch cut from the
     finished release branch** (e.g. `fix/v0.3.0-<desc>`), never on the original.
@@ -307,20 +307,20 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
     GitHub account is the only account working on the project. Once a second
     account joins, independent review resumes.
 - **Consequences:**
-  - `AGENTS.md` Â§6b (new) states the immutability rule; Â§3a states the
+  - `AGENTS.md` §6b (new) states the immutability rule; §3a states the
     sole-account self-merge rule.
   - The `v0.3.0` `banner.svg` is deliberately **left in place**: it is not loaded
     at runtime, so it neither breaks nor legally endangers the release, and
     ADR-0009 already governs all future art. No repair branch is needed.
-  - Existing shipped releases (`v0.1.0`â€“`v0.3.0`) are frozen as of this ADR.
+  - Existing shipped releases (`v0.1.0`–`v0.3.0`) are frozen as of this ADR.
 
 ---
 
-## ADR-0012 â€” `main` is the complete project record
+## ADR-0012 — `main` is the complete project record
 
 - **Status:** Accepted (2026-10-14)
 - **Date:** 2026-10-14
-- **Context:** The release process (`AGENTS.md` Â§6a) had agents write the
+- **Context:** The release process (`AGENTS.md` §6a) had agents write the
   numbered `CHANGELOG.md` section and the `docs/releases/vX.Y.Z-<slug>.md`
   playtest doc **only on the release branch**, then cut the tag. As a result,
   `main` never showed `0.3.0` or `0.4.0` in its changelog, and `docs/releases/`
@@ -331,7 +331,7 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
 - **Options:**
   1. **Keep release metadata only on the release branch.** Rejected: `main`
      loses the history, and the tagged snapshot is the only place the record
-     lives â€” exactly the problem this ADR fixes.
+     lives — exactly the problem this ADR fixes.
   2. **Keep release metadata only on `main`, not on the release branch.**
      Rejected: the release doc is deliberately version-specific and belongs with
      the frozen snapshot too, so a person who checks out the tag sees it.
@@ -339,7 +339,7 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
      doc and the numbered changelog section *for that snapshot*; `main` carries
      the same numbered section and doc as the durable record. The two copies are
      identical at the moment of the tag and may drift only if `main` later
-     corrects a typo (the release branch stays frozen â€” ADR-0011).
+     corrects a typo (the release branch stays frozen — ADR-0011).
 - **Decision:** **Option 3.** Everything the project has shipped is visible on
   `main`:
   - `CHANGELOG.md` on `main` keeps the **full, numbered history**; the
@@ -347,9 +347,9 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
   - `docs/releases/vX.Y.Z-<slug>.md` is committed to `main` as well as to the
     release branch, and is listed in `docs/releases/README.md`.
   - When a release ships, these land on `main` in the same change that updates
-    `AGENTS.md` Â§10.
+    `AGENTS.md` §10.
 - **Consequences:**
-  - `AGENTS.md` Â§6a gains rule 6 ("`main` is the complete record");
+  - `AGENTS.md` §6a gains rule 6 ("`main` is the complete record");
     `docs/CONTRIBUTING.md` mirrors it.
   - Backfilled for the existing releases: `main` now carries the `0.3.0` and
     `0.4.0` changelog sections and their `docs/releases/*.md` docs. The v0.1.0
@@ -362,7 +362,7 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
 
 ---
 
-## ADR-0013 â€” Sprites are authored text baked in `core`, uploaded by the view
+## ADR-0013 — Sprites are authored text baked in `core`, uploaded by the view
 
 - **Status:** Accepted (2026-10-13)
 - **Date:** 2026-10-13
@@ -371,7 +371,7 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
   assets must be original and license-clean (`docs/ASSETS.md`) and authored by
   LLM agents, so no binary art can be committed from a drawing tool; the game
   must stay a single self-contained executable on very old hardware (AGENTS.md
-  Â§1b); and `src/core/` must not include `SDL.h` (ADR-0002, golden rule 1), so
+  §1b); and `src/core/` must not include `SDL.h` (ADR-0002, golden rule 1), so
   the testable sprite logic cannot live in the view.
 - **Options:**
   1. **Commit PNG/BMP art and load it with `SDL_image`.** Rejected: adds a
