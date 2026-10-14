@@ -156,6 +156,10 @@ jobs:
           tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'bin/FOSSynd'
           tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/weapons.json'
           tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/agents.json'
+          # Every locale in the tree must ship, not just English (issue #103):
+          # `de.json` is an added translation and must be in the package.
+          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/lang/en.json'
+          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/lang/de.json'
           dpkg-deb -f build/*.deb Package Version Depends
 
       - name: Run the packaged binary (headless)
