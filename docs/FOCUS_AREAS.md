@@ -315,10 +315,12 @@ This table tracks the **current** state. Update it whenever a queue issue closes
 | CPack packaging (Linux) | platform | #61 | ✅ merged (ADR-0017) |
 | Recruiter-gadget rename (legal) | coordinator | #57 | ✅ merged (#64, ADR-0018) |
 | HUD/title from string table + codename | client | #53, #48 | ✅ merged (#65) |
-| Control groups (hotkeys) | client | #33 | ◑ half-merged (#51); waypoint half → #42 |
-| Split `Game.cpp` into `Hud.cpp`/`TitleCard.cpp` | client | #69 | ⬜ open |
-| Per-agent waypoint queue | core | #42 | ⬜ open (needs `Mission` order-API freeze) |
-| Walls block sight/fire | core (+client cue) | #63 | ⬜ open (needs #42's order API) |
+| Control groups (hotkeys) | client | #33 | ◑ half-merged (#51); UI half → #75 |
+| HUD objective tint (+ off-screen fix) | client | #72 | ✅ merged (#73) |
+| Per-agent waypoint queue (core API) | core | #42 | ✅ merged (#74) |
+| Split `Game.cpp` into `Hud.cpp`/`TitleCard.cpp` | client | #69 | ⬜ open (next `client` task) |
+| Shift-click append to the waypoint queue | client | #75 | ⬜ open (after #69) |
+| Walls block sight/fire | core | #63 | ⬜ open (next `core` task) |
 | Content validator (dangling `weaponId`/`agentId`) | content | #71 | ⬜ open |
 | Reconcile `[0.5.0]` CHANGELOG with the tag | platform | #70 | ⬜ open (needs a user decision) |
 | Coordination hub | coordinator | #38 | this |
@@ -326,10 +328,10 @@ This table tracks the **current** state. Update it whenever a queue issue closes
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 
 **One concrete task per lane** is seeded so every agent has something to claim:
-**#42/#63** (`core`), **#69** (`client`), **#71** (`content`), **#70**
-(`platform`, blocked on a user decision). The `core` pair is serial (#63 depends
-on #42's `Mission` order-API contract); the other three lanes can proceed in
-parallel. A lane that drains announces availability on #38 and takes *assigned*
+**#63** (`core`), **#69 → #75** (`client`, serial: #75 rebases over #69), **#71**
+(`content`), **#70** (`platform`, blocked on a user decision). The `client` pair
+is serial (`Game.cpp`); `core`, `content` and `platform` can proceed in parallel.
+A lane that drains announces availability on #38 and takes *assigned*
 review/helper work (§5), not self-started features.
 
 **Re-split trigger.** If the active agent count rises again, split a lane back
