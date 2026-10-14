@@ -38,6 +38,13 @@ contains no original assets, code, names, or trademarks.
   shift-click is visible before it is walked. Reads `Agent::moveQueue()`; draws
   nothing when the queue is empty. View-only; new ctest `game_waypoint_path`
   (`--headless --check-waypoint-path`) covers the drawn geometry. Issue #89.
+- **Complete German UI translation:** `assets/lang/de.json` now carries every
+  key `en.json` does (was 7 of 23), so running with `de` shows no English
+  fallbacks. Values are ASCII transliterations (`AE`/`OE`/`UE`/`SS`) because the
+  embedded 5x7 font draws ASCII 32..126 only. Two `tests/test_i18n.cpp` gates
+  keep locales honest: one requires each shipped locale's key set to equal
+  English's, the other requires the same `{placeholder}` set per key and
+  ASCII-renderable values. Issue #125.
 
 ### Changed
 

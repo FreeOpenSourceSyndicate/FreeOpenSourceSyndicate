@@ -1,10 +1,29 @@
 {
-  "_comment": "FOSSynd German UI strings — PARTIAL, UNTRANSLATED PLACEHOLDER (issue #95). Only a handful of keys are filled in and none have been reviewed by a native speaker; the values are original FOSSynd text (docs/LEGAL.md). Every key not listed here falls back to en.json at load time (StringTable::loadForLocale), so this file can be completed key-by-key without touching C++.",
+  "_comment": "FOSSynd German UI strings (issue #125). Complete key set, kept in lockstep with en.json by the parity test in tests/test_i18n.cpp. Values are original FOSSynd text (docs/LEGAL.md), AI-generated and not yet reviewed by a native speaker. ASCII-only by necessity: the embedded 5x7 bitmap font covers ASCII 32..126 only (src/game/Font.cpp), so umlauts are transliterated AE/OE/UE and sharp-s as SS; the parity test enforces this so an unrenderable glyph cannot ship.",
 
   "app.title": "FOSSYND",
+  "app.version": "v{version}",
   "app.tagline": "REKRUTIERUNG",
-  "hud.squad": "TRUPPE",
+
   "hud.objective.eliminate": "ZIEL: ALLE {count} FEINDE AUSSCHALTEN",
-  "state.won": "MISSION ERFÜLLT",
-  "title.prompt": "BELIEBIGE TASTE DRÜCKEN"
+  "hud.objective.reach": "ZIEL: FELD ({x},{y}) ERREICHEN",
+  "hud.objective.survive": "ZIEL: {seconds}s UEBERLEBEN",
+  "hud.controls": "[L] BEWEGEN   [SHIFT+KLICK] REIHEN   [KLICK FEIND/RECHTS] ANGRIFF   [1-4] GRUPPE   [A]LLE   [P] UEBERZEUGEN   [F] FREI   [R] NEUSTART",
+  "hud.followers": "GEFOLGTE: {count}",
+  "hud.collateral": "KOLLATERAL: {count}",
+  "hud.squad": "TRUPPE",
+  "hud.agentRow": "{marker}{name}  {weapon}  HP {hp}",
+  "hud.winSub": "R DRUECKEN FUER NEUSTART",
+  "hud.loseSub": "R DRUECKEN FUER WIEDERHOLEN",
+
+  "state.inProgress": "LAEUFT",
+  "state.won": "MISSION ERFUELLT",
+  "state.lost": "TRUPPE VERLOREN",
+
+  "title.prompt": "BELIEBIGE TASTE DRUECKEN",
+  "title.controls.move": "KLICK / L  TRUPPE BEWEGEN",
+  "title.controls.attack": "RECHTSKLICK  ZIELFEUER",
+  "title.controls.select": "1-4 ABRUF  STRG+1-4 SETZEN  A  ALLE",
+  "title.controls.misc": "PFEILE  SCROLLEN   R  NEUSTART   ESC  BEENDEN",
+  "title.footer": "FOSSYND v{version}  -  FREIES OPEN-SOURCE-SYNDIKAT"
 }
