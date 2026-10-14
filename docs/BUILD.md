@@ -134,6 +134,7 @@ agents before your squad is wiped out.
 | **Keys `1`–`4`** | Recall control group 1–4 |
 | **`A`** | Select the whole squad |
 | **Left click the ground** | Order the selected agents to move (2-wide formation) |
+| **Shift + left click the ground** | Append that tile to each selected agent's waypoint queue (walk a path) |
 | **Right click an enemy (or left-click it)** | Order the selection to focus fire on that enemy |
 | **`P`** | Use the selected agents' Compliance Beacons to recruit the nearest civilian in range |
 | **`F`** | Release the selected agents' followers back into the crowd |
@@ -171,6 +172,7 @@ They flee when gunfire starts nearby. Civilian deaths you cause are counted as
 | `--check-sprites` | Headless guard: exit non-zero if the sprite sheet fails to bake |
 | `--check-minimap` | Headless guard: exit non-zero if the minimap panel or blips fail |
 | `--check-selection` | Run the selection / control-group self-check headlessly and exit (ctest `game_selection`) |
+| `--check-waypoints` | Run the shift-click waypoint-queue self-check headlessly and exit (ctest `game_waypoints`) |
 | `--check-lang` | Run the UI string-table self-check headlessly and exit (ctest `game_lang`) |
 
 ### Core-only build (no SDL2 needed)
