@@ -8,6 +8,21 @@ contains no original assets, code, names, or trademarks.
 
 ## [Unreleased]
 
+_No changes yet._
+
+## [0.5.0] — 2026-10-14 — "Recruitment"
+
+The squad is no longer four agents on a bare floor: agents are animated pixel-art
+sprites, the city has props, you can press a device to turn bystanders into
+followers, and a mission can declare its own win condition.
+
+**Visibly different from v0.4.0:** the flat agent diamonds are now authored
+pixel-art sprites with a walk cycle, drawn depth-sorted with crates and barrels;
+a **minimap** in the top-right shows the whole board with a live blip per agent;
+pressing `P` recruits nearby civilians as cyan followers that trail your squad;
+and the HUD can show a `FOLLOWERS` count and objective-specific text (reach /
+survive), with a new sample mission to play.
+
 ### Added
 
 - **Minimap:** a whole-board overview panel in the top-right HUD corner shows the
@@ -44,6 +59,26 @@ contains no original assets, code, names, or trademarks.
   and `Mission::followerCount` reports them. View: `P` persuades with the
   selection, `F` frees followers, followers render cyan, and the HUD shows a
   follower count. No RNG, no effect on win/lose.
+- **Fixed-timestep timing groundwork (core):** a header-only `FixedTimestep`
+  accumulator (`core/math/Timestep.h`) banks frame time into whole fixed steps
+  (clamping a long frame so a stall cannot cause a catch-up burst), and
+  `core::Agent` gained `previousPosition()` / `interpolatedPosition(alpha)` for
+  smooth rendering between steps. `position()` and `update()` keep their exact
+  semantics, so deterministic mission outcomes are unchanged. Engine-free and
+  unit-tested (`tests/test_timestep.cpp`).
+
+### Changed
+
+- **On-screen version stamp reads `v0.5.0`** — window title, HUD, and title card
+  (single-sourced from the CMake project version).
+- **The v0.5.0 sample mission** `assets/data/missions/escort.json` ("Rooftop
+  Exfil") uses a `reach` objective, demonstrating the data-driven win conditions.
+
+### Release
+
+- Branch `release/v0.5.0-recruitment`, tag `v0.5.0`; per-version build, play,
+  and copy-to-another-computer instructions in
+  [`docs/releases/v0.5.0-recruitment.md`](docs/releases/v0.5.0-recruitment.md).
 
 ## [0.4.0] — 2026-10-13 — "Smart Enemies"
 

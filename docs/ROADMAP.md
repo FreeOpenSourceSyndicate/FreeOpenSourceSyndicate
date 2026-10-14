@@ -83,14 +83,14 @@ A shippable demo, deliberately original in code and art.
 
 - [ ] Weapons: pistol, uzi, minigun, flamethrower, rocket launcher, laser
       (started: pistol, rifle, uzi)
-- [ ] Gadgets: Persuadertron, shield, medikit, scanner
+- [ ] Gadgets: Persuadertron, shield, medikit, scanner (started: Persuadertron)
 - [ ] Cybernetic upgrades (speed, accuracy, health, perception)
 - [ ] Vehicles: cars/trains, hijacking, mounted weapons
 - [ ] Destructible environment
 - [x] Enemy AI: engage (basic chase + fire)
 - [x] Enemy AI: patrol, retreat, call backup
 - [x] Civilians: flee from gunfire, killed as collateral damage
-- [ ] Civilian/persuasion behaviour (Persuadertron recruitment)
+- [x] Civilian/persuasion behaviour (Persuadertron recruitment)
 - [x] Mission objectives + win/lose (data-driven: eliminate all enemies, reach a tile, survive)
 
 ## Phase 4 — Metagame
