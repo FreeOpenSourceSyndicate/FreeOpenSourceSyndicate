@@ -111,6 +111,11 @@ not need a finished game. The rules live in `AGENTS.md` §6a; in short:
    **which files/directories to copy where** to run it on another computer.
 4. Author release graphics as **pixel art** to match the game's look
    (`docs/ASSETS.md`, `AGENTS.md` §1).
+5. Once published, a release branch is **immutable** (`AGENTS.md` §6b, ADR-0011):
+   do not commit to it again, even for docs or cleanup. If a released version
+   stops working (e.g. a required library is gone), fix it on a **new branch cut
+   from that release branch** — e.g. `fix/v0.3.0-<desc>` — and leave the original
+   branch and tag untouched.
 
 ## Testing
 

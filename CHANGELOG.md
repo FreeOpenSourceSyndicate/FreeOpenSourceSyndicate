@@ -53,6 +53,17 @@ contains no original assets, code, names, or trademarks.
   **FOSSynd** ("Free, Open-Source Syndicate"). Build options use the `FOSSYND_*`
   prefix, the core library is `fossynd_core`, the C++ namespace is `fossynd::`,
   and the game binary is `FOSSynd`.
+- **Project goal (ADR-0009):** v1.0.0 is a faithful reproduction, so release and
+  in-game graphics are **pixel art** (low-res, palette-based, nearest-neighbour).
+  The earlier SVG-first guidance is retracted; vector art and modernising changes
+  are v2.x.x/fork scope.
+- **Published release branches are immutable (ADR-0011, `AGENTS.md` §6b):** once
+  a `release/vX.Y.Z-*` branch is tagged and published, it is never committed to
+  again. A fix that a shipped version needs to keep working goes on a new branch
+  cut from that release branch.
+- **PR review/merge policy (`AGENTS.md` §3a):** agents review and merge each
+  other's PRs; while the repository's GitHub account is the only account working
+  on the project, the creator may review and merge their own PR.
 
 ## [0.2.0] — 2026-10-12 — "Command & Control"
 

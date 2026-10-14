@@ -133,13 +133,22 @@ Agents should keep the queue moving: **review open PRs that you did not author
 and merge them when they are good.** A stale, green PR that nobody merges is
 lost work.
 
-**Who may merge.** Any agent or maintainer may merge a PR **authored by someone
-else** once it satisfies the criteria below. Do **not** merge your own PR — the
-point is independent review; leave your own PR for another agent or a human.
+**Who may merge.** Normally, merge PRs **authored by someone else**: the point is
+independent review, so do not merge your own PR while another agent or human can
+review it.
+
+**Exception — sole account.** As long as the GitHub account that owns this
+repository is the *only* account working on the project (i.e. you are the only
+active author and there is no separate reviewer to hand off to), the **creator
+may review and merge their own PR**. This is the normal mode of operation, not a
+last resort. Still do the review below honestly, and say in the merge comment who
+merged it (the model) so handoffs stay debuggable (§3.7). Once a second account
+joins the project, revert to the "review someone else's PR" rule.
 
 **Before merging, verify (in this order):**
 
-1. **Not your own** PR, and **not a draft**.
+1. **Not a draft.** (Your own PR is acceptable only under the sole-account rule
+   above.)
 2. **Scope and legality.** It matches its stated intent, stays within the
    project's goals (§1 — for v1.0.0, pixel-faithful, no modernising), and
    introduces no copyrighted asset, name, or code (`docs/LEGAL.md`).
@@ -170,19 +179,13 @@ comment explaining why and let the author respond:
 - You cannot tell what it changes, or it does not match its description.
 - It changes architecture without an ADR (§3.5), or touches `main` history.
 - It looks like it needs a human decision (e.g. a rename of the project, a
-  licensing question, a change to these very rules).
-- It is your own PR, or it was opened by a human who is actively iterating.
+  licensing question, a change to these very rules) and the sole account has not
+  already confirmed it.
+- It was opened by a human who is actively iterating.
 
 Record the review in the PR: a short comment with the verdict (`approved and
-merged`, or `holding: <reason>`). When you merge someone's PR, say which model
-did the merge, so handoffs stay debuggable (§3.7).
-
-**Sole active agent.** If you are the only agent available and no human reviewer
-can be reached, you may merge your *own* PR once CI is green and the checklist
-above is satisfied — but say so explicitly in the merge comment (state the model
-and "self-merged: no other reviewer available"), so the missing independent
-review is visible in the history. Prefer leaving it for another agent when one
-exists.
+merged`, or `holding: <reason>`). When you merge, say which model did the merge,
+so handoffs stay debuggable (§3.7).
 
 ### Handoff format (use in PR descriptions and issue comments)
 
@@ -291,7 +294,7 @@ Rules:
 1. **One release = one tag = one `release/vX.Y.Z-<slug>` branch** off `main`,
    plus a GitHub Release page. Follow SemVer and keep a matching `CHANGELOG.md`
    entry. Existing examples: `release/v0.1.0-playable-slice`,
-   `release/v0.2.0-command-control`.
+   `release/v0.2.0-command-control`, `release/v0.3.0-bystanders`.
 2. **Every release must be visibly different from the previous one.** A player
    who runs both builds should immediately see *something* changed. While the
    game is small, this is strict: the change must be obvious, not subtle. Once
@@ -308,6 +311,29 @@ Rules:
 
 A release branch is a frozen, playable snapshot: keep it building and playable,
 and do not let unrelated work drift onto it.
+
+### 6b. Release branches are immutable
+
+Once a release is published (tagged, with a GitHub Release page), **do not touch
+its branch or tag again.** No new commits, no rewrites, no re-tagging — not for
+docs, not for cleanup, not for "small" fixes. A released branch is an artifact a
+human may already have cloned and built.
+
+The only exception is when leaving it alone would **break the project or is
+legally required** — for example, a required library the release depends on has
+been removed, so the documented build no longer works.
+
+When that happens, do **not** edit the old branch. Instead:
+
+1. Cut a **new branch off the finished release branch** (e.g.
+   `fix/v0.3.0-<short-desc>`), apply the minimal fix there, and record why in the
+   commit and in `docs/DECISIONS.md`.
+2. Leave the original branch and tag exactly as they were, and say so in the new
+   branch's PR description (which release it repairs and why the original is
+   untouched).
+
+If a correction is only needed for the *current* line of work, it belongs on
+`main` (or the next release), never back-ported onto a shipped snapshot.
 
 ## 7. Data & content
 
@@ -411,9 +437,13 @@ change touches `src/core/` or `tests/`, all must pass. If it touches
 - **Releases are playtest snapshots** (§6a): a `release/vX.Y.Z-*` branch + tag +
   GitHub Release, a matching `CHANGELOG.md` entry, version-specific
   `docs/releases/vX.Y.Z-*.md` (build/play + copy-to-another-computer steps), and
-  a change the player can actually see. Latest shipped: `v0.2.0`.
+  a change the player can actually see. Latest shipped: `v0.3.0`.
 - **Release process note:** when cutting a release, create the branch first,
   commit the release doc(s) on it, then tag the branch tip and push both — so the
   tag points at a commit whose instructions are already present on the branch.
   Graphics for releases should match the game's **pixel-art** look (§1, golden
   rule 8).
+- **Published releases are immutable (§6b, ADR-0011).** Do not commit to a
+  `release/vX.Y.Z-*` branch or move its tag after publication. If a released
+  build would otherwise break, fix it on a new branch cut from that release
+  branch (e.g. `fix/v0.3.0-<desc>`), leaving the original untouched.

@@ -275,3 +275,43 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
     is kept for now: `FOSSynd` is a valid abbreviation of it, so the clone URLs
     and the working-directory name remain correct and need no change.
 
+---
+
+## ADR-0011 — Published release branches are immutable; the sole account may self-merge
+
+- **Status:** Accepted (2026-10-13)
+- **Date:** 2026-10-13
+- **Context:** Two coordination questions came up. (1) A published release
+  (`release/vX.Y.Z-*` + tag + GitHub Release page) is an artifact a human may
+  already have cloned and built; should later agents be allowed to commit to it?
+  A concrete case: the `v0.3.0` release carries a `assets/ui/banner.svg` that the
+  later pixel-art decision (ADR-0009) no longer favours. (2) With only one
+  GitHub account active on the project, requiring independent review of every PR
+  stalls the queue — the creator is also the only available reviewer.
+- **Options:**
+  1. **Freeze releases; allow creator self-merge for now.** Never touch a
+     published release branch/tag except to keep it *working* (and then only on
+     a new branch off it); let the creator review and merge their own PRs while
+     they are the only account.
+  2. Keep editing release branches for doc/cleanup fixes. Rejected: it rewrites
+     a snapshot humans may depend on and breaks reproducibility.
+  3. Require independent review even with one account. Rejected: impossible
+     without a second account; it just leaves green PRs unmerged.
+- **Decision:** **Option 1.**
+  - **Release branches are immutable** once published. No commits, rewrites, or
+    re-tags — not for docs or cleanup. The only exception is a fix needed because
+    the release would otherwise **break** (e.g. a required library disappeared) or
+    because the law requires it; such a fix goes on a **new branch cut from the
+    finished release branch** (e.g. `fix/v0.3.0-<desc>`), never on the original.
+  - **The creator may review and merge their own PR** as long as the repository's
+    GitHub account is the only account working on the project. Once a second
+    account joins, independent review resumes.
+- **Consequences:**
+  - `AGENTS.md` §6b (new) states the immutability rule; §3a states the
+    sole-account self-merge rule.
+  - The `v0.3.0` `banner.svg` is deliberately **left in place**: it is not loaded
+    at runtime, so it neither breaks nor legally endangers the release, and
+    ADR-0009 already governs all future art. No repair branch is needed.
+  - Existing shipped releases (`v0.1.0`–`v0.3.0`) are frozen as of this ADR.
+
+
