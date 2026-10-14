@@ -23,6 +23,19 @@ if(FOSSYND_LOW_SPEC)
     message(STATUS "Low-spec profile enabled (-Os, stripped, low-res defaults)")
 endif()
 
+# Sanitizer profile: build the engine-agnostic core and its tests with
+# AddressSanitizer + UndefinedBehaviorSanitizer so memory and logic bugs are
+# caught before merge. Off by default, so normal and low-spec builds are
+# unchanged and pay no runtime cost (ADR-0015). Intended for a core-only build;
+# the sanitizer CI job uses -DFOSSYND_BUILD_GAME=OFF so no graphics deps are
+# needed. `-fno-sanitize-recover` makes the first UBSan report a hard failure.
+option(FOSSYND_SANITIZE "Build core and tests with ASan + UBSan (developer/CI only)" OFF)
+if(FOSSYND_SANITIZE)
+    add_compile_options(-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -g)
+    add_link_options(-fsanitize=address,undefined)
+    message(STATUS "Sanitizer profile enabled (ASan + UBSan, no-recover)")
+endif()
+
 if(WIN32)
     message(STATUS "Building for Windows")
 elseif(APPLE)
@@ -51,4 +64,6 @@ message(STATUS "=== FOSSynd ===")
 message(STATUS "C++ standard: ${CMAKE_CXX_STANDARD}")
 message(STATUS "Build game target: ${FOSSYND_BUILD_GAME}")
 message(STATUS "Build tests: ${BUILD_TESTS}")
+message(STATUS "Low-spec profile: ${FOSSYND_LOW_SPEC}")
+message(STATUS "Sanitizers: ${FOSSYND_SANITIZE}")
 message(STATUS "")

@@ -8,6 +8,12 @@ on:
   pull_request:
     branches: [main]
 
+# ccache is pinned to a path inside the workspace so the cache step and the
+# compiler launcher agree (ccache 4.x defaults to ~/.cache/ccache, not ~/.ccache).
+env:
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_MAXSIZE: 300M
+
 jobs:
   core-build-and-test:
     name: Core build & unit tests
@@ -15,11 +21,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install SDL2
-        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev ccache
+
+      - name: Cache compiler output (ccache)
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ccache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('CMakeLists.txt', 'src/**/CMakeLists.txt', 'tests/CMakeLists.txt') }}
+          restore-keys: ccache-${{ runner.os }}-${{ github.job }}-
 
       - name: Configure (core + SDL2 game target)
-        run: cmake -S . -B build -DFOSSYND_BUILD_GAME=ON -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -DFOSSYND_BUILD_GAME=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
         run: cmake --build build --config Release -j"$(nproc)"
@@ -33,8 +46,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install ccache
+        run: sudo apt-get update && sudo apt-get install -y ccache
+
+      - name: Cache compiler output (ccache)
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ccache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('CMakeLists.txt', 'src/**/CMakeLists.txt', 'tests/CMakeLists.txt') }}
+          restore-keys: ccache-${{ runner.os }}-${{ github.job }}-
+
       - name: Configure (core only)
-        run: cmake -S . -B build -DFOSSYND_BUILD_GAME=OFF -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -DFOSSYND_BUILD_GAME=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
         run: cmake --build build --config Release -j"$(nproc)"
@@ -48,11 +71,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install SDL2
-        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev ccache
+
+      - name: Cache compiler output (ccache)
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ccache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('CMakeLists.txt', 'src/**/CMakeLists.txt', 'tests/CMakeLists.txt') }}
+          restore-keys: ccache-${{ runner.os }}-${{ github.job }}-
 
       - name: Configure (low-spec profile)
-        run: cmake -S . -B build -DFOSSYND_BUILD_GAME=ON -DFOSSYND_LOW_SPEC=ON -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -DFOSSYND_BUILD_GAME=ON -DFOSSYND_LOW_SPEC=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
         run: cmake --build build --config Release -j"$(nproc)"
@@ -62,3 +92,32 @@ jobs:
 
       - name: Report binary size
         run: ls -l build/src/FOSSynd
+
+  # Sanitizer lane (ADR-0015): builds the engine-agnostic core + tests with
+  # AddressSanitizer and UndefinedBehaviorSanitizer and runs ctest. Core-only, so
+  # it needs no graphics dependencies and stays fast. A red lane means a real
+  # memory or undefined-behaviour bug in `src/core/`.
+  sanitizers:
+    name: Sanitizers (ASan + UBSan, core)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ccache
+        run: sudo apt-get update && sudo apt-get install -y ccache
+
+      - name: Cache compiler output (ccache)
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ccache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('CMakeLists.txt', 'src/**/CMakeLists.txt', 'tests/CMakeLists.txt') }}
+          restore-keys: ccache-${{ runner.os }}-${{ github.job }}-
+
+      - name: Configure (core + tests, ASan + UBSan)
+        run: cmake -S . -B build -DFOSSYND_BUILD_GAME=OFF -DFOSSYND_SANITIZE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build
+        run: cmake --build build --config RelWithDebInfo -j"$(nproc)"
+
+      - name: Test under sanitizers
+        run: ctest --test-dir build --output-on-failure

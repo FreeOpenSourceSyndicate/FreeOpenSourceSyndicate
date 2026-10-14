@@ -387,14 +387,21 @@ ctest --test-dir build --output-on-failure
 cmake -S . -B build-core -DFOSSYND_BUILD_GAME=OFF
 cmake --build build-core -j
 ctest --test-dir build-core --output-on-failure
+
+# Core + tests under ASan + UBSan (developer/CI; ADR-0015).
+cmake -S . -B build-san -DFOSSYND_BUILD_GAME=OFF -DFOSSYND_SANITIZE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build-san -j
+ctest --test-dir build-san --output-on-failure
 ```
 
-CI runs three jobs: a **core + game** job (installs `libsdl2-dev`, builds with
+CI runs four jobs: a **core + game** job (installs `libsdl2-dev`, builds with
 `-DFOSSYND_BUILD_GAME=ON`, runs `ctest`, which includes the headless `game_smoke`
-test), a **core-only** job (no graphics deps), and a **low-spec** job
-(`-DFOSSYND_LOW_SPEC=ON`, ADR-0008) so old-hardware support cannot bit-rot. If your
-change touches `src/core/` or `tests/`, all must pass. If it touches
-`src/game/`, also run the game target locally and note the result in the PR.
+test), a **core-only** job (no graphics deps), a **low-spec** job
+(`-DFOSSYND_LOW_SPEC=ON`, ADR-0008) so old-hardware support cannot bit-rot, and a
+**sanitizers** job (`-DFOSSYND_SANITIZE=ON`, core-only, ADR-0015) that runs the
+unit tests under ASan + UBSan. If your change touches `src/core/` or `tests/`, all
+must pass. If it touches `src/game/`, also run the game target locally and note
+the result in the PR.
 
 ## 9. Definition of Done
 
@@ -485,7 +492,8 @@ change touches `src/core/` or `tests/`, all must pass. If it touches
   `game_demo`, `game_low_spec`, `game_title`, and `game_sprites` cover the SDL
   layer headlessly.
 - Engine-layer changes are covered by the CI `core + game` job (ADR-0005). The
-  CI `low-spec` job builds the old-hardware profile (ADR-0008).
+  CI `low-spec` job builds the old-hardware profile (ADR-0008), and the CI
+  `sanitizers` job runs the core tests under ASan + UBSan (ADR-0015).
 - **Releases are playtest snapshots** (§6a): a `release/vX.Y.Z-*` branch + tag +
   GitHub Release, a matching `CHANGELOG.md` entry, version-specific
   `docs/releases/vX.Y.Z-*.md` (build/play + copy-to-another-computer steps), and
