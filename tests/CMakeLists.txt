@@ -15,6 +15,7 @@ set(FOSSYND_TEST_SOURCES
     test_json.cpp
     test_missiondata.cpp
     test_config.cpp
+    test_persuadertron.cpp
 )
 
 add_executable(run_tests ${FOSSYND_TEST_SOURCES})

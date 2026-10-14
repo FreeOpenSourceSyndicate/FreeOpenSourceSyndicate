@@ -426,6 +426,11 @@ change touches `src/core/` or `tests/`, all must pass. If it touches
   toward win/lose; player-caused deaths increment `Mission::civilianKills`.
   Civilian panic uses `Agent::gunfireTimer()`, set on each shot. Keep civilians
   out of the combat target loop if you touch `resolveFire`.
+- **Persuadertron followers** are civilians recruited by a player agent
+  (`core::Agent::followerLeader()`, `Mission::persuade`/`freeFollowersOf`/
+  `followerCount`). A follower keeps `Team::Civilian`, so the existing combat
+  loop ignores it; it just trails its leader (`Mission::updateFollower`). Keep
+  followers non-combatants: do not let them fire or become targets.
 - Still markers, not sprites: no animation, zoom, or minimap yet (Phase 2).
 - **Content format is decided (ADR-0003):** JSON in `assets/data/`, parsed by
   the dependency-free `core/data/` loader (`Json`, `MissionData`); schema in

@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "core/math/Vec2.h"
+#include "core/sim/Persuadertron.h"
 #include "core/sim/Weapon.h"
 #include "core/world/TileGrid.h"
 
@@ -154,6 +155,24 @@ public:
     std::size_t patrolIndex() const { return patrolIndex_; }
     void setPatrolIndex(std::size_t index) { patrolIndex_ = index; }
 
+    // --- persuasion -------------------------------------------------------
+
+    // True when the agent is a civilian recruited as a follower: it keeps
+    // Team::Civilian (so it is never a valid combat target) but follows a player
+    // agent. Followers never fire and never count toward win/lose.
+    bool isFollower() const { return followerLeader_ >= 0; }
+
+    // Index of the player agent being followed, or -1 when not following.
+    int followerLeader() const { return followerLeader_; }
+    void setFollowerLeader(int leader) { followerLeader_ = leader; }
+
+    // Seconds until the Persuadertron can be used again.
+    float persuadeCooldown() const { return persuadeCooldown_; }
+    void beginPersuadeCooldown() { persuadeCooldown_ = persuadertron_.cooldown(); }
+
+    const Persuadertron& persuadertron() const { return persuadertron_; }
+    void setPersuadertron(Persuadertron device) { persuadertron_ = std::move(device); }
+
 private:
     Vec2 position_;
     float tilesPerSecond_ = 2.0f;
@@ -175,6 +194,10 @@ private:
     AiState aiState_ = AiState::Idle;
     std::vector<TilePos> patrolRoute_;
     std::size_t patrolIndex_ = 0;
+
+    Persuadertron persuadertron_ = makePersuadertron();
+    float persuadeCooldown_ = 0.0f;
+    int followerLeader_ = -1;
 };
 
 } // namespace fossynd::core

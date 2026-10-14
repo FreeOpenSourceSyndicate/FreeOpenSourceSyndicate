@@ -8,7 +8,16 @@ contains no original assets, code, names, or trademarks.
 
 ## [Unreleased]
 
-_No changes yet._
+### Added
+
+- **Persuadertron (recruit civilians):** a deterministic device in
+  `src/core/sim/Persuadertron.h`. `Mission::persuade` turns the nearest
+  un-recruited civilian in range into a *follower* of the using agent; followers
+  keep `Team::Civilian` (so they are never valid combat targets) and trail their
+  leader via the existing pathfinding. `Mission::freeFollowersOf` releases them
+  and `Mission::followerCount` reports them. View: `P` persuades with the
+  selection, `F` frees followers, followers render cyan, and the HUD shows a
+  follower count. No RNG, no effect on win/lose.
 
 ## [0.4.0] — 2026-10-13 — "Smart Enemies"
 
