@@ -82,10 +82,19 @@ set_target_properties(FOSSynd PROPERTIES
 # Install rules: the binary, the mission data, and the example config. The game
 # searches these locations at runtime (see core/data/ContentPaths.h). Install is
 # optional; the binary is self-contained thanks to the embedded mission.
+#
+# The shared catalogues (weapons.json/agents.json) ship next to `missions/`
+# because `--check-content` (and any external mission) resolves `weaponId`/
+# `agentId` against them: a package without the catalogues cannot validate the
+# content it ships (issue #91).
 include(GNUInstallDirs)
 install(TARGETS FOSSynd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES "${CMAKE_SOURCE_DIR}/assets/data/missions/demo.json"
         DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd/missions)
+install(FILES
+            "${CMAKE_SOURCE_DIR}/assets/data/weapons.json"
+            "${CMAKE_SOURCE_DIR}/assets/data/agents.json"
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd)
 install(FILES "${CMAKE_SOURCE_DIR}/assets/data/fossynd.conf.example"
         DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd)
 install(FILES "${CMAKE_SOURCE_DIR}/assets/lang/en.json"
