@@ -100,7 +100,8 @@ float heuristic(int dx, int dy, bool allowDiagonal)
 
 } // namespace
 
-std::vector<TilePos> findPath(const TileGrid& grid, TilePos start, TilePos goal, bool allowDiagonal)
+std::vector<TilePos> findPath(const TileGrid& grid, TilePos start, TilePos goal, bool allowDiagonal,
+                              int maxExpandedNodes)
 {
     if (!grid.inBounds(start.x, start.y) || !grid.inBounds(goal.x, goal.y))
     {
@@ -129,6 +130,7 @@ std::vector<TilePos> findPath(const TileGrid& grid, TilePos start, TilePos goal,
     const int dirs4[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
     const int dirs8[8][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
 
+    int expanded = 0;
     while (!open.empty())
     {
         const OpenNode current = open.top();
@@ -137,6 +139,14 @@ std::vector<TilePos> findPath(const TileGrid& grid, TilePos start, TilePos goal,
         if (current.index == goalIdx)
         {
             break;
+        }
+
+        // Bound the search: once the cap is hit with the goal still unpopped,
+        // give up rather than expand the rest of the grid. A fixed node count,
+        // not a time budget, so the outcome stays deterministic.
+        if (++expanded > maxExpandedNodes)
+        {
+            return {};
         }
 
         const int cx = current.index % w;
