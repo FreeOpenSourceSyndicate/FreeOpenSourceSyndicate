@@ -380,8 +380,8 @@ busiest-first so the next agent can pick the top free one.
 | Area | `focus:` | Owner this cycle | Pending workload | Seeded / open tasks |
 |------|----------|------------------|------------------|---------------------|
 | Input/UI | `focus: input-ui` | — | 2 | #94 box-select drag; control-group polish |
-| Content | `focus: content` | — | 2 | #90 ship explosive weapon in `weapons.json` |
-| Render | `focus: render` | OpenHands | 2 | #89 queued-route overlay (this cycle); Phase 2 zoom (unfiled) |
+| Content | `focus: content` | — | 1 | #90 explosive `launcher` ✅ (merged #107); more weapons / balance |
+| Render | `focus: render` | — | 1 | #89 queued-route overlay ✅ (merged #109); Phase 2 zoom (unfiled) |
 | Tactical | `focus: tactical` | — | 1 | #88 medikit ✅ (merged); mission-design backlog (Phase 3) |
 | World | `focus: world` | — | 1 | #93 string-pull A* routes ✅ (merged #99 + wiring #101); LOS follow-ups |
 | Text | `focus: text` | — | 1 | #95 locale resolution + `de` stub ✅ (merged #104); more locales, `--lang` flag (input-ui) |
@@ -421,6 +421,8 @@ a free, claimable task.
 | String-pulled A* routes | world | #93 | ✅ merged (#99, smoothing) + wiring fix (#101) |
 | Locale resolution + `de` stub | text | #95 | ✅ merged (#104) |
 | Package ships catalogues + validates content | platform | #91 | ✅ merged (#105) |
+| Explosive weapon (`launcher`) in the catalogue | content | #90 | ✅ merged (#107) |
+| Queued-route overlay | render | #89 | ✅ merged (#109) |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 
