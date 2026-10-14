@@ -59,6 +59,7 @@ int main(int argc, char** argv)
     bool checkSprites = false;
     bool checkMinimap = false;
     bool checkSelection = false;
+    bool checkWaypoints = false;
     bool checkLang = false;
     const char* screenshot = nullptr;
     std::string cliMission;   // --mission <path>
@@ -101,6 +102,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-selection") == 0)
         {
             checkSelection = true;
+        }
+        else if (std::strcmp(argv[i], "--check-waypoints") == 0)
+        {
+            checkWaypoints = true;
         }
         else if (std::strcmp(argv[i], "--check-lang") == 0)
         {
@@ -215,6 +220,15 @@ int main(int argc, char** argv)
         // which is otherwise only reachable through the interactive input path.
         const bool ok = game.selectionSelfTest();
         std::printf(ok ? "selection: ok\n" : "selection: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkWaypoints)
+    {
+        // Headless guard for the shift-click waypoint queue (issue #75), which is
+        // otherwise only reachable through the interactive mouse handler.
+        const bool ok = game.waypointSelfTest();
+        std::printf(ok ? "waypoints: ok\n" : "waypoints: FAILED\n");
         return ok ? 0 : 1;
     }
 

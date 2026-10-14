@@ -126,6 +126,10 @@ if(BUILD_TESTS)
     # invariant.
     add_test(NAME game_selection
              COMMAND FOSSynd --headless --check-selection)
+    # Shift-click waypoint queue (issue #75): exercises orderSelectedMove against
+    # the real Mission queue headlessly. Exits non-zero on a broken invariant.
+    add_test(NAME game_waypoints
+             COMMAND FOSSynd --headless --check-waypoints)
     # UI strings (issue #53): the string table loads (external file or embedded
     # copy) and resolves every key the HUD/title card reads. Exits non-zero if a
     # key is missing, so a broken assets/lang/en.json cannot hide behind the
