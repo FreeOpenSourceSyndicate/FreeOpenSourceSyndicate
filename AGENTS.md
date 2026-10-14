@@ -504,6 +504,14 @@ run the game target locally and note the result in the PR.
   `followerCount`). A follower keeps `Team::Civilian`, so the existing combat
   loop ignores it; it just trails its leader (`Mission::updateFollower`). Keep
   followers non-combatants: do not let them fire or become targets.
+- **Medikit gadget** (issue #88): `Mission::useMedikit(index)` spends one of the
+  agent's kits to heal the most-wounded living **same-team** agent (the user or a
+  team-mate) within `kMedikitRadius`, for `kMedikitHealAmount`. Per-agent counts
+  live on the **Mission** (`setMedikits`/`medikits`, one slot per agent, kept in
+  sync by `addAgent`) so the frozen `Agent` contract stays untouched. It never
+  wastes a kit on a full-health target, never crosses teams, and is deterministic
+  (ties break by index). The health primitive is `Agent::heal(amount)` (World
+  area) — additive and defaulted, mirroring `applyDamage`.
 - Sprites and a minimap are in (see below); zoom is still missing (Phase 2).
 - **Mission objectives are data-driven (ADR-0003):** `ObjectiveSpec`
   (`core/sim/Objective.h`) is `EliminateAll` (default), `ReachTile` (a living

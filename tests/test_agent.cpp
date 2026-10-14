@@ -64,3 +64,34 @@ FOSSYND_TEST(Agent, ZeroOrNegativeDtIsNoOp)
     FOSSYND_CHECK_NEAR(agent.position().x, 0.0f);
     FOSSYND_CHECK_NEAR(agent.position().y, 0.0f);
 }
+
+FOSSYND_TEST(Agent, HealRestoresHealthAndCapsAtMax)
+{
+    Agent agent(0.0f, 0.0f, 1.0f);
+    agent.setMaxHealth(100.0f);
+    agent.applyDamage(60.0f);
+    FOSSYND_CHECK_NEAR(agent.health(), 40.0f);
+
+    // Healing more than the missing amount caps at max and reports the real gain.
+    FOSSYND_CHECK_NEAR(agent.heal(80.0f), 60.0f);
+    FOSSYND_CHECK_NEAR(agent.health(), 100.0f);
+}
+
+FOSSYND_TEST(Agent, HealPartialAndNoOpCases)
+{
+    Agent agent(0.0f, 0.0f, 1.0f);
+    agent.setMaxHealth(100.0f);
+    agent.applyDamage(50.0f);
+
+    FOSSYND_CHECK_NEAR(agent.heal(20.0f), 20.0f);
+    FOSSYND_CHECK_NEAR(agent.health(), 70.0f);
+
+    // Zero/negative heal is a no-op; a dead agent is not revived.
+    FOSSYND_CHECK_NEAR(agent.heal(0.0f), 0.0f);
+    FOSSYND_CHECK_NEAR(agent.heal(-5.0f), 0.0f);
+
+    agent.applyDamage(1000.0f);
+    FOSSYND_CHECK(!agent.isAlive());
+    FOSSYND_CHECK_NEAR(agent.heal(50.0f), 0.0f);
+    FOSSYND_CHECK(!agent.isAlive());
+}

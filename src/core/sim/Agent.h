@@ -124,6 +124,11 @@ public:
     // timer used by the renderer. Damage never raises health above max.
     float applyDamage(float amount);
 
+    // Restores health and returns the amount actually healed. Never raises
+    // health above `maxHealth`; a dead agent is not healed (returns 0). Used by
+    // gadgets such as the medikit.
+    float heal(float amount);
+
     const Weapon& weapon() const { return weapon_; }
     void setWeapon(Weapon weapon) { weapon_ = std::move(weapon); }
 

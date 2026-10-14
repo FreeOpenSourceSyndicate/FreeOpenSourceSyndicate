@@ -56,6 +56,17 @@ float Agent::applyDamage(float amount)
     return dealt;
 }
 
+float Agent::heal(float amount)
+{
+    if (amount <= 0.0f || !isAlive())
+    {
+        return 0.0f;
+    }
+    const float healed = std::min(amount, maxHealth_ - health_);
+    health_ += healed;
+    return healed;
+}
+
 TilePos Agent::tile() const
 {
     return TilePos{static_cast<int>(position_.x + 0.5f), static_cast<int>(position_.y + 0.5f)};
