@@ -431,14 +431,14 @@ what is taken without reading every issue.
 
 | Area | `focus:` | Live claim | Pending workload | Seeded / open tasks |
 |------|----------|------------|------------------|---------------------|
-| Input/UI | `focus: input-ui` | — | 1 | #94 box-select drag ✅ (merged #112); control-group polish |
-| Content | `focus: content` | — | 1 | #90 explosive `launcher` ✅ (merged #107); more weapons / balance |
-| Render | `focus: render` | — | 1 | #89 queued-route overlay ✅ (merged #109); Phase 2 zoom (unfiled) |
-| Tactical | `focus: tactical` | — | 1 | #88 medikit ✅ (merged); mission-design backlog (Phase 3) |
-| World | `focus: world` | — | 1 | #93 string-pull A* routes ✅ (merged #99 + wiring #101); LOS follow-ups |
-| Text | `focus: text` | — | 1 | #95 locale resolution + `de` stub ✅ (merged #104); more locales, `--lang` flag (input-ui) |
-| Platform | `focus: platform` | — | 1 | #103 install every `assets/lang/*.json` ✅ (merged #115); **#118 macOS packaging lane** |
-| Release | `focus: release` | — | 1 | #70 CHANGELOG reconcile ✅ (option A); next release cut |
+| Tactical | `focus: tactical` | — | 1 | #120 enemies take cover under fire |
+| World | `focus: world` | — | 1 | #121 bound the A* search (node cap) |
+| Render | `focus: render` | — | 1 | #122 integer zoom levels (Phase 2's last item) |
+| Input/UI | `focus: input-ui` | — | 1 | #123 `--lang <locale>` flag + config |
+| Content | `focus: content` | — | 1 | #124 minigun / flamethrower / laser |
+| Text | `focus: text` | — | 1 | #125 complete `de.json` (7/23 keys) + parity test |
+| Platform | `focus: platform` | — | 2 | #126 install every `assets/data/missions/*.json`; #118 macOS packaging lane |
+| Release | `focus: release` | — | 1 | #127 cut the next playtest snapshot (v0.6.0) |
 
 Legend: live claim `—` = free this cycle. Workload is a rough size in "PRs" (one
 small PR ≈ 1); all eight areas are seeded so the busiest-first pick always finds
