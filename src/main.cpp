@@ -57,6 +57,7 @@ int main(int argc, char** argv)
     bool lowSpec = false;
     bool title = false;
     bool checkSprites = false;
+    bool checkMinimap = false;
     const char* screenshot = nullptr;
     std::string cliMission;   // --mission <path>
     std::string cliConfig;    // --config <path>
@@ -90,6 +91,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-sprites") == 0)
         {
             checkSprites = true;
+        }
+        else if (std::strcmp(argv[i], "--check-minimap") == 0)
+        {
+            checkMinimap = true;
         }
         else if (std::strcmp(argv[i], "--mission") == 0 && i + 1 < argc)
         {
@@ -181,6 +186,15 @@ int main(int argc, char** argv)
         // into textures for every role. Used by the game_sprites ctest.
         const bool ok = game.spritesValid();
         std::printf(ok ? "sprites: ok\n" : "sprites: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkMinimap)
+    {
+        // Headless guard for the minimap: the panel must bake and place a blip
+        // for every living agent. Used by the game_minimap ctest.
+        const bool ok = game.checkMinimap();
+        std::printf(ok ? "minimap: ok\n" : "minimap: FAILED\n");
         return ok ? 0 : 1;
     }
 

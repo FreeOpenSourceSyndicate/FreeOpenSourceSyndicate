@@ -11,6 +11,7 @@
 #include "core/sim/Mission.h"
 #include "core/world/TileGrid.h"
 #include "game/Font.h"
+#include "game/Minimap.h"
 #include "game/Sprite.h"
 
 namespace fossynd::game
@@ -62,10 +63,19 @@ public:
     // the renderer falls back to flat markers. Used by the sprite ctest.
     bool spritesValid() const { return sprites_.valid(); }
 
+    // True once the minimap panel has baked. Used by the minimap ctest.
+    bool minimapValid() const { return minimap_.valid(); }
+
+    // Headless guard for the minimap: bakes the blip list from the live mission
+    // and checks a blip exists for every living agent inside the panel. Used by
+    // the game_minimap ctest via --check-minimap.
+    bool checkMinimap();
+
 private:
     void buildMission();
     void buildMapTexture();
     void buildSprites();
+    void buildMinimap();
     void restart();
     void handleEvents(bool& running);
     void update(float dt);
@@ -75,6 +85,7 @@ private:
     void render();
     void renderAgents();
     void renderHud();
+    void renderMinimap();
     void renderTitleCard();
     void drawTitleDiamond(float cx, float cy, float radius, std::uint8_t r, std::uint8_t g,
                           std::uint8_t b);
@@ -152,6 +163,9 @@ private:
     // renderer falls back to the original flat diamonds, so a bad sheet never
     // stops the game from running.
     AgentSprites sprites_;
+
+    // Whole-board overview panel (Phase 2). Display-only; skipped when invalid.
+    Minimap minimap_;
 
     // Per-agent view-only animation state. Kept out of core: it is presentation,
     // so it must never influence the simulation (AGENTS.md golden rule 4).

@@ -454,7 +454,7 @@ the result in the PR.
   `followerCount`). A follower keeps `Team::Civilian`, so the existing combat
   loop ignores it; it just trails its leader (`Mission::updateFollower`). Keep
   followers non-combatants: do not let them fire or become targets.
-- Sprites are in (see below); zoom and a minimap are still missing (Phase 2).
+- Sprites and a minimap are in (see below); zoom is still missing (Phase 2).
 - **Mission objectives are data-driven (ADR-0003):** `ObjectiveSpec`
   (`core/sim/Objective.h`) is `EliminateAll` (default), `ReachTile` (a living
   player agent on a target tile), or `Survive` (a time limit). A mission sets it
@@ -472,6 +472,15 @@ the result in the PR.
   with a view-only walk cycle in `Game::updateAgentViews`. A bad sheet is
   non-fatal (flat-marker fallback); ctest `game_sprites` guards it. Keep new art
   in the text sheet, not as binary assets.
+- **The minimap is `game/Minimap.*` (Phase 2):** a whole-board overview panel in
+  the top-right HUD corner. The static terrain is baked once into a one-texel-
+  per-tile texture (`Minimap::init`), and only per-agent blips are drawn each
+  frame (`updateBlips`/`render`), so the per-frame cost stays tiny (AGENTS.md 1b).
+  Blip colours mirror the in-world marker palette. It is display-only — it reads
+  `core::Mission` and never writes it (golden rule 4). Kept in its own file to
+  avoid growing the shared `Game.cpp` (FOCUS_AREAS.md §4 Rule 2). A headless
+  `--check-minimap` guard + ctest `game_minimap` verify a blip per living agent.
+  Extend the panel here, not in `Game.cpp`.
 - **Content format is decided (ADR-0003):** JSON in `assets/data/`, parsed by
   the dependency-free `core/data/` loader (`Json`, `MissionData`); schema in
   `docs/DATA_FORMAT.md`. `Game::buildMission` loads
@@ -487,10 +496,11 @@ the result in the PR.
   `core/data/Config.*` and `core/data/ContentPaths.*` (SDL-free, unit-tested).
   Example: `assets/data/fossynd.conf.example`. Details: `docs/DATA_FORMAT.md`.
 - Verification flags: `--headless --frames N`, `--headless --demo --frames N`,
-  `--headless --title --frames N`, `--headless --check-sprites`, and
+  `--headless --title --frames N`, `--headless --check-sprites`,
+  `--headless --check-minimap`, and
   `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
-  `game_demo`, `game_low_spec`, `game_title`, and `game_sprites` cover the SDL
-  layer headlessly.
+  `game_demo`, `game_low_spec`, `game_title`, `game_sprites`, and `game_minimap`
+  cover the SDL layer headlessly.
 - Engine-layer changes are covered by the CI `core + game` job (ADR-0005). The
   CI `low-spec` job builds the old-hardware profile (ADR-0008), and the CI
   `sanitizers` job runs the core tests under ASan + UBSan (ADR-0015).
