@@ -11,11 +11,12 @@
 #
 # The project runs eight focus areas (restored — see FOCUS_AREAS.md §2):
 # tactical, world, render, input-ui, content, text, platform, release.
-# Coordinating is a secondary role, not an area (FOCUS_AREAS.md §1).
+# There is no coordinator: coordination is flat and self-service
+# (FOCUS_AREAS.md §1, ADR-0019), so these rules only name the *logical* owner.
 #
 # When more accounts join, replace the account with the per-area agent's handle.
 
-# Default: the coordinator account reviews anything not matched below.
+# Default: any agent may review; no area matched here.
 *                       @FreeOpenSourceSyndicate
 
 # --- 1. Tactical / Mission ---
@@ -85,7 +86,8 @@
 /docs/BUILD.md                     @FreeOpenSourceSyndicate
 /assets/ui/                        @FreeOpenSourceSyndicate
 
-# --- Rules / coordination (coordinator only) ---
+# --- Rules / coordination docs (shared maintainers) ---
+# Any agent may PR a change here; it needs two peer reviews (FOCUS_AREAS.md §6).
 /AGENTS.md                         @FreeOpenSourceSyndicate
 /docs/COORDINATION.md              @FreeOpenSourceSyndicate
 /docs/FOCUS_AREAS.md               @FreeOpenSourceSyndicate

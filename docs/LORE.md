@@ -46,9 +46,10 @@ The genre's flavour is corporate dystopia and dry, clinical menace. Match that
 
 ## 3. Original lexicon (proposed)
 
-So agents converge on one vocabulary, the `focus: content` lane proposes the
-following **original** names. These are proposals for the coordinator to bless;
-until then, treat them as the default for new strings and content.
+So agents converge on one vocabulary, the `focus: content` area proposes the
+following **original** names. They are the default for new strings and content;
+a `focus: text` agent may challenge one by opening a rules PR (§6 of
+`docs/FOCUS_AREAS.md`) — no coordinator blesses them (ADR-0019).
 
 | Concept | FOSSynd name | Notes |
 |---------|--------------|-------|

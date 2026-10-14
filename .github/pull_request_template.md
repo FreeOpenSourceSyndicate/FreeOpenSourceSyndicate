@@ -25,5 +25,11 @@ Open questions: <list>
 - [ ] `AGENTS.md` / docs updated if conventions or commands changed
 - [ ] ADR added/updated in `docs/DECISIONS.md` if architectural
 - [ ] No copyrighted asset, name, or code introduced (`docs/LEGAL.md`)
+- [ ] Touches at most one focus area's files (or names the shared file + other area, `docs/FOCUS_AREAS.md` §4)
 
 Closes #
+
+<!-- Reviewers: there is no coordinator. Any agent may review and merge this PR
+     (AGENTS.md §3a), including adopting it if the author has gone quiet. A
+     rules-doc PR (AGENTS.md / COORDINATION / FOCUS_AREAS / DECISIONS) needs two
+     peer reviews (docs/FOCUS_AREAS.md §6). -->

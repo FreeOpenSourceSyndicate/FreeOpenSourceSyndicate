@@ -41,6 +41,15 @@ contains no original assets, code, names, or trademarks.
 
 ### Changed
 
+- **Coordination is flat; the coordinator role is removed** (ADR-0019). Agents
+  abort mid-cycle, and a single role that owned the merge queue, overlap
+  arbitration, and the workload plan was a single point of failure. Coordination
+  now derives from the eight focus-area boundaries: claims are **self-service
+  leases** with a 24 h takeover (`CLAIM:`/`LEASE:`/`TAKEOVER:` lines), the queue
+  is drained peer-to-peer (any agent reviews, merges, or adopts an orphaned PR),
+  and overlaps are settled by the fixed rules in `docs/FOCUS_AREAS.md` §4 with
+  merged code winning ties. No gameplay change. `AGENTS.md`, `docs/COORDINATION.md`,
+  `docs/FOCUS_AREAS.md`, the issue/PR templates, and `CODEOWNERS` updated.
 - **The recruiter gadget is renamed to "Compliance Beacon"** (ADR-0018). The
   former name was the *original 1993 game's* gadget name, which
   `docs/LEGAL.md` hard rule 4 forbids. `core::Persuadertron` →

@@ -108,10 +108,11 @@ Many models edit this repo. To avoid clobbering each other:
 
 1. **One task = one branch = one PR.** Use the branch naming scheme in §6.
 2. **Claim before you build.** Open (or comment on) the GitHub issue for the
-   task and assign it, or comment `claiming this` on the PR. Do not start a task
-   another agent has claimed within the last 24h. Tag the issue with its
-   `focus:` label and, once claimed, a `status:` label so parallel work stays
-   visible on the project board (see `docs/COORDINATION.md` §2).
+   task and post the machine-readable claim line (`CLAIM: <model> | <focus:
+   label> | <branch> | <timestamp>`, §3.11), or comment `claiming this` on the PR.
+   Do not start a task another agent has claimed within the last 24 h. Tag the
+   issue with its `focus:` label and, once claimed, a `status:` label so parallel
+   work stays visible (see `docs/COORDINATION.md` §2).
 3. **Small, reviewable PRs.** Prefer < ~400 changed lines. Split large features.
 4. **Never force-push a branch another agent may be using.** If you must rewrite
    history on a shared branch, say so in the PR first.
@@ -129,37 +130,50 @@ Many models edit this repo. To avoid clobbering each other:
 10. **Work inside your focus area.** The repo is divided into eight focus areas
     (see `docs/FOCUS_AREAS.md`). Each cycle, pick a **free** focus with the
     **highest pending workload**, preferring one you already know (§7 of that
-    file). Only the owning agent (or a helper it explicitly tasks) edits the
-    files an area owns. Need a change in another area's files? File a cross-area
-    request (`docs/FOCUS_AREAS.md` §4, Rule 4) — never edit them yourself.
-11. **Helpers are assigned, never self-started.** An agent whose queue is empty
-    must not begin work in another area on its own. It announces availability,
-    and works only on tasks assigned by the coordinator or that area's owner
-    (`docs/FOCUS_AREAS.md` §5). Reviewing PRs and triaging issues need no
-    assignment.
-12. **Coordinating is a secondary role, taken if free.** When you start a cycle
-    and **no agent is currently coordinator**, you may take the role **in
-    addition to** your primary focus, and record it on the hub
-    (`docs/FOCUS_AREAS.md` §1.1); release it at your end check-in. Only one agent
-    holds it at a time; it is held for the cycle. There is no `focus:
-    coordinator` label.
-13. **Questions you cannot get answered go straight to the human.** Ask the
-    coordinator first for scope/ordering/ownership/process questions. If the
-    coordinator cannot answer it (product direction, licensing, a rule change,
-    release policy), **post it to the human maintainer yourself** on the issue
-    thread (`question` + `status: blocked`) — with options and a recommendation —
-    and continue on the reversible path. Do **not** relay it through the
-    coordinator. See `docs/COORDINATION.md` §8.
-14. **Keep the workload balanced.** The coordinator keeps the §8 workload plan
-    current (roughly one claimable task per area, comparable size) so agents
-    finish cycles together; the fleet size may be one or many, and the plan works
-    either way (`docs/COORDINATION.md` §9).
+    file). Only the agent holding the area's live claim (or a helper it explicitly
+    tasks) edits the files an area owns. Need a change in another area's files?
+    File a cross-area request (`docs/FOCUS_AREAS.md` §4, Rule 4) — never edit them
+    yourself.
+11. **Claims are self-service leases; abandoned work is reclaimed by timeout.**
+    Claim a task by commenting `CLAIM: <model> | <focus: label> | <branch> |
+    <timestamp>` on its issue, and append `LEASE: ...` to later updates
+    (`docs/FOCUS_AREAS.md` §5.3, ADR-0019). A claim with no push and no comment
+    for **24 h** is expired and any agent may `TAKEOVER:`. There is **no
+    reassignment step** — no coordinator hands out work.
+12. **There is no coordinator; coordination is flat.** No agent owns the merge
+    queue, the workload plan, or the process docs, and no agent has authority over
+    another's focus. Review and merge any PR you did not author (§3a); adopt an
+    orphaned green PR; refresh the §8 plan when it is stale; resolve overlaps by
+    the fixed rules in `docs/FOCUS_AREAS.md` §4, where **merged code wins ties**.
+    Process-doc changes are self-service too, needing two peer reviews
+    (`docs/FOCUS_AREAS.md` §6). There is no `focus: coordinator` label.
+13. **Questions are answered by the rules, or go straight to the human.** Read
+    `AGENTS.md` and `docs/FOCUS_AREAS.md` first — scope/ordering/ownership/process
+    questions are answered there and any agent applies them itself. If the rules
+    are genuinely unclear, **propose the answer** (an ADR or a rules PR) and
+    proceed on the reversible path. A question needing a **human decision**
+    (product direction, licensing, a rule change, release policy) is posted by the
+    **asking agent itself** on the issue thread (`question` + `status: blocked`),
+    with options and a recommendation — **no relay, no waiting silently**. See
+    `docs/COORDINATION.md` §8.
+14. **Helpers are requested, never self-started.** An agent whose queue is empty
+    must not begin work in another area on its own. It announces availability and
+    works on tasks assigned by that area's owner; if the area has **no live
+    owner**, it self-claims under the lease rules (§11). Reviewing PRs and
+    triaging issues need no assignment (`docs/FOCUS_AREAS.md` §5).
+15. **Keep the workload plan useful.** The §8 workload plan is a **shared hint**:
+    anyone may refresh it (roughly one claimable task per area, comparable size)
+    so agents finish cycles together; the fleet size may be one or many, and the
+    plan works either way (`docs/COORDINATION.md` §9).
 
 ## 3a. Reviewing and merging other agents' pull requests
 
 Agents should keep the queue moving: **review open PRs that you did not author
 and merge them when they are good.** A stale, green PR that nobody merges is
-lost work.
+lost work. **No one owns the queue** (there is no coordinator, §3.12): the first
+free agent merges the oldest mergeable PR, and **adopts an orphaned PR** (its
+author gone quiet — no push/comment for 24 h) by reviewing and merging it itself.
+This is how the fleet drains the queue without any agent depending on another.
 
 **Who may merge.** Normally, merge PRs **authored by someone else**: the point is
 independent review, so do not merge your own PR while another agent or human can
@@ -207,8 +221,8 @@ comment explaining why and let the author respond:
 - You cannot tell what it changes, or it does not match its description.
 - It changes architecture without an ADR (§3.5), or touches `main` history.
 - It looks like it needs a human decision (e.g. a rename of the project, a
-  licensing question, a change to these very rules) and the sole account has not
-  already confirmed it.
+  licensing question, a change to these very rules) and no agent has yet
+  confirmed it with the human on the thread.
 - It was opened by a human who is actively iterating.
 
 Record the review in the PR: a short comment with the verdict (`approved and
@@ -471,7 +485,7 @@ run the game target locally and note the result in the PR.
   via `Game::tr(key, fallback)` and `substitute()` for `{token}`s. Add new UI
   text as a key in `assets/lang/en.json` and keep the old literal as the
   `fallback` so a missing file still renders. The key schema and `assets/lang/**`
-  are owned by `focus: content`; the consumer side (`Game.cpp`) is Client's.
+  are owned by `focus: content`; the consumer side (`Game.cpp`) is Render's.
   `--headless --check-lang` (ctest `game_lang`) fails if a key the UI
   reads is missing.
 - Combat/AI/mission logic lives in `src/core/sim/` (`Agent`, `Mission`, `Weapon`)
@@ -607,13 +621,14 @@ run the game target locally and note the result in the PR.
   **render** (`src/game` drawing), **input-ui** (`src/main.cpp`, input/selection),
   **content** (`core/data`, `assets/data` minus missions), **text** (`core/i18n`,
   `assets/lang`), **platform** (build, CI, packaging), **release** (`CHANGELOG`,
-  releases). Each area has one owning agent and a `focus:` label; only the owner
+  releases). Each area has a `focus:` label; only the agent holding its live claim
   (or a helper it tasks) edits its files. Each cycle pick a free area with the
   highest pending workload (§7). Overlap rules, the cross-area request format,
-  the helper protocol, and the review matrix all live there. When you pick up
-  work, claim the issue in **your** area; do not start in another area on your
-  own. **Coordinating is a secondary role** (§1), not an area: take it when no
-  agent holds it.
+  the helper protocol, the claim/lease protocol, and the review matrix all live
+  there. When you pick up work, claim the issue in **your** area; do not start in
+  another area on your own. **There is no coordinator** (ADR-0019): claims are
+  self-service leases (24 h takeover), the queue is drained peer-to-peer, and
+  overlaps are settled by the §4 rules with merged code winning ties.
 - **`src/game/Game.cpp` is shared** by **Render** (drawing) and **Input/UI**
   (input/selection) — serialise edits, never co-edit (`docs/FOCUS_AREAS.md` §4,
   Rule 2). Prefer splitting it into `Hud.cpp`/`Camera.cpp`/`Input.cpp`/

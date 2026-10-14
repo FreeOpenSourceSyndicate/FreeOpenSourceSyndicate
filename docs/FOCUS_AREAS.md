@@ -16,76 +16,70 @@ Read this together with `AGENTS.md` §3 (protocol) and `docs/COORDINATION.md`
 (claims, labels, review). Where this file and `AGENTS.md` disagree, `AGENTS.md`
 wins — then fix this file in the same PR.
 
-> **Restored to eight focus areas.** An earlier revision merged these into four
-> lanes when agents could not stay connected. Multi-agent work proved unstable at
-> that granularity, so the eight fine-grained areas are back. They keep the
-> natural file boundaries and give each agent a smaller, more predictable slice.
-> The coordinator is no longer an area of its own: it is a **secondary
-> responsibility** any agent may take on when no agent is currently coordinator
-> (§1).
+> **Restored to eight focus areas, now self-coordinating.** An earlier revision
+> merged these into four lanes when agents could not stay connected; that was
+> reverted because multi-agent work was unstable at that granularity. A later
+> revision routed coordination through a single **coordinator** role; that is
+> **removed** (ADR-0019) because an agent may abort mid-cycle and a fleet that
+> depends on one role stalls when that agent dies. Coordination is now **flat**:
+> the area boundaries below *are* the coordination mechanism, and every rule is
+> self-service.
 
 ---
 
-## 1. The coordinator (a secondary responsibility, not a focus area)
+## 1. Coordination is flat (no coordinator)
 
-There is **no `focus: coordinator`**. Coordinating is a **secondary role** that
-rides on top of whatever primary focus an agent already holds.
+There is **no coordinator role** and no `focus: coordinator` label. Every agent
+is an equal peer; no agent has authority over another's focus. The rules that a
+coordinator used to apply are now **mechanical and area-local**, so any agent can
+apply them without permission (ADR-0019).
 
-**How the role is taken.**
+**Why.** Agents abort mid-cycle. If a single role owns the merge queue, overlap
+arbitration, and the workload plan, its death stalls the fleet. Under the flat
+scheme an aborted agent strands **at most its own claim**, which a timeout
+reclaims; nobody was ever waiting on it.
 
-- When an agent starts a work cycle and **no agent is currently marked as
-  coordinator**, that agent **also becomes the coordinator** — in addition to its
-  primary focus — and records it (§1.1).
-- Only one agent is coordinator at a time. Once the role is taken, other agents
-  do **not** take it.
-- The role is **held for the duration of the holder's cycle** and released at the
-  end check-in (§1.1), so a later agent can take it. With a single active agent,
-  that one agent is coordinator for its cycle.
-- Taking the role is **optional**: an agent that is not coordinator, and does not
-  want to be, simply does its primary focus. Coordination never blocks work.
+**How coordination happens without a coordinator.**
 
-**What the coordinator does (secondary duties, kept light).**
+| What used to need the coordinator | What happens now |
+|-----------------------------------|------------------|
+| Assigning work / reassigning foci | Agents **self-claim** the highest-workload free area (§7); a claim is a **lease** with a 24 h timeout (§5.3, ADR-0019). |
+| Merging the queue | **Peer review/merge** (`AGENTS.md` §3a): any agent reviews and merges any PR it did not author; an orphaned PR is adopted by whoever is free. |
+| Arbitrating overlaps | The fixed **priority order in §4** decides; ties go to **merged code** (whoever landed first wins), never to an authority. |
+| Owning the process docs | **Shared maintainers**: any agent may PR a change to the rules, needing **two peer reviews** (§6) and never colliding with an active claim. |
+| Keeping the workload plan current | Anyone who notices §8 is stale **refreshes it**; it is a hint, not a deliverable. |
+| Answering process questions | The rules are written down here and in `AGENTS.md`; read them. Genuine **human** questions go straight to the maintainer (§5.2). |
 
-- Owns the rules and process docs — `docs/FOCUS_AREAS.md`, `docs/COORDINATION.md`,
-  `docs/ROADMAP.md`, `docs/DECISIONS.md` (ADR *process*), `AGENTS.md`, and the
-  issue/PR templates.
-- Runs the **merge queue** (`AGENTS.md` §3a): reviews and merges open PRs.
-- **Arbitrates an overlap dispute** (§4): when two areas both need a file, it
-  names a single editor and records the decision.
-- Freezes a shared **contract** when asked (§4, Rule 3).
-- Keeps the **live queue** (§8) and the **workload plan** (§7) current.
+**What is still not allowed.** An agent must not start work in another area's
+files on its own — it **requests** it from that area's owner (§5). This is the
+one place the flat scheme keeps a boundary, and it is exactly what keeps two
+agents from colliding on one file.
 
-**What it must not do.**
+### 1.1 The coordination hub is a bulletin board, not a control channel
 
-- It has **no extra file ownership** beyond its own primary focus plus the
-  process docs above. It does not own gameplay code and does not "help by
-  default" in another area's files.
-- It does **not** relay questions to the human (§5). Each agent posts its own
-  question; the coordinator answers only what it can.
+The hub issue (currently #38) carries **no `focus:` label** and grants no
+authority. Use it to **broadcast**, not to ask permission:
 
-### 1.1 Recording the role (no extra board needed)
+- **Start:** post your model, the `focus:` area you claimed, the issue, and the
+  branch.
+- **Idle:** post `@<area> available to help; my queue is empty`.
+- **End:** post done/in-progress/blocked, what landed (PR + SHA), how verified,
+  and whether you are stopping or available.
+- **Blocked / overlap dispute:** post the files and the areas.
 
-The role is tracked on the **coordination hub** (the open hub issue — currently
-#38):
+No one has to read the hub before acting, and no comment on it is required to
+start, merge, or take over work.
 
-- **To take the role**, comment on the hub:
-  `coordinator: <model> (primary focus: <area>) — taking the role for this cycle`.
-- **To release it** at the end check-in, comment:
-  `coordinator: <model> — released`.
-- The **most recent `taking` comment with no later `released`** is the current
-  coordinator. Read the last few hub comments before taking the role; if someone
-  holds it, do not take it.
-
-An optional `role: coordinator` issue label may mirror this, but the hub comments
-are the source of truth so the scheme works with no board at all.
 
 ---
 
 ## 2. The eight focus areas
 
-Each area has a `focus:` label, a single **owner** agent, and a set of files it
-owns. "Owns" means *only the owner (or a helper explicitly tasked by the owner)
-edits those files*. Two agents never share a lane; if the team grows, re-split
+Each area has a `focus:` label and a set of files it owns. "Owns" means *only the
+agent currently working that area (or a helper it explicitly tasks) edits those
+files*. An area has **no permanent owner**: whoever holds the live claim for the
+area's task is its owner **for that task**, and the area reverts to free when the
+claim ends (§5.3). Two agents never share a lane; if the team grows, re-split
 (§8) rather than sharing.
 
 | # | Area | Label | Owns (primary files) | Typical work |
@@ -113,8 +107,8 @@ are **content, tooling, and delivery**.
 
 ### 2.1 Interface surfaces an area must not silently change
 
-Each area exposes a surface other areas compile against. Change it only with the
-coordinator's contract step (§4, Rule 3):
+Each area exposes a surface other areas compile against. Change it only through
+the owning area's **contract step** (§4, Rule 3):
 
 | Area | Surface |
 |------|---------|
@@ -132,9 +126,10 @@ coordinator's contract step (§4, Rule 3):
 ## 3. How an area works
 
 1. **Pick from your queue.** Every area has open issues labelled with its
-   `focus:` label. Claim one (`claiming this`), branch, implement, PR.
+   `focus:` label. Claim one self-service: comment the `CLAIM:` line (§5.3),
+   branch, implement, PR.
 2. **Stay in your lane.** Only edit files your area owns. Need a change in
-   someone else's file? Request it (§4), do not edit it.
+   someone else's file? Request it (§4, Rule 4), do not edit it.
 3. **One task = one branch = one PR** (`AGENTS.md` §3). Branch prefixes by area:
 
    | Area | Branch prefix |
@@ -180,24 +175,27 @@ For these, use **turn-taking**, not parallel edits:
 1. The current holder opens a small PR touching only their concern.
 2. It is merged before the other area opens its PR touching the same file.
 3. Do **not** open two concurrent PRs that both modify `Game.cpp` (or
-   `test_mission.cpp`). If that happens, the second waits; the coordinator may
-   ask the first to rebase and land first.
+   `test_mission.cpp`). If that happens, the **later** PR waits and rebases onto
+   the first once it merges. Which is "first" is decided by merge order, not by
+   any agent's authority.
 4. A PR that must touch the shared file says so in its description and names the
-   other area, so the coordinator can order the merges.
+   other area, so the other agent can see the collision on the PR itself.
 
 Where practical, **split the file instead of sharing it**: new engine features go
 into new files (`src/game/Hud.cpp`, `src/game/Camera.cpp`, `src/game/Input.cpp`,
 `src/game/TitleCard.cpp`) so Render and Input/UI stop sharing `Game.cpp`.
 Splitting is the preferred long-term fix and a good task for whichever area gets
-there first — but it is one PR, coordinated through the coordinator, not a race.
+there first — but it is one PR, serialised by the rules above, not a race.
 
 ### Rule 2a — One task, one PR: no duplicate work
 
 An issue has **one** claimant at a time (`AGENTS.md` §3.2). Before you start:
 
-1. Read the issue's comments. If someone commented `claiming this` within the
-   last 24h, do **not** start it — pick your next queued task.
-2. If two agents nevertheless open PRs for the same issue, the **first merged PR
+1. Read the issue's comments. If there is a live `CLAIM:`/`LEASE:` (§5.3) within
+   the last 24 h, do **not** start it — pick your next queued task.
+2. If the lease is older than 24 h with no new push, the claim is **expired**:
+   post `TAKEOVER:` (§5.3) and proceed.
+3. If two agents nevertheless open PRs for the same issue, the **first merged PR
    wins**. The later one does not get merged; its author **rebases onto the
    winner** and keeps only the parts the winner is still missing (usually the
    wiring, docs, or tests), then opens a small follow-up PR.
@@ -209,15 +207,15 @@ the same PR; otherwise another area may "fix" it in a way that fights yours. The
 left `Agent::moveTo` on the 4-way default, so the feature was inert until #101
 passed `allowDiagonal=true`.
 
-### Rule 3 — Core headers are a contract; the coordinator freezes them
+### Rule 3 — Core headers are a contract; the owning area freezes them
 
 `core::Agent`, `core::Mission`, `core::Weapon`, `core::TileGrid`, the data
 structs, and the config structs are interfaces many areas build against. Adding
 a field or method is how areas communicate. To avoid churn:
 
 1. An area that needs a new member **requests it from the owning area** (§2.1).
-2. The owning area (or the coordinator) lands a **contract PR** that adds only
-   the header/signature, a stub if needed, and a test — small and fast.
+2. The owning area lands a **contract PR** that adds only the header/signature, a
+   stub if needed, and a test — small and fast.
 3. Everyone else then builds against the frozen signature.
 
 Never land a behaviour change and an interface change in the same PR unless the
@@ -238,15 +236,19 @@ Deadline/urgency: <e.g. "blocks my PR #123">
 ```
 
 B's owner either implements it, delegates it to a helper (§5), or pushes back
-with a reason and a counter-proposal. The coordinator breaks ties.
+with a reason and a counter-proposal. If B's owner is gone (aborted), the request
+itself is the takeover signal: the first agent to notice may take the requested
+work under the normal lease rules (§5.3).
 
 ### Rule 5 — Cross-cutting changes are serialised globally
 
-A few changes affect every area and must never be in flight twice:
+A few changes affect every area and must never be in flight twice. These are
+serialised by **ownership + the two-review rule**, not by a coordinator:
 
 - `AGENTS.md`, `docs/COORDINATION.md`, `docs/FOCUS_AREAS.md`, `docs/DECISIONS.md`
-  (the rules themselves) — **the coordinator** (whoever holds the role that
-  cycle) is the only editor.
+  (the rules themselves) — **shared maintainers**: any agent may PR a change,
+  but it needs **two peer reviews** (or, under the sole-account rule, an explicit
+  self-review against the §6 checklist) and must not collide with an active claim.
 - A new top-level dependency or build option — **Platform**, announced before it
   lands so other areas can rebase.
 - A rename or format change to shared data (JSON schema, config keys) — requires
@@ -254,48 +256,85 @@ A few changes affect every area and must never be in flight twice:
 - A change to `core::Vec2`/`TilePos` or the namespace — **World**, requires an
   ADR, announced.
 
-### Rule 6 — The coordinator decides ties
+### Rule 6 — Ownership ties are decided by the rules, then by merged code
 
-If two areas both believe they own a file, or both need to change it now, the
-coordinator assigns a single editor and records the decision in the issue. The
-losing area files a request and waits, or takes the next task in its queue.
+If two areas both believe they own a file, the **§2 file map decides** — it is the
+single source of truth, so check it before claiming. If the map is genuinely
+ambiguous, or two areas both need the file now, resolve it in this order, with no
+authority involved:
+
+1. **The area named in §2 owns it.** The other area files a request (Rule 4).
+2. **For a shared file (Rule 2), merge order decides.** Whoever's PR merges first
+   is the holder; the other rebases. This is automatic — no one adjudicates.
+3. **If the rules truly cannot decide** (a new file no area lists, or a real
+   disagreement about the map), the agents involved **write a one-paragraph ADR
+   in `docs/DECISIONS.md`** (options + recommendation) and the **first merged**
+   proposal wins. A rules change is itself just a PR (§6), so it does not need a
+   coordinator to bless it.
 
 ---
 
-## 5. Helpers and questions
+## 5. Helpers, leases, and questions
 
-### Helpers
+### 5.1 Helpers
 
 An agent whose own queue is empty **must not start work on its own initiative in
 another area**. It helps only on request:
 
 1. **Announce availability.** Comment on the coordination hub:
    `@<area> available to help; my queue is empty`.
-2. **Ask the owner.** The owning agent posts the task it wants done, with files,
-   interface, and acceptance criteria.
-3. **Get assigned.** Only the coordinator or the area's owner can assign the
-   task. A helper never self-assigns.
+2. **Ask the owner.** The agent holding the area's claim posts the task it wants
+   done, with files, interface, and acceptance criteria.
+3. **Get assigned — by the owner, or by the lease.** The area's owner assigns the
+   task. If there is **no live owner** (the area is free, or its claim has
+   expired, §5.3), the helper takes the task itself by posting a `CLAIM:` line —
+   no one's permission is needed.
 4. **Respect ownership.** A helper edits the owner's files only for the assigned
    task, and the owner reviews the PR (`AGENTS.md` §3a).
 5. **Hand back.** Report in the hand-off format and return to your own queue.
 
-### Questions — no relay through the coordinator
+### 5.2 Questions — answered by the rules or the human, never relayed
 
-- A question about **scope, ordering, ownership, or process** is answered by the
-  **coordinator** (comment on the hub or the issue thread).
-- A question the **coordinator cannot answer** — a human decision (product
-  direction, licensing, a rule change, release policy) — is posted **by the
-  asking agent directly to the human maintainer**, on the issue thread, tagged
-  `question` and `status: blocked`. State the options and a recommendation.
-  **Do not route it through the coordinator, and do not wait silently.**
-- Then continue on the **reversible path** if one exists, and note it.
+- A question about **scope, ordering, ownership, or process** is answered by
+  **this file and `AGENTS.md`**. Read them first; the rules are written to be
+  applied without a coordinator.
+- If the rules are genuinely unclear, the asking agent **proposes the answer** in
+  an ADR or a rules PR (§6) and proceeds on the reversible path — the proposal is
+  self-service, not a request for permission.
+- A **human** decision (product direction, licensing, a rule change, release
+  policy) is posted **by the asking agent directly to the human maintainer**, on
+  the issue thread, tagged `question` + `status: blocked`, with options and a
+  recommendation. **Do not route it through anyone, and do not wait silently.**
+
+### 5.3 Claims and leases — how abandonment is handled
+
+There is no reassignment step, so a claim must be self-expiring. Use the
+machine-readable protocol from **ADR-0019**:
+
+- **To claim**, comment on the issue:
+  `CLAIM: <model> | <focus: label> | <branch> | <YYYY-MM-DDThh:mmZ>`
+- **While working**, append a `LEASE:` line to any push, PR comment, or status
+  update: `LEASE: <model> | <branch> | <YYYY-MM-DDThh:mmZ>`
+- The **latest `CLAIM`/`LEASE` timestamp for a branch is its lease**. If that
+  timestamp is older than **24 h** and the branch has had no new push in that
+  window, the claim is **expired**.
+- **To take over**, comment `TAKEOVER: <model> | <focus: label>` and proceed.
+  Takeover is announced, never silent.
+- A **merged PR** ends the claim. A **closed PR** with no successor frees the
+  issue for the next claimer.
+
+This is the whole replacement for "the coordinator reassigns work": the clock
+does it, and the fleet never waits on a missing agent.
 
 ### What an idle agent may do without being asked
 
 - **Review** open PRs from other areas (never a file edit; `AGENTS.md` §3a
   explicitly asks for it).
+- **Adopt an orphaned PR** (one whose author has gone quiet): review it, ask for
+  any missing tests, and merge it under §3a. This is the peer replacement for a
+  coordinator draining the queue.
 - **Triage** issues: add the missing `focus:`/`status:` label, split a too-large
-  issue, write acceptance criteria.
+  issue, write acceptance criteria, or refresh the §8 plan when it is stale.
 - **Write tests** for behaviour that already exists and is owned by no one
   *inside your own area's test file* — never in another area's test file.
 
@@ -325,10 +364,18 @@ from §2. It is the single source of truth for *who may edit which files*:
 
 Plus the `status:` labels (`claimed`, `blocked`, `needs-review`).
 
-**No `focus: coordinator`.** Coordination is a secondary role (§1), tracked by
-hub comments, not a label on the agent's work. The one exception to "exactly one
-`focus:` label" is the **coordination hub issue itself** (process, not area
-work): it carries no `focus:` label.
+**No `focus: coordinator`.** There is no coordinator role (ADR-0019); there is no
+label for it either. The one exception to "exactly one `focus:` label" is the
+**coordination hub issue itself** (process, not area work): it carries no
+`focus:` label.
+
+Process-doc PRs (the rules themselves, §4 Rule 5) need **two peer reviews**, or
+under the sole-account rule an explicit self-review against the checklist below:
+
+- [ ] The change is to the rules, not to gameplay.
+- [ ] It keeps the scheme flat (no reintroduced authority role).
+- [ ] It leaves every area with exactly one `focus:` label and a file map.
+- [ ] `AGENTS.md` and this file still agree.
 
 ---
 
@@ -336,49 +383,54 @@ work): it carries no `focus:` label.
 
 **The fleet size varies** — there may be eight active agents, or only one. The
 scheme must work either way, so focus choice is driven by a **workload plan**
-maintained by the coordinator in §8.
+(§8). The plan is a shared hint: **whoever notices it is stale refreshes it**;
+it is not owned by any agent.
 
 ### 7.1 How an agent picks a focus each cycle
 
 1. **Read the workload plan (§8).** It lists each focus area with an estimate of
-   its **pending workload** (number/size of open tasks) and its current owner.
-2. **Pick a free focus with the highest pending workload.** "Free" means no
-   other agent currently owns it this cycle. This keeps the busiest areas moving
-   and spreads agents out.
+   its **pending workload** (number/size of open tasks) and any live claim.
+2. **Pick a free focus with the highest pending workload.** "Free" means no other
+   agent holds a **live claim** (§5.3) in it this cycle. This keeps the busiest
+   areas moving and spreads agents out.
 3. **Prefer known foci to reduce scope.** Given a choice, prefer a focus the
    agent has worked before (or one whose files it already knows) — familiar files
    mean smaller, safer changes and fewer cross-area surprises.
-4. **Do not start a second agent in an area someone already owns.** If every
+4. **Do not start a second agent in an area someone already holds.** If every
    high-workload area is taken, take the next-free one, or help (§5).
-5. **Record the pick** in the start check-in (`docs/COORDINATION.md` §7) and, if
-   taking coordination, on the hub (§1.1).
+5. **Record the pick** in the start check-in on the hub (§1.1) and as a `CLAIM:`
+   line on the issue (§5.3).
 
 With one active agent, it simply takes the highest-workload free area (all are
-free) and is coordinator for the cycle. With eight, they fan out across the eight
-areas, busiest first.
+free). With eight, they fan out across the eight areas, busiest first. Nothing
+assigns these picks; each agent reads the plan and claims.
 
-### 7.2 How the coordinator plans the workload
+### 7.2 Keeping the workload plan useful
 
-- Keep the §8 table's **workload estimates** current (refresh when a task closes
-  or is added).
+- **Anyone** may refresh the §8 table when a task closes or is added; it is a
+  shared hint, not an owned deliverable. A stale plan is a bug anyone can fix.
+- Keep the **workload estimates** current, so "highest pending workload" stays
+  meaningful.
 - Seed at least **one concrete, claimable task** per area from the roadmap, so
   "highest pending workload" is never zero for a busy area.
 - Keep estimates comparable in size (roughly one PR each) so agents finish their
   cycles at about the same time.
 - When there are fewer agents than areas, do **not** delete areas — leave them
   in the plan; agents simply take the highest-workload ones first, and the rest
-  wait. When there are more agents than areas, helpers (§5) take assigned work.
+  wait. When there are more agents than areas, helpers (§5) take requested work.
 
 ---
 
 ## 8. Live queue and workload plan
 
-Coordinator-owned. Update whenever a task closes or is added. **Pending
-workload** is a rough size in "PRs" (one small PR ≈ 1). Areas are listed
-busiest-first so the next agent can pick the top free one.
+Shared hint — **refresh it whenever you notice it is stale**; no agent owns it.
+**Pending workload** is a rough size in "PRs" (one small PR ≈ 1). Areas are
+listed busiest-first so the next agent can pick the top free one. The **Live
+claim** column shows the current holder if any (§5.3), so a newcomer can see
+what is taken without reading every issue.
 
-| Area | `focus:` | Owner this cycle | Pending workload | Seeded / open tasks |
-|------|----------|------------------|------------------|---------------------|
+| Area | `focus:` | Live claim | Pending workload | Seeded / open tasks |
+|------|----------|------------|------------------|---------------------|
 | Input/UI | `focus: input-ui` | — | 1 | #94 box-select drag ✅ (merged #112); control-group polish |
 | Content | `focus: content` | — | 1 | #90 explosive `launcher` ✅ (merged #107); more weapons / balance |
 | Render | `focus: render` | — | 1 | #89 queued-route overlay ✅ (merged #109); Phase 2 zoom (unfiled) |
@@ -388,7 +440,7 @@ busiest-first so the next agent can pick the top free one.
 | Platform | `focus: platform` | — | 1 | #91 package smoke validates content ✅ (merged #105); #103 install every `assets/lang/*.json` |
 | Release | `focus: release` | — | 1 | #70 CHANGELOG reconcile ✅ (option A); next release cut |
 
-Legend: owner `—` = free this cycle. Workload is a rough size in "PRs" (one
+Legend: live claim `—` = free this cycle. Workload is a rough size in "PRs" (one
 small PR ≈ 1); all eight areas are seeded so the busiest-first pick always finds
 a free, claimable task.
 
@@ -428,7 +480,8 @@ a free, claimable task.
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 
 **Re-split / re-merge trigger.** The eight areas are the default. If the active
-agent count *drops* for a sustained period and areas sit empty, the coordinator
-may temporarily merge the thinnest, most-coupled pairs (`world`→`tactical`,
-`input-ui`→`render`, `text`→`content`, `release`→`platform`) and record it here —
-but the default to restore is these eight. Split by *file*, never by *phase*.
+agent count *drops* for a sustained period and areas sit empty, **any agent may**
+temporarily merge the thinnest, most-coupled pairs (`world`→`tactical`,
+`input-ui`→`render`, `text`→`content`, `release`→`platform`) via a rules PR (§6)
+and record it here — but the default to restore is these eight. Split by *file*,
+never by *phase*.
