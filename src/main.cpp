@@ -55,6 +55,7 @@ int main(int argc, char** argv)
     bool headless = false;
     bool demo = false;
     bool lowSpec = false;
+    bool title = false;
     const char* screenshot = nullptr;
     std::string cliMission;   // --mission <path>
     std::string cliConfig;    // --config <path>
@@ -80,6 +81,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--low-spec") == 0)
         {
             lowSpec = true;
+        }
+        else if (std::strcmp(argv[i], "--title") == 0)
+        {
+            title = true;
         }
         else if (std::strcmp(argv[i], "--mission") == 0 && i + 1 < argc)
         {
@@ -150,6 +155,14 @@ int main(int argc, char** argv)
 
     fossynd::game::Game game;
     game.setMissionPath(missionPath);
+
+    // Show the authored title card for a real, interactive player. Automated
+    // runs (headless, screenshots, attract mode) skip it and go straight to the
+    // map. `--title` forces it (used to capture the card headlessly). Must be set
+    // before init(), which latches the flag into the initial game state.
+    const bool interactive = !headless && screenshot == nullptr && !demo;
+    game.setShowTitleCard(title || interactive);
+
     if (!game.init(width, height, headless, lowSpec))
     {
         std::fprintf(stderr, "Failed to start the game.\n");

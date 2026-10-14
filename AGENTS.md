@@ -430,8 +430,9 @@ change touches `src/core/` or `tests/`, all must pass. If it touches
   `core/data/Config.*` and `core/data/ContentPaths.*` (SDL-free, unit-tested).
   Example: `assets/data/fossynd.conf.example`. Details: `docs/DATA_FORMAT.md`.
 - Verification flags: `--headless --frames N`, `--headless --demo --frames N`,
-  and `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
-  `game_demo`, and `game_low_spec` cover the SDL layer headlessly.
+  `--headless --title --frames N`, and
+  `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
+  `game_demo`, `game_low_spec`, and `game_title` cover the SDL layer headlessly.
 - Engine-layer changes are covered by the CI `core + game` job (ADR-0005). The
   CI `low-spec` job builds the old-hardware profile (ADR-0008).
 - **Releases are playtest snapshots** (§6a): a `release/vX.Y.Z-*` branch + tag +

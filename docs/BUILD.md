@@ -113,6 +113,7 @@ They flee when gunfire starts nearby. Civilian deaths you cause are counted as
 |------|--------|
 | `--demo` | Attract mode: the squad advances on the nearest enemy automatically |
 | `--low-spec` | Old-hardware mode: 320x200 window + software renderer (ADR-0008) |
+| `--title` | Force the pixel-art title card (used to capture it headlessly) |
 | `--headless` | Use the dummy video driver (no display needed) |
 | `--frames N` | Run N frames then exit |
 | `--screenshot PATH` | Render one frame to a BMP and exit (with `--frames` first, simulates then captures) |
