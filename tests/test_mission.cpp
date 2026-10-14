@@ -403,3 +403,128 @@ FOSSYND_TEST(Mission, AlertAlliesOnlyReachesWithinRadius)
 }
 
 
+
+// --- Objectives beyond "eliminate all" (issue #30) ------------------------
+
+FOSSYND_TEST(Mission, DefaultObjectiveIsEliminateAll)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 3u);
+    FOSSYND_CHECK(mission.objective().kind == ObjectiveSpec::Kind::EliminateAll);
+}
+
+FOSSYND_TEST(Mission, ReachTileWinsWhenAPlayerStandsOnTheTile)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 4u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::ReachTile;
+    objective.tileX = 4;
+    objective.tileY = 2;
+    mission.setObjective(objective);
+
+    // A harmless enemy far away so the mission does not end by elimination.
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+
+    mission.update(0.05f);
+    FOSSYND_CHECK(mission.state() == MissionState::Running);
+    FOSSYND_CHECK(mission.agents()[0].tile() != (TilePos{4, 2}));
+
+    mission.orderMove(0, TilePos{4, 2});
+    runUntilDone(mission, 10.0f);
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    // The enemy is still alive: the reach objective is what ended it.
+    FOSSYND_CHECK_EQ(mission.aliveCount(Team::Enemy), static_cast<std::size_t>(1));
+}
+
+FOSSYND_TEST(Mission, ReachTileRequiresTheExactTile)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 5u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::ReachTile;
+    objective.tileX = 10;
+    objective.tileY = 10;
+    mission.setObjective(objective);
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+
+    mission.orderMove(0, TilePos{4, 4});
+    runUntilDone(mission, 6.0f);
+    FOSSYND_CHECK(mission.state() == MissionState::Running);
+}
+
+FOSSYND_TEST(Mission, SurviveWinsAfterTheTimeElapses)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 6u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::Survive;
+    objective.seconds = 2.0f;
+    mission.setObjective(objective);
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+
+    runUntilDone(mission, 10.0f);
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK(mission.elapsedSeconds() >= 2.0f);
+    FOSSYND_CHECK_EQ(mission.aliveCount(Team::Enemy), static_cast<std::size_t>(1));
+}
+
+FOSSYND_TEST(Mission, SurviveDoesNotWinEarly)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 7u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::Survive;
+    objective.seconds = 1.0f;
+    mission.setObjective(objective);
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+
+    for (int i = 0; i < 10; ++i) // 0.5s total
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK(mission.state() == MissionState::Running);
+}
+
+FOSSYND_TEST(Mission, SquadDeathLosesEvenWithReachObjective)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 8u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::ReachTile;
+    objective.tileX = 10;
+    objective.tileY = 10;
+    mission.setObjective(objective);
+    // Weak player right next to a lethal enemy; it dies before reaching anything.
+    mission.addAgent(makeAgent(3.0f, 2.0f, Team::Player, 10.0f));
+    mission.addAgent(makeAgent(4.0f, 2.0f, Team::Enemy, 100.0f, Weapon{"Test", 1000.0f, 5.0f, 10.0f, 1.0f}));
+
+    runUntilDone(mission, 5.0f);
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Lost);
+}
+
+FOSSYND_TEST(Mission, ElapsedSecondsIsFrozenAfterTheMissionEnds)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 9u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::Survive;
+    objective.seconds = 0.5f;
+    mission.setObjective(objective);
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+
+    runUntilDone(mission, 5.0f);
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    const float wonAt = mission.elapsedSeconds();
+    for (int i = 0; i < 20; ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK_NEAR(mission.elapsedSeconds(), wonAt);
+}

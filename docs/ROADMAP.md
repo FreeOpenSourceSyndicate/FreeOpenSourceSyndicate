@@ -90,7 +90,7 @@ A shippable demo, deliberately original in code and art.
 - [x] Enemy AI: patrol, retreat, call backup
 - [x] Civilians: flee from gunfire, killed as collateral damage
 - [ ] Civilian/persuasion behaviour (Persuadertron recruitment)
-- [x] Mission objectives + win/lose (demo: eliminate all enemies)
+- [x] Mission objectives + win/lose (data-driven: eliminate all enemies, reach a tile, survive)
 
 ## Phase 4 — Metagame
 

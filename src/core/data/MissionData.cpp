@@ -151,6 +151,50 @@ bool parseBlocked(const Json& array, std::vector<TileSpec>& out, std::string& er
 
 } // namespace
 
+bool MissionData::parseObjectiveJson(const Json& node, ObjectiveSpec& out, std::string& error)
+{
+    out = ObjectiveSpec{};
+    if (!node.isObject())
+    {
+        error = "'objective' must be an object";
+        return false;
+    }
+
+    const std::string kind = node.has("kind") ? node["kind"].asString() : std::string("eliminate");
+    if (kind == "eliminate")
+    {
+        out.kind = ObjectiveSpec::Kind::EliminateAll;
+    }
+    else if (kind == "reach")
+    {
+        out.kind = ObjectiveSpec::Kind::ReachTile;
+        if (!node.has("tileX") || !node.has("tileY"))
+        {
+            error = "a 'reach' objective needs numeric 'tileX' and 'tileY'";
+            return false;
+        }
+        out.tileX = node["tileX"].asInt();
+        out.tileY = node["tileY"].asInt();
+    }
+    else if (kind == "survive")
+    {
+        out.kind = ObjectiveSpec::Kind::Survive;
+        out.seconds = node["seconds"].asFloat(out.seconds);
+        if (out.seconds <= 0.0f)
+        {
+            error = "a 'survive' objective needs 'seconds' > 0";
+            return false;
+        }
+    }
+    else
+    {
+        error = "unknown objective kind '" + kind +
+                "' (expected eliminate, reach, or survive)";
+        return false;
+    }
+    return true;
+}
+
 bool MissionData::fromJson(const Json& root, MissionData& out, std::string& error)
 {
     if (!root.isObject())
@@ -178,6 +222,12 @@ bool MissionData::fromJson(const Json& root, MissionData& out, std::string& erro
         return false;
     }
     if (root.has("blocked") && !parseBlocked(root["blocked"], out.blocked, error))
+    {
+        return false;
+    }
+
+    if (root.has("objective") &&
+        !MissionData::parseObjectiveJson(root["objective"], out.objective, error))
     {
         return false;
     }
@@ -276,6 +326,7 @@ TileGrid buildGrid(const MissionData& data)
 
 void populateMission(const MissionData& data, Mission& mission)
 {
+    mission.setObjective(data.objective);
     for (const AgentSpec& spec : data.agents)
     {
         Agent agent(spec.x, spec.y, spec.speed);

@@ -42,6 +42,12 @@ A mission file describes one mission. Example:
     { "x": 12, "y": 10 }
   ],
 
+  "objective": {               // optional; defaults to eliminate-all
+    "kind": "eliminate"        // "eliminate" | "reach" | "survive"
+    // "kind": "reach", "tileX": 20, "tileY": 20
+    // "kind": "survive", "seconds": 60
+  },
+
   "agents": [                  // required, non-empty
     {
       "name": "ALPHA",         // optional, defaults to "AGENT"
@@ -67,6 +73,16 @@ A mission file describes one mission. Example:
   movement**, so the interior stays walkable. `width`/`height` are in tiles and
   must be positive.
 - **`blocked`** marks single tiles as impassable (in addition to buildings).
+- **`objective`** is the mission's win condition; omit it for the default.
+  - `"eliminate"` — win when every enemy agent is dead (the default, so existing
+    missions are unchanged).
+  - `"reach"` — win as soon as any living player agent stands on the tile
+    `(tileX, tileY)`. Both are required and are integer tile coordinates.
+  - `"survive"` — win after `seconds` (a number, `> 0`) of mission time have
+    elapsed.
+  - The lose condition is universal and unchanged: every player agent dead.
+    Civilians never affect win/lose. `Mission::elapsedSeconds()` reports the
+    mission clock (frozen once the mission ends).
 - **`team`** must be `player`, `enemy`, or `civilian`. Civilians are never
   auto-targeted and never affect win/lose (see `AGENTS.md` §10).
 - **Agent coordinates** are fractional tile positions, matching `Agent(x, y, …)`;
@@ -128,5 +144,4 @@ can add missions in parallel without touching the same C++ file (AGENTS.md §4.7
 ## Not yet covered
 
 - Shared weapon / agent catalogues (referenced by id). A non-breaking extension.
-- Objectives beyond "eliminate all enemies".
 - Tile art / per-tile terrain types (the loader only sets walkability).
