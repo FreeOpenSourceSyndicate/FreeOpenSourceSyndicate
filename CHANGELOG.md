@@ -10,6 +10,14 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **Interpolated rendering over a fixed-step simulation:** the view now drives
+  the mission with `core::FixedTimestep` (accumulate-then-step) instead of one
+  variable-`dt` update per frame, and draws every agent at
+  `Agent::interpolatedPosition(clock.alpha())`. Gameplay outcomes are now
+  independent of frame rate while motion stays smooth on any refresh rate
+  (AGENTS.md golden rule 4). No core change — this consumes the API from #43.
+  The renderer and the orders pass share one fixed step; the camera and walk
+  cycle remain view-only and follow real elapsed time. Issue #44.
 - **Control groups:** the squad view now supports four control-group slots.
   **Ctrl+`1`–`4`** assigns the current selection to a slot and **`1`–`4`** recalls
   it; dead members are dropped on recall and an empty group is a safe no-op.
