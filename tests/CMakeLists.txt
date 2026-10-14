@@ -20,6 +20,7 @@ set(FOSSYND_TEST_SOURCES
     test_compliance_beacon.cpp
     test_sprites.cpp
     test_i18n.cpp
+    test_content_validation.cpp
 )
 
 add_executable(run_tests ${FOSSYND_TEST_SOURCES})

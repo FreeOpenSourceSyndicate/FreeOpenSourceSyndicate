@@ -181,6 +181,36 @@ user asked for it specifically. Nothing found (step 5) is not an error.
 The resolution logic lives in `core/data/Config.{h,cpp}` and
 `core/data/ContentPaths.{h,cpp}` (SDL-free, unit-tested).
 
+## Validating content
+
+`core/data/ContentValidation.h` (header-only, engine-free, no new dependency)
+resolves every mission's `weaponId`/`agentId` references against the shared
+catalogues and reports readable problems, so bad content is caught in CI instead
+of at play time:
+
+```cpp
+#include "core/data/ContentValidation.h"
+
+const fossynd::core::content::ValidationReport report =
+    fossynd::core::content::validateContentDir("assets/data");
+if (!report.ok())
+{
+    std::fputs(fossynd::core::content::formatReport(report).c_str(), stderr);
+}
+```
+
+- `validateContentDir(dataDir)` loads `weapons.json`/`agents.json` from `dataDir`
+  (missing files are fine) and checks every `*.json` in `dataDir/missions/`.
+- It collects **all** problems rather than stopping at the first, and each line
+  names the file: `content: assets/data/missions/demo.json: unknown weaponId ...`.
+- It reports a missing `weaponId`/`agentId`, a duplicate catalogue `id`, a
+  malformed mission, and a missing catalogue directory.
+- A `dataDir` with **no** catalogue files is reported, because then no mission
+  reference could ever resolve — a likely misconfiguration.
+- The shipped content is covered by `tests/test_content_validation.cpp`
+  (`ContentValidation.ShippedContentPasses`), so a broken mission or catalogue
+  fails CI.
+
 ## Adding content
 
 To add a mission, drop a new `assets/data/missions/<name>.json` file. Two agents
