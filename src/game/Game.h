@@ -48,6 +48,11 @@ public:
     // copy embedded in the binary". Call before init().
     void setMissionPath(const std::string& path) { missionPath_ = path; }
 
+    // Shows the authored pixel-art title card before play. Off by default so
+    // automated runs (smoke tests, screenshots, attract mode) go straight to the
+    // map; the interactive player sees it and presses a key to start.
+    void setShowTitleCard(bool enabled) { showTitleCard_ = enabled; }
+
     // Renders one frame and saves it to `path` as a BMP. Returns false on
     // failure. Used for headless verification.
     bool saveScreenshot(const std::string& path);
@@ -63,6 +68,9 @@ private:
     void render();
     void renderAgents();
     void renderHud();
+    void renderTitleCard();
+    void drawTitleDiamond(float cx, float cy, float radius, std::uint8_t r, std::uint8_t g,
+                          std::uint8_t b);
 
     // Selection helpers, all clamped to living player agents.
     int agentAtScreen(int x, int y) const;
@@ -123,6 +131,12 @@ private:
 
     bool autoPlay_ = false;
     float autoPlayTimer_ = 0.0f;
+
+    // Authored title card (pixel art), shown before play.
+    bool showTitleCard_ = false;
+    bool titleCardActive_ = false;
+    float titleCardTime_ = 0.0f;
+    bool titleCardStartRequested_ = false;
 
     bool running_ = false;
 };

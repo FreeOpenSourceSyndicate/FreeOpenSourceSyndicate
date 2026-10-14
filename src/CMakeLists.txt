@@ -24,6 +24,10 @@ list(APPEND FOSSYND_GAME_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/game/EmbeddedMissi
 
 add_executable(FOSSynd ${FOSSYND_GAME_SOURCES})
 
+# The version shown in the window title, the HUD, and the title card. Single
+# source of truth: the project() version in the top-level CMakeLists.txt.
+target_compile_definitions(FOSSynd PRIVATE FOSSYND_VERSION="${PROJECT_VERSION}")
+
 target_include_directories(FOSSynd PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
@@ -46,7 +50,7 @@ else()
 endif()
 
 set_target_properties(FOSSynd PROPERTIES
-    VERSION 0.1.0
+    VERSION ${PROJECT_VERSION}
 )
 
 # Install rules: the binary, the mission data, and the example config. The game
@@ -71,4 +75,8 @@ if(BUILD_TESTS)
     # Low-spec runtime path (ADR-0008): small window + software renderer, headless.
     add_test(NAME game_low_spec
              COMMAND FOSSynd --headless --low-spec --frames 30)
+    # Title card: the authored pixel-art screen renders and the mission still
+    # starts when the card times out. Guards the v0.4.0 title-card path.
+    add_test(NAME game_title
+             COMMAND FOSSynd --headless --title --frames 120)
 endif()

@@ -68,6 +68,7 @@ A shippable demo, deliberately original in code and art.
 - [x] Camera: pan (arrows), follow squad (auto)
 - [x] Input: point-to-move, squad commands
 - [x] HUD: objective, squad roster, mission state
+- [x] Pixel-art title card (name, version, controls) on launch (`--title` to force)
 - [ ] Depth-sorted sprite pass and animation (still markers, not sprites)
 - [ ] Zoom and a minimap
 - [ ] Interpolated rendering over fixed-step sim

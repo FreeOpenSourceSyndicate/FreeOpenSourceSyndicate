@@ -10,6 +10,12 @@
 #include "core/math/Isometric.h"
 #include "game/EmbeddedMission.h"
 
+// The build sets this from the project() version (src/CMakeLists.txt); the
+// fallback keeps a plain compile (no CMake definitions) working.
+#ifndef FOSSYND_VERSION
+#define FOSSYND_VERSION "0.0.0-dev"
+#endif
+
 namespace fossynd::game
 {
 namespace
@@ -85,7 +91,7 @@ bool Game::init(int width, int height, bool headless, bool lowSpec)
     screenWidth_ = width;
     screenHeight_ = height;
 
-    window_ = SDL_CreateWindow("FOSSynd", SDL_WINDOWPOS_CENTERED,
+    window_ = SDL_CreateWindow(("FOSSynd v" FOSSYND_VERSION), SDL_WINDOWPOS_CENTERED,
                                SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_SHOWN);
     if (window_ == nullptr)
     {
@@ -124,6 +130,10 @@ bool Game::init(int width, int height, bool headless, bool lowSpec)
     {
         centerOn(agents.front().position());
     }
+
+    titleCardActive_ = showTitleCard_;
+    titleCardTime_ = 0.0f;
+    titleCardStartRequested_ = false;
 
     running_ = true;
     return true;
@@ -436,6 +446,28 @@ void Game::handleEvents(bool& running)
     SDL_Event event;
     while (SDL_PollEvent(&event) != 0)
     {
+        // While the title card is up, the first key or click starts the mission
+        // instead of issuing orders.
+        if (titleCardActive_)
+        {
+            if (event.type == SDL_QUIT)
+            {
+                running = false;
+            }
+            else if (event.type == SDL_KEYDOWN || event.type == SDL_MOUSEBUTTONDOWN)
+            {
+                if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)
+                {
+                    running = false;
+                }
+                else
+                {
+                    titleCardStartRequested_ = true;
+                }
+            }
+            continue;
+        }
+
         switch (event.type)
         {
         case SDL_QUIT:
@@ -558,6 +590,17 @@ void Game::handleEvents(bool& running)
 
 void Game::update(float dt)
 {
+    if (titleCardActive_)
+    {
+        titleCardTime_ += dt;
+        // A click/keypress starts the mission, as does a few seconds of
+        // inactivity, so an unattended run never stalls on the card.
+        if (titleCardStartRequested_ || titleCardTime_ >= 6.0f)
+        {
+            titleCardActive_ = false;
+        }
+        return;
+    }
     if (autoPlay_)
     {
         updateAutoPlay(dt);
@@ -795,7 +838,7 @@ void Game::renderHud()
     SDL_Rect topBar{0, 0, screenWidth_, lineH + margin};
     SDL_RenderFillRect(renderer_, &topBar);
 
-    font_.draw(renderer_, margin, margin / 2, "FOSSYND", kHudText);
+    font_.draw(renderer_, margin, margin / 2, "FOSSYND v" FOSSYND_VERSION, kHudText);
     std::string objective =
         "OBJECTIVE: ELIMINATE ALL " + std::to_string(mission_.aliveCount(core::Team::Enemy)) +
         " ENEMY AGENTS   [L] MOVE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] SELECT   [A]LL   [R] RESTART";
@@ -864,6 +907,102 @@ void Game::renderHud()
     }
 }
 
+void Game::drawTitleDiamond(float cx, float cy, float radius, std::uint8_t r, std::uint8_t g,
+                            std::uint8_t b)
+{
+    // A flat isometric diamond drawn straight into the renderer. `radius` is in
+    // the same 0..1 world units as fillDiamondWorld, so the title card reuses the
+    // in-game marker shape and reads as the same art.
+    const float halfW = radius * (kTileWidth * 0.5f);
+    const float halfH = radius * (kTileHeight * 0.5f);
+    SDL_SetRenderDrawColor(renderer_, r, g, b, 255);
+    const int minY = static_cast<int>(cy - halfH);
+    const int maxY = static_cast<int>(cy + halfH);
+    for (int py = minY; py <= maxY; ++py)
+    {
+        const float dy = (static_cast<float>(py) - cy) / halfH;
+        const float span = 1.0f - std::fabs(dy);
+        if (span <= 0.0f)
+        {
+            continue;
+        }
+        SDL_Rect line;
+        line.x = static_cast<int>(cx - halfW * span);
+        line.w = static_cast<int>(2.0f * halfW * span) + 1;
+        line.y = py;
+        line.h = 1;
+        SDL_RenderFillRect(renderer_, &line);
+    }
+}
+
+void Game::renderTitleCard()
+{
+    const int w = screenWidth_;
+    const int h = screenHeight_;
+    const int lineH = font_.lineHeight();
+
+    // Dark, slightly translucent backdrop so the map stays faintly visible.
+    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer_, 6, 7, 9, 232);
+    SDL_Rect full{0, 0, w, h};
+    SDL_RenderFillRect(renderer_, &full);
+
+    // A row of squad diamonds (the in-game player marker) as the badge.
+    const float cx = static_cast<float>(w) * 0.5f;
+    const float badgeY = static_cast<float>(h) * 0.24f;
+    const float spacing = static_cast<float>(w) * 0.05f;
+    drawTitleDiamond(cx - spacing * 1.5f, badgeY, 0.42f, kPlayerBody[0], kPlayerBody[1],
+                     kPlayerBody[2]);
+    drawTitleDiamond(cx - spacing * 0.5f, badgeY - lineH, 0.42f, kPlayerBodySelected[0],
+                     kPlayerBodySelected[1], kPlayerBodySelected[2]);
+    drawTitleDiamond(cx + spacing * 0.5f, badgeY, 0.42f, kPlayerBody[0], kPlayerBody[1],
+                     kPlayerBody[2]);
+    drawTitleDiamond(cx + spacing * 1.5f, badgeY - lineH, 0.42f, kPlayerBodySelected[0],
+                     kPlayerBodySelected[1], kPlayerBodySelected[2]);
+
+    // Title and version, centred.
+    const std::string title = "FOSSYND";
+    const std::string version = std::string("v") + FOSSYND_VERSION;
+    const std::string subtitle = "SMART ENEMIES";
+
+    int y = static_cast<int>(static_cast<float>(h) * 0.40f);
+    font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(title) / 2, y, title, kHudText);
+    y += lineH + 2;
+    font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(subtitle) / 2, y, subtitle,
+               kHudGood);
+    y += lineH + 2;
+    font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(version) / 2, y, version, kHudDim);
+
+    // A blinking prompt (driven by the elapsed time, no RNG).
+    const bool blinkOn = std::fmod(titleCardTime_, 1.0f) < 0.6f;
+    if (blinkOn)
+    {
+        const std::string prompt = "PRESS ANY KEY";
+        y += lineH * 2;
+        font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(prompt) / 2, y, prompt,
+                   kHudText);
+    }
+
+    // Controls, centred lower down.
+    const char* controls[] = {
+        "CLICK / L  MOVE THE SQUAD",
+        "RIGHT-CLICK  FOCUS FIRE",
+        "1-4 / A  SELECT AGENTS",
+        "ARROWS  SCROLL   R  RESTART   ESC  QUIT",
+    };
+    int cy = static_cast<int>(static_cast<float>(h) * 0.68f);
+    for (const char* line : controls)
+    {
+        font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(line) / 2, cy, line, kHudDim);
+        cy += lineH;
+    }
+
+    // Small footer tag, so a screenshot self-identifies the build.
+    const std::string footer = "FOSSYND v" FOSSYND_VERSION "  -  FREE OPEN SOURCE SYNDICATE";
+    font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(footer) / 2, h - lineH - 6, footer,
+               kHudDim);
+}
+
 void Game::render()
 {
     SDL_SetRenderDrawColor(renderer_, 12, 13, 12, 255);
@@ -880,7 +1019,14 @@ void Game::render()
     }
 
     renderAgents();
-    renderHud();
+    if (titleCardActive_)
+    {
+        renderTitleCard();
+    }
+    else
+    {
+        renderHud();
+    }
 
     SDL_RenderPresent(renderer_);
 }
