@@ -437,7 +437,7 @@ what is taken without reading every issue.
 | Tactical | `focus: tactical` | — | 1 | #88 medikit ✅ (merged); mission-design backlog (Phase 3) |
 | World | `focus: world` | — | 1 | #93 string-pull A* routes ✅ (merged #99 + wiring #101); LOS follow-ups |
 | Text | `focus: text` | — | 1 | #95 locale resolution + `de` stub ✅ (merged #104); more locales, `--lang` flag (input-ui) |
-| Platform | `focus: platform` | — | 1 | #91 package smoke validates content ✅ (merged #105); #103 install every `assets/lang/*.json` |
+| Platform | `focus: platform` | — | 1 | #103 install every `assets/lang/*.json` ✅ (merged #115); macOS/Windows packaging lanes (Phase 5) |
 | Release | `focus: release` | — | 1 | #70 CHANGELOG reconcile ✅ (option A); next release cut |
 
 Legend: live claim `—` = free this cycle. Workload is a rough size in "PRs" (one
@@ -476,6 +476,8 @@ a free, claimable task.
 | Explosive weapon (`launcher`) in the catalogue | content | #90 | ✅ merged (#107) |
 | Queued-route overlay | render | #89 | ✅ merged (#109) |
 | Box-select by dragging a rectangle | input-ui | #94 | ✅ merged (#112) |
+| Flat self-coordination (remove the coordinator role) | platform | #114 | ✅ merged (ADR-0019) |
+| Package installs every `assets/lang/*.json` | platform | #103 | ✅ merged (#115) |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 
