@@ -380,7 +380,7 @@ busiest-first so the next agent can pick the top free one.
 | Area | `focus:` | Owner this cycle | Pending workload | Seeded / open tasks |
 |------|----------|------------------|------------------|---------------------|
 | Tactical | `focus: tactical` | — | 1 | #88 medikit ✅ (merged); mission-design backlog (Phase 3) |
-| World | `focus: world` | — | 2 | #93 string-pull A* routes; LOS follow-ups |
+| World | `focus: world` | — | 1 | #93 string-pull A* routes ✅ (merged #99 + wiring #101); LOS follow-ups |
 | Render | `focus: render` | — | 2 | #89 draw queued waypoint path; Phase 2 zoom (unfiled) |
 | Input/UI | `focus: input-ui` | — | 2 | #94 box-select drag; control-group polish |
 | Content | `focus: content` | — | 2 | #90 ship explosive weapon in `weapons.json` |
