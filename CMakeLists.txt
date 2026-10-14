@@ -60,11 +60,11 @@ if(BUILD_TESTS)
 endif()
 
 # ---------------------------------------------------------------------------
-# Packaging (CPack): Linux first (ROADMAP Phase 5 tooling). Produces a portable
-# .tar.gz and, where dpkg-deb is available, a Debian .deb — both built from the
-# install() rules above, so the package layout stays in one place. Additive:
-# nothing changes unless the `package` target is invoked. macOS/Windows packaging
-# is a follow-up (no regular testers, AGENTS.md 1).
+# Packaging (CPack): produces a portable .tar.gz on every platform, plus a
+# Debian .deb where dpkg-deb is available and a drag-and-drop .dmg on macOS —
+# all built from the install() rules above, so the package layout stays in one
+# place. Additive: nothing changes unless the `package` target is invoked.
+# Windows packaging is a follow-up (no regular testers, AGENTS.md 1).
 # ---------------------------------------------------------------------------
 set(CPACK_PACKAGE_NAME "FOSSynd")
 set(CPACK_PACKAGE_VENDOR "FOSSynd project")
@@ -82,6 +82,10 @@ if(UNIX AND NOT APPLE)
     if(FOSSYND_DPKG_DEB)
         list(APPEND CPACK_GENERATOR "DEB")
     endif()
+endif()
+if(APPLE)
+    # DragNDrop is macOS-only; hdiutil (which it needs) ships with the OS.
+    list(APPEND CPACK_GENERATOR "DragNDrop")
 endif()
 
 # Debian metadata. libsdl2-2.0-0 is the SDL2 runtime the game links against.
