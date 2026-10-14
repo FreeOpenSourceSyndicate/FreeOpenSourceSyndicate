@@ -100,4 +100,9 @@ if(BUILD_TESTS)
     # living agent (Phase 2). Exits non-zero if a blip is missing or off-panel.
     add_test(NAME game_minimap
              COMMAND FOSSynd --headless --check-minimap)
+    # Selection / control groups (issue #33): exercises the selection helpers and
+    # the control-group round-trip headlessly. Exits non-zero on a broken
+    # invariant.
+    add_test(NAME game_selection
+             COMMAND FOSSynd --headless --check-selection)
 endif()

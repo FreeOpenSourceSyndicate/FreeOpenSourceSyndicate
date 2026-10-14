@@ -384,6 +384,151 @@ void Game::selectAllPlayers()
     }
 }
 
+void Game::selectPlayerByOrdinal(int ordinal)
+{
+    if (ordinal < 0)
+    {
+        return;
+    }
+    int seen = 0;
+    const auto& agents = mission_.agents();
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (!agents[i].isAlive() || agents[i].team() != core::Team::Player)
+        {
+            continue;
+        }
+        if (seen == ordinal)
+        {
+            selectOnly(i);
+            return;
+        }
+        ++seen;
+    }
+}
+
+void Game::assignControlGroup(int slot)
+{
+    if (slot < 0 || slot >= kControlGroups)
+    {
+        return;
+    }
+    // Store a copy of the current selection. Dead members are dropped when the
+    // group is recalled, so no cleanup is needed here.
+    controlGroups_[slot] = selected_;
+}
+
+void Game::recallControlGroup(int slot)
+{
+    if (slot < 0 || slot >= kControlGroups)
+    {
+        return;
+    }
+    selected_.clear();
+    const auto& agents = mission_.agents();
+    for (const std::size_t index : controlGroups_[slot])
+    {
+        // Drop members that have died since the group was set.
+        if (index < agents.size() && agents[index].isAlive() &&
+            agents[index].team() == core::Team::Player)
+        {
+            selected_.push_back(index);
+        }
+    }
+    if (selected_.empty())
+    {
+        // An empty group (or one whose members are all dead) is a no-op rather
+        // than leaving the player with nothing selected.
+        selectAllPlayers();
+    }
+}
+
+bool Game::selectionSelfTest()
+{
+    auto livingPlayers = [this]() {
+        std::vector<std::size_t> alive;
+        const auto& agents = mission_.agents();
+        for (std::size_t i = 0; i < agents.size(); ++i)
+        {
+            if (agents[i].isAlive() && agents[i].team() == core::Team::Player)
+            {
+                alive.push_back(i);
+            }
+        }
+        return alive;
+    };
+    auto sorted = [](std::vector<std::size_t> values) {
+        std::sort(values.begin(), values.end());
+        return values;
+    };
+
+    const std::vector<std::size_t> players = livingPlayers();
+    if (players.size() < 2)
+    {
+        std::fprintf(stderr, "selection self-test: needs at least two player agents\n");
+        return false;
+    }
+    const std::size_t first = players[0];
+    const std::size_t second = players[1];
+
+    // selectAllPlayers selects every living player agent.
+    selectAllPlayers();
+    if (sorted(selected_) != sorted(players))
+    {
+        std::fprintf(stderr, "selection self-test: selectAllPlayers mismatch\n");
+        return false;
+    }
+
+    // A control group round-trips: assign the current selection, change the
+    // selection, then recall the group and get the original back.
+    selectOnly(first);
+    assignControlGroup(0);
+    selectAllPlayers();
+    recallControlGroup(0);
+    if (selected_.size() != 1 || selected_[0] != first)
+    {
+        std::fprintf(stderr, "selection self-test: group recall mismatch\n");
+        return false;
+    }
+
+    // Recalling an unassigned group is a safe no-op that still leaves a valid
+    // selection.
+    recallControlGroup(kControlGroups - 1);
+    if (selected_.empty())
+    {
+        std::fprintf(stderr, "selection self-test: empty group left nothing selected\n");
+        return false;
+    }
+
+    // Direct selection by ordinal maps to the nth living player agent.
+    selectPlayerByOrdinal(1);
+    if (selected_.size() != 1 || selected_[0] != second)
+    {
+        std::fprintf(stderr, "selection self-test: ordinal selection mismatch\n");
+        return false;
+    }
+
+    // A group member that dies is dropped on recall, never reselected.
+    selectOnly(second);
+    assignControlGroup(1);
+    (void)mission_.agents()[second].applyDamage(mission_.agents()[second].maxHealth() + 1.0f);
+    if (mission_.agents()[second].isAlive())
+    {
+        std::fprintf(stderr, "selection self-test: failed to kill test agent\n");
+        return false;
+    }
+    recallControlGroup(1);
+    if (std::find(selected_.begin(), selected_.end(), second) != selected_.end())
+    {
+        std::fprintf(stderr, "selection self-test: recalled a dead group member\n");
+        return false;
+    }
+
+    // Leave a clean selection behind.
+    selectAllPlayers();
+    return true;
+}
+
 int Game::enemyAtScreen(int x, int y) const
 {
     // Nearest living enemy agent to the click, or -1 (for attack orders).
@@ -545,23 +690,28 @@ void Game::handleEvents(bool& running)
             case SDLK_3:
             case SDLK_4:
             {
-                // Map number keys to the Nth living player agent.
-                const int wanted = event.key.keysym.sym - SDLK_1;
-                int seen = 0;
-                const auto& agents = mission_.agents();
-                for (std::size_t i = 0; i < agents.size(); ++i)
+                // Ctrl+1..4 stores the current selection as a control group;
+                // 1..4 recalls that group (issue #33).
+                const int slot = event.key.keysym.sym - SDLK_1;
+                if ((event.key.keysym.mod & KMOD_CTRL) != 0)
                 {
-                    if (!agents[i].isAlive() || agents[i].team() != core::Team::Player)
-                    {
-                        continue;
-                    }
-                    if (seen == wanted)
-                    {
-                        selectOnly(i);
-                        break;
-                    }
-                    ++seen;
+                    assignControlGroup(slot);
                 }
+                else
+                {
+                    recallControlGroup(slot);
+                }
+                break;
+            }
+            case SDLK_5:
+            case SDLK_6:
+            case SDLK_7:
+            case SDLK_8:
+            {
+                // 5..8 select the 1st..4th living player agent directly (the
+                // pre-#33 meaning of 1..4, moved so it does not clash with the
+                // control groups).
+                selectPlayerByOrdinal(event.key.keysym.sym - SDLK_5);
                 break;
             }
             case SDLK_LEFT:
@@ -1067,7 +1217,7 @@ void Game::renderHud()
         break;
     }
     objective +=
-        "   [L] MOVE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] SELECT   [A]LL   [P] PERSUADE   "
+        "   [L] MOVE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   [P] PERSUADE   "
         "[F] FREE   [R] RESTART";
     std::size_t followers = 0;
     for (std::size_t i = 0; i < mission_.agents().size(); ++i)
@@ -1116,8 +1266,19 @@ void Game::renderHud()
             std::find(selected_.begin(), selected_.end(), i) != selected_.end();
         const int hp = static_cast<int>(std::ceil(agent.healthFraction() * 100.0f));
         const std::string marker = isSelected ? "> " : "  ";
-        std::string row =
-            marker + agent.name() + "  " + agent.weapon().name + "  HP " + std::to_string(hp);
+        // Show which control group(s) the agent belongs to (issue #33), so the
+        // assignment is visible without recalling the group.
+        std::string groupTag;
+        for (int slot = 0; slot < kControlGroups; ++slot)
+        {
+            if (std::find(controlGroups_[slot].begin(), controlGroups_[slot].end(), i) !=
+                controlGroups_[slot].end())
+            {
+                groupTag += " [" + std::to_string(slot + 1) + "]";
+            }
+        }
+        std::string row = marker + agent.name() + "  " + agent.weapon().name + "  HP " +
+                          std::to_string(hp) + groupTag;
         const SDL_Color color = agent.isAlive() ? (isSelected ? kHudText : kHudDim) : kHudDim;
         font_.draw(renderer_, margin, y, row, color);
         y += lineH;
@@ -1247,7 +1408,7 @@ void Game::renderTitleCard()
     const char* controls[] = {
         "CLICK / L  MOVE THE SQUAD",
         "RIGHT-CLICK  FOCUS FIRE",
-        "1-4 / A  SELECT AGENTS",
+        "1-4 RECALL  CTRL+1-4 SET  A  ALL",
         "ARROWS  SCROLL   R  RESTART   ESC  QUIT",
     };
     int cy = static_cast<int>(static_cast<float>(h) * 0.68f);

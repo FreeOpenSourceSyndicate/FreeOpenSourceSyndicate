@@ -58,6 +58,7 @@ int main(int argc, char** argv)
     bool title = false;
     bool checkSprites = false;
     bool checkMinimap = false;
+    bool checkSelection = false;
     const char* screenshot = nullptr;
     std::string cliMission;   // --mission <path>
     std::string cliConfig;    // --config <path>
@@ -95,6 +96,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-minimap") == 0)
         {
             checkMinimap = true;
+        }
+        else if (std::strcmp(argv[i], "--check-selection") == 0)
+        {
+            checkSelection = true;
         }
         else if (std::strcmp(argv[i], "--mission") == 0 && i + 1 < argc)
         {
@@ -195,6 +200,15 @@ int main(int argc, char** argv)
         // for every living agent. Used by the game_minimap ctest.
         const bool ok = game.checkMinimap();
         std::printf(ok ? "minimap: ok\n" : "minimap: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkSelection)
+    {
+        // Headless guard for the selection / control-group logic (issue #33),
+        // which is otherwise only reachable through the interactive input path.
+        const bool ok = game.selectionSelfTest();
+        std::printf(ok ? "selection: ok\n" : "selection: FAILED\n");
         return ok ? 0 : 1;
     }
 
