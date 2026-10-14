@@ -67,6 +67,16 @@ public:
     Vec2 position() const { return position_; }
     void setPosition(float tileX, float tileY);
 
+    // Position at the start of the most recent update(). The renderer uses it
+    // with interpolatedPosition() to draw smooth motion between fixed steps
+    // (AGENTS.md golden rule 4). Never read by the simulation itself.
+    Vec2 previousPosition() const { return previousPosition_; }
+
+    // Linear blend from the previous step's position to the current one:
+    // alpha 0 gives previousPosition(), alpha 1 gives position(). The result is
+    // presentation-only and must not feed back into gameplay.
+    Vec2 interpolatedPosition(float alpha) const;
+
     float speed() const { return tilesPerSecond_; }
     void setSpeed(float tilesPerSecond) { tilesPerSecond_ = tilesPerSecond; }
 
@@ -175,6 +185,7 @@ public:
 
 private:
     Vec2 position_;
+    Vec2 previousPosition_;
     float tilesPerSecond_ = 2.0f;
     std::vector<TilePos> path_;
     std::size_t nextWaypoint_ = 0;

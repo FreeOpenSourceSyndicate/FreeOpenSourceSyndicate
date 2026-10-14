@@ -10,6 +10,7 @@ namespace fossynd::core
 
 Agent::Agent(float tileX, float tileY, float tilesPerSecond)
     : position_{tileX, tileY}
+    , previousPosition_{tileX, tileY}
     , tilesPerSecond_(tilesPerSecond)
 {
 }
@@ -17,6 +18,15 @@ Agent::Agent(float tileX, float tileY, float tilesPerSecond)
 void Agent::setPosition(float tileX, float tileY)
 {
     position_ = Vec2{tileX, tileY};
+    // A teleport (spawn, restart) must not interpolate across the map, so the
+    // previous position snaps to the new one.
+    previousPosition_ = position_;
+}
+
+Vec2 Agent::interpolatedPosition(float alpha) const
+{
+    const float t = alpha < 0.0f ? 0.0f : (alpha > 1.0f ? 1.0f : alpha);
+    return previousPosition_ + (position_ - previousPosition_) * t;
 }
 
 void Agent::setMaxHealth(float maxHealth)
@@ -82,6 +92,10 @@ void Agent::update(float dt)
     {
         return;
     }
+
+    // Remember where we started this step so the renderer can interpolate
+    // between fixed steps without the simulation reading the blend.
+    previousPosition_ = position_;
 
     fireCooldown_ = std::max(0.0f, fireCooldown_ - dt);
     gunfireTimer_ = std::max(0.0f, gunfireTimer_ - dt);
