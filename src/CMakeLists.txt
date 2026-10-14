@@ -89,6 +89,12 @@ install(FILES "${CMAKE_SOURCE_DIR}/assets/data/fossynd.conf.example"
 install(FILES "${CMAKE_SOURCE_DIR}/assets/lang/en.json"
         DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd/lang)
 
+# Ship the license and readme with the package (docs/LEGAL.md).
+install(FILES "${CMAKE_SOURCE_DIR}/LICENSE"
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/fossynd)
+install(FILES "${CMAKE_SOURCE_DIR}/README.md"
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/fossynd)
+
 # Headless smoke test: boots the game with the dummy video driver, runs a few
 # frames, and exits. Verifies the SDL layer initialises and ticks.
 if(BUILD_TESTS)

@@ -565,3 +565,53 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
     that i18n-owned test file, so no cross-area edit to `tests/test_json.cpp` is
     needed.
 
+---
+
+## ADR-0017 — Packages are built with CPack (Linux first)
+
+- **Status:** Accepted (2026-10-14)
+- **Date:** 2026-10-14
+- **Context:** Roadmap Phase 5 lists "Packaging for Linux/macOS/Windows" as
+  tooling. Today a playtester copies a bare binary or runs `cmake --install` by
+  hand (the v0.5.0 release doc documents the latter). Nothing produces a
+  versioned, installable artifact, and nothing in CI guards the install layout,
+  so a broken `install()` rule or a wrong version stamp would only be found by a
+  human. Constraints: keep the footprint tiny and dependency-free (AGENTS.md
+  §1b, §1c), keep the package layout single-sourced with the existing `install()`
+  rules, and stay additive so other areas' builds are unchanged.
+- **Options:**
+  1. **CPack in the top-level `CMakeLists.txt`, `TGZ` + `DEB`, plus a CI job.**
+     CPack ships with CMake (no new dependency), consumes the existing
+     `install()` rules, and stamps the project version automatically.
+  2. Hand-written `scripts/package.sh` calling `dpkg-deb`/`tar` directly.
+     Rejected: duplicates the install layout and drifts from `install()`.
+  3. Add `dh_make`/`debhelper` packaging. Rejected: heavyweight, more
+     dependencies, aimed at distro maintainers, not our playtest artifacts.
+  4. Nothing. Rejected: no reproducible artifact, install layout unguarded.
+- **Decision:** **Option 1.**
+  - The top-level `CMakeLists.txt` configures CPack: name `FOSSynd`, version
+    from `project()`, MIT license, and `CPACK_PACKAGE_FILE_NAME`
+    `FOSSynd-<version>-<system>`. `include(CPack)` is additive: it adds the
+    `package` target and changes nothing unless that target runs.
+  - Generators: `TGZ` always; `DEB` is appended only when `dpkg-deb` is found on
+    a non-Apple Unix, so the config is harmless on macOS/Windows. DEB metadata is
+    fixed: section `games`, priority `optional`, dependency `libsdl2-2.0-0`.
+  - The package is built from the existing `install()` rules, which now also ship
+    `LICENSE` and `README.md` under `share/doc/fossynd` (docs/LEGAL.md).
+  - A CI job `Packaging (Linux TGZ + DEB)` builds both artifacts, asserts the
+    tarball contains `bin/FOSSynd`, prints the `.deb` metadata, and runs the
+    packaged binary headless — so packaging cannot bit-rot.
+  - macOS/Windows packaging is **out of scope** here (no regular testers) and is
+    a follow-up.
+- **Consequences:**
+  - `cmake --build build --target package` yields
+    `FOSSynd-<version>-Linux.tar.gz` and `fossynd_<version>_amd64.deb`.
+  - The layout stays single-sourced: changing an `install()` rule changes the
+    package; there is no second copy of the file list.
+  - New CI job only; no existing `FOSSYND_*` option, target name, or job name
+    changes, so other areas rebase freely (`docs/FOCUS_AREAS.md` §4 Rule 5).
+  - The packaged binary still finds its data via the install layout
+    (`core/data/ContentPaths`), verified by running the extracted binary.
+  - `FOSSYND_LOW_SPEC`/`FOSSYND_SANITIZE` builds are unaffected; packaging is not
+    part of the shipped runtime and adds no dependency to the binary.
+
