@@ -85,8 +85,10 @@ void Mission::orderMove(std::size_t index, TilePos goal)
     {
         return;
     }
-    // A move order cancels any standing attack order.
+    // A move order cancels any standing attack order and any queued route
+    // (a plain move supersedes them).
     agent.clearOrderedTarget();
+    agent.clearMoveQueue();
     if (grid_ != nullptr)
     {
         agent.moveTo(*grid_, goal);
@@ -106,6 +108,8 @@ void Mission::orderAttack(std::size_t index, std::size_t targetIndex)
         return;
     }
     agent.setOrderedTarget(static_cast<int>(targetIndex));
+    // An attack order supersedes any queued route.
+    agent.clearMoveQueue();
 
     // Close to within weapon range if not already there.
     if (grid_ != nullptr)
@@ -127,6 +131,70 @@ void Mission::clearOrder(std::size_t index)
     if (index < agents_.size())
     {
         agents_[index].clearOrderedTarget();
+    }
+}
+
+void Mission::queueMove(std::size_t index, TilePos goal)
+{
+    if (index >= agents_.size() || grid_ == nullptr)
+    {
+        return;
+    }
+    Agent& agent = agents_[index];
+    if (!agent.isAlive() || !grid_->isWalkable(goal.x, goal.y))
+    {
+        return;
+    }
+    // A queued move is a move order: it cancels any standing attack order.
+    agent.clearOrderedTarget();
+    if (agent.hasPath())
+    {
+        // A path is in progress: visit this waypoint after it completes.
+        agent.pushMoveWaypoint(goal);
+    }
+    else
+    {
+        // Idle: start moving now. If no path exists, the agent stops and the
+        // waypoint is dropped (moveTo returns false).
+        agent.moveTo(*grid_, goal);
+    }
+}
+
+void Mission::clearMoveQueue(std::size_t index)
+{
+    if (index >= agents_.size())
+    {
+        return;
+    }
+    agents_[index].clearMoveQueue();
+    agents_[index].stop();
+}
+
+std::size_t Mission::moveQueueSize(std::size_t index) const
+{
+    if (index >= agents_.size())
+    {
+        return 0;
+    }
+    return agents_[index].moveQueue().size();
+}
+
+void Mission::advanceMoveQueue(std::size_t index)
+{
+    Agent& agent = agents_[index];
+    // Only advance an agent that has a route and is not otherwise busy: an AI
+    // patrol/retreat/engage path owns movement while it exists, and the queue
+    // resumes when that path ends. A dead agent never moves.
+    if (!agent.isAlive() || !agent.hasQueuedMoves() || agent.hasPath())
+    {
+        return;
+    }
+    const TilePos goal = agent.popMoveWaypoint();
+    if (!agent.moveTo(*grid_, goal))
+    {
+        // Unreachable (e.g. the tile was blocked after queuing): the route is
+        // broken, so drop the rest rather than retrying an impossible path.
+        agent.clearMoveQueue();
     }
 }
 
@@ -286,6 +354,10 @@ void Mission::update(float dt)
 
     elapsedSeconds_ += dt;
     updateAI(dt);
+    for (std::size_t i = 0; i < agents_.size(); ++i)
+    {
+        advanceMoveQueue(i);
+    }
     resolveFire();
     evaluateOutcome();
 }

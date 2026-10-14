@@ -64,6 +64,26 @@ public:
     bool hasPath() const { return !path_.empty(); }
     const std::vector<TilePos>& path() const { return path_; }
 
+    // --- queued move orders -----------------------------------------------
+
+    // Waypoints queued *after* the current path (the view's shift-click route).
+    // The mission starts the next one when the current path finishes. Distinct
+    // from `patrolRoute_`, which is AI-owned and looped; this is player-ordered
+    // and consumed once.
+    const std::vector<TilePos>& moveQueue() const { return moveQueue_; }
+    bool hasQueuedMoves() const { return !moveQueue_.empty(); }
+    void pushMoveWaypoint(TilePos goal) { moveQueue_.push_back(goal); }
+
+    // Removes and returns the next queued waypoint. Call only when
+    // hasQueuedMoves() is true.
+    TilePos popMoveWaypoint()
+    {
+        const TilePos goal = moveQueue_.front();
+        moveQueue_.erase(moveQueue_.begin());
+        return goal;
+    }
+    void clearMoveQueue() { moveQueue_.clear(); }
+
     Vec2 position() const { return position_; }
     void setPosition(float tileX, float tileY);
 
@@ -189,6 +209,8 @@ private:
     float tilesPerSecond_ = 2.0f;
     std::vector<TilePos> path_;
     std::size_t nextWaypoint_ = 0;
+    // Player-ordered waypoints queued after `path_` (see moveQueue() above).
+    std::vector<TilePos> moveQueue_;
 
     std::string name_ = "Agent";
     Team team_ = Team::Player;

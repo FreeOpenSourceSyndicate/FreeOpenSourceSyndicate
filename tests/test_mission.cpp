@@ -171,6 +171,144 @@ FOSSYND_TEST(Mission, MoveOrderClearsAttackOrder)
     FOSSYND_CHECK_EQ(mission.agents()[0].orderedTarget(), -1);
 }
 
+FOSSYND_TEST(Mission, QueuedWaypointsAreVisitedInOrder)
+{
+    // A distant, unarmed enemy keeps the mission Running (no combat) so the
+    // route can be observed. Two waypoints are queued while the first is being
+    // walked; the agent must reach them in the order given.
+    TileGrid grid(40, 40);
+    Mission mission(grid, 30u);
+    const std::size_t hero = mission.addAgent(
+        makeAgent(1.0f, 1.0f, Team::Player, 100.0f, Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+    mission.addAgent(makeAgent(39.0f, 39.0f, Team::Enemy, 100.0f, Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+
+    mission.queueMove(hero, TilePos{1, 20});
+    mission.queueMove(hero, TilePos{20, 20});
+    mission.queueMove(hero, TilePos{20, 1});
+    FOSSYND_CHECK_EQ(mission.moveQueueSize(hero), static_cast<std::size_t>(2));
+
+    // Tick in small steps and record each waypoint the agent reaches.
+    std::vector<TilePos> reached;
+    for (int i = 0; i < 1200; ++i)
+    {
+        mission.update(0.05f);
+        const TilePos here = mission.agents()[hero].tile();
+        if (reached.empty() || !(reached.back() == here))
+        {
+            reached.push_back(here);
+        }
+    }
+
+    // The three queued goals appear in order in the visited-tile trail.
+    auto indexOf = [&reached](TilePos goal) {
+        for (std::size_t i = 0; i < reached.size(); ++i)
+        {
+            if (reached[i] == goal)
+            {
+                return i;
+            }
+        }
+        return reached.size();
+    };
+    const std::size_t first = indexOf(TilePos{1, 20});
+    const std::size_t second = indexOf(TilePos{20, 20});
+    const std::size_t third = indexOf(TilePos{20, 1});
+    FOSSYND_CHECK(first < reached.size());
+    FOSSYND_CHECK(first < second);
+    FOSSYND_CHECK(second < third);
+    FOSSYND_CHECK_EQ(mission.moveQueueSize(hero), static_cast<std::size_t>(0));
+    FOSSYND_CHECK(mission.agents()[hero].tile() == (TilePos{20, 1}));
+}
+
+FOSSYND_TEST(Mission, OrderMoveReplacesQueuedRoute)
+{
+    TileGrid grid(40, 40);
+    Mission mission(grid, 31u);
+    const std::size_t hero = mission.addAgent(
+        makeAgent(1.0f, 1.0f, Team::Player, 100.0f, Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+    mission.addAgent(makeAgent(39.0f, 39.0f, Team::Enemy, 100.0f, Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+
+    mission.queueMove(hero, TilePos{1, 20});
+    mission.queueMove(hero, TilePos{20, 20});
+    FOSSYND_CHECK_EQ(mission.moveQueueSize(hero), static_cast<std::size_t>(1));
+
+    // A plain move supersedes the queued route entirely.
+    mission.orderMove(hero, TilePos{5, 5});
+    FOSSYND_CHECK_EQ(mission.moveQueueSize(hero), static_cast<std::size_t>(0));
+
+    // It heads to the new goal, not the old queued waypoint.
+    for (int i = 0; i < 400; ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK(mission.agents()[hero].tile() == (TilePos{5, 5}));
+}
+
+FOSSYND_TEST(Mission, OrderAttackClearsQueuedRoute)
+{
+    TileGrid grid(40, 40);
+    Mission mission(grid, 32u);
+    const std::size_t hero = mission.addAgent(makeAgent(1.0f, 1.0f, Team::Player, 100.0f));
+    mission.addAgent(makeAgent(30.0f, 30.0f, Team::Enemy, 100.0f));
+
+    mission.queueMove(hero, TilePos{1, 20});
+    mission.queueMove(hero, TilePos{20, 20});
+    FOSSYND_CHECK_EQ(mission.moveQueueSize(hero), static_cast<std::size_t>(1));
+
+    mission.orderAttack(hero, 1);
+    FOSSYND_CHECK_EQ(mission.moveQueueSize(hero), static_cast<std::size_t>(0));
+    FOSSYND_CHECK_EQ(mission.agents()[hero].orderedTarget(), 1);
+}
+
+FOSSYND_TEST(Mission, ClearMoveQueueStopsAndEmptiesQueue)
+{
+    TileGrid grid(40, 40);
+    Mission mission(grid, 33u);
+    const std::size_t hero = mission.addAgent(
+        makeAgent(1.0f, 1.0f, Team::Player, 100.0f, Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+    mission.addAgent(makeAgent(39.0f, 39.0f, Team::Enemy, 100.0f, Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+
+    mission.queueMove(hero, TilePos{1, 20});
+    mission.queueMove(hero, TilePos{20, 20});
+    mission.update(0.05f);
+
+    mission.clearMoveQueue(hero);
+    FOSSYND_CHECK_EQ(mission.moveQueueSize(hero), static_cast<std::size_t>(0));
+    FOSSYND_CHECK(!mission.agents()[hero].hasPath());
+
+    // It stays put: no queued waypoint resumes the route.
+    const Vec2 parked = mission.agents()[hero].position();
+    for (int i = 0; i < 40; ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK_NEAR(length(mission.agents()[hero].position() - parked), 0.0f);
+}
+
+FOSSYND_TEST(Mission, QueueMoveRejectsDeadInvalidAndUnwalkable)
+{
+    TileGrid grid(20, 20);
+    grid.setWalkable(5, 5, false); // a wall to try to queue onto
+    Mission mission(grid, 34u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+
+    // Unwalkable goal: no-op.
+    mission.queueMove(hero, TilePos{5, 5});
+    FOSSYND_CHECK_EQ(mission.moveQueueSize(hero), static_cast<std::size_t>(0));
+    FOSSYND_CHECK(!mission.agents()[hero].hasPath());
+
+    // Out-of-range index: no-op, no crash.
+    mission.queueMove(99, TilePos{3, 3});
+    FOSSYND_CHECK_EQ(mission.moveQueueSize(99), static_cast<std::size_t>(0));
+    mission.clearMoveQueue(99);
+
+    // Dead agent: no-op.
+    mission.agents()[hero].applyDamage(1000.0f);
+    FOSSYND_CHECK(!mission.agents()[hero].isAlive());
+    mission.queueMove(hero, TilePos{3, 3});
+    FOSSYND_CHECK_EQ(mission.moveQueueSize(hero), static_cast<std::size_t>(0));
+}
+
 FOSSYND_TEST(Mission, DeadTargetFallsBackToNearestEnemy)
 {
     TileGrid grid(30, 30);

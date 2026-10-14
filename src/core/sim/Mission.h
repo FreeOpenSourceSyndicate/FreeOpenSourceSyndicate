@@ -50,6 +50,20 @@ public:
     // Clears any explicit attack order for the agent at `index`.
     void clearOrder(std::size_t index);
 
+    // --- queued move orders (waypoint queue) ------------------------------
+
+    // Appends `goal` to the agent's waypoint queue. If the agent has no active
+    // path it starts moving to the first queued waypoint; otherwise `goal` is
+    // visited after the current path completes. Cancels any standing attack
+    // order. No-op for a dead/invalid index or an unwalkable goal.
+    void queueMove(std::size_t index, TilePos goal);
+
+    // Clears the agent's waypoint queue and stops it at its current position.
+    void clearMoveQueue(std::size_t index);
+
+    // Number of waypoints still queued for the agent (0 when none). For the HUD.
+    std::size_t moveQueueSize(std::size_t index) const;
+
     // "Call backup": orders living combatants on the same team as the agent at
     // `source` that are within `radius` tiles to focus fire on the agent's
     // current target (its ordered target if set, otherwise the nearest enemy it
@@ -114,6 +128,10 @@ private:
     bool stepAwayFrom(std::size_t index, std::size_t threat);
     void updateFollower(std::size_t index);
     void resolveFire();
+
+    // Starts the agent's next queued waypoint when it has no active path.
+    // Called once per update for every agent. Deterministic; no RNG.
+    void advanceMoveQueue(std::size_t index);
 
     // A missed shot near `target` can wound a civilian bystander. Deterministic;
     // never affects combatants, so combat outcomes are unchanged.
