@@ -8,6 +8,18 @@ contains no original assets, code, names, or trademarks.
 
 ## [Unreleased]
 
+_No changes yet._
+
+## [0.4.0] — 2026-10-13 — "Smart Enemies"
+
+Enemies think before they charge, the game opens on an authored pixel-art title
+card, and the project is now FOSSynd. First release built on the JSON content
+pipeline.
+
+**Visibly different from v0.3.0:** a pixel-art title card on launch, smarter
+enemies (patrol / engage / retreat / call backup), the name `FOSSynd` and the
+version `v0.4.0` on screen, and an authored pixel-art release banner.
+
 ### Added
 
 - **Enemy AI: patrol, retreat, call backup:** enemies now run a small state
@@ -35,16 +47,15 @@ contains no original assets, code, names, or trademarks.
 - **Install rules:** `cmake --install` now installs the binary plus
   `share/fossynd/missions/demo.json` and the example config, so an installed
   build finds its data via the fallback search.
-- **Low-spec / old-hardware profile (ADR-0008):** `-DFOSSYND_LOW_SPEC=ON` builds a
-  smaller, `-Os`, stripped binary; `--low-spec` (or a low-spec build) runs a
-  320x200 window with the software renderer. A dedicated CI job builds this
-  profile so old-hardware support cannot bit-rot.
-- **Civilians and collateral damage:** unarmed bystanders roam the map, flee from
-  nearby gunfire, and can be killed by stray shots. They are never auto-targeted
-  and do not affect win/lose; player-caused civilian deaths are counted as
-  *collateral* and shown in the HUD. Core: `Team::Civilian`, deterministic flee
-  AI, and stray-fire collateral in `Mission`. View: paler civilian markers and a
-  HUD counter.
+- **Pixel-art title card:** launching the game opens on an authored, palette-based
+  title screen (name, version, controls, a squad badge) drawn from the same
+  isometric markers the game uses at runtime. Press any key or click to start; it
+  also starts itself after a few seconds so unattended runs never stall. Shown
+  only to an interactive player; `--title` forces it for headless capture. New
+  ctest `game_title`.
+- **Authored pixel-art release banner:** `assets/ui/banner.png` (indexed palette,
+  nearest-neighbour), generated reproducibly by `assets/ui/make_banner.py` with no
+  third-party dependency. Registered in `docs/ASSETS.md`.
 
 ### Changed
 
@@ -57,6 +68,9 @@ contains no original assets, code, names, or trademarks.
   in-game graphics are **pixel art** (low-res, palette-based, nearest-neighbour).
   The earlier SVG-first guidance is retracted; vector art and modernising changes
   are v2.x.x/fork scope.
+- **On-screen version stamp:** the window title, the HUD, and the title card now
+  read `FOSSynd v<version>`, from a single `FOSSYND_VERSION` definition set by the
+  CMake project version.
 - **Published release branches are immutable (ADR-0011, `AGENTS.md` §6b):** once
   a `release/vX.Y.Z-*` branch is tagged and published, it is never committed to
   again. A fix that a shipped version needs to keep working goes on a new branch
@@ -64,6 +78,43 @@ contains no original assets, code, names, or trademarks.
 - **PR review/merge policy (`AGENTS.md` §3a):** agents review and merge each
   other's PRs; while the repository's GitHub account is the only account working
   on the project, the creator may review and merge their own PR.
+
+### Release
+
+- Branch `release/v0.4.0-smart-enemies`, tag `v0.4.0`; per-version build, play,
+  and copy-to-another-computer instructions in
+  [`docs/releases/v0.4.0-smart-enemies.md`](docs/releases/v0.4.0-smart-enemies.md).
+
+## [0.3.0] — 2026-10-13 — "Bystanders"
+
+The city is alive: bystanders walk the streets, react to gunfire, and can be
+caught in the crossfire. Also the first release with an explicit old-hardware
+profile.
+
+**Visibly different from v0.2.0:** pale civilians on the map, a `COLLATERAL`
+counter in the HUD, and the version `v0.3.0` shown in the window title and HUD.
+
+### Added
+
+- **Low-spec / old-hardware profile (ADR-0008):** `-DFOSS_LOW_SPEC=ON` builds a
+  smaller, `-Os`, stripped binary; `--low-spec` (or a low-spec build) runs a
+  320x200 window with the software renderer. A dedicated CI job builds this
+  profile so old-hardware support cannot bit-rot.
+- **Civilians and collateral damage:** unarmed bystanders roam the map, flee from
+  nearby gunfire, and can be killed by stray shots. They are never auto-targeted
+  and do not affect win/lose; player-caused civilian deaths are counted as
+  *collateral* and shown in the HUD. Core: `Team::Civilian`, deterministic flee
+  AI, and stray-fire collateral in `Mission`. View: paler civilian markers and a
+  HUD counter.
+- **On-screen version stamp:** the window title and HUD show the release version
+  (`FOSS_VERSION`, set once from the CMake project version), so playtesters can
+  tell builds apart at a glance.
+
+### Release
+
+- Branch `release/v0.3.0-bystanders`, tag `v0.3.0`; per-version build, play, and
+  copy-to-another-computer instructions in
+  [`docs/releases/v0.3.0-bystanders.md`](docs/releases/v0.3.0-bystanders.md).
 
 ## [0.2.0] — 2026-10-12 — "Command & Control"
 

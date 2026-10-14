@@ -109,6 +109,8 @@ not need a finished game. The rules live in `AGENTS.md` §6a; in short:
 3. Add version-specific instructions at `docs/releases/vX.Y.Z-<slug>.md`:
    how to clone and check out *this* branch/tag, how to build and play it, and
    **which files/directories to copy where** to run it on another computer.
+   Keep a copy of that file, and the numbered `CHANGELOG.md` section, on `main`
+   too — `main` is the complete record of everything shipped (`AGENTS.md` §6a).
 4. Author release graphics as **pixel art** to match the game's look
    (`docs/ASSETS.md`, `AGENTS.md` §1).
 5. Once published, a release branch is **immutable** (`AGENTS.md` §6b, ADR-0011):
