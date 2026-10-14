@@ -485,9 +485,14 @@ run the game target locally and note the result in the PR.
   via `Game::tr(key, fallback)` and `substitute()` for `{token}`s. Add new UI
   text as a key in `assets/lang/en.json` and keep the old literal as the
   `fallback` so a missing file still renders. The key schema and `assets/lang/**`
-  are owned by `focus: content`; the consumer side (`Game.cpp`) is Render's.
+  are owned by `focus: text`; the consumer side (`Game.cpp`) is Render's.
   `--headless --check-lang` (ctest `game_lang`) fails if a key the UI
   reads is missing.
+- **Locale files must stay ASCII.** The embedded 5x7 bitmap font draws only
+  ASCII 32–126, so a non-ASCII glyph (e.g. an umlaut) renders blank. Write
+  translations as ASCII transliterations (`AE`/`OE`/`UE`/`SS`) and keep every
+  locale's key set and `{placeholder}` set equal to `en.json`; the gates in
+  `tests/test_i18n.cpp` enforce both (issues #95, #125).
 - Combat/AI/mission logic lives in `src/core/sim/` (`Agent`, `Mission`, `Weapon`)
   and is unit-tested; keep it SDL-free.
 - **Enemy AI state machine** lives on `core::Agent` (`AiState`: `Idle`, `Patrol`,
