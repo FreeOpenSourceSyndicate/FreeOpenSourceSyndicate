@@ -247,6 +247,7 @@ label** (`docs/COORDINATION.md`) until the two are merged. Mapping:
 
 | `focus:` label | `area:` label |
 |----------------|---------------|
+| `focus: coordinator` | `area: docs` |
 | `focus: tactical` | `area: core/sim` |
 | `focus: world` | `area: core/sim` |
 | `focus: render` | `area: engine` |
