@@ -1,0 +1,10 @@
+{
+  "_comment": "FOSSynd German UI strings — PARTIAL, UNTRANSLATED PLACEHOLDER (issue #95). Only a handful of keys are filled in and none have been reviewed by a native speaker; the values are original FOSSynd text (docs/LEGAL.md). Every key not listed here falls back to en.json at load time (StringTable::loadForLocale), so this file can be completed key-by-key without touching C++.",
+
+  "app.title": "FOSSYND",
+  "app.tagline": "REKRUTIERUNG",
+  "hud.squad": "TRUPPE",
+  "hud.objective.eliminate": "ZIEL: ALLE {count} FEINDE AUSSCHALTEN",
+  "state.won": "MISSION ERFÜLLT",
+  "title.prompt": "BELIEBIGE TASTE DRÜCKEN"
+}
