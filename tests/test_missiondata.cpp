@@ -273,6 +273,28 @@ FOSSYND_TEST(Catalogues, WeaponCatalogueLoadsAndFindsById)
     FOSSYND_CHECK(catalogue.find("plasma") == nullptr);
 }
 
+FOSSYND_TEST(Catalogues, WeaponCatalogueParsesAreaRadius)
+{
+    std::string error;
+    const Json root = Json::parse(R"({"weapons": [
+        { "id": "rocket", "name": "Rocket", "damage": 40, "range": 12, "fireRate": 1,
+          "accuracy": 0.9, "areaRadius": 2.5 },
+        { "id": "pistol", "name": "Pistol", "damage": 10, "range": 6, "fireRate": 2.5,
+          "accuracy": 0.72 }
+    ]})", error);
+    WeaponCatalogue catalogue;
+    FOSSYND_CHECK(catalogue.loadFromJson(root, error));
+    FOSSYND_CHECK(error.empty());
+
+    const Weapon* rocket = catalogue.find("rocket");
+    FOSSYND_CHECK(rocket != nullptr);
+    FOSSYND_CHECK_NEAR(rocket->areaRadius, 2.5f);
+    // Omitted areaRadius defaults to 0 (single-target), never a stale value.
+    const Weapon* pistol = catalogue.find("pistol");
+    FOSSYND_CHECK(pistol != nullptr);
+    FOSSYND_CHECK_NEAR(pistol->areaRadius, 0.0f);
+}
+
 FOSSYND_TEST(Catalogues, WeaponCatalogueRejectsMalformedInput)
 {
     std::string error;

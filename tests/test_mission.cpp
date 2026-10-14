@@ -751,3 +751,67 @@ FOSSYND_TEST(Mission, ElapsedSecondsIsFrozenAfterTheMissionEnds)
     }
     FOSSYND_CHECK_NEAR(mission.elapsedSeconds(), wonAt);
 }
+
+// --- Area-of-effect weapons (issue #79) ------------------------------------
+// Layout shared by the explosive tests: a player with an always-hitting weapon
+// at (2,2) shoots the nearest enemy at (5,2); one enemy stands inside the blast
+// (0.7 tiles away) and one far outside it (7 tiles away). The caller owns the
+// grid (Mission keeps a non-owning pointer to it).
+namespace
+{
+void addBlastSquad(Mission& mission, float areaRadius, float damage)
+{
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 500.0f,
+                               Weapon{"Boom", damage, 20.0f, 10.0f, 1.0f, areaRadius}));
+    mission.addAgent(makeAgent(5.0f, 2.0f, Team::Enemy, 100.0f));  // primary target
+    mission.addAgent(makeAgent(5.5f, 2.5f, Team::Enemy, 100.0f));  // inside the blast
+    mission.addAgent(makeAgent(5.0f, 9.0f, Team::Enemy, 100.0f));  // well outside it
+}
+} // namespace
+
+FOSSYND_TEST(Mission, ExplosiveHitDamagesBystanderButNotThePrimaryTwice)
+{
+    TileGrid grid(30, 30);
+    Mission mission(grid, 11u);
+    addBlastSquad(mission, 2.0f, 40.0f);
+    mission.update(0.05f);
+
+    // The primary target takes exactly one hit (40 of 100), never two.
+    FOSSYND_CHECK_NEAR(mission.agents()[1].healthFraction(), 0.6f);
+    // The in-radius bystander is caught in the blast for the same damage.
+    FOSSYND_CHECK_NEAR(mission.agents()[2].healthFraction(), 0.6f);
+    // The far bystander is untouched: the blast is bounded by the radius.
+    FOSSYND_CHECK_NEAR(mission.agents()[3].healthFraction(), 1.0f);
+}
+
+FOSSYND_TEST(Mission, ZeroAreaRadiusRemainsSingleTarget)
+{
+    // areaRadius == 0 is the default and must keep the old single-target rules.
+    TileGrid grid(30, 30);
+    Mission mission(grid, 11u);
+    addBlastSquad(mission, 0.0f, 40.0f);
+    mission.update(0.05f);
+
+    FOSSYND_CHECK_NEAR(mission.agents()[1].healthFraction(), 0.6f); // primary hit once
+    FOSSYND_CHECK_NEAR(mission.agents()[2].healthFraction(), 1.0f); // bystander untouched
+    FOSSYND_CHECK_NEAR(mission.agents()[3].healthFraction(), 1.0f);
+}
+
+FOSSYND_TEST(Mission, BlastKillsCountAndCanKillCivilians)
+{
+    TileGrid grid(30, 30);
+    Mission mission(grid, 12u);
+    // Lethal blast: one hit kills both the enemy and a civilian in the radius.
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 500.0f,
+                               Weapon{"Boom", 100.0f, 20.0f, 10.0f, 1.0f, 2.0f}));
+    mission.addAgent(makeAgent(5.0f, 2.0f, Team::Enemy, 50.0f));
+    mission.addAgent(makeAgent(5.5f, 2.5f, Team::Civilian, 50.0f));
+
+    mission.update(0.05f);
+
+    FOSSYND_CHECK(!mission.agents()[1].isAlive());
+    FOSSYND_CHECK(!mission.agents()[2].isAlive());
+    FOSSYND_CHECK_EQ(mission.playerKills(), 1);
+    FOSSYND_CHECK_EQ(mission.civilianKills(), 1);
+}
+

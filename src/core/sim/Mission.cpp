@@ -835,6 +835,47 @@ void Mission::resolveFire()
                 ++enemyKills_;
             }
         }
+
+        // Explosive weapons also damage everyone else caught in the blast. The
+        // primary target is excluded so it is hit exactly once (issue #79).
+        const float areaRadius = attacker.weapon().areaRadius;
+        if (areaRadius > 0.0f)
+        {
+            applyAreaDamage(i, targetIndex, attacker.weapon().damage, areaRadius);
+        }
+    }
+}
+
+void Mission::applyAreaDamage(std::size_t attacker, std::size_t target, float damage, float radius)
+{
+    const Vec2 impact = agents_[target].position();
+    for (std::size_t i = 0; i < agents_.size(); ++i)
+    {
+        Agent& bystander = agents_[i];
+        if (i == attacker || i == target || !bystander.isAlive())
+        {
+            continue;
+        }
+        if (length(bystander.position() - impact) > radius)
+        {
+            continue;
+        }
+        bystander.applyDamage(damage);
+        if (!bystander.isAlive())
+        {
+            if (bystander.team() == Team::Enemy)
+            {
+                ++playerKills_;
+            }
+            else if (bystander.team() == Team::Player)
+            {
+                ++enemyKills_;
+            }
+            else if (bystander.team() == Team::Civilian)
+            {
+                ++civilianKills_;
+            }
+        }
     }
 }
 

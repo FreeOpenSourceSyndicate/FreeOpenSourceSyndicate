@@ -26,6 +26,11 @@ struct Weapon
     // Accuracy falls off toward maximum range.
     float accuracy = 0.75f;
 
+    // Area-of-effect radius, in tiles. A successful hit also damages every other
+    // living agent within this radius of the impact tile. `0` (the default) is a
+    // single-target weapon, so existing weapons are unchanged.
+    float areaRadius = 0.0f;
+
     // Seconds between firing decisions by the AI (reaction cadence).
     float cooldown() const { return fireRate > 0.0f ? 1.0f / fireRate : 1.0f; }
 };

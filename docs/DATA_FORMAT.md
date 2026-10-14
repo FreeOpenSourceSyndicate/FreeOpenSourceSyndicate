@@ -61,7 +61,8 @@ A mission file describes one mission. Example:
         "damage": 8,
         "range": 9,
         "fireRate": 4,         // shots/second, > 0
-        "accuracy": 0.65       // [0, 1]
+        "accuracy": 0.65,      // [0, 1]
+        "areaRadius": 0        // optional, tiles; > 0 = explosive (AoE)
       },
       "weaponId": "rifle"      // optional: reference weapons.json by id
     }
@@ -91,6 +92,11 @@ A mission file describes one mission. Example:
   `1.5, 1.5` is the centre of tile `(1, 1)`.
 - **`weapon`** is optional per agent. Omitted fields fall back to the pistol's
   values. `fireRate` must be greater than zero.
+- **`areaRadius`** is optional and defaults to `0` (a single-target weapon, the
+  old behaviour). When greater than `0`, a successful hit also damages every
+  other living agent within that many tiles of the impact — an explosive. The
+  primary target is damaged once; in-radius civilians can be killed by the blast
+  (counted in `civilianKills`).
 - **`weaponId`** references a weapon in the shared catalogue by id (see below).
   An agent may set either `weapon` (inline) **or** `weaponId`, not both; an
   unknown id is a readable error.
