@@ -10,6 +10,16 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **Pixel-art agent sprites with a depth-sorted pass:** the flat agent diamonds
+  are replaced by authored pixel-art sprites with a short walk cycle, drawn in a
+  single back-to-front pass alongside static board props (crates and barrels).
+  Art is authored as text in `assets/sprites/agents.txt`; `core::bakeSheet`
+  (`src/core/data/AgentSprites.{h,cpp}`) parses and palettes it (engine-free,
+  unit-tested) and `game::AgentSprites` uploads it to SDL textures. Per-role
+  palettes give players, enemies, civilians, and followers distinct colours from
+  one sheet. The sheet is embedded in the binary; a bad sheet falls back to the
+  old markers. New ctest `game_sprites` and `tests/test_sprites.cpp`. See
+  ADR-0013.
 - **Persuadertron (recruit civilians):** a deterministic device in
   `src/core/sim/Persuadertron.h`. `Mission::persuade` turns the nearest
   un-recruited civilian in range into a *follower* of the using agent; followers

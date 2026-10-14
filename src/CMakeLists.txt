@@ -8,6 +8,7 @@ set(FOSSYND_GAME_SOURCES
     main.cpp
     game/Game.cpp
     game/Font.cpp
+    game/Sprite.cpp
 )
 
 # Embed the demo mission JSON into the binary so the game stays a single,
@@ -21,6 +22,17 @@ configure_file(
     @ONLY
 )
 list(APPEND FOSSYND_GAME_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/game/EmbeddedMission.cpp")
+
+# Embed the authored agent sprite sheet the same way, so the sprite pipeline is
+# data-driven but the binary stays self-contained.
+set(FOSSYND_SPRITES_FILE "${CMAKE_SOURCE_DIR}/assets/sprites/agents.txt")
+file(READ "${FOSSYND_SPRITES_FILE}" FOSSYND_AGENT_SPRITES_TEXT)
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/game/EmbeddedSprites.cpp.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/game/EmbeddedSprites.cpp"
+    @ONLY
+)
+list(APPEND FOSSYND_GAME_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/game/EmbeddedSprites.cpp")
 
 add_executable(FOSSynd ${FOSSYND_GAME_SOURCES})
 
@@ -79,4 +91,8 @@ if(BUILD_TESTS)
     # starts when the card times out. Guards the v0.4.0 title-card path.
     add_test(NAME game_title
              COMMAND FOSSynd --headless --title --frames 120)
+    # Sprites: the authored agent/prop sheet bakes into textures for every role
+    # (the depth-sorted sprite pass, Phase 2). Exits non-zero on a bad sheet.
+    add_test(NAME game_sprites
+             COMMAND FOSSynd --headless --check-sprites)
 endif()

@@ -245,9 +245,10 @@ These are non-negotiable unless an ADR supersedes them.
 src/
   core/        # engine-agnostic game logic (NO SDL includes)
     math/      # vectors, isometric transforms, fixed timestep helpers
-    world/     # tile grid model, pathfinding (A*)
-    sim/       # future: agents, combat, AI, economy (headless)
-  game/        # SDL2 app shell: main loop, Game, rendering, input
+    world/     # tile grid model, pathfinding (A*), board decor
+    sim/       # agents, combat, AI, economy (headless)
+    data/      # JSON loader, mission/config loaders, sprite baker
+  game/        # SDL2 app shell: main loop, Game, rendering, input, sprites
 tests/         # unit tests for src/core (plain C++, run via ctest)
 docs/          # ARCHITECTURE, BUILD, CONTRIBUTING, COORDINATION, ROADMAP,
                # LEGAL, ASSETS, DECISIONS, DATA_FORMAT, FOCUS_AREAS,
@@ -255,6 +256,8 @@ docs/          # ARCHITECTURE, BUILD, CONTRIBUTING, COORDINATION, ROADMAP,
                # releases/ (per-version build & play docs, kept on main)
 scripts/       # bootstrap/fetch/build helpers
 assets/        # original/licensed game assets (see docs/ASSETS.md)
+  data/        # gameplay content as JSON (missions, config example)
+  sprites/     # authored text sprite sheets (ADR-0013)
 ```
 
 **The boundary rule in one line:** if it can be decided without drawing a pixel
@@ -411,10 +414,11 @@ change touches `src/core/` or `tests/`, all must pass. If it touches
 
 ## 10. Known gaps / TODO for the next agent
 
-- The game now has a **playable vertical slice**: an SDL2 isometric mission with
-  a four-agent squad, live combat (health, hit flashes, kills), basic enemy AI,
-  a HUD, a win/lose objective, and an attract mode (`--demo`). See
-  `docs/ROADMAP.md` Phase 1.5.
+- The game now has a **playable vertical slice** with authored pixel-art
+  sprites: an SDL2 isometric mission with a four-agent squad, live combat
+  (health, hit flashes, kills), basic enemy AI, a HUD, a win/lose objective, an
+  attract mode (`--demo`), and a depth-sorted sprite pass with a walk cycle. See
+  `docs/ROADMAP.md` Phase 2.
 - Player command layer (v0.2.0, "Command & Control"): individual agent selection
   (click, shift-add, keys `1`–`4`, `A` for all) and focus-fire attack orders
   (right-click / click an enemy). Agent orders live on `core::Agent`
@@ -442,7 +446,16 @@ change touches `src/core/` or `tests/`, all must pass. If it touches
   `followerCount`). A follower keeps `Team::Civilian`, so the existing combat
   loop ignores it; it just trails its leader (`Mission::updateFollower`). Keep
   followers non-combatants: do not let them fire or become targets.
-- Still markers, not sprites: no animation, zoom, or minimap yet (Phase 2).
+- Sprites are in (see below); zoom and a minimap are still missing (Phase 2).
+- **Sprites are authored text (ADR-0013):** agent and prop art lives in
+  `assets/sprites/agents.txt` as `frame` blocks of `B`/`T`/`S`/`D`/`.`/`A`
+  pixels. `core::bakeSheet` (`core/data/AgentSprites.*`, SDL-free, unit-tested)
+  parses and palettes it; `game::AgentSprites` (`game/Sprite.*`) uploads it to
+  SDL textures. The sheet is embedded via `game/EmbeddedSprites.cpp.in` and
+  painted in one back-to-front pass over agents and props (`Game::renderAgents`),
+  with a view-only walk cycle in `Game::updateAgentViews`. A bad sheet is
+  non-fatal (flat-marker fallback); ctest `game_sprites` guards it. Keep new art
+  in the text sheet, not as binary assets.
 - **Content format is decided (ADR-0003):** JSON in `assets/data/`, parsed by
   the dependency-free `core/data/` loader (`Json`, `MissionData`); schema in
   `docs/DATA_FORMAT.md`. `Game::buildMission` loads
@@ -458,9 +471,10 @@ change touches `src/core/` or `tests/`, all must pass. If it touches
   `core/data/Config.*` and `core/data/ContentPaths.*` (SDL-free, unit-tested).
   Example: `assets/data/fossynd.conf.example`. Details: `docs/DATA_FORMAT.md`.
 - Verification flags: `--headless --frames N`, `--headless --demo --frames N`,
-  `--headless --title --frames N`, and
+  `--headless --title --frames N`, `--headless --check-sprites`, and
   `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
-  `game_demo`, `game_low_spec`, and `game_title` cover the SDL layer headlessly.
+  `game_demo`, `game_low_spec`, `game_title`, and `game_sprites` cover the SDL
+  layer headlessly.
 - Engine-layer changes are covered by the CI `core + game` job (ADR-0005). The
   CI `low-spec` job builds the old-hardware profile (ADR-0008).
 - **Releases are playtest snapshots** (§6a): a `release/vX.Y.Z-*` branch + tag +

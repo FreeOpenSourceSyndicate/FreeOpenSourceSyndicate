@@ -9,6 +9,7 @@
 #include "core/data/MissionData.h"
 #include "core/math/Isometric.h"
 #include "game/EmbeddedMission.h"
+#include "game/EmbeddedSprites.h"
 
 // The build sets this from the project() version (src/CMakeLists.txt); the
 // fallback keeps a plain compile (no CMake definitions) working.
@@ -61,6 +62,7 @@ void setPixel(SDL_Surface* surface, int x, int y, std::uint32_t color)
 
 Game::~Game()
 {
+    sprites_.destroy();
     if (mapTexture_ != nullptr)
     {
         SDL_DestroyTexture(mapTexture_);
@@ -124,6 +126,7 @@ bool Game::init(int width, int height, bool headless, bool lowSpec)
 
     buildMission();
     buildMapTexture();
+    buildSprites();
 
     // Center the view on the squad.
     const auto& agents = mission_.agents();
@@ -178,6 +181,22 @@ void Game::buildMission()
         {
             selected_.push_back(i);
         }
+    }
+
+    // Fresh view-only animation state per mission build.
+    views_.assign(mission_.agents().size(), AgentView{});
+}
+
+void Game::buildSprites()
+{
+    // The authored sheet is baked into the binary at build time (AGENTS.md 1b),
+    // so the game stays a single self-contained executable. It is data-driven
+    // (assets/sprites/agents.txt, ADR-0003) but not yet hot-loadable.
+    std::string error;
+    if (!sprites_.build(renderer_, kAgentSpritesText, error))
+    {
+        // Not fatal: the renderer falls back to flat markers.
+        std::fprintf(stderr, "sprite sheet error: %s\n", error.c_str());
     }
 }
 
@@ -630,6 +649,53 @@ void Game::update(float dt)
         followSquad(dt);
     }
     mission_.update(dt);
+    updateAgentViews(dt);
+}
+
+void Game::updateAgentViews(float dt)
+{
+    // Presentation-only: derive a facing direction and a walk phase from how each
+    // agent's position changed this frame. Recovers from a restart (the view list
+    // is rebuilt, so `initialized` is false) without an explicit reset.
+    const auto& agents = mission_.agents();
+    if (views_.size() != agents.size())
+    {
+        views_.assign(agents.size(), AgentView{});
+    }
+
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        const core::Agent& agent = agents[i];
+        AgentView& view = views_[i];
+        if (!view.initialized)
+        {
+            view.initialized = true;
+            view.lastPosition = agent.position();
+            continue;
+        }
+
+        const core::Vec2 delta = agent.position() - view.lastPosition;
+        view.lastPosition = agent.position();
+        const float moved = length(delta);
+
+        if (moved > 1e-4f)
+        {
+            view.facingX = delta.x / moved;
+            view.facingY = delta.y / moved;
+            view.walkTimer += dt;
+            const float phase = 1.0f / kWalkCadence;
+            while (view.walkTimer >= phase)
+            {
+                view.walkTimer -= phase;
+                view.walkPhase = view.walkPhase >= 0.5f ? 0.0f : 1.0f;
+            }
+        }
+        else
+        {
+            view.walkTimer = 0.0f;
+            view.walkPhase = 0.0f;
+        }
+    }
 }
 
 void Game::updateAutoPlay(float dt)
@@ -728,42 +794,143 @@ void Game::followSquad(float dt)
     clampCamera();
 }
 
+void Game::drawSpriteFrame(const SpriteSheet& sheet, int frameIndex, int screenAnchorX,
+                           int screenAnchorY, std::uint8_t flash)
+{
+    if (!sheet.valid())
+    {
+        return;
+    }
+    const SDL_Rect src = sheet.frameRect(frameIndex);
+    SDL_Rect dst;
+    dst.w = src.w * kSpriteScale;
+    dst.h = src.h * kSpriteScale;
+    dst.x = screenAnchorX - sheet.anchorX(frameIndex) * kSpriteScale;
+    dst.y = screenAnchorY - sheet.anchorY(frameIndex) * kSpriteScale;
+    SDL_RenderCopy(renderer_, sheet.texture(), &src, &dst);
+
+    if (flash > 0)
+    {
+        // A brief white veil on a hit. Blended, so it reads as a flash rather
+        // than replacing the sprite (the flat markers did the same with colour).
+        SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer_, 255, 245, 220, flash);
+        SDL_RenderFillRect(renderer_, &dst);
+    }
+}
+
 void Game::renderAgents()
 {
     const auto& agents = mission_.agents();
+    const bool useSprites = sprites_.valid();
 
-    // Draw non-selected agents first so selected ones (and the marker) sit on top.
-    std::vector<std::size_t> order(agents.size());
+    // One painter's-algorithm pass over everything standing on the board: agents
+    // and static props are drawn back-to-front by screen Y, so nearer things
+    // overlap farther things. This is the depth-sorted sprite pass (Phase 2).
+    struct Drawable
+    {
+        float depth;
+        std::size_t agentIndex;
+        bool isDecor;
+        int tileX;
+        int tileY;
+    };
+    std::vector<Drawable> items;
+    items.reserve(agents.size() + 64);
+
     for (std::size_t i = 0; i < agents.size(); ++i)
     {
-        order[i] = i;
-    }
-    std::sort(order.begin(), order.end(), [&agents, this](std::size_t a, std::size_t b) {
-        const bool sa = std::find(selected_.begin(), selected_.end(), a) != selected_.end();
-        const bool sb = std::find(selected_.begin(), selected_.end(), b) != selected_.end();
-        if (sa != sb)
-        {
-            return !sa; // non-selected first
-        }
-        return agents[a].position().y < agents[b].position().y;
-    });
-
-    for (std::size_t index : order)
-    {
-        const core::Agent& agent = agents[index];
-        if (!agent.isAlive())
+        if (!agents[i].isAlive())
         {
             continue;
         }
-
-        const bool isSelected = std::find(selected_.begin(), selected_.end(), index) != selected_.end();
-        const core::Vec2 world = core::tileToWorld(agent.position().x, agent.position().y, kTileWidth,
-                                                   kTileHeight);
-
-        // Bystanders are drawn smaller and paler, with no health bar or reticle.
-        if (agent.team() == core::Team::Civilian)
+        const float depth = tileToScreen(agents[i].position()).y;
+        items.push_back(Drawable{depth, i, false, 0, 0});
+    }
+    if (useSprites)
+    {
+        for (int y = 0; y < grid_.height(); ++y)
         {
-            // A recruited follower is tinted cyan so the crowd reads at a glance.
+            for (int x = 0; x < grid_.width(); ++x)
+            {
+                if (grid_.decor(x, y) == core::Decor::None)
+                {
+                    continue;
+                }
+                const float depth = tileToScreen(core::Vec2{static_cast<float>(x),
+                                                            static_cast<float>(y)}).y;
+                items.push_back(Drawable{depth, 0, true, x, y});
+            }
+        }
+    }
+
+    std::sort(items.begin(), items.end(), [](const Drawable& a, const Drawable& b) {
+        return a.depth < b.depth;
+    });
+
+    for (const Drawable& item : items)
+    {
+        if (item.isDecor)
+        {
+            const core::Vec2 screen = tileToScreen(core::Vec2{static_cast<float>(item.tileX),
+                                                              static_cast<float>(item.tileY)});
+            const AgentSprites::Prop prop = grid_.decor(item.tileX, item.tileY) == core::Decor::Barrel
+                                                ? AgentSprites::Barrel
+                                                : AgentSprites::Crate;
+            drawSpriteFrame(sprites_.prop(prop), 0, static_cast<int>(screen.x),
+                            static_cast<int>(screen.y));
+            continue;
+        }
+
+        const std::size_t index = item.agentIndex;
+        const core::Agent& agent = agents[index];
+        const bool isSelected =
+            std::find(selected_.begin(), selected_.end(), index) != selected_.end();
+        const core::Vec2 world =
+            core::tileToWorld(agent.position().x, agent.position().y, kTileWidth, kTileHeight);
+        const core::Vec2 screen = tileToScreen(agent.position());
+        const int sx = static_cast<int>(screen.x);
+        const int sy = static_cast<int>(screen.y);
+        const bool civilian = agent.team() == core::Team::Civilian;
+
+        // A soft drop shadow grounds every sprite on its tile.
+        SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 80);
+        const int shadowW = 22;
+        const int shadowH = 9;
+        SDL_Rect shadow{sx - shadowW / 2, sy - shadowH / 2 + 1, shadowW, shadowH};
+        SDL_RenderFillRect(renderer_, &shadow);
+
+        // The selection ring sits on the tile, under the sprite.
+        if (isSelected && !civilian)
+        {
+            fillDiamondWorld(world, 0.5f, 250, 250, 250);
+            fillDiamondWorld(world, 0.44f, kPlayerBodySelected[0], kPlayerBodySelected[1],
+                             kPlayerBodySelected[2]);
+        }
+
+        if (useSprites)
+        {
+            const AgentView& view = index < views_.size() ? views_[index] : AgentView{};
+            const bool back = view.facingY < -0.15f;
+            const bool step = view.walkPhase >= 0.5f;
+            AgentSprites::Role role = AgentSprites::Enemy;
+            if (agent.team() == core::Team::Player)
+            {
+                role = AgentSprites::Player;
+            }
+            else if (civilian)
+            {
+                role = agent.isFollower() ? AgentSprites::Follower : AgentSprites::Civilian;
+            }
+            const std::uint8_t flash =
+                agent.hitFlash() > 0.0f ? 150 : 0;
+            drawSpriteFrame(sprites_.sheet(role), AgentSprites::frameIndex(back, step), sx, sy,
+                            flash);
+        }
+        else if (civilian)
+        {
+            // Fallback: flat diamonds, as before the sprite pass.
             if (agent.isFollower())
             {
                 fillDiamondWorld(world, 0.28f, kFollowerBody[0], kFollowerBody[1], kFollowerBody[2]);
@@ -772,11 +939,8 @@ void Game::renderAgents()
             {
                 fillDiamondWorld(world, 0.26f, kCivilianBody[0], kCivilianBody[1], kCivilianBody[2]);
             }
-            continue;
         }
-
-        // Enemy hit-flash brightens the body briefly.
-        if (agent.team() == core::Team::Enemy)
+        else if (agent.team() == core::Team::Enemy)
         {
             if (agent.hitFlash() > 0.0f)
             {
@@ -798,16 +962,22 @@ void Game::renderAgents()
             fillDiamondWorld(world, 0.34f, kPlayerBody[0], kPlayerBody[1], kPlayerBody[2]);
         }
 
-        // Health bar above the agent (players and enemies alike).
-        const core::Vec2 screen = tileToScreen(agent.position());
+        // Bystanders have no health bar or reticle.
+        if (civilian)
+        {
+            continue;
+        }
+
+        // Health bar above the agent (players and enemies alike). Kept in screen
+        // space (not sorted), so it always reads clearly on top of the sprite.
         const int barW = 20;
         const int barH = 3;
-        const int barX = static_cast<int>(screen.x) - barW / 2;
-        const int barY = static_cast<int>(screen.y) - 18;
+        const int barX = sx - barW / 2;
+        const int barY = sy - 52;
 
         SDL_SetRenderDrawColor(renderer_, 20, 20, 20, 255);
-        SDL_Rect back{barX - 1, barY - 1, barW + 2, barH + 2};
-        SDL_RenderFillRect(renderer_, &back);
+        SDL_Rect backRect{barX - 1, barY - 1, barW + 2, barH + 2};
+        SDL_RenderFillRect(renderer_, &backRect);
 
         const float fraction = agent.healthFraction();
         const int filled = static_cast<int>(fraction * static_cast<float>(barW));
@@ -815,20 +985,13 @@ void Game::renderAgents()
                                fraction > 0.5f ? 210 : 90, fraction > 0.5f ? 110 : 70, 255);
         SDL_Rect fore{barX, barY, filled, barH};
         SDL_RenderFillRect(renderer_, &fore);
-
-        if (isSelected)
-        {
-            // A bright ring under the selected agent.
-            fillDiamondWorld(world, 0.5f, 250, 250, 250);
-            fillDiamondWorld(world, 0.44f, kPlayerBodySelected[0], kPlayerBodySelected[1],
-                             kPlayerBodySelected[2]);
-        }
     }
 
     // Attack-order reticles: any agent a selected squadmate has focused fire on.
-    for (std::size_t target : order)
+    // Drawn last so they always read on top of the sprites.
+    for (const core::Agent& agent : agents)
     {
-        const core::Agent& agent = agents[target];
+        const std::size_t target = static_cast<std::size_t>(&agent - agents.data());
         if (!agent.isAlive())
         {
             continue;

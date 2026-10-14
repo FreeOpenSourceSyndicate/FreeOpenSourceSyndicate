@@ -11,6 +11,7 @@
 #include "core/sim/Mission.h"
 #include "core/world/TileGrid.h"
 #include "game/Font.h"
+#include "game/Sprite.h"
 
 namespace fossynd::game
 {
@@ -57,20 +58,31 @@ public:
     // failure. Used for headless verification.
     bool saveScreenshot(const std::string& path);
 
+    // True once the authored sprite sheets have baked successfully. When false
+    // the renderer falls back to flat markers. Used by the sprite ctest.
+    bool spritesValid() const { return sprites_.valid(); }
+
 private:
     void buildMission();
     void buildMapTexture();
+    void buildSprites();
     void restart();
     void handleEvents(bool& running);
     void update(float dt);
     void updateAutoPlay(float dt);
     void followSquad(float dt);
+    void updateAgentViews(float dt);
     void render();
     void renderAgents();
     void renderHud();
     void renderTitleCard();
     void drawTitleDiamond(float cx, float cy, float radius, std::uint8_t r, std::uint8_t g,
                           std::uint8_t b);
+
+    // Draws one sprite frame anchored on `screenAnchor`, scaled by kSpriteScale.
+    // A non-zero `flash` alpha blends a brief white veil over the sprite.
+    void drawSpriteFrame(const SpriteSheet& sheet, int frameIndex, int screenAnchorX,
+                         int screenAnchorY, std::uint8_t flash = 0);
 
     // Selection helpers, all clamped to living player agents.
     int agentAtScreen(int x, int y) const;
@@ -108,6 +120,14 @@ private:
     static constexpr float kTileWidth = 64.0f;
     static constexpr float kTileHeight = 32.0f;
 
+    // Integer magnification of the authored 14x18 sprite cells. Kept small so
+    // agents read as people on a 64px tile and stay cheap to blit (AGENTS.md 1b).
+    static constexpr int kSpriteScale = 3;
+
+    // Roughly how fast the walk cycle alternates, in steps per second. A view
+    // detail only: it never feeds back into the simulation.
+    static constexpr float kWalkCadence = 2.4f;
+
     static constexpr int kMapWidth = 24;
     static constexpr int kMapHeight = 24;
 
@@ -127,6 +147,24 @@ private:
     std::string missionPath_;
 
     BitmapFont font_;
+
+    // Authored pixel-art sprites (Phase 2). When `sprites_.valid()` is false the
+    // renderer falls back to the original flat diamonds, so a bad sheet never
+    // stops the game from running.
+    AgentSprites sprites_;
+
+    // Per-agent view-only animation state. Kept out of core: it is presentation,
+    // so it must never influence the simulation (AGENTS.md golden rule 4).
+    struct AgentView
+    {
+        bool initialized = false;
+        core::Vec2 lastPosition{0.0f, 0.0f};
+        float facingX = 0.0f;
+        float facingY = 1.0f;
+        float walkPhase = 0.0f;
+        float walkTimer = 0.0f;
+    };
+    std::vector<AgentView> views_;
 
     // Indices into mission_.agents() selected for orders. For the demo the whole
     // squad moves together; selection is tracked for the HUD.
