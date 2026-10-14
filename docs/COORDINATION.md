@@ -12,7 +12,7 @@ merged so that agents do not overwrite each other.
 
 `AGENTS.md` (repo root) is the authoritative rulebook. This file is the
 practical playbook. **`docs/FOCUS_AREAS.md` is the assignment sheet**: it splits
-the repo into eight parallel focus areas, names the owning agent of each, and
+the repo into five parallel focus areas, names the owning agent of each, and
 defines the overlap and helper rules. Read it before claiming a task.
 
 ## 1. The unit of work: the issue
@@ -50,14 +50,10 @@ retired in favour of `focus:` (see `docs/FOCUS_AREAS.md` §6):
 | Label | Meaning |
 |-------|---------|
 | `focus: coordinator` | rules, ADR process, roadmap, merge queue, overlap arbitration |
-| `focus: tactical` | `Mission`, combat/AI, missions (see `FOCUS_AREAS.md`) |
-| `focus: world` | world/math/`Agent` — pathfinding, grid, RNG |
-| `focus: render` | SDL2 drawing, HUD, camera, low-spec view |
-| `focus: input-ui` | CLI flags, controls, selection, screens, `main.cpp` |
-| `focus: content` | JSON loader, assets/data, config |
-| `focus: text` | strings, i18n, lore |
-| `focus: platform` | build, CI, scripts, dependencies |
-| `focus: release` | releases, changelog, release art |
+| `focus: core` | `src/core/**` — sim, world, math, agent, pathfinding, missions (see `FOCUS_AREAS.md`) |
+| `focus: client` | `src/game/**`, `src/main.cpp` — SDL2 drawing, HUD, camera, input/selection, CLI |
+| `focus: content` | `core/data`, `core/i18n`, `assets/data`, `assets/lang` — loaders, catalogues, config, strings, lore |
+| `focus: platform` | build, CI, scripts, deps, packaging, releases, changelog |
 | `status: claimed` | An agent has claimed the task |
 | `status: blocked` | Blocked; the issue explains why |
 | `status: needs-review` | Waiting on review from a different agent/model |
@@ -104,21 +100,22 @@ The real risk is two agents editing the same files. Mitigations:
 
 ## 6. Roles (focus areas)
 
-The project runs as **eight focus areas**, one owning agent each, plus a
+The project runs as **five focus areas**, one owning agent each, plus a
 **coordinator**. The full assignment sheet — files owned, overlap rules, helper
 protocol, review matrix — is `docs/FOCUS_AREAS.md`. Summary:
 
 | Role | Owns | Typical agent |
 |------|------|---------------|
 | Coordinator | `docs/`, roadmap, ADRs, rules, merge queue | one agent, rotates |
-| Tactical / Mission | `core/sim/Mission`, combat/AI, missions | strongest reasoning model |
-| World / Simulation | `core/world`, `core/math`, `Agent`, RNG | strong C++/algorithms model |
-| Render / Engine | `src/game` drawing, HUD, camera, low-spec | model good at C++/SDL |
-| Input / UI / UX | `main.cpp`, controls, selection, screens | model good at UX |
-| Content / Data | `core/data`, `assets/data`, config | fast/cheap model |
-| Text / i18n / Lore | strings, `assets/lang`, lore | model good at prose |
-| Build / CI / Tooling | `.github`, CMake, `scripts`, deps | any |
-| Release / Playtest | `CHANGELOG`, `docs/releases`, release art | any, detail-oriented |
+| Core / Simulation | `src/core/**` (sim, world, math, agent), missions | strongest reasoning model |
+| Client / Rendering & UI | `src/game/**`, `src/main.cpp` (drawing, HUD, camera, input, CLI) | model good at C++/SDL/UX |
+| Content / Data & Text | `core/data`, `core/i18n`, `assets/data`, `assets/lang`, lore | fast/cheap or prose model |
+| Platform / Build & Release | `.github`, CMake, `scripts`, deps, packaging, `CHANGELOG`, releases | any, detail-oriented |
+
+> **Reduced from eight to five lanes** (see `docs/FOCUS_AREAS.md` §2): `world` →
+> `core`, `input-ui` → `client`, `text` → `content`, `release` → `platform`. The
+> retired `focus:` labels and their replacements are listed in
+> `docs/FOCUS_AREAS.md` §6.
 
 **Helpers.** An agent whose queue is empty helps another area **only on
 request** from that area's owner or the coordinator — never self-assigned. See

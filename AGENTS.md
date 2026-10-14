@@ -126,8 +126,8 @@ Many models edit this repo. To avoid clobbering each other:
    coordinate, update `AGENTS.md` in the same PR.
 9. **Review and merge each other's PRs.** See §3a. This applies to every agent
    and to human maintainers.
-10. **Work inside your focus area.** The repo is divided into eight parallel
-    focus areas, one owning agent each (see `docs/FOCUS_AREAS.md`). Only the
+10. **Work inside your focus area.** The repo is divided into four parallel
+    focus areas plus the coordinator (see `docs/FOCUS_AREAS.md`). Only the
     owning agent (or a helper it explicitly tasks) edits the files an area owns.
     Need a change in another area's files? File a cross-area request
     (`docs/FOCUS_AREAS.md` §4, Rule 4) — never edit them yourself.
@@ -453,8 +453,8 @@ run the game target locally and note the result in the PR.
   via `Game::tr(key, fallback)` and `substitute()` for `{token}`s. Add new UI
   text as a key in `assets/lang/en.json` and keep the old literal as the
   `fallback` so a missing file still renders. The key schema and `assets/lang/**`
-  are owned by `focus: text` (FOCUS_AREAS 6); the consumer side (`Game.cpp`) is
-  Render's. `--headless --check-lang` (ctest `game_lang`) fails if a key the UI
+  are owned by `focus: content`; the consumer side (`Game.cpp`) is Client's.
+  `--headless --check-lang` (ctest `game_lang`) fails if a key the UI
   reads is missing.
 - Combat/AI/mission logic lives in `src/core/sim/` (`Agent`, `Mission`, `Weapon`)
   and is unit-tested; keep it SDL-free.
@@ -547,16 +547,18 @@ run the game target locally and note the result in the PR.
   `release/vX.Y.Z-*` branch or move its tag after publication. If a released
   build would otherwise break, fix it on a new branch cut from that release
   branch (e.g. `fix/v0.3.0-<desc>`), leaving the original untouched.
-- **Parallel work is organised into eight focus areas** (`docs/FOCUS_AREAS.md`):
-  tactical, world, render, input-ui, content, text, platform, release — plus the
-  coordinator. Each area has one owning agent and a `focus:` label; only the
-  owner (or a helper it tasks) edits its files. Overlap rules, the cross-area
-  request format, the helper protocol, and the review matrix all live there.
-  When you pick up work, claim the issue in **your** area; do not start in
-  another area on your own.
-- **`src/game/Game.cpp` is a known shared file** (Render owns it; Input/UI also
-  needs `handleEvents`/selection). Use turn-taking, and prefer splitting it into
-  `Hud.cpp`/`Camera.cpp`/`Input.cpp`/`TitleCard.cpp` so the two areas stop
-  sharing one file (`docs/FOCUS_AREAS.md` §4, Rule 2).
-- **Engine-layer test files:** `tests/test_mission.cpp` is owned by Tactical;
-  World and Content add assertions to it under the same turn-taking rule.
+- **Parallel work is organised into five focus areas** (`docs/FOCUS_AREAS.md`):
+  **core** (`src/core/**`), **client** (`src/game/**`, `src/main.cpp`),
+  **content** (`core/data`, `core/i18n`, `assets/data`, `assets/lang`), and
+  **platform** (build, CI, packaging, releases) — plus the coordinator. Each area
+  has one owning agent and a `focus:` label; only the owner (or a helper it
+  tasks) edits its files. Overlap rules, the cross-area request format, the
+  helper protocol, and the review matrix all live there. When you pick up work,
+  claim the issue in **your** area; do not start in another area on your own.
+- **`src/game/Game.cpp` is owned by Client** (drawing *and* input/selection/
+  title all live there after the 8→5 lane merge, so there is no cross-area
+  turn-taking now). Prefer splitting it into `Hud.cpp`/`Camera.cpp`/
+  `Input.cpp`/`TitleCard.cpp` as it grows (`docs/FOCUS_AREAS.md` §4, Rule 2).
+- **Engine-layer test files:** `tests/test_mission.cpp` is owned by Core (it
+  tests `src/core`); Content adds catalogue/lang assertions to its own test
+  files, not this one.
