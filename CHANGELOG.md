@@ -30,6 +30,12 @@ contains no original assets, code, names, or trademarks.
   never cross teams; the choice is deterministic (ties break by agent index).
   New `Agent::heal(amount)` primitive and `Mission::setMedikits` / `medikits` /
   `useMedikit`. Engine-free, unit-tested. Issue #88.
+- **Smooth (string-pulled) agent routes:** agents now path with 8-way A* and
+  string-pulling, so they walk diagonally across open ground instead of
+  staircasing along the tile grid. `core::smoothPath` drops intermediate
+  waypoints that a clear straight line can skip; it never adds or moves a
+  waypoint, so a route stays walkable and deterministic. New
+  `findSmoothPath`/`smoothPath` in `core/world/Pathfinding`. Issue #93.
 
 ### Changed
 

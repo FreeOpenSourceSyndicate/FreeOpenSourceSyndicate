@@ -20,4 +20,20 @@ namespace fossynd::core
 std::vector<TilePos> findPath(const TileGrid& grid, TilePos start, TilePos goal,
                               bool allowDiagonal = false);
 
+// String-pulls a path: drops intermediate waypoints that a straight, clear
+// segment (core/world/LineOfSight.h) can skip, so an agent walks diagonally
+// across open ground instead of staircasing along the grid. The first and last
+// waypoints are always kept.
+//
+// The result is never longer than the input and every retained segment is clear,
+// so it stays walkable. Deterministic and RNG-free. An empty or single-tile path
+// is returned unchanged.
+std::vector<TilePos> smoothPath(const TileGrid& grid, const std::vector<TilePos>& path);
+
+// A* followed by smoothPath — the route an agent actually follows. Uses 8-way
+// A* by default so the search can find the diagonal shortcuts the smoothing
+// then relies on.
+std::vector<TilePos> findSmoothPath(const TileGrid& grid, TilePos start, TilePos goal,
+                                    bool allowDiagonal = true);
+
 } // namespace fossynd::core

@@ -78,7 +78,7 @@ bool Agent::moveTo(const TileGrid& grid, TilePos goal)
     // tile we are standing on; skipping it avoids an immediate zero-distance
     // step.
     const TilePos start = tile();
-    std::vector<TilePos> found = findPath(grid, start, goal);
+    std::vector<TilePos> found = findSmoothPath(grid, start, goal);
     if (found.empty())
     {
         path_.clear();

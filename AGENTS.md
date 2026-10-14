@@ -513,6 +513,14 @@ run the game target locally and note the result in the PR.
   (ties break by index). The health primitive is `Agent::heal(amount)` (World
   area) — additive and defaulted, mirroring `applyDamage`.
 - Sprites and a minimap are in (see below); zoom is still missing (Phase 2).
+- **Agent routes are string-pulled (issue #93):** `Agent::moveTo` now uses
+  `core::findSmoothPath` (8-way A* + `smoothPath`) instead of raw 4-way A*, so
+  agents walk diagonally across open ground instead of staircasing. `smoothPath`
+  greedily keeps the furthest waypoint reachable by one clear straight segment
+  (`core/world/LineOfSight.h`); it never adds or moves a waypoint, so a smoothed
+  route is always a subsequence of the A* path and stays walkable. Deterministic,
+  RNG-free. Raw `findPath` is unchanged (4-way default) for callers that want the
+  grid path.
 - **Mission objectives are data-driven (ADR-0003):** `ObjectiveSpec`
   (`core/sim/Objective.h`) is `EliminateAll` (default), `ReachTile` (a living
   player agent on a target tile), or `Survive` (a time limit). A mission sets it

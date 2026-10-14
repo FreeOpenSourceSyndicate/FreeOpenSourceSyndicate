@@ -362,7 +362,7 @@ busiest-first so the next agent can pick the top free one.
 | Area | `focus:` | Owner this cycle | Pending workload | Seeded / open tasks |
 |------|----------|------------------|------------------|---------------------|
 | Tactical | `focus: tactical` | — | 1 | #88 medikit ✅ (merged); mission-design backlog (Phase 3) |
-| World | `focus: world` | — | 2 | #93 string-pull A* routes; LOS follow-ups |
+| World | `focus: world` | — | 1 | #93 string-pull A* routes ✅ (merged); LOS follow-ups |
 | Render | `focus: render` | — | 2 | #89 draw queued waypoint path; Phase 2 zoom (unfiled) |
 | Input/UI | `focus: input-ui` | — | 2 | #94 box-select drag; control-group polish |
 | Content | `focus: content` | — | 2 | #90 ship explosive weapon in `weapons.json` |
@@ -400,6 +400,7 @@ a free, claimable task.
 | AoE weapon radius | tactical | #79 | ✅ merged (#86) |
 | Medikit gadget (heal ally) | tactical | #88 | ✅ merged (#97) |
 | Reconcile `[0.5.0]` CHANGELOG with the tag | release | #70 | ✅ merged (#98, option A) |
+| String-pulled A* agent routes | world | #93 | ✅ merged (#99) |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 

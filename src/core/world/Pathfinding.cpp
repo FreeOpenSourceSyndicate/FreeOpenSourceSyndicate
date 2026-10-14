@@ -5,6 +5,8 @@
 #include <cstdlib>
 #include <queue>
 
+#include "core/world/LineOfSight.h"
+
 namespace fossynd::core
 {
 namespace
@@ -128,6 +130,43 @@ std::vector<TilePos> findPath(const TileGrid& grid, TilePos start, TilePos goal,
     }
     std::reverse(path.begin(), path.end());
     return path;
+}
+
+std::vector<TilePos> smoothPath(const TileGrid& grid, const std::vector<TilePos>& path)
+{
+    if (path.size() <= 2)
+    {
+        return path;
+    }
+
+    // Greedy string-pull: from the last kept waypoint, keep the furthest
+    // waypoint still reachable by a single clear straight segment. Every
+    // retained segment is therefore clear, and no waypoint is invented.
+    std::vector<TilePos> result;
+    result.push_back(path.front());
+
+    std::size_t anchor = 0;
+    while (anchor + 1 < path.size())
+    {
+        std::size_t best = anchor + 1;
+        for (std::size_t i = path.size(); i-- > anchor + 2;)
+        {
+            if (hasLineOfSight(grid, path[anchor], path[i]))
+            {
+                best = i;
+                break;
+            }
+        }
+        result.push_back(path[best]);
+        anchor = best;
+    }
+
+    return result;
+}
+
+std::vector<TilePos> findSmoothPath(const TileGrid& grid, TilePos start, TilePos goal, bool allowDiagonal)
+{
+    return smoothPath(grid, findPath(grid, start, goal, allowDiagonal));
 }
 
 } // namespace fossynd::core
