@@ -59,6 +59,40 @@ if(BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
+# ---------------------------------------------------------------------------
+# Packaging (CPack): Linux first (ROADMAP Phase 5 tooling). Produces a portable
+# .tar.gz and, where dpkg-deb is available, a Debian .deb — both built from the
+# install() rules above, so the package layout stays in one place. Additive:
+# nothing changes unless the `package` target is invoked. macOS/Windows packaging
+# is a follow-up (no regular testers, AGENTS.md 1).
+# ---------------------------------------------------------------------------
+set(CPACK_PACKAGE_NAME "FOSSynd")
+set(CPACK_PACKAGE_VENDOR "FOSSynd project")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
+    "FOSSynd — an open-source recreation of the Syndicate (1993) gameplay")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_CONTACT "FOSSynd maintainers")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/FreeOpenSourceSyndicate/FreeOpenSourceSyndicate")
+set(CPACK_PACKAGE_FILE_NAME "FOSSynd-${PROJECT_VERSION}-${CMAKE_SYSTEM_NAME}")
+
+set(CPACK_GENERATOR "TGZ")
+if(UNIX AND NOT APPLE)
+    find_program(FOSSYND_DPKG_DEB dpkg-deb)
+    if(FOSSYND_DPKG_DEB)
+        list(APPEND CPACK_GENERATOR "DEB")
+    endif()
+endif()
+
+# Debian metadata. libsdl2-2.0-0 is the SDL2 runtime the game links against.
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "FOSSynd maintainers")
+set(CPACK_DEBIAN_PACKAGE_SECTION "games")
+set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libsdl2-2.0-0")
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+
+include(CPack)
+
 message(STATUS "")
 message(STATUS "=== FOSSynd ===")
 message(STATUS "C++ standard: ${CMAKE_CXX_STANDARD}")

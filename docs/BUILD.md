@@ -58,6 +58,30 @@ The option is **OFF** by default, so normal and low-spec builds are unchanged an
 pay no runtime cost. The sanitizer profile is core-only (no SDL2 needed) and CI
 runs it on every change (the `Sanitizers (ASan + UBSan, core)` job).
 
+## Packaging a release artifact
+
+CPack (which ships with CMake) turns the `install()` rules into a versioned,
+installable package — a portable `.tar.gz` and, on Debian/Ubuntu, a `.deb`
+(ADR-0017). It needs no extra dependency:
+
+```bash
+cmake -S . -B build -DFOSSYND_BUILD_GAME=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+cmake --build build --target package
+```
+
+This writes, into the build directory:
+
+- `FOSSynd-<version>-Linux.tar.gz` — portable; unpack anywhere and run
+  `bin/FOSSynd`. The mission, string table, and example config sit in
+  `share/fossynd/`, which the binary finds relative to itself.
+- `fossynd_<version>_amd64.deb` — install with `sudo apt install ./fossynd_*.deb`.
+
+The version comes from `project()` in the top-level `CMakeLists.txt`, so a
+release bump changes the package names automatically. The layout is single-sourced
+with the `install()` rules; changing one changes the package. macOS and Windows
+packaging is not set up yet.
+
 ## Prerequisites
 
 - CMake ≥ 3.15
