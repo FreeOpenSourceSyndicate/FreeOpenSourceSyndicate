@@ -486,6 +486,14 @@ run the game target locally and note the result in the PR.
   toward win/lose; player-caused deaths increment `Mission::civilianKills`.
   Civilian panic uses `Agent::gunfireTimer()`, set on each shot. Keep civilians
   out of the combat target loop if you touch `resolveFire`.
+- **Area-of-effect weapons** are supported in core: `Weapon::areaRadius` (tiles,
+  default `0` = single-target) makes a successful hit also damage every other
+  living agent within the radius of the impact tile (`Mission::applyAreaDamage`,
+  called from `resolveFire`). The primary target is damaged once; in-radius
+  civilians can be killed and count toward `civilianKills`. `areaRadius` is
+  parsed from a weapon JSON object (ADR-0003), so an explosive ships by data
+  alone. Deterministic (no RNG). Keep the field defaulted — it is additive to the
+  frozen `Weapon` contract (Rule 3).
 - **Compliance Beacon followers** are civilians recruited by a player agent
   (`core::Agent::followerLeader()`, `Mission::persuade`/`freeFollowersOf`/
   `followerCount`). A follower keeps `Team::Civilian`, so the existing combat

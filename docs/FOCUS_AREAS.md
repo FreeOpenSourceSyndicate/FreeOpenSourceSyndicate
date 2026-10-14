@@ -330,17 +330,21 @@ This table tracks the **current** state. Update it whenever a queue issue closes
 | Content validator (dangling `weaponId`/`agentId`) | content | #71 | ✅ merged (#80); flag wiring → #81 |
 | `--check-content` flag + `game_content` ctest | client | #81 | ✅ merged (#85) |
 | AoE weapon radius | core | #79 | ✅ merged (#86) |
+| Medikit gadget (heal ally) | core | #88 | ⬜ open (next `core` task) |
+| Draw queued waypoint path | client | #89 | ⬜ open (next `client` task) |
+| Ship explosive weapon in `weapons.json` | content | #90 | ⬜ open (next `content` task) |
+| Package smoke validates shipped content | platform | #91 | ⬜ open (next `platform` task) |
 | Reconcile `[0.5.0]` CHANGELOG with the tag | platform | #70 | ⬜ open (needs a user decision) |
 | Coordination hub | coordinator | #38 | this |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 
 **One concrete task per lane** is seeded so every agent has something to claim:
-**#63** (`core`), **#69 → #75** (`client`, serial: #75 rebases over #69), **#71**
-(`content`), **#70** (`platform`, blocked on a user decision). The `client` pair
-is serial (`Game.cpp`); `core`, `content` and `platform` can proceed in parallel.
-A lane that drains announces availability on #38 and takes *assigned*
-review/helper work (§5), not self-started features.
+**#88** (`core`), **#89** (`client`), **#90** (`content`), **#91** (`platform`).
+All four are independent (different files), so the four lanes can proceed in
+parallel with no overlap. **#70** (`platform`) stays open but is blocked on a
+user decision. A lane that drains announces availability on #38 and takes
+*assigned* review/helper work (§5), not self-started features.
 
 **Re-split trigger.** If the active agent count rises again, split a lane back
 out (reverse of the §6 table) — `client` → render + input-ui first, then
