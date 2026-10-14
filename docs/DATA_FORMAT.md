@@ -117,7 +117,9 @@ referenced by id instead of copied into every mission (ADR-0003):
 {
   "weapons": [
     { "id": "pistol", "name": "Pistol", "damage": 10, "range": 6, "fireRate": 2.5, "accuracy": 0.72 },
-    { "id": "rifle",  "name": "Rifle",  "damage": 8,  "range": 9, "fireRate": 4,   "accuracy": 0.65 }
+    { "id": "rifle",  "name": "Rifle",  "damage": 8,  "range": 9, "fireRate": 4,   "accuracy": 0.65 },
+    { "id": "launcher", "name": "Launcher", "damage": 45, "range": 10, "fireRate": 0.8,
+      "accuracy": 0.85, "areaRadius": 2.0 }
   ]
 }
 ```
@@ -126,7 +128,8 @@ referenced by id instead of copied into every mission (ADR-0003):
 // assets/data/agents.json
 {
   "agents": [
-    { "id": "guard", "name": "GUARD", "team": "enemy", "speed": 3, "health": 70, "weaponId": "rifle" }
+    { "id": "guard",  "name": "GUARD",  "team": "enemy", "speed": 3, "health": 70, "weaponId": "rifle" },
+    { "id": "gunner", "name": "GUNNER", "team": "enemy", "speed": 2.5, "health": 90, "weaponId": "launcher" }
   ]
 }
 ```
