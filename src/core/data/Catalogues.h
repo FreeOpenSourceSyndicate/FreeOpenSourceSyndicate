@@ -116,6 +116,9 @@ inline bool parseWeaponNode(const Json& node, Weapon& out, std::string& error)
     out.range = node["range"].asFloat(out.range);
     out.fireRate = node["fireRate"].asFloat(out.fireRate);
     out.accuracy = node["accuracy"].asFloat(out.accuracy);
+    // Optional: an explosive weapon sets a blast radius; omitted keeps the
+    // inherited/default value (0 = single-target).
+    out.areaRadius = node["areaRadius"].asFloat(out.areaRadius);
     if (out.fireRate <= 0.0f)
     {
         error = "weapon 'fireRate' must be greater than 0";

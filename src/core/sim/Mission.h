@@ -137,6 +137,11 @@ private:
     // never affects combatants, so combat outcomes are unchanged.
     void applyStrayFire(std::size_t attacker, std::size_t target, float damage);
 
+    // Damages every other living agent within `radius` tiles of `target`'s tile
+    // (excluding the attacker and the primary target). Used by explosive weapons
+    // with a non-zero area radius (issue #79).
+    void applyAreaDamage(std::size_t attacker, std::size_t target, float damage, float radius);
+
     void evaluateOutcome();
 
     // True if any living player agent stands on the reach objective's tile.
