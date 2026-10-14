@@ -465,7 +465,7 @@ run the game target locally and note the result in the PR.
   toward win/lose; player-caused deaths increment `Mission::civilianKills`.
   Civilian panic uses `Agent::gunfireTimer()`, set on each shot. Keep civilians
   out of the combat target loop if you touch `resolveFire`.
-- **Persuadertron followers** are civilians recruited by a player agent
+- **Compliance Beacon followers** are civilians recruited by a player agent
   (`core::Agent::followerLeader()`, `Mission::persuade`/`freeFollowersOf`/
   `followerCount`). A follower keeps `Team::Civilian`, so the existing combat
   loop ignores it; it just trails its leader (`Mission::updateFollower`). Keep

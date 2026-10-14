@@ -116,7 +116,7 @@ private:
     void assignControlGroup(int slot);
     void recallControlGroup(int slot);
     void orderAttackOn(int targetIndex);
-    // Each selected agent uses its Persuadertron on the nearest civilian in range.
+    // Each selected agent uses its ComplianceBeacon on the nearest civilian in range.
     void persuadeNearestCivilian();
     // Releases the followers of every selected agent.
     void freeSelectedFollowers();

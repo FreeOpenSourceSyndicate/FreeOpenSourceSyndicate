@@ -86,12 +86,12 @@ UI text lives in `assets/lang/<lang>.json` and is read through
 
 ## 5. Known naming concerns
 
-- **`Persuadertron`** appears in the code and docs (`core/sim/Persuadertron.h`,
-  `Mission::persuade`, the `[P] PERSUADE` HUD hint). It is the *original game's*
-  gadget name and conflicts with `docs/LEGAL.md` hard rule 4. The `focus: text`
-  lane recommends renaming it to an original term (**Compliance Beacon**, §3).
-  The rename touches `focus: tactical` / `focus: content` files and needs an ADR,
-  so it is filed as a cross-area request rather than done here.
+- **Resolved (ADR-0018):** the recruiter gadget was previously called by the
+  *original game's* name, which `docs/LEGAL.md` hard rule 4 forbids. It is now
+  **Compliance Beacon** throughout the code and docs — `core/sim/ComplianceBeacon.h`,
+  the `ComplianceBeacon` type, and the `[P] PERSUADE` HUD hint. The generic verb
+  "persuade" is retained (`Mission::persuade`) because it is ordinary English, not
+  a proper noun. See §3 for the lexicon.
 
 Anything added to this section should be a *flagged* concern with a proposed
 original replacement, never a silent reuse of an original name.

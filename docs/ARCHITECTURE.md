@@ -55,7 +55,7 @@ FOSSynd uses a component-based entity system with modular gameplay systems. This
 
 **NPC / Civilian**
 - Non-combatant
-- Can be persuaded (Persuadertron device)
+- Can be persuaded (Compliance Beacon device)
 - Follows player or wanders autonomously
 
 ### 2. World System
@@ -112,7 +112,7 @@ FOSSynd uses a component-based entity system with modular gameplay systems. This
 - Different behaviors (automatic, burst, area-of-effect)
 
 **Equipment/Gadgets**
-- Persuadertron (convert NPCs/enemies)
+- Compliance Beacon (convert NPCs/enemies)
 - Shield (temporary damage reduction)
 - Radar (reveal enemies/NPCs)
 - Armor upgrades

@@ -82,7 +82,7 @@ type: short description
 Optional detailed explanation of changes.
 
 Examples:
-- feat: add Persuadertron device mechanic
+- feat: add Compliance Beacon device mechanic
 - fix: correct pathfinding collision detection
 - docs: update build instructions for macOS
 - refactor: simplify combat damage calculation
