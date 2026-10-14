@@ -1,0 +1,29 @@
+{
+  "_comment": "FOSSynd English UI strings (ADR-0016). Keys are stable identifiers; do not rename without an ADR. All values are original FOSSynd text (docs/LEGAL.md): no text from any commercial game.",
+
+  "app.title": "FOSSYND",
+  "app.version": "v{version}",
+  "app.tagline": "SMART ENEMIES",
+
+  "hud.objective.eliminate": "OBJECTIVE: ELIMINATE ALL {count} ENEMY AGENTS",
+  "hud.objective.reach": "OBJECTIVE: REACH TILE ({x},{y})",
+  "hud.objective.survive": "OBJECTIVE: SURVIVE {seconds}s",
+  "hud.controls": "[L] MOVE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] SELECT   [A]LL   [P] PERSUADE   [F] FREE   [R] RESTART",
+  "hud.followers": "FOLLOWERS: {count}",
+  "hud.collateral": "COLLATERAL: {count}",
+  "hud.squad": "SQUAD",
+  "hud.agentRow": "{marker}{name}  {weapon}  HP {hp}",
+  "hud.winSub": "PRESS R TO RUN IT AGAIN",
+  "hud.loseSub": "PRESS R TO RETRY",
+
+  "state.inProgress": "IN PROGRESS",
+  "state.won": "MISSION COMPLETE",
+  "state.lost": "SQUAD LOST",
+
+  "title.prompt": "PRESS ANY KEY",
+  "title.controls.move": "CLICK / L  MOVE THE SQUAD",
+  "title.controls.attack": "RIGHT-CLICK  FOCUS FIRE",
+  "title.controls.select": "1-4 / A  SELECT AGENTS",
+  "title.controls.misc": "ARROWS  SCROLL   R  RESTART   ESC  QUIT",
+  "title.footer": "FOSSYND v{version}  -  FREE OPEN SOURCE SYNDICATE"
+}

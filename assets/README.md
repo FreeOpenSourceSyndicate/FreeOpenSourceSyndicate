@@ -13,4 +13,5 @@ Layout:
 - `tiles/` — isometric terrain tiles
 - `ui/` — HUD, menus, icons, fonts
 - `audio/` — sfx and music
+- `lang/` — UI string tables, one JSON file per language (ADR-0016)
 - `data/` — gameplay data (weapons, agents, missions); format TBD by ADR-0003

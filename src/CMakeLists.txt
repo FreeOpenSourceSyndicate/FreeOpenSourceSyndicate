@@ -35,6 +35,17 @@ configure_file(
 )
 list(APPEND FOSSYND_GAME_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/game/EmbeddedSprites.cpp")
 
+# Embed the English string table so the game is localisable from data (ADR-0016)
+# while still running with no data files present.
+set(FOSSYND_LANG_FILE "${CMAKE_SOURCE_DIR}/assets/lang/en.json")
+file(READ "${FOSSYND_LANG_FILE}" FOSSYND_ENGLISH_LANG_JSON)
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/game/EmbeddedLang.cpp.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/game/EmbeddedLang.cpp"
+    @ONLY
+)
+list(APPEND FOSSYND_GAME_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/game/EmbeddedLang.cpp")
+
 add_executable(FOSSynd ${FOSSYND_GAME_SOURCES})
 
 # The version shown in the window title, the HUD, and the title card. Single
@@ -75,6 +86,8 @@ install(FILES "${CMAKE_SOURCE_DIR}/assets/data/missions/demo.json"
         DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd/missions)
 install(FILES "${CMAKE_SOURCE_DIR}/assets/data/fossynd.conf.example"
         DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd)
+install(FILES "${CMAKE_SOURCE_DIR}/assets/lang/en.json"
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd/lang)
 
 # Headless smoke test: boots the game with the dummy video driver, runs a few
 # frames, and exits. Verifies the SDL layer initialises and ticks.

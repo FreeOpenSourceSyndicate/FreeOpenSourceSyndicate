@@ -18,6 +18,7 @@ set(FOSSYND_TEST_SOURCES
     test_config.cpp
     test_persuadertron.cpp
     test_sprites.cpp
+    test_i18n.cpp
 )
 
 add_executable(run_tests ${FOSSYND_TEST_SOURCES})
