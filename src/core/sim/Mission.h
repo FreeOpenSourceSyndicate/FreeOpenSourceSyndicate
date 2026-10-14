@@ -148,6 +148,16 @@ private:
     // Straight-line distance between two agents, in tiles.
     float distanceBetween(std::size_t a, std::size_t b) const;
 
+    // True when the straight line between the two agents' tiles is clear of
+    // walls (LineOfSight). Range is not considered; a null grid is open. Used to
+    // stop fire passing through walls.
+    bool hasClearShot(std::size_t a, std::size_t b) const;
+
+    // True when `observer` can see `target`: within sight range and with a clear
+    // shot (hasClearShot). This is what stops combatants from acquiring targets
+    // through walls.
+    bool seesTarget(std::size_t observer, std::size_t target) const;
+
     const TileGrid* grid_ = nullptr;
     std::vector<Agent> agents_;
     Rng rng_;
