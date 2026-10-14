@@ -51,9 +51,9 @@ edits those files*.
 |---|------|-------|----------------------|--------------|
 | 1 | **Tactical / Mission** | `focus: tactical` | `src/core/sim/Mission.{h,cpp}`, `src/core/sim/Weapon.h`, `tests/test_mission.cpp`, `assets/data/missions/*.json` | AI, combat rules, weapon balance, objectives, win/lose, orders, mission design |
 | 2 | **World / Simulation** | `focus: world` | `src/core/world/*`, `src/core/math/*`, `src/core/sim/Agent.{h,cpp}`, `src/core/util/*`, matching `tests/` | pathfinding, tile grid, agent model, RNG |
-| 3 | **Render / Engine** | `focus: render` | `src/game/Game.cpp` (render/hud/camera), `src/game/Font.{h,cpp}` | draw the sim, sprites, camera, HUD, low-spec |
+| 3 | **Render / Engine** | `focus: render` | `src/game/Game.cpp` (render/hud/camera), `src/game/Font.{h,cpp}`, `src/game/Sprite.{h,cpp}`, `assets/sprites/**` | draw the sim, sprites, camera, HUD, low-spec |
 | 4 | **Input / UI / UX** | `focus: input-ui` | `src/main.cpp`, `src/game/Game.cpp` (input/selection/title) | flags, controls, selection, menus, screenshots |
-| 5 | **Content / Data** | `focus: content` | `src/core/data/*`, `assets/data/**` (except `missions/`), `docs/DATA_FORMAT.md`, matching `tests/` | JSON loader, weapon/agent catalogues, config |
+| 5 | **Content / Data** | `focus: content` | `src/core/data/*` (incl. `AgentSprites.{h,cpp}`), `assets/data/**` (except `missions/`), `docs/DATA_FORMAT.md`, matching `tests/` | JSON loader, catalogues, sprites parser, config |
 | 6 | **Text / i18n / Lore** | `focus: text` | `assets/lang/**`, `src/core/i18n/*`, string tables, `docs/LORE.md` | strings, localisation, in-game text, lore |
 | 7 | **Build / CI / Tooling** | `focus: platform` | `.github/**`, `CMakeLists.txt`, `src/CMakeLists.txt`, `src/core/CMakeLists.txt`, `tests/CMakeLists.txt`, `scripts/**` | CI, build options, packaging, deps |
 | 8 | **Release / Playtest** | `focus: release` | `CHANGELOG.md`, `docs/releases/**`, `assets/ui/**` (release art), tags/Release pages | cut releases, playtest docs, banners |
@@ -80,7 +80,7 @@ coordinator's contract step (§4, Rule 3):
 | World | `Agent`, `TileGrid`, `Pathfinding`, `Rng` public APIs |
 | Render | nothing public (private `Game` methods) |
 | Input/UI | the CLI flags and the `Game::init`/`run`/`set*` surface used by `main.cpp` |
-| Content | `MissionData`, `Json`, `Config`, `ContentPaths` public APIs and the JSON schema |
+| Content | `MissionData`, `Json`, `Config`, `ContentPaths`, `AgentSprites` public APIs and the JSON/sprite-text schema |
 | Text | the string lookup API and the `assets/lang` schema |
 | Platform | CMake options (`FOSSYND_*`), target names, CI job names |
 | Release | the `CHANGELOG.md` format and `docs/releases/*` layout |
@@ -106,8 +106,7 @@ coordinator's contract step (§4, Rule 3):
    | Platform | `chore/ci-*`, `build/*` |
    | Release | `release/*`, `docs/release-*` |
 
-4. **Label every issue** with exactly one `focus:` label (plus the legacy
-   `area:` label, see §6).
+4. **Label every issue** with exactly one `focus:` label (§6).
 5. **Keep `main` green** (`AGENTS.md` §3.6). No new warnings; `ctest` passes in
    all three CI profiles.
 
@@ -242,22 +241,25 @@ borrowed.
 
 ## 6. Labels
 
-Every issue gets **one `focus:` label** (this file) and the legacy **`area:`
-label** (`docs/COORDINATION.md`) until the two are merged. Mapping:
+Every issue gets **exactly one `focus:` label** — the fine-grained focus area
+from §2. It is the single source of truth for *who may edit which files*, and it
+replaces the older coarse `area:` label, which is **retired**:
 
-| `focus:` label | `area:` label |
-|----------------|---------------|
-| `focus: coordinator` | `area: docs` |
-| `focus: tactical` | `area: core/sim` |
-| `focus: world` | `area: core/sim` |
-| `focus: render` | `area: engine` |
-| `focus: input-ui` | `area: engine` |
-| `focus: content` | `area: content` |
-| `focus: text` | `area: content` |
-| `focus: platform` | `area: ci` |
-| `focus: release` | `area: docs` |
+| `focus:` label |
+|----------------|
+| `focus: coordinator` |
+| `focus: tactical` |
+| `focus: world` |
+| `focus: render` |
+| `focus: input-ui` |
+| `focus: content` |
+| `focus: text` |
+| `focus: platform` |
+| `focus: release` |
 
-Plus the existing `status:` labels (`claimed`, `blocked`, `needs-review`).
+Plus the existing `status:` labels (`claimed`, `blocked`, `needs-review`). The
+`area:*` labels no longer exist; if you see one referenced anywhere, it is stale
+— replace it with the matching `focus:` label.
 
 ---
 
@@ -286,19 +288,19 @@ the merging model.
 
 ## 8. Current work → area (starting assignment)
 
-As of the coordination setup, the live queue maps as follows:
+The kickoff queue (one issue per area) and its state:
 
-| Work | Area |
-|------|------|
-| PR #23 Persuadertron (followers) | Tactical |
-| Issue #15 Persuadertron | Tactical |
-| Demo mission content, `assets/data/missions/*.json` | Tactical |
-| Sprite/animation pass, depth sort, minimap, zoom | Render |
-| Interpolated rendering over fixed-step sim | Render (with World) |
-| Control groups, waypoint queue, hotkeys | Input/UI |
-| Localisation scaffolding (Phase 5) | Text |
-| Low-spec / packaging / CI | Platform |
-| v0.5.0 release | Release |
+| Work | Area | Issue | State |
+|------|------|-------|-------|
+| Depth-sorted pixel-art sprites | Render | #32 | ✅ merged (#39, ADR-0013) |
+| Objectives beyond "eliminate all" | Tactical | #30 | open |
+| Fixed-timestep interpolation | World | #31 | open |
+| Control groups + waypoint queue | Input/UI | #33 | open |
+| Shared weapon/agent catalogues | Content | #34 | open |
+| Strings + `assets/lang` scaffolding | Text | #35 | open |
+| Sanitizer CI lane | Platform | #36 | open |
+| v0.5.0 release | Release | #37 | open |
+| Coordination hub | Coordinator | #38 | this |
 
 The coordinator seeds one kickoff issue per area with a first concrete task and
 the area's scope, so every agent has something to claim on day one.
