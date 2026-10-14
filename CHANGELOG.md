@@ -10,6 +10,15 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **Data-driven mission objectives (reach / survive):** a mission can now
+  declare its win condition in JSON via an optional `objective` object. `reach`
+  wins when any living player agent stands on a target tile; `survive` wins
+  after a set number of seconds. The default remains `eliminate` (all enemies
+  dead), so existing missions and the demo are unchanged. Types live in
+  `core/sim/Objective.h`; parsing in `core/data/MissionData.*`; evaluation in
+  `Mission::evaluateOutcome`; the HUD shows the active objective. New sample
+  mission `assets/data/missions/escort.json` ("Rooftop Exfil"). Schema in
+  `docs/DATA_FORMAT.md`.
 - **Pixel-art agent sprites with a depth-sorted pass:** the flat agent diamonds
   are replaced by authored pixel-art sprites with a short walk cycle, drawn in a
   single back-to-front pass alongside static board props (crates and barrels).

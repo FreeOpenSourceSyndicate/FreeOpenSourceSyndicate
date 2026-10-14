@@ -7,6 +7,7 @@
 
 #include "core/data/Json.h"
 #include "core/sim/Agent.h"
+#include "core/sim/Objective.h"
 #include "core/world/TileGrid.h"
 
 namespace fossynd::core
@@ -53,6 +54,14 @@ struct MissionData
     std::vector<BuildingSpec> buildings;
     std::vector<TileSpec> blocked;
     std::vector<AgentSpec> agents;
+
+    // Win condition. Defaults to EliminateAll, so missions that omit it behave
+    // exactly as before.
+    ObjectiveSpec objective;
+
+    // Parses an `objective` JSON object into `out` (missing fields keep their
+    // defaults). Returns false and sets `error` on a schema error.
+    static bool parseObjectiveJson(const Json& node, ObjectiveSpec& out, std::string& error);
 
     // Loads a mission from a JSON file. Returns false and sets `error` on
     // failure (including a readable parse or schema error).

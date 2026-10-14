@@ -135,3 +135,118 @@ FOSSYND_TEST(MissionData, LoadsTheDemoMissionFromDisk)
     FOSSYND_CHECK_EQ(data.width, 24);
     FOSSYND_CHECK_EQ(data.height, 24);
 }
+
+// --- Objective parsing (issue #30) ----------------------------------------
+
+FOSSYND_TEST(MissionData, DefaultsToEliminateAllWhenObjectiveIsOmitted)
+{
+    std::string error;
+    const Json root = Json::parse(kDemoJson, error);
+    MissionData data;
+    FOSSYND_CHECK(MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::EliminateAll);
+}
+
+FOSSYND_TEST(MissionData, ParsesReachObjective)
+{
+    std::string error;
+    const Json root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "reach", "tileX": 5, "tileY": 3 },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    MissionData data;
+    FOSSYND_CHECK(MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::ReachTile);
+    FOSSYND_CHECK_EQ(data.objective.tileX, 5);
+    FOSSYND_CHECK_EQ(data.objective.tileY, 3);
+}
+
+FOSSYND_TEST(MissionData, ParsesSurviveObjective)
+{
+    std::string error;
+    const Json root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "survive", "seconds": 45 },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    MissionData data;
+    FOSSYND_CHECK(MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Survive);
+    FOSSYND_CHECK_NEAR(data.objective.seconds, 45.0f);
+}
+
+FOSSYND_TEST(MissionData, ExplicitEliminateObjectiveIsAccepted)
+{
+    std::string error;
+    const Json root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "eliminate" },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    MissionData data;
+    FOSSYND_CHECK(MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::EliminateAll);
+}
+
+FOSSYND_TEST(MissionData, RejectsInvalidObjectives)
+{
+    std::string error;
+    MissionData data;
+
+    // Unknown kind.
+    Json root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "escort" },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
+
+    // Reach without a target tile.
+    error.clear();
+    root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "reach" },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
+
+    // Survive with a non-positive time.
+    error.clear();
+    root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "survive", "seconds": 0 },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
+
+    // Objective is not an object.
+    error.clear();
+    root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": "reach",
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
+}
+
+FOSSYND_TEST(MissionData, PopulateMissionCarriesTheObjective)
+{
+    std::string error;
+    const Json root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "survive", "seconds": 30 },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    MissionData data;
+    FOSSYND_CHECK(MissionData::fromJson(root, data, error));
+
+    const TileGrid grid = buildGrid(data);
+    Mission mission(grid, 1u);
+    populateMission(data, mission);
+    FOSSYND_CHECK(mission.objective().kind == ObjectiveSpec::Kind::Survive);
+    FOSSYND_CHECK_NEAR(mission.objective().seconds, 30.0f);
+}
+
+FOSSYND_TEST(MissionData, LoadsTheEscortMissionFromDisk)
+{
+    MissionData data;
+    std::string error;
+    const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/missions/escort.json";
+    FOSSYND_CHECK(MissionData::loadFromFile(path, data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::ReachTile);
+    FOSSYND_CHECK_EQ(data.objective.tileX, 18);
+    FOSSYND_CHECK_EQ(data.objective.tileY, 18);
+    FOSSYND_CHECK_EQ(data.agents.size(), static_cast<std::size_t>(9));
+}

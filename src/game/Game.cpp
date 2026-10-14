@@ -1033,9 +1033,28 @@ void Game::renderHud()
     SDL_RenderFillRect(renderer_, &topBar);
 
     font_.draw(renderer_, margin, margin / 2, "FOSSYND v" FOSSYND_VERSION, kHudText);
-    std::string objective =
-        "OBJECTIVE: ELIMINATE ALL " + std::to_string(mission_.aliveCount(core::Team::Enemy)) +
-        " ENEMY AGENTS   [L] MOVE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] SELECT   [A]LL   [P] PERSUADE   "
+    std::string objective;
+    switch (mission_.objective().kind)
+    {
+    case core::ObjectiveSpec::Kind::ReachTile:
+        objective = "OBJECTIVE: REACH TILE (" + std::to_string(mission_.objective().tileX) + "," +
+                    std::to_string(mission_.objective().tileY) + ")";
+        break;
+    case core::ObjectiveSpec::Kind::Survive:
+    {
+        const int remaining =
+            static_cast<int>(mission_.objective().seconds - mission_.elapsedSeconds() + 0.999f);
+        objective = "OBJECTIVE: SURVIVE " + std::to_string(remaining > 0 ? remaining : 0) + "s";
+        break;
+    }
+    case core::ObjectiveSpec::Kind::EliminateAll:
+    default:
+        objective = "OBJECTIVE: ELIMINATE ALL " +
+                    std::to_string(mission_.aliveCount(core::Team::Enemy)) + " ENEMY AGENTS";
+        break;
+    }
+    objective +=
+        "   [L] MOVE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] SELECT   [A]LL   [P] PERSUADE   "
         "[F] FREE   [R] RESTART";
     std::size_t followers = 0;
     for (std::size_t i = 0; i < mission_.agents().size(); ++i)

@@ -416,7 +416,8 @@ change touches `src/core/` or `tests/`, all must pass. If it touches
 
 - The game now has a **playable vertical slice** with authored pixel-art
   sprites: an SDL2 isometric mission with a four-agent squad, live combat
-  (health, hit flashes, kills), basic enemy AI, a HUD, a win/lose objective, an
+  (health, hit flashes, kills), basic enemy AI, a HUD, a data-driven win/lose
+  objective, an
   attract mode (`--demo`), and a depth-sorted sprite pass with a walk cycle. See
   `docs/ROADMAP.md` Phase 2.
 - Player command layer (v0.2.0, "Command & Control"): individual agent selection
@@ -447,6 +448,14 @@ change touches `src/core/` or `tests/`, all must pass. If it touches
   loop ignores it; it just trails its leader (`Mission::updateFollower`). Keep
   followers non-combatants: do not let them fire or become targets.
 - Sprites are in (see below); zoom and a minimap are still missing (Phase 2).
+- **Mission objectives are data-driven (ADR-0003):** `ObjectiveSpec`
+  (`core/sim/Objective.h`) is `EliminateAll` (default), `ReachTile` (a living
+  player agent on a target tile), or `Survive` (a time limit). A mission sets it
+  with an optional `objective` JSON object (`docs/DATA_FORMAT.md`); `MissionData`
+  parses it and `populateMission` calls `Mission::setObjective`. Evaluation is in
+  `Mission::evaluateOutcome`; the universal lose condition (squad dead) wins over
+  any objective. `Mission::elapsedSeconds()` is the frozen-on-end mission clock.
+  New objectives need no C++ change beyond the enum — prefer data.
 - **Sprites are authored text (ADR-0013):** agent and prop art lives in
   `assets/sprites/agents.txt` as `frame` blocks of `B`/`T`/`S`/`D`/`.`/`A`
   pixels. `core::bakeSheet` (`core/data/AgentSprites.*`, SDL-free, unit-tested)

@@ -284,6 +284,7 @@ void Mission::update(float dt)
         agent.update(dt);
     }
 
+    elapsedSeconds_ += dt;
     updateAI(dt);
     resolveFire();
     evaluateOutcome();
@@ -763,14 +764,52 @@ void Mission::evaluateOutcome()
     {
         return;
     }
-    if (aliveCount(Team::Enemy) == 0)
+
+    // Evaluate the objective's win condition first, then the universal lose
+    // condition. Ordering keeps the default `eliminate` behaviour identical to
+    // before this change.
+    switch (objective_.kind)
     {
-        state_ = MissionState::Won;
+    case ObjectiveSpec::Kind::EliminateAll:
+        if (aliveCount(Team::Enemy) == 0)
+        {
+            state_ = MissionState::Won;
+            return;
+        }
+        break;
+    case ObjectiveSpec::Kind::ReachTile:
+        if (anyPlayerOnTile())
+        {
+            state_ = MissionState::Won;
+            return;
+        }
+        break;
+    case ObjectiveSpec::Kind::Survive:
+        if (elapsedSeconds_ >= objective_.seconds)
+        {
+            state_ = MissionState::Won;
+            return;
+        }
+        break;
     }
-    else if (aliveCount(Team::Player) == 0)
+
+    if (aliveCount(Team::Player) == 0)
     {
         state_ = MissionState::Lost;
     }
+}
+
+bool Mission::anyPlayerOnTile() const
+{
+    const TilePos goal{objective_.tileX, objective_.tileY};
+    for (const Agent& agent : agents_)
+    {
+        if (agent.isAlive() && agent.team() == Team::Player && agent.tile() == goal)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 const char* Mission::stateName() const

@@ -7,6 +7,7 @@
 
 #include "core/math/Vec2.h"
 #include "core/sim/Agent.h"
+#include "core/sim/Objective.h"
 #include "core/util/Rng.h"
 #include "core/world/TileGrid.h"
 
@@ -27,7 +28,8 @@ enum class MissionState
 // the same sequence of player orders, `update` produces identical results. That
 // makes it testable and replayable.
 //
-// Win condition (demo): eliminate every enemy agent.
+// Win condition: data-driven (`ObjectiveSpec`) — eliminate all enemies (default),
+// reach a target tile, or survive for a set time. See `core/sim/Objective.h`.
 // Lose condition: every player agent is dead.
 class Mission
 {
@@ -78,6 +80,16 @@ public:
     // damage, and win/lose evaluation.
     void update(float dt);
 
+    // --- Objective (data-driven win condition) ---------------------------
+
+    // Sets the mission's win condition. Call before the first `update`.
+    void setObjective(ObjectiveSpec objective) { objective_ = objective; }
+    const ObjectiveSpec& objective() const { return objective_; }
+
+    // Mission seconds elapsed while Running (frozen once Won/Lost). Used by the
+    // `survive` objective and available to the HUD.
+    float elapsedSeconds() const { return elapsedSeconds_; }
+
     MissionState state() const { return state_; }
     const char* stateName() const;
 
@@ -109,6 +121,9 @@ private:
 
     void evaluateOutcome();
 
+    // True if any living player agent stands on the reach objective's tile.
+    bool anyPlayerOnTile() const;
+
     // Index of the nearest living agent on `enemyTeam`, or -1.
     int nearestEnemy(std::size_t self, Team enemyTeam) const;
 
@@ -118,6 +133,8 @@ private:
     const TileGrid* grid_ = nullptr;
     std::vector<Agent> agents_;
     Rng rng_;
+    ObjectiveSpec objective_;
+    float elapsedSeconds_ = 0.0f;
     MissionState state_ = MissionState::Running;
     int playerKills_ = 0;
     int enemyKills_ = 0;
