@@ -10,6 +10,13 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **Minimap:** a whole-board overview panel in the top-right HUD corner shows the
+  static terrain and a live blip per living agent (players green, enemies red,
+  civilians pale, followers cyan; selected players highlighted). The terrain is
+  baked once into a one-texel-per-tile texture and only the blips are drawn each
+  frame, so it stays cheap on old hardware. New engine-layer `game/Minimap.*`
+  (display-only; never touches the simulation) and a headless `--check-minimap`
+  guard with the new `game_minimap` ctest. See `docs/ROADMAP.md` Phase 2.
 - **Data-driven mission objectives (reach / survive):** a mission can now
   declare its win condition in JSON via an optional `objective` object. `reach`
   wins when any living player agent stands on a target tile; `survive` wins

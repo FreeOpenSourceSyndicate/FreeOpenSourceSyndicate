@@ -8,6 +8,7 @@ set(FOSSYND_GAME_SOURCES
     main.cpp
     game/Game.cpp
     game/Font.cpp
+    game/Minimap.cpp
     game/Sprite.cpp
 )
 
@@ -95,4 +96,8 @@ if(BUILD_TESTS)
     # (the depth-sorted sprite pass, Phase 2). Exits non-zero on a bad sheet.
     add_test(NAME game_sprites
              COMMAND FOSSynd --headless --check-sprites)
+    # Minimap: the whole-board overview panel bakes and places a blip for every
+    # living agent (Phase 2). Exits non-zero if a blip is missing or off-panel.
+    add_test(NAME game_minimap
+             COMMAND FOSSynd --headless --check-minimap)
 endif()

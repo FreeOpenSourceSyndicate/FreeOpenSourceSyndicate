@@ -127,6 +127,7 @@ bool Game::init(int width, int height, bool headless, bool lowSpec)
     buildMission();
     buildMapTexture();
     buildSprites();
+    buildMinimap();
 
     // Center the view on the squad.
     const auto& agents = mission_.agents();
@@ -197,6 +198,18 @@ void Game::buildSprites()
     {
         // Not fatal: the renderer falls back to flat markers.
         std::fprintf(stderr, "sprite sheet error: %s\n", error.c_str());
+    }
+}
+
+void Game::buildMinimap()
+{
+    // One texel per tile, magnified to a readable panel. Smaller on the low-spec
+    // window (320x200) so it does not eat the play area (ADR-0008, AGENTS.md 1b).
+    const int scale = (screenWidth_ < 480) ? 2 : 3;
+    if (!minimap_.init(renderer_, grid_, scale))
+    {
+        // Not fatal: the HUD simply omits the panel.
+        std::fprintf(stderr, "minimap init failed: %s\n", SDL_GetError());
     }
 }
 
@@ -1158,6 +1171,30 @@ void Game::drawTitleDiamond(float cx, float cy, float radius, std::uint8_t r, st
     }
 }
 
+bool Game::checkMinimap()
+{
+    if (!minimap_.valid())
+    {
+        return false;
+    }
+    minimap_.updateBlips(mission_, selected_);
+    return minimap_.verifyBlips(mission_);
+}
+
+void Game::renderMinimap()
+{
+    if (!minimap_.valid())
+    {
+        return;
+    }
+    // Top-right corner, below the top HUD bar.
+    const int margin = 8;
+    const int x = screenWidth_ - minimap_.width() - margin;
+    const int y = font_.lineHeight() + margin + margin / 2;
+    minimap_.updateBlips(mission_, selected_);
+    minimap_.render(renderer_, x, y);
+}
+
 void Game::renderTitleCard()
 {
     const int w = screenWidth_;
@@ -1249,6 +1286,7 @@ void Game::render()
     else
     {
         renderHud();
+        renderMinimap();
     }
 
     SDL_RenderPresent(renderer_);

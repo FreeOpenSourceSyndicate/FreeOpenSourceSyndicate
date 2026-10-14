@@ -124,6 +124,8 @@ They flee when gunfire starts nearby. Civilian deaths you cause are counted as
 | `--headless` | Use the dummy video driver (no display needed) |
 | `--frames N` | Run N frames then exit |
 | `--screenshot PATH` | Render one frame to a BMP and exit (with `--frames` first, simulates then captures) |
+| `--check-sprites` | Headless guard: exit non-zero if the sprite sheet fails to bake |
+| `--check-minimap` | Headless guard: exit non-zero if the minimap panel or blips fail |
 
 ### Core-only build (no SDL2 needed)
 
