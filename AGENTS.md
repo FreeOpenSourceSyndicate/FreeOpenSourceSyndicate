@@ -439,6 +439,14 @@ the result in the PR.
   agent (the pre-#33 meaning of `1`–`4`). This is view-only state — like
   `selected_`, it never feeds the simulation. `--headless --check-selection`
   (ctest `game_selection`) covers the logic.
+- **The view runs a fixed-step clock (Phase 2, issue #44):** `Game` owns a
+  `core::FixedTimestep clock_`. `Game::update` accumulates the real frame time
+  and runs whole `mission_.update(clock_.step())` steps (the auto-play orders use
+  the same step); `Game::renderAgents` then draws every agent at
+  `Agent::interpolatedPosition(clock_.alpha())`. Gameplay is therefore frame-rate
+  independent while motion stays smooth (golden rule 4). The camera follow and
+  the walk cycle remain view-only and follow real elapsed time. Keep the sim on
+  `clock_.step()`; never step the mission with a variable `dt`.
 - Combat/AI/mission logic lives in `src/core/sim/` (`Agent`, `Mission`, `Weapon`)
   and is unit-tested; keep it SDL-free.
 - **Enemy AI state machine** lives on `core::Agent` (`AiState`: `Idle`, `Patrol`,

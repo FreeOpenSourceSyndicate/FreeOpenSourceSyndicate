@@ -7,6 +7,7 @@
 
 #include "SDL.h"
 
+#include "core/math/Timestep.h"
 #include "core/math/Vec2.h"
 #include "core/sim/Mission.h"
 #include "core/world/TileGrid.h"
@@ -166,6 +167,13 @@ private:
 
     core::TileGrid grid_{kMapWidth, kMapHeight};
     core::Mission mission_{grid_};
+
+    // Fixed-step clock (AGENTS.md golden rule 4): the simulation advances in
+    // whole steps of a fixed size and the renderer draws between steps using
+    // `clock_.alpha()` with `Agent::interpolatedPosition`. This keeps gameplay
+    // independent of frame rate while motion stays smooth. It runs no
+    // simulation itself — `update()` drives `mission_.update(clock_.step())`.
+    core::FixedTimestep clock_;
 
     // Resolved mission file, or empty to use the embedded copy (ADR-0003).
     std::string missionPath_;

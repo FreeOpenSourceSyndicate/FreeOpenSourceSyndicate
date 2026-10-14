@@ -215,9 +215,12 @@ int main(int argc, char** argv)
     if (screenshot != nullptr)
     {
         // Optionally advance the simulation first (e.g. to capture mid-combat).
-        if (maxFrames > 0)
+        // `--frames N` means N *rendered* frames, so run N-1 here and let
+        // saveScreenshot() render the Nth; otherwise the two together would
+        // advance one frame too many and change what a screenshot captures.
+        if (maxFrames > 1)
         {
-            game.run(maxFrames);
+            game.run(maxFrames - 1);
         }
         const bool ok = game.saveScreenshot(screenshot);
         std::printf(ok ? "wrote %s\n" : "failed to write %s\n", screenshot);

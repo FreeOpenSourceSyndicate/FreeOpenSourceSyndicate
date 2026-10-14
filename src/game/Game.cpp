@@ -217,6 +217,8 @@ void Game::restart()
 {
     seed_ = seed_ * 6364136223846793005ull + 1442695040888963407ull;
     buildMission();
+    // Drop any banked time so the new mission starts on a clean step boundary.
+    clock_.reset();
     centerOn(mission_.agents().front().position());
 }
 
@@ -793,11 +795,11 @@ void Game::handleEvents(bool& running)
     }
 }
 
-void Game::update(float dt)
+void Game::update(float frameSeconds)
 {
     if (titleCardActive_)
     {
-        titleCardTime_ += dt;
+        titleCardTime_ += frameSeconds;
         // A click/keypress starts the mission, as does a few seconds of
         // inactivity, so an unattended run never stalls on the card.
         if (titleCardStartRequested_ || titleCardTime_ >= 6.0f)
@@ -806,13 +808,29 @@ void Game::update(float dt)
         }
         return;
     }
+
+    // Gameplay ticks on a fixed step so outcomes never depend on frame rate
+    // (AGENTS.md golden rule 4). The clock drops the remainder beyond its stall
+    // cap, so a long frame cannot trigger an unbounded catch-up burst. Orders
+    // and the simulation share the same fixed step; the renderer then draws
+    // between steps using `clock_.alpha()` (see renderAgents()).
+    const int steps = clock_.advance(frameSeconds);
+    for (int i = 0; i < steps; ++i)
+    {
+        if (autoPlay_)
+        {
+            updateAutoPlay(clock_.step());
+        }
+        mission_.update(clock_.step());
+    }
+
+    // Camera smoothing and the walk cycle are view-only, so they follow real
+    // elapsed time rather than the step count.
     if (autoPlay_)
     {
-        updateAutoPlay(dt);
-        followSquad(dt);
+        followSquad(frameSeconds);
     }
-    mission_.update(dt);
-    updateAgentViews(dt);
+    updateAgentViews(frameSeconds);
 }
 
 void Game::updateAgentViews(float dt)
@@ -990,6 +1008,9 @@ void Game::renderAgents()
     // One painter's-algorithm pass over everything standing on the board: agents
     // and static props are drawn back-to-front by screen Y, so nearer things
     // overlap farther things. This is the depth-sorted sprite pass (Phase 2).
+    // Between fixed steps the view draws at the interpolated position so motion
+    // stays smooth on any refresh rate; alpha is 0 when the sim is paused.
+    const float alpha = clock_.alpha();
     struct Drawable
     {
         float depth;
@@ -997,6 +1018,7 @@ void Game::renderAgents()
         bool isDecor;
         int tileX;
         int tileY;
+        core::Vec2 drawPos;
     };
     std::vector<Drawable> items;
     items.reserve(agents.size() + 64);
@@ -1007,8 +1029,9 @@ void Game::renderAgents()
         {
             continue;
         }
-        const float depth = tileToScreen(agents[i].position()).y;
-        items.push_back(Drawable{depth, i, false, 0, 0});
+        const core::Vec2 drawPos = agents[i].interpolatedPosition(alpha);
+        const float depth = tileToScreen(drawPos).y;
+        items.push_back(Drawable{depth, i, false, 0, 0, drawPos});
     }
     if (useSprites)
     {
@@ -1020,9 +1043,9 @@ void Game::renderAgents()
                 {
                     continue;
                 }
-                const float depth = tileToScreen(core::Vec2{static_cast<float>(x),
-                                                            static_cast<float>(y)}).y;
-                items.push_back(Drawable{depth, 0, true, x, y});
+                const core::Vec2 decorPos{static_cast<float>(x), static_cast<float>(y)};
+                const float depth = tileToScreen(decorPos).y;
+                items.push_back(Drawable{depth, 0, true, x, y, decorPos});
             }
         }
     }
@@ -1035,8 +1058,7 @@ void Game::renderAgents()
     {
         if (item.isDecor)
         {
-            const core::Vec2 screen = tileToScreen(core::Vec2{static_cast<float>(item.tileX),
-                                                              static_cast<float>(item.tileY)});
+            const core::Vec2 screen = tileToScreen(item.drawPos);
             const AgentSprites::Prop prop = grid_.decor(item.tileX, item.tileY) == core::Decor::Barrel
                                                 ? AgentSprites::Barrel
                                                 : AgentSprites::Crate;
@@ -1049,9 +1071,10 @@ void Game::renderAgents()
         const core::Agent& agent = agents[index];
         const bool isSelected =
             std::find(selected_.begin(), selected_.end(), index) != selected_.end();
+        const core::Vec2 drawPos = item.drawPos;
         const core::Vec2 world =
-            core::tileToWorld(agent.position().x, agent.position().y, kTileWidth, kTileHeight);
-        const core::Vec2 screen = tileToScreen(agent.position());
+            core::tileToWorld(drawPos.x, drawPos.y, kTileWidth, kTileHeight);
+        const core::Vec2 screen = tileToScreen(drawPos);
         const int sx = static_cast<int>(screen.x);
         const int sy = static_cast<int>(screen.y);
         const bool civilian = agent.team() == core::Team::Civilian;
@@ -1172,8 +1195,9 @@ void Game::renderAgents()
         {
             continue;
         }
-        const core::Vec2 world = core::tileToWorld(agent.position().x, agent.position().y, kTileWidth,
-                                                   kTileHeight);
+        const core::Vec2 reticlePos = agent.interpolatedPosition(alpha);
+        const core::Vec2 world =
+            core::tileToWorld(reticlePos.x, reticlePos.y, kTileWidth, kTileHeight);
         // A white outer ring with a red core reads clearly as "engaged".
         fillDiamondWorld(world, 0.6f, 250, 250, 250);
         fillDiamondWorld(world, 0.52f, 235, 90, 70);
