@@ -448,6 +448,14 @@ run the game target locally and note the result in the PR.
   independent while motion stays smooth (golden rule 4). The camera follow and
   the walk cycle remain view-only and follow real elapsed time. Keep the sim on
   `clock_.step()`; never step the mission with a variable `dt`.
+- **UI text is data, not literals (issue #53):** the HUD and title card read
+  their strings from `core::i18n::StringTable` (`assets/lang/en.json`, ADR-0016)
+  via `Game::tr(key, fallback)` and `substitute()` for `{token}`s. Add new UI
+  text as a key in `assets/lang/en.json` and keep the old literal as the
+  `fallback` so a missing file still renders. The key schema and `assets/lang/**`
+  are owned by `focus: text` (FOCUS_AREAS 6); the consumer side (`Game.cpp`) is
+  Render's. `--headless --check-lang` (ctest `game_lang`) fails if a key the UI
+  reads is missing.
 - Combat/AI/mission logic lives in `src/core/sim/` (`Agent`, `Mission`, `Weapon`)
   and is unit-tested; keep it SDL-free.
 - **Enemy AI state machine** lives on `core::Agent` (`AiState`: `Idle`, `Patrol`,

@@ -18,6 +18,14 @@ contains no original assets, code, names, or trademarks.
   No behaviour change. The generic verb (`Mission::persuade`, the `[P] PERSUADE`
   hint) is unchanged. The shipped v0.5.0 tag keeps the old name (immutable,
   `AGENTS.md` §6b / ADR-0011).
+- **HUD and title card read from the UI string table:** every HUD objective
+  label, the squad roster row, the win/lose banner, and the title-card strings
+  now come from `core::i18n::StringTable` (`assets/lang/en.json`) instead of
+  hard-coded C++ literals (ADR-0016). The external file is preferred and the
+  copy embedded at build time is the fallback; a missing file is not fatal —
+  every lookup keeps its literal fallback, so the UI renders exactly today's
+  text. New headless `--check-lang` guard (ctest `game_lang`) fails if a key the
+  UI reads is missing. Issue #53.
 
 ## [0.5.0] — 2026-10-14 — "Recruitment"
 
