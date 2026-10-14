@@ -286,21 +286,35 @@ the merging model.
 
 ---
 
-## 8. Current work → area (starting assignment)
+## 8. Current work → area (live queue)
 
-The kickoff queue (one issue per area) and its state:
+The kickoff queue has largely drained; this table tracks the **current** state.
+Update it whenever a kickoff/queue issue closes (coordinator owns this file).
 
 | Work | Area | Issue | State |
 |------|------|-------|-------|
 | Depth-sorted pixel-art sprites | Render | #32 | ✅ merged (#39, ADR-0013) |
-| Objectives beyond "eliminate all" | Tactical | #30 | open |
-| Fixed-timestep interpolation | World | #31 | open |
-| Control groups + waypoint queue | Input/UI | #33 | open |
-| Shared weapon/agent catalogues | Content | #34 | open |
-| Strings + `assets/lang` scaffolding | Text | #35 | open |
-| Sanitizer CI lane | Platform | #36 | open |
-| v0.5.0 release | Release | #37 | open |
+| Objectives beyond "eliminate all" | Tactical | #30 | ✅ merged (ADR-0014) |
+| Fixed-timestep interpolation | World/Render | #31 | ✅ merged (#43 core, #56 view) |
+| Shared weapon/agent catalogues | Content | #34 | ✅ merged (#60) |
+| Strings + `assets/lang` scaffolding | Text | #35 | ✅ merged (#54, ADR-0016) |
+| Sanitizer CI lane | Platform | #36 | ✅ merged (#47, ADR-0015) |
+| v0.5.0 release | Release | #37 | ✅ merged (#55) |
+| Line-of-sight primitive | World | #59 | ✅ merged (#62) |
+| CPack packaging (Linux) | Platform | #61 | ✅ merged (ADR-0017) |
+| Recruiter-gadget rename (legal) | Coordinator | #57 | ✅ merged (#64, ADR-0018) |
+| Control groups (hotkeys) | Input/UI | #33 | ◑ half-merged (#51); waypoint half → #42 |
+| HUD/title from string table | Render | #53 | 🔵 PR #65 (open) |
+| Title-card codename bump | Render | #48 | 🔵 folded into PR #65 |
+| Per-agent waypoint queue | Tactical | #42 | ⬜ open (needs interface freeze) |
+| Walls block sight/fire | Tactical | #63 | ⬜ open |
 | Coordination hub | Coordinator | #38 | this |
 
-The coordinator seeds one kickoff issue per area with a first concrete task and
-the area's scope, so every agent has something to claim on day one.
+Legend: ✅ merged · ◑ partially done · 🔵 in review · ⬜ open/unclaimed.
+
+**Idle lanes.** `focus: world` and `focus: content` currently have **no open
+issues** — their owners should announce availability on #38 and take assigned
+review/helper work (`FOCUS_AREAS.md` §5), not start features unasked.
+
+The coordinator seeds a first concrete task per area so every agent has
+something to claim; when a lane drains, rebalance here and post on #38.
