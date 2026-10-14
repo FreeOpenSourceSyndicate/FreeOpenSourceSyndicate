@@ -432,17 +432,19 @@ what is taken without reading every issue.
 | Area | `focus:` | Live claim | Pending workload | Seeded / open tasks |
 |------|----------|------------|------------------|---------------------|
 | Tactical | `focus: tactical` | — | 1 | #120 enemies take cover under fire |
-| World | `focus: world` | — | 1 | #121 bound the A* search (node cap) |
+| World | `focus: world` | — | 0 | #121 ✅ merged (#137) — **needs re-seed** |
 | Render | `focus: render` | — | 1 | #122 integer zoom levels (Phase 2's last item) |
 | Input/UI | `focus: input-ui` | — | 1 | #123 `--lang <locale>` flag + config |
 | Content | `focus: content` | — | 1 | #124 minigun / flamethrower / laser |
-| Text | `focus: text` | — | 1 | #125 complete `de.json` (7/23 keys) + parity test |
-| Platform | `focus: platform` | — | 1 | #118 macOS packaging lane ✅ (merged #132); **#133 Windows packaging lane** |
+| Text | `focus: text` | — | 0 | #125 ✅ merged (#135) — **needs re-seed** |
+| Platform | `focus: platform` | — | 1 | #133 Windows packaging lane; #136 macOS runner never starts (bug) |
 | Release | `focus: release` | — | 1 | #127 cut the next playtest snapshot (v0.6.0) |
 
 Legend: live claim `—` = free this cycle. Workload is a rough size in "PRs" (one
-small PR ≈ 1); all eight areas are seeded so the busiest-first pick always finds
-a free, claimable task.
+small PR ≈ 1). Six of eight areas have a free, claimable task. **World and Text
+are drained** and need re-seeding by whoever picks them next (§7): the natural
+Text follow-up is #123 (`--lang`), which is why it is listed under Input/UI and
+Content rather than Text.
 
 ### Recent history
 
@@ -480,6 +482,8 @@ a free, claimable task.
 | Package installs every `assets/lang/*.json` | platform | #103 | ✅ merged (#115) |
 | Package installs every `assets/data/missions/*.json` | platform | #126 | ✅ merged (#129) |
 | macOS packaging lane (CPack DragNDrop) | platform | #118 | ✅ merged (#132) |
+| Complete German UI translation + locale parity gates | text | #125 | ✅ merged (#135) |
+| Bound the A* search (node cap) | world | #121 | ✅ merged (#137) |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 
