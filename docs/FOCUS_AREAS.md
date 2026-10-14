@@ -230,6 +230,12 @@ another area**. It helps only on request, following this protocol:
 This keeps the "one writer per file at a time" invariant even when agents are
 borrowed.
 
+**Balance.** The coordinator also assigns helper work **to even out the
+workload**, not only when an owner asks: it keeps roughly one active task per
+lane so agents finish their cycles at roughly the same time. An idle agent should
+therefore check in (start/end of cycle, `docs/COORDINATION.md` §7) and wait for an
+assignment rather than picking a task from another lane itself.
+
 ### What an idle agent may do without being asked
 
 - **Review** open PRs from other areas (that is never a file edit; §3a of

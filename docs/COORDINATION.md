@@ -87,6 +87,11 @@ The real risk is two agents editing the same files. Mitigations:
 
 - Every PR needs at least one review from a **different agent/model** than the
   author. This is the main quality control across heterogeneous LLMs.
+- **Sole-account exception (`AGENTS.md` §3a).** While this repository has a
+  single GitHub account, an agent may review and merge **its own** PR, because
+  there is no independent reviewer to hand off to. Do the review honestly, and
+  say in the merge comment which model merged it. Once a second account joins,
+  revert to the "different agent reviews" rule.
 - Reviewers check: correctness, tests, the `AGENTS.md` golden rules, legal
   hygiene (`docs/LEGAL.md`), and that the handoff block is filled in.
 - Use the `code-review` skill for a structured pass.
@@ -122,18 +127,68 @@ request** from that area's owner or the coordinator — never self-assigned. See
 `docs/FOCUS_AREAS.md` §5 for the protocol. Reviewing others' PRs and triaging
 issues need no permission.
 
-## 7. Escalation
+## 7. Work cycle
 
-If an agent is blocked or a decision is contested:
+A **work cycle** is one focused session by an agent: it claims one task, lands it
+(a merged PR or a reviewed change), then stops. To keep the fleet legible, every
+cycle **opens and closes with a check-in on the coordination hub** (the open
+`focus: coordinator` issue):
 
-1. Write an ADR in `docs/DECISIONS.md` with options and a recommendation.
-2. Open an issue labeled `question` and mention a human maintainer.
-3. Do not block other work on the outcome — pick the reversible path and note it.
+**Start check-in** — state your model, your `focus:` lane, the issue you are
+claiming, and the branch you will use. This is how the coordinator sees who is
+active and on what, and it prevents two agents claiming the same task.
 
-## 8. What "good" looks like
+**End check-in** — state `done` / `in-progress` / `blocked`, what landed (PR +
+merge SHA), how you verified it, and whether you are stopping or available. The
+cycle is not complete until this is posted.
+
+Between the two check-ins, work normally. If a cycle produces nothing mergeable
+(e.g. blocked), the end check-in is still mandatory — that is the signal the
+coordinator needs to reassign you.
+
+## 8. Questions and escalation
+
+**Questions go to the coordinator first.** Post them on the hub (or the issue's
+thread) and mention the coordinator; do not sit on a blocker.
+
+- The coordinator answers directly when the question is about scope, ordering,
+  ownership, or process.
+- If it needs a **human decision** (product direction, licensing, a rule change,
+  release policy), the coordinator records it as an explicit question for the
+  human maintainer — with options and a recommendation — and keeps the fleet
+  moving on the reversible path meanwhile.
+- If a decision is contested or architectural, write an ADR in
+  `docs/DECISIONS.md` (options + recommendation) before implementing.
+- Do not block other work on an open question: pick the reversible path, note it,
+  and continue.
+
+## 9. Workload balance and focus adaptation
+
+The coordinator keeps **every agent's workload similar** so agents finish their
+cycles at roughly the same time, and **monitors the number of active agents**.
+
+- **Balance.** The coordinator keeps roughly **one active task per lane** so no
+  agent idles while another has a queue. If a lane is dry, the coordinator either
+  seeds a new task in it (from the roadmap) or assigns its agent *review/helper*
+  work — never lets an agent self-start.
+- **Adapt the focus areas.** If the active-agent count changes materially, the
+  coordinator **may merge or split focus areas** (and reassign owners) so the
+  areas keep giving every agent a similar workload and low file overlap. The
+  current split and its re-split trigger are in `docs/FOCUS_AREAS.md` §2/§8; the
+  coordinator records the change on the hub and in `docs/FOCUS_AREAS.md`.
+- **Reassign focus.** The coordinator may reassign an agent's lane at a cycle
+  boundary (never mid-task) when balance or connectivity requires it. An agent
+  asked to change lanes finishes or hands off its current task first.
+
+## 10. What "good" looks like
 
 - `main` is always green.
 - Every merge is traceable to an issue and an agent.
+- Every work cycle opens and closes with a hub check-in (§7).
+- Questions reach the coordinator, and only genuinely human ones reach the human
+  (§8).
+- The active lanes match the active agents, and their workloads are comparable
+  (§9).
 - New agents can read `AGENTS.md` + `docs/DECISIONS.md` and be productive in one
   sitting.
 - No task is duplicated or lost.
