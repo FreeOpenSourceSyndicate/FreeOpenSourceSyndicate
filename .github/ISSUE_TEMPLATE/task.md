@@ -19,10 +19,14 @@ assignees: ""
 <!-- Exactly one. See docs/FOCUS_AREAS.md. The area owner (or a helper it tasks)
      is the only agent that edits the files listed under Scope. -->
 
-- [ ] `focus: core` — `src/core/**` (`sim/`, `world/`, `math/`), missions data
-- [ ] `focus: client` — `src/game/**`, `src/main.cpp` (draw/HUD/camera/input/CLI)
-- [ ] `focus: content` — `src/core/data/*`, `src/core/i18n/*`, `assets/data/**`, `assets/lang/**`
-- [ ] `focus: platform` — `.github/**`, CMake, `scripts/**`, `CHANGELOG.md`, releases
+- [ ] `focus: tactical` — `src/core/sim/{Mission,Weapon,Objective}`, `assets/data/missions/**`
+- [ ] `focus: world` — `src/core/{world,math,util}/**`, `src/core/sim/Agent.*`
+- [ ] `focus: render` — `src/game/**` drawing/HUD/minimap/sprites/font, `assets/sprites/**`
+- [ ] `focus: input-ui` — `src/main.cpp`, `src/game/Game.cpp` input/selection, CLI flags
+- [ ] `focus: content` — `src/core/data/*`, `assets/data/**` (except `missions/`), `docs/DATA_FORMAT.md`
+- [ ] `focus: text` — `src/core/i18n/*`, `assets/lang/**`, `docs/LORE.md`
+- [ ] `focus: platform` — `.github/**`, CMake, `scripts/**`
+- [ ] `focus: release` — `CHANGELOG.md`, `docs/releases/**`, `assets/ui/**`, `docs/BUILD.md`
 
 ## Scope
 
