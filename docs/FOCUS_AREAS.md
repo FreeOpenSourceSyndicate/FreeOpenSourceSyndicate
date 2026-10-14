@@ -49,14 +49,22 @@ edits those files*.
 
 | # | Area | Label | Owns (primary files) | Typical work |
 |---|------|-------|----------------------|--------------|
-| 1 | **Tactical / Mission** | `focus: tactical` | `src/core/sim/Mission.{h,cpp}`, `tests/test_mission.cpp`, `assets/data/missions/*.json` | AI, combat rules, objectives, win/lose, orders |
+| 1 | **Tactical / Mission** | `focus: tactical` | `src/core/sim/Mission.{h,cpp}`, `tests/test_mission.cpp`, `assets/data/missions/*.json` | AI, combat rules, objectives, win/lose, orders, mission design |
 | 2 | **World / Simulation** | `focus: world` | `src/core/world/*`, `src/core/math/*`, `src/core/sim/Agent.{h,cpp}`, `src/core/util/*`, matching `tests/` | pathfinding, tile grid, agent model, RNG |
 | 3 | **Render / Engine** | `focus: render` | `src/game/Game.cpp` (render/hud/camera), `src/game/Font.{h,cpp}` | draw the sim, sprites, camera, HUD, low-spec |
 | 4 | **Input / UI / UX** | `focus: input-ui` | `src/main.cpp`, `src/game/Game.cpp` (input/selection/title) | flags, controls, selection, menus, screenshots |
-| 5 | **Content / Data** | `focus: content` | `src/core/data/*`, `assets/data/**`, `docs/DATA_FORMAT.md`, matching `tests/` | JSON loader, mission/weapon/agent data, config |
+| 5 | **Content / Data** | `focus: content` | `src/core/data/*`, `assets/data/**` (except `missions/`), `docs/DATA_FORMAT.md`, matching `tests/` | JSON loader, weapon/agent catalogues, config |
 | 6 | **Text / i18n / Lore** | `focus: text` | `assets/lang/**`, `src/core/i18n/*`, string tables, `docs/LORE.md` | strings, localisation, in-game text, lore |
 | 7 | **Build / CI / Tooling** | `focus: platform` | `.github/**`, `CMakeLists.txt`, `src/CMakeLists.txt`, `src/core/CMakeLists.txt`, `tests/CMakeLists.txt`, `scripts/**` | CI, build options, packaging, deps |
 | 8 | **Release / Playtest** | `focus: release` | `CHANGELOG.md`, `docs/releases/**`, `assets/ui/**` (release art), tags/Release pages | cut releases, playtest docs, banners |
+
+**One deliberate sub-split inside `assets/data/`:** Content owns the loader,
+schema, and shared catalogues (`assets/data/{weapons,agents}/`), while
+**mission content** (`assets/data/missions/*.json`) belongs to **Tactical**,
+because a mission file *is* gameplay design. Content never edits
+`assets/data/missions/`; Tactical never edits the catalogues. This is the only
+place where a single top-level directory is split, and it is stated here so it
+is never in doubt.
 
 Areas 1–2 are the **core** (engine-free, must stay SDL-free, ADR-0002). Areas
 3–4 are the **engine layer**. Areas 5–8 are **content, tooling, and delivery**.
@@ -283,7 +291,7 @@ As of the coordination setup, the live queue maps as follows:
 |------|------|
 | PR #23 Persuadertron (followers) | Tactical |
 | Issue #15 Persuadertron | Tactical |
-| Demo mission content, `assets/data/missions/*.json` | Content |
+| Demo mission content, `assets/data/missions/*.json` | Tactical |
 | Sprite/animation pass, depth sort, minimap, zoom | Render |
 | Interpolated rendering over fixed-step sim | Render (with World) |
 | Control groups, waypoint queue, hotkeys | Input/UI |

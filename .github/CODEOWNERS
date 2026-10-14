@@ -19,7 +19,6 @@
 /src/core/sim/Mission.h            @FreeOpenSourceSyndicate
 /src/core/sim/Mission.cpp          @FreeOpenSourceSyndicate
 /tests/test_mission.cpp            @FreeOpenSourceSyndicate
-/assets/data/missions/             @FreeOpenSourceSyndicate
 
 # --- 2. World / Simulation ---
 # owner: focus: world
@@ -44,6 +43,9 @@
 /src/core/data/                    @FreeOpenSourceSyndicate
 /assets/data/                      @FreeOpenSourceSyndicate
 /docs/DATA_FORMAT.md               @FreeOpenSourceSyndicate
+# Mission files are gameplay design, owned by Tactical (FOCUS_AREAS.md §2). This
+# rule must come AFTER /assets/data/ so it wins CODEOWNERS' last-match-wins.
+/assets/data/missions/             @FreeOpenSourceSyndicate
 
 # --- 6. Text / i18n / Lore ---
 # owner: focus: text
