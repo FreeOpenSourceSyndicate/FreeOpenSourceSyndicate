@@ -437,7 +437,7 @@ what is taken without reading every issue.
 | Tactical | `focus: tactical` | — | 1 | #88 medikit ✅ (merged); mission-design backlog (Phase 3) |
 | World | `focus: world` | — | 1 | #93 string-pull A* routes ✅ (merged #99 + wiring #101); LOS follow-ups |
 | Text | `focus: text` | — | 1 | #95 locale resolution + `de` stub ✅ (merged #104); more locales, `--lang` flag (input-ui) |
-| Platform | `focus: platform` | — | 1 | #103 install every `assets/lang/*.json` ✅ (merged #115); macOS/Windows packaging lanes (Phase 5) |
+| Platform | `focus: platform` | — | 1 | #103 install every `assets/lang/*.json` ✅ (merged #115); **#118 macOS packaging lane** |
 | Release | `focus: release` | — | 1 | #70 CHANGELOG reconcile ✅ (option A); next release cut |
 
 Legend: live claim `—` = free this cycle. Workload is a rough size in "PRs" (one
