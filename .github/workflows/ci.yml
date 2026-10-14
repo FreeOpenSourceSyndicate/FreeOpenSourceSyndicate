@@ -7,6 +7,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 # ccache is pinned to a path inside the workspace so the cache step and the
 # compiler launcher agree (ccache 4.x defaults to ~/.cache/ccache, not ~/.ccache).
@@ -181,6 +182,12 @@ jobs:
 
   packaging-macos:
     name: Packaging (macOS TGZ + DMG)
+    # macOS runners are scarce on this repo and can be cancelled while still
+    # queued, so this lane must never redden `main` or deadlock a merge (#136):
+    # it runs on PRs (a real check before merge) and on manual dispatch, and is
+    # non-blocking. Linux packaging stays a hard gate.
+    if: github.event_name != 'push'
+    continue-on-error: true
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
