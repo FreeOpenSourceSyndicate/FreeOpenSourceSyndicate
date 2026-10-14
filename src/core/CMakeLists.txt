@@ -15,6 +15,7 @@ set(FOSSYND_CORE_SOURCES
     data/Config.cpp
     data/ContentPaths.cpp
     data/AgentSprites.cpp
+    i18n/StringTable.cpp
 )
 
 add_library(fossynd_core STATIC ${FOSSYND_CORE_SOURCES})

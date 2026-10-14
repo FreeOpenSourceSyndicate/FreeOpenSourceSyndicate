@@ -75,6 +75,11 @@ public:
     const Json& operator[](const char* key) const;
     bool has(const char* key) const;
 
+    // Object members in file order (empty for a non-object). Lets a caller walk
+    // a document whose keys are themselves data — e.g. a string table of
+    // `"key": "value"` pairs — without knowing the keys in advance.
+    const std::vector<std::pair<std::string, Json>>& asObject() const { return object_; }
+
 private:
     Type type_ = Type::Null;
     bool bool_ = false;

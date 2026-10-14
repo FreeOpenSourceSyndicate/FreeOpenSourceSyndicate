@@ -508,3 +508,60 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
   - Engine-layer (`src/game/`) code is not sanitized by this lane — that would
     need SDL2 in CI and is deliberately out of scope for #36.
 
+---
+
+## ADR-0016 — UI strings live in a data-driven table (`core::i18n::StringTable`)
+
+- **Status:** Accepted
+- **Date:** 2026-10-14
+- **Context:** Issue #35 (roadmap Phase 5, "Localization scaffolding") asks to
+  move HUD/UI strings out of C++ into a data file so wording can be edited and
+  translated without recompiling. Four constraints collide: the game must stay a
+  single self-contained binary on very old hardware (AGENTS.md §1b) and add no
+  dependency (§1c); `core` must stay SDL-free and unit-testable (ADR-0002);
+  content is data, not code (golden rule 7); and text is a natural merge hotspot,
+  so keeping it out of `src/game/Game.cpp` avoids collisions between agents.
+- **Options:**
+  1. **A heavyweight i18n library (gettext/ICU).** Rejected: a new dependency
+     and binary weight for a handful of strings — conflicts with §1b/§1c.
+  2. **Hard-coded `const char*` arrays in C++.** Rejected: violates "data over
+     code"; every wording change is a code change and a merge hotspot in a
+     shared file.
+  3. **A dependency-free string table in `core`, loaded from JSON by the
+     existing `core/data/Json` reader, plus a text-embedded fallback.** Chosen:
+     reuses the ADR-0003 loader (no new dependency), keeps lookup engine-free and
+     testable, and mirrors the embedded-mission / embedded-sprites pattern so the
+     binary stays self-contained.
+- **Decision:** **Option 3.**
+  - `core/i18n/StringTable.{h,cpp}` is a value type: `loadFromJson` /
+    `loadFromFile`, `get(key, fallback)`, `has(key)`, `size()`. `get` returns the
+    value, else the caller's `fallback` literal, else the key itself — so a
+    missing key is visible in the UI, never blank, and never throws. It holds no
+    global state, so two tables (two languages) can coexist.
+  - Keys are stable dotted identifiers (`hud.objective.eliminate`); values are
+    display strings. `assets/lang/<lang>.json` is a flat `"key": "value"` object
+    (`en.json` is the reference table); a leading `_comment` key is ignored by
+    lookups. This is the string-table schema other areas compile against.
+  - Placeholders (`{count}`, `{x}`, `{y}`, `{seconds}`, `{version}`, `{marker}`,
+    `{name}`, `{weapon}`, `{hp}`) are substituted by the caller in `game`; the
+    table does no formatting, so it stays presentation-free.
+  - `defaultLangPaths(exeDir, lang)` mirrors `core/data/ContentPaths`
+    (repo-relative, next to the exe, `/usr[/local]/share`). The table is also
+    embedded at configure time via `game/EmbeddedLang.cpp.in`, as the demo
+    mission and sprite sheet are, so the game runs with no data files.
+  - `Json` gains one **additive** accessor, `asObject()`, so a table whose keys
+    are themselves data can be enumerated; it changes no existing behaviour.
+- **Consequences:**
+  - New UI text becomes a JSON-only change; translators add
+    `assets/lang/<lang>.json` without touching C++. Wording changes stop
+    colliding in `Game.cpp`.
+  - The engine layer still owns layout and placeholder substitution; only the
+    literal strings move to data. Swapping the HUD literals in `Game.cpp` is a
+    Render task, filed as a cross-area request (FOCUS_AREAS.md §4 Rule 4).
+  - `docs/LORE.md` records original naming/lore guidance so new strings stay
+    LEGAL-compliant (`docs/LEGAL.md`: no text from any commercial game).
+  - Covered by `tests/test_i18n.cpp` (lookup, fallback, schema errors, disk load
+    of the shipped `en.json`, path search). `Json::asObject` is exercised from
+    that i18n-owned test file, so no cross-area edit to `tests/test_json.cpp` is
+    needed.
+
