@@ -61,6 +61,7 @@ int main(int argc, char** argv)
     bool checkMinimap = false;
     bool checkSelection = false;
     bool checkWaypoints = false;
+    bool checkBoxSelect = false;
     bool checkWaypointPath = false;
     bool checkLang = false;
     const char* checkContent = nullptr;   // --check-content [<dataDir>]
@@ -109,6 +110,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-waypoints") == 0)
         {
             checkWaypoints = true;
+        }
+        else if (std::strcmp(argv[i], "--check-box-select") == 0)
+        {
+            checkBoxSelect = true;
         }
         else if (std::strcmp(argv[i], "--check-waypoint-path") == 0)
         {
@@ -261,6 +266,16 @@ int main(int argc, char** argv)
         // otherwise only reachable through the interactive mouse handler.
         const bool ok = game.waypointSelfTest();
         std::printf(ok ? "waypoints: ok\n" : "waypoints: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkBoxSelect)
+    {
+        // Headless guard for box-select (issue #94): the drag rectangle must
+        // select exactly the enclosed living player agents. Used by the
+        // game_box_select ctest.
+        const bool ok = game.boxSelectSelfTest();
+        std::printf(ok ? "box-select: ok\n" : "box-select: FAILED\n");
         return ok ? 0 : 1;
     }
 

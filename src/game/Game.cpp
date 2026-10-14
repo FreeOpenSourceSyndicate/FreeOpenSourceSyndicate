@@ -424,6 +424,44 @@ void Game::selectPlayerByOrdinal(int ordinal)
     }
 }
 
+void Game::selectInScreenRect(int x0, int y0, int x1, int y1, bool add)
+{
+    // Box-select (issue #94): select every living player agent whose projected
+    // screen position falls inside the axis-aligned rectangle (the two corners
+    // are normalised, so any drag direction works). When `add` is set (shift-
+    // drag) the enclosed agents are added to the current selection instead of
+    // replacing it. An empty box therefore selects nothing.
+    const int minX = std::min(x0, x1);
+    const int maxX = std::max(x0, x1);
+    const int minY = std::min(y0, y1);
+    const int maxY = std::max(y0, y1);
+
+    if (!add)
+    {
+        selected_.clear();
+    }
+    const auto& agents = mission_.agents();
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (!agents[i].isAlive() || agents[i].team() != core::Team::Player)
+        {
+            continue;
+        }
+        const core::Vec2 screen = tileToScreen(agents[i].position());
+        const float sx = screen.x;
+        const float sy = screen.y;
+        if (sx < static_cast<float>(minX) || sx > static_cast<float>(maxX) ||
+            sy < static_cast<float>(minY) || sy > static_cast<float>(maxY))
+        {
+            continue;
+        }
+        if (std::find(selected_.begin(), selected_.end(), i) == selected_.end())
+        {
+            selected_.push_back(i);
+        }
+    }
+}
+
 void Game::assignControlGroup(int slot)
 {
     if (slot < 0 || slot >= kControlGroups)
@@ -587,6 +625,138 @@ bool Game::selectionSelfTest()
     if (std::find(selected_.begin(), selected_.end(), second) != selected_.end())
     {
         std::fprintf(stderr, "selection self-test: recalled a dead group member\n");
+        return false;
+    }
+
+    // Leave a clean selection behind.
+    selectAllPlayers();
+    return true;
+}
+
+bool Game::boxSelectSelfTest()
+{
+    // Exercises the real screen-space rectangle helper the drag path uses
+    // (selectInScreenRect), which is otherwise only reachable from the
+    // interactive mouse handler.
+    auto livingPlayers = [this]() {
+        std::vector<std::size_t> alive;
+        const auto& agents = mission_.agents();
+        for (std::size_t i = 0; i < agents.size(); ++i)
+        {
+            if (agents[i].isAlive() && agents[i].team() == core::Team::Player)
+            {
+                alive.push_back(i);
+            }
+        }
+        return alive;
+    };
+    auto sorted = [](std::vector<std::size_t> values) {
+        std::sort(values.begin(), values.end());
+        return values;
+    };
+    // The set the helper must produce: every living player whose projected
+    // position lies inside the normalised rectangle.
+    auto expectedInRect = [this, &livingPlayers](int x0, int y0, int x1, int y1) {
+        const int minX = std::min(x0, x1);
+        const int maxX = std::max(x0, x1);
+        const int minY = std::min(y0, y1);
+        const int maxY = std::max(y0, y1);
+        std::vector<std::size_t> out;
+        const auto& agents = mission_.agents();
+        for (std::size_t i : livingPlayers())
+        {
+            const core::Vec2 screen = tileToScreen(agents[i].position());
+            if (screen.x >= static_cast<float>(minX) && screen.x <= static_cast<float>(maxX) &&
+                screen.y >= static_cast<float>(minY) && screen.y <= static_cast<float>(maxY))
+            {
+                out.push_back(i);
+            }
+        }
+        std::sort(out.begin(), out.end());
+        return out;
+    };
+
+    const std::vector<std::size_t> players = livingPlayers();
+    if (players.empty())
+    {
+        std::fprintf(stderr, "box-select self-test: no living player agents\n");
+        return false;
+    }
+    const std::size_t first = players.front();
+
+    // An empty box (a region with no agent) selects nothing.
+    selectInScreenRect(-1000, -1000, -900, -900, false);
+    if (!selected_.empty())
+    {
+        std::fprintf(stderr, "box-select self-test: empty box selected something\n");
+        return false;
+    }
+
+    // A box enclosing every player selects exactly the players.
+    int minX = 100000;
+    int minY = 100000;
+    int maxX = -100000;
+    int maxY = -100000;
+    for (std::size_t i : players)
+    {
+        const core::Vec2 screen = tileToScreen(mission_.agents()[i].position());
+        minX = std::min(minX, static_cast<int>(screen.x));
+        minY = std::min(minY, static_cast<int>(screen.y));
+        maxX = std::max(maxX, static_cast<int>(screen.x));
+        maxY = std::max(maxY, static_cast<int>(screen.y));
+    }
+    const int allX0 = minX - 4;
+    const int allY0 = minY - 4;
+    const int allX1 = maxX + 4;
+    const int allY1 = maxY + 4;
+    selectInScreenRect(allX0, allY0, allX1, allY1, false);
+    if (sorted(selected_) != sorted(players))
+    {
+        std::fprintf(stderr, "box-select self-test: enclosing box missed players\n");
+        return false;
+    }
+
+    // Dragging in any direction works: reversed corners select the same set.
+    selectInScreenRect(allX1, allY1, allX0, allY0, false);
+    if (sorted(selected_) != sorted(players))
+    {
+        std::fprintf(stderr, "box-select self-test: reversed corners differ\n");
+        return false;
+    }
+
+    // A tight box around one player selects exactly the enclosed set (which
+    // includes that player and is a subset of all players).
+    const core::Vec2 firstScreen = tileToScreen(mission_.agents()[first].position());
+    const int fx = static_cast<int>(firstScreen.x);
+    const int fy = static_cast<int>(firstScreen.y);
+    selectInScreenRect(fx - 1, fy - 1, fx + 1, fy + 1, false);
+    const std::vector<std::size_t> tight = expectedInRect(fx - 1, fy - 1, fx + 1, fy + 1);
+    if (sorted(selected_) != tight)
+    {
+        std::fprintf(stderr, "box-select self-test: tight box mismatch\n");
+        return false;
+    }
+    if (std::find(selected_.begin(), selected_.end(), first) == selected_.end())
+    {
+        std::fprintf(stderr, "box-select self-test: tight box dropped its own agent\n");
+        return false;
+    }
+
+    // Shift-drag adds: a prior single selection survives, unioned with the box.
+    selectOnly(first);
+    selectInScreenRect(allX0, allY0, allX1, allY1, true);
+    if (sorted(selected_) != sorted(players))
+    {
+        std::fprintf(stderr, "box-select self-test: additive box did not union\n");
+        return false;
+    }
+
+    // An empty additive box leaves the existing selection untouched.
+    selectOnly(first);
+    selectInScreenRect(-1000, -1000, -900, -900, true);
+    if (selected_.size() != 1 || selected_[0] != first)
+    {
+        std::fprintf(stderr, "box-select self-test: empty additive box changed selection\n");
         return false;
     }
 
@@ -1052,7 +1222,8 @@ void Game::handleEvents(bool& running)
                 const bool right = event.button.button == SDL_BUTTON_RIGHT;
                 const bool shift = (SDL_GetModState() & KMOD_SHIFT) != 0;
 
-                // Right-click, or clicking an enemy, is an attack order.
+                // Right-click, or clicking an enemy, is an attack order. These
+                // resolve on press; they are never drags.
                 const int enemy = enemyAtScreen(event.button.x, event.button.y);
                 if (right || (enemy >= 0 && !shift))
                 {
@@ -1060,15 +1231,58 @@ void Game::handleEvents(bool& running)
                     break;
                 }
 
-                // Otherwise it is a selection or a move order.
-                const int picked = agentAtScreen(event.button.x, event.button.y);
-                if (picked >= 0 && !shift)
+                // A left press might be a click or the start of a box-select
+                // drag (issue #94). Record it and defer the click action to
+                // release, so a drag past the threshold selects a rectangle
+                // instead of ordering a move at the press point.
+                dragging_ = true;
+                dragAdd_ = shift;
+                dragFromAgent_ = agentAtScreen(event.button.x, event.button.y) >= 0;
+                dragStartX_ = event.button.x;
+                dragStartY_ = event.button.y;
+                dragCurrentX_ = event.button.x;
+                dragCurrentY_ = event.button.y;
+            }
+            break;
+        case SDL_MOUSEMOTION:
+            if (dragging_)
+            {
+                dragCurrentX_ = event.motion.x;
+                dragCurrentY_ = event.motion.y;
+            }
+            break;
+        case SDL_MOUSEBUTTONUP:
+            if (dragging_ && event.button.button == SDL_BUTTON_LEFT)
+            {
+                const int x0 = dragStartX_;
+                const int y0 = dragStartY_;
+                // The button-up event carries the release point (dragCurrentX_/Y_
+                // tracks motion only so the marquee can be drawn mid-drag).
+                const int x1 = event.button.x;
+                const int y1 = event.button.y;
+                const bool moved =
+                    std::abs(x1 - x0) >= kDragThreshold || std::abs(y1 - y0) >= kDragThreshold;
+                const bool add = dragAdd_;
+                const bool fromAgent = dragFromAgent_;
+                dragging_ = false;
+
+                if (moved)
                 {
-                    selectOnly(static_cast<std::size_t>(picked));
+                    // A real drag: box-select the enclosed player agents.
+                    selectInScreenRect(x0, y0, x1, y1, add);
                 }
-                else if (picked >= 0)
+                else if (fromAgent)
                 {
-                    toggleSelect(static_cast<std::size_t>(picked));
+                    // A click on an agent selects it (or shift-toggles it).
+                    const int picked = agentAtScreen(x0, y0);
+                    if (picked >= 0 && !add)
+                    {
+                        selectOnly(static_cast<std::size_t>(picked));
+                    }
+                    else if (picked >= 0)
+                    {
+                        toggleSelect(static_cast<std::size_t>(picked));
+                    }
                 }
                 else
                 {
@@ -1076,7 +1290,7 @@ void Game::handleEvents(bool& running)
                     // shift-click appends the waypoint to the queue instead of
                     // replacing the order, so a squad can be walked along a path
                     // (issue #75).
-                    orderSelectedMove(screenToTile(event.button.x, event.button.y), shift);
+                    orderSelectedMove(screenToTile(x0, y0), add);
                 }
             }
             break;
@@ -1595,6 +1809,37 @@ void Game::renderWaypointPath()
     }
 }
 
+void Game::renderSelectionBox()
+{
+    // Drag marquee (issue #94). View-only: draws the rectangle the player is
+    // dragging so the pending box-selection is visible. Skipped until the drag
+    // has actually started (the interactive path only shows a box past the
+    // threshold) and while the title card is up.
+    if (!dragging_ || titleCardActive_)
+    {
+        return;
+    }
+    if (std::abs(dragCurrentX_ - dragStartX_) < kDragThreshold &&
+        std::abs(dragCurrentY_ - dragStartY_) < kDragThreshold)
+    {
+        return;
+    }
+
+    const int minX = std::min(dragStartX_, dragCurrentX_);
+    const int maxX = std::max(dragStartX_, dragCurrentX_);
+    const int minY = std::min(dragStartY_, dragCurrentY_);
+    const int maxY = std::max(dragStartY_, dragCurrentY_);
+    const SDL_Rect box{minX, minY, maxX - minX, maxY - minY};
+
+    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer_, hudstyle::kSelectionBox[0], hudstyle::kSelectionBox[1],
+                           hudstyle::kSelectionBox[2], 60);
+    SDL_RenderFillRect(renderer_, &box);
+    SDL_SetRenderDrawColor(renderer_, hudstyle::kSelectionBox[0], hudstyle::kSelectionBox[1],
+                           hudstyle::kSelectionBox[2], 220);
+    SDL_RenderDrawRect(renderer_, &box);
+}
+
 bool Game::checkMinimap()
 {
     if (!minimap_.valid())
@@ -1636,6 +1881,7 @@ void Game::render()
 
     renderAgents();
     renderWaypointPath();
+    renderSelectionBox();
     if (titleCardActive_)
     {
         renderTitleCard();

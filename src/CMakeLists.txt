@@ -139,6 +139,11 @@ if(BUILD_TESTS)
     # the real Mission queue headlessly. Exits non-zero on a broken invariant.
     add_test(NAME game_waypoints
              COMMAND FOSSynd --headless --check-waypoints)
+    # Box-select (issue #94): the drag rectangle must select exactly the enclosed
+    # living player agents (and add on shift-drag). Exits non-zero on a broken
+    # invariant.
+    add_test(NAME game_box_select
+             COMMAND FOSSynd --headless --check-box-select)
     # Queued-route overlay (issue #89): the screen-space route the renderer draws
     # for a selected agent must start at the agent and visit every queued
     # waypoint in order. Exits non-zero on a broken invariant.
