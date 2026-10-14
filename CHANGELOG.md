@@ -30,6 +30,9 @@ contains no original assets, code, names, or trademarks.
   never cross teams; the choice is deterministic (ties break by agent index).
   New `Agent::heal(amount)` primitive and `Mission::setMedikits` / `medikits` /
   `useMedikit`. Engine-free, unit-tested. Issue #88.
+- **Agents path diagonally (smooth routes):** `Agent::moveTo` now uses 8-way A*
+  with string-pulling, so agents walk straight across open ground instead of
+  staircasing along the tile grid. Issue #93 (wiring fix for #99).
 
 ### Changed
 
