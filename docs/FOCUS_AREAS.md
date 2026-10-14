@@ -206,7 +206,7 @@ An issue has **one** claimant at a time (`AGENTS.md` §3.2). Before you start:
 area lands a new core function, land its caller (or a clear follow-up issue) in
 the same PR; otherwise another area may "fix" it in a way that fights yours. The
 #99/#100 pair is the worked example: #99 added string-pulling to `findPath` but
-left `Agent::moveTo` on the 4-way default, so the feature was inert until #100
+left `Agent::moveTo` on the 4-way default, so the feature was inert until #101
 passed `allowDiagonal=true`.
 
 ### Rule 3 — Core headers are a contract; the coordinator freezes them
@@ -418,7 +418,7 @@ a free, claimable task.
 | AoE weapon radius | tactical | #79 | ✅ merged (#86) |
 | Medikit gadget (heal ally) | tactical | #88 | ✅ merged (#97) |
 | Reconcile `[0.5.0]` CHANGELOG with the tag | release | #70 | ✅ merged (#98, option A) |
-| String-pulled A* routes | world | #93 | ✅ merged (#99, smoothing) + wiring fix (#100) |
+| String-pulled A* routes | world | #93 | ✅ merged (#99, smoothing) + wiring fix (#101) |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 

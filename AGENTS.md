@@ -518,7 +518,7 @@ run the game target locally and note the result in the PR.
   (`core/world/LineOfSight.h`) so an agent walks straight between corners instead
   of staircasing. **`Agent::moveTo` must pass `allowDiagonal=true`** for this to
   take effect — it does. (PR #99 added the smoothing but left `moveTo` on the
-  4-way default, so it was inert in game until #100 wired it up.) Smoothing never
+  4-way default, so it was inert in game until #101 wired it up.) Smoothing never
   adds or moves a waypoint, so a route stays a subsequence of the A* path and is
   always walkable. Deterministic, RNG-free; the 4-way path is returned unchanged.
 - **Mission objectives are data-driven (ADR-0003):** `ObjectiveSpec`
