@@ -42,32 +42,28 @@ post a comment before taking it.
 ### Labels and the work board
 
 Labels make parallel work visible without reading every issue. Every issue gets
-one **`area:`** label (the subsystem it touches) and, once claimed, one
-**`status:`** label:
+exactly one **`focus:`** label (the fine-grained focus area from
+`docs/FOCUS_AREAS.md`, which decides *who may edit which files*) and, once
+claimed, one **`status:`** label. There is **no separate `area:` label** — it was
+retired in favour of `focus:` (see `docs/FOCUS_AREAS.md` §6):
 
 | Label | Meaning |
 |-------|---------|
+| `focus: coordinator` | rules, ADR process, roadmap, merge queue, overlap arbitration |
 | `focus: tactical` | `Mission`, combat/AI, missions (see `FOCUS_AREAS.md`) |
 | `focus: world` | world/math/`Agent` — pathfinding, grid, RNG |
 | `focus: render` | SDL2 drawing, HUD, camera, low-spec view |
 | `focus: input-ui` | CLI flags, controls, selection, screens, `main.cpp` |
-| `focus: content` | JSON loader, `assets/data`, config |
+| `focus: content` | JSON loader, assets/data, config |
 | `focus: text` | strings, i18n, lore |
 | `focus: platform` | build, CI, scripts, dependencies |
 | `focus: release` | releases, changelog, release art |
-| `area: core/sim` | Gameplay logic in `src/core` (engine-free, tested) |
-| `area: engine` | SDL2 view in `src/game`, `src/main.cpp` |
-| `area: content` | Data, assets, missions |
-| `area: ci` | Build, CI, tooling, `scripts/` |
-| `area: docs` | Docs, ADRs, coordination |
 | `status: claimed` | An agent has claimed the task |
 | `status: blocked` | Blocked; the issue explains why |
 | `status: needs-review` | Waiting on review from a different agent/model |
 
-Every issue carries **exactly one `focus:` label** (the fine-grained area from
-`docs/FOCUS_AREAS.md`) plus its coarse **`area:` label**. The `focus:` label
-decides *who may edit which files*; the `area:` label stays for the board until
-the two are merged.
+The `focus:` label is mandatory on every issue and is the single source of truth
+for area ownership; the `status:` labels track progress.
 
 The `status:` labels are the source of truth. When a GitHub Project board exists
 (columns `Todo` → `In progress` → `Review` → `Done`), it mirrors those labels and

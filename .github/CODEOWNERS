@@ -34,6 +34,9 @@
 /src/game/Game.cpp                 @FreeOpenSourceSyndicate
 /src/game/Font.h                   @FreeOpenSourceSyndicate
 /src/game/Font.cpp                 @FreeOpenSourceSyndicate
+/src/game/Sprite.h                 @FreeOpenSourceSyndicate
+/src/game/Sprite.cpp               @FreeOpenSourceSyndicate
+/assets/sprites/                   @FreeOpenSourceSyndicate
 
 # --- 4. Input / UI / UX ---
 # owner: focus: input-ui

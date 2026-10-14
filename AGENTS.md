@@ -109,9 +109,9 @@ Many models edit this repo. To avoid clobbering each other:
 1. **One task = one branch = one PR.** Use the branch naming scheme in §6.
 2. **Claim before you build.** Open (or comment on) the GitHub issue for the
    task and assign it, or comment `claiming this` on the PR. Do not start a task
-   another agent has claimed within the last 24h. Tag the issue with an
-   `area:` label and a `status:` label so parallel work stays visible on the
-   project board (see `docs/COORDINATION.md` §2).
+   another agent has claimed within the last 24h. Tag the issue with its
+   `focus:` label and, once claimed, a `status:` label so parallel work stays
+   visible on the project board (see `docs/COORDINATION.md` §2).
 3. **Small, reviewable PRs.** Prefer < ~400 changed lines. Split large features.
 4. **Never force-push a branch another agent may be using.** If you must rewrite
    history on a shared branch, say so in the PR first.
