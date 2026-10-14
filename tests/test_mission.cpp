@@ -309,6 +309,91 @@ FOSSYND_TEST(Mission, QueueMoveRejectsDeadInvalidAndUnwalkable)
     FOSSYND_CHECK_EQ(mission.moveQueueSize(hero), static_cast<std::size_t>(0));
 }
 
+FOSSYND_TEST(Mission, WallBlocksEnemySightAndFire)
+{
+    // Player and a lethal enemy are six tiles apart. Without a wall the enemy
+    // acquires and kills the player; with a wall between them the enemy never
+    // sees the target and the player is unharmed.
+    const auto runScenario = [](bool withWall) {
+        TileGrid grid(20, 20);
+        if (withWall)
+        {
+            grid.setWalkable(5, 1, false);
+            grid.setWalkable(5, 2, false);
+            grid.setWalkable(5, 3, false);
+        }
+        Mission mission(grid, 40u);
+        mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                                   Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+        mission.addAgent(makeAgent(8.0f, 2.0f, Team::Enemy, 100.0f,
+                                   Weapon{"Test", 1000.0f, 8.0f, 10.0f, 1.0f}));
+        for (int i = 0; i < 60; ++i) // 3 seconds
+        {
+            mission.update(0.05f);
+        }
+        return mission;
+    };
+
+    Mission exposed = runScenario(false);
+    Mission walled = runScenario(true);
+
+    // No wall: the enemy saw the player and opened fire.
+    FOSSYND_CHECK(exposed.agents()[0].health() < 100.0f);
+    // Wall: the player was never hit, and the enemy never engaged.
+    FOSSYND_CHECK_NEAR(walled.agents()[0].health(), 100.0f);
+    FOSSYND_CHECK(walled.agents()[1].aiState() != AiState::Engage);
+}
+
+FOSSYND_TEST(Mission, ExplicitOrderDoesNotFireThroughWall)
+{
+    TileGrid grid(20, 20);
+    grid.setWalkable(5, 2, false); // wall between the two agents
+    Mission mission(grid, 41u);
+    const std::size_t hero = mission.addAgent(
+        makeAgent(2.0f, 2.0f, Team::Player, 100.0f, Weapon{"Test", 1000.0f, 10.0f, 10.0f, 1.0f}));
+    mission.addAgent(makeAgent(8.0f, 2.0f, Team::Enemy, 100.0f,
+                               Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+
+    mission.orderAttack(hero, 1);
+    for (int i = 0; i < 20; ++i)
+    {
+        mission.update(0.05f);
+    }
+    // Ordered fire is still blocked by the wall.
+    FOSSYND_CHECK_NEAR(mission.agents()[1].health(), 100.0f);
+
+    // Remove the wall: the same order now connects.
+    grid.setWalkable(5, 2, true);
+    for (int i = 0; i < 20; ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK(mission.agents()[1].health() < 100.0f);
+}
+
+FOSSYND_TEST(Mission, TargetAcquisitionSkipsEnemyBehindWall)
+{
+    // Two enemies: a nearer one behind a wall, a farther one in the open. The
+    // player must target the one it can actually see.
+    TileGrid grid(20, 20);
+    grid.setWalkable(4, 2, false); // blocks the line to the near enemy at (6,2)
+    Mission mission(grid, 42u);
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 500.0f,
+                               Weapon{"Test", 1000.0f, 15.0f, 10.0f, 1.0f}));
+    mission.addAgent(makeAgent(6.0f, 2.0f, Team::Enemy, 100.0f,
+                               Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f})); // near, walled
+    mission.addAgent(makeAgent(2.0f, 9.0f, Team::Enemy, 100.0f,
+                               Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f})); // far, visible
+
+    for (int i = 0; i < 20; ++i)
+    {
+        mission.update(0.05f);
+    }
+
+    FOSSYND_CHECK_NEAR(mission.agents()[1].health(), 100.0f); // behind the wall: safe
+    FOSSYND_CHECK(mission.agents()[2].health() < 100.0f);     // in the open: hit
+}
+
 FOSSYND_TEST(Mission, DeadTargetFallsBackToNearestEnemy)
 {
     TileGrid grid(30, 30);

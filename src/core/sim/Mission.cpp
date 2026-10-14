@@ -3,6 +3,8 @@
 
 #include <cmath>
 
+#include "core/world/LineOfSight.h"
+
 namespace fossynd::core
 {
 namespace
@@ -320,6 +322,20 @@ float Mission::distanceBetween(std::size_t a, std::size_t b) const
     return length(delta);
 }
 
+bool Mission::hasClearShot(std::size_t a, std::size_t b) const
+{
+    if (grid_ == nullptr)
+    {
+        return true;
+    }
+    return hasLineOfSight(*grid_, agents_[a].tile(), agents_[b].tile());
+}
+
+bool Mission::seesTarget(std::size_t observer, std::size_t target) const
+{
+    return distanceBetween(observer, target) <= kSightRange && hasClearShot(observer, target);
+}
+
 int Mission::nearestEnemy(std::size_t self, Team enemyTeam) const
 {
     int best = -1;
@@ -327,6 +343,11 @@ int Mission::nearestEnemy(std::size_t self, Team enemyTeam) const
     for (std::size_t i = 0; i < agents_.size(); ++i)
     {
         if (i == self || !agents_[i].isAlive() || agents_[i].team() != enemyTeam)
+        {
+            continue;
+        }
+        // A wall blocks acquisition: an enemy it cannot see is not a target.
+        if (!hasClearShot(self, i))
         {
             continue;
         }
@@ -425,7 +446,8 @@ void Mission::updateCombatantAI(std::size_t index)
     const int target = nearestEnemy(index, Team::Player);
     if (target < 0)
     {
-        // No target in sight: patrol the assigned route, or hold position.
+        // No target in sight (none reachable without a wall in the way): patrol
+        // the assigned route, or hold position.
         if (agent.hasPatrolRoute())
         {
             updatePatrol(index);
@@ -441,9 +463,9 @@ void Mission::updateCombatantAI(std::size_t index)
     const std::size_t targetIndex = static_cast<std::size_t>(target);
     const float distance = distanceBetween(index, targetIndex);
 
-    // Only engage once the target is actually in sight; otherwise keep patrolling
-    // rather than chasing across the whole map.
-    if (distance > kSightRange)
+    // Only engage once the target is within sight range; otherwise keep
+    // patrolling rather than chasing across the whole map.
+    if (!seesTarget(index, targetIndex))
     {
         if (agent.hasPatrolRoute())
         {
@@ -574,7 +596,8 @@ std::size_t Mission::alertAllies(std::size_t source, float radius)
     {
         target = nearestEnemy(source, enemyTeam);
     }
-    if (target < 0)
+    // An explicit order that points through a wall is not a target to broadcast.
+    if (target < 0 || !hasClearShot(source, static_cast<std::size_t>(target)))
     {
         return 0;
     }
@@ -772,7 +795,14 @@ void Mission::resolveFire()
             continue;
         }
 
-        const float distance = distanceBetween(i, static_cast<std::size_t>(target));
+        const std::size_t targetIndex = static_cast<std::size_t>(target);
+        // A wall blocks fire even on an explicit order: no shooting through it.
+        if (!hasClearShot(i, targetIndex))
+        {
+            continue;
+        }
+
+        const float distance = distanceBetween(i, targetIndex);
         const float range = attacker.weapon().range;
         if (distance > range)
         {
@@ -788,11 +818,11 @@ void Mission::resolveFire()
         if (!rng_.chance(hitChance))
         {
             // A miss can still catch a bystander near the target: stray fire.
-            applyStrayFire(i, static_cast<std::size_t>(target), attacker.weapon().damage);
+            applyStrayFire(i, targetIndex, attacker.weapon().damage);
             continue;
         }
 
-        Agent& victim = agents_[static_cast<std::size_t>(target)];
+        Agent& victim = agents_[targetIndex];
         victim.applyDamage(attacker.weapon().damage);
         if (!victim.isAlive())
         {
