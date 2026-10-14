@@ -33,6 +33,9 @@ constexpr std::uint8_t kFollowerBody[3] = {90, 205, 230};
 constexpr std::uint8_t kWaypointLine[3] = {255, 236, 120};
 constexpr std::uint8_t kWaypointDot[3] = {60, 110, 220};
 
+// Drag-box marquee (issue #94): the rectangle drawn while box-selecting.
+constexpr std::uint8_t kSelectionBox[3] = {120, 220, 255};
+
 // HUD text colours.
 constexpr SDL_Color kHudText{225, 235, 225, 255};
 constexpr SDL_Color kHudGood{120, 230, 140, 255};

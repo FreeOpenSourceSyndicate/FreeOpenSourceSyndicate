@@ -89,6 +89,13 @@ public:
     // false if any invariant fails. Used by --check-waypoints.
     bool waypointSelfTest();
 
+    // Headless self-check for box-select (issue #94): exercises the real
+    // screen-space rectangle helper the drag path uses and confirms a box
+    // selects exactly the enclosed living player agents, an empty box selects
+    // none, and a shift-box adds to the existing selection. Used by
+    // --check-box-select.
+    bool boxSelectSelfTest();
+
     // Headless self-check for the queued-route overlay (issue #89): builds a
     // real queued route on a selected agent and confirms the screen-space route
     // the renderer would draw starts at the agent and visits every queued
@@ -122,6 +129,7 @@ private:
     void render();
     void renderAgents();
     void renderWaypointPath();
+    void renderSelectionBox();
     void renderHud();
     void renderMinimap();
     void renderTitleCard();
@@ -142,6 +150,11 @@ private:
     // Selects the nth living player agent (0-based), or does nothing if there is
     // no such agent. Used by the `5`-`8` direct-selection keys.
     void selectPlayerByOrdinal(int ordinal);
+    // Box-select (issue #94): replaces the selection with every living player
+    // agent whose projected position lies inside the screen-space rectangle, or
+    // adds them when `add` is set (shift-drag). The selection logic lives here
+    // and is shared by the interactive drag path and the headless self-test.
+    void selectInScreenRect(int x0, int y0, int x1, int y1, bool add);
     // Control groups: stores the current selection under `slot`, or replaces the
     // selection with that group. Slots are 0-based; dead members are dropped.
     void assignControlGroup(int slot);
@@ -253,6 +266,20 @@ private:
     // Indices into mission_.agents() selected for orders. For the demo the whole
     // squad moves together; selection is tracked for the HUD.
     std::vector<std::size_t> selected_;
+
+    // Box-select drag (issue #94). A left-press starts a potential drag; the
+    // press is treated as a click (select/order at the point) unless the pointer
+    // moves past kDragThreshold before release, in which case the enclosed
+    // player agents are selected. Purely view state: it never feeds the
+    // simulation (golden rule 4).
+    bool dragging_ = false;
+    bool dragAdd_ = false;          // shift was held at press time
+    bool dragFromAgent_ = false;    // press landed on a player agent
+    int dragStartX_ = 0;
+    int dragStartY_ = 0;
+    int dragCurrentX_ = 0;
+    int dragCurrentY_ = 0;
+    static constexpr int kDragThreshold = 6; // pixels before a press becomes a drag
 
     // Control groups (view-only, like selection): Ctrl+1..4 stores the current
     // selection in a slot; 1..4 recalls it. Empty means "unassigned".
