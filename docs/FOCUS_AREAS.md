@@ -434,7 +434,7 @@ what is taken without reading every issue.
 | Tactical | `focus: tactical` | — | 1 | #120 enemies take cover under fire |
 | World | `focus: world` | — | 1 | #141 distinguish "no path" from cap-exceeded |
 | Render | `focus: render` | — | 1 | #122 integer zoom levels (Phase 2's last item) |
-| Input/UI | `focus: input-ui` | — | 1 | #123 `--lang <locale>` flag + config |
+| Input/UI | `focus: input-ui` | — | 1 | #123 ✅ merged — **needs re-seed** |
 | Content | `focus: content` | — | 1 | #124 minigun / flamethrower / laser |
 | Text | `focus: text` | — | 1 | #142 localise mission name/description |
 | Platform | `focus: platform` | — | 1 | #133 Windows packaging lane (macOS lane gated to manual dispatch ✅ #138) |
@@ -484,6 +484,7 @@ Content rather than Text.
 | macOS packaging lane gated to manual dispatch (runner shortage) | platform | #136 | ✅ merged (#138) |
 | Complete German UI translation + locale parity gates | text | #125 | ✅ merged (#135) |
 | Bound the A* search (node cap) | world | #121 | ✅ merged (#137) |
+| `--lang` + `lang` config key wire the i18n API into the runtime | input-ui | #123 | ✅ merged (#144) |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 

@@ -45,6 +45,14 @@ contains no original assets, code, names, or trademarks.
   keep locales honest: one requires each shipped locale's key set to equal
   English's, the other requires the same `{placeholder}` set per key and
   ASCII-renderable values. Issue #125.
+- **Choose the UI language at startup (`--lang`):** the game now actually loads
+  a locale instead of only shipping the API. `--lang de` (or `lang = de` in the
+  config file; the flag wins) overlays `assets/lang/de.json` on the English
+  fallback, so untranslated keys stay English. An unknown code warns on stderr
+  and keeps English — it never stops the game starting. `--check-lang <code>`
+  proves a locale resolved, so a missing locale file fails CI instead of
+  silently passing on the fallback. New ctests `game_lang_de` and
+  `game_lang_unknown_falls_back`. Issue #123.
 
 ### Changed
 

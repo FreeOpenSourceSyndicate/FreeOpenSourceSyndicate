@@ -13,6 +13,7 @@ namespace fossynd::core
 //   # comment
 //   mission      = assets/data/missions/demo.json
 //   mission_dir  = /usr/share/fossynd/missions
+//   lang         = de
 struct GameConfig
 {
     // Explicit path to the mission file to load.
@@ -21,6 +22,10 @@ struct GameConfig
     // A directory to search for `<mission_name>.json` when no explicit path is
     // given.
     std::string missionDir;
+
+    // UI language as a locale code (issue #123), e.g. "de". Empty means English.
+    // Overridden by the `--lang` CLI flag.
+    std::string lang;
 };
 
 // Parses config text. Returns false and sets `error` on a malformed line.

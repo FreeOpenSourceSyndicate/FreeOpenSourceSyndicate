@@ -168,4 +168,17 @@ if(BUILD_TESTS)
     # literal fallback.
     add_test(NAME game_lang
              COMMAND FOSSynd --headless --check-lang)
+    # Locale switch (issue #123): `--lang de` must overlay the German table over
+    # the English fallback, and `--lang xx` (unknown) must warn and still start
+    # in English rather than fail. `--frames 1` runs one headless frame so the
+    # init path (which loads the language) is exercised, not just the flag.
+    # WORKING_DIRECTORY is the repo root so the `assets/lang/*.json` files are
+    # found (the documented "run from the repo root" fallback); otherwise a
+    # build-dir cwd would only ever see the embedded English copy.
+    add_test(NAME game_lang_de
+             COMMAND FOSSynd --headless --lang de --check-lang de --frames 1)
+    set_tests_properties(game_lang_de PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    add_test(NAME game_lang_unknown_falls_back
+             COMMAND FOSSynd --headless --lang xx --check-lang en --frames 1)
+    set_tests_properties(game_lang_unknown_falls_back PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 endif()

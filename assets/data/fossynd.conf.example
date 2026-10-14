@@ -18,3 +18,8 @@
 
 # Directory to search for the default mission file (demo.json).
 # mission_dir = /usr/share/fossynd/missions
+
+# UI language, as a locale code (e.g. `de`). Leave unset for English. A locale
+# file is loaded from `assets/lang/<code>.json` over the English fallback; an
+# unknown code warns and keeps English. Overridden by `--lang <code>`.
+# lang = de

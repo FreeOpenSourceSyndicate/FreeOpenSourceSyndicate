@@ -187,8 +187,22 @@ of `./fossynd.conf`, `<exe-dir>/fossynd.conf`, `/etc/fossynd.conf`,
 An explicit path (steps 1–3) that does not exist is a startup error, because the
 user asked for it specifically. Nothing found (step 5) is not an error.
 
-The resolution logic lives in `core/data/Config.{h,cpp}` and
-`core/data/ContentPaths.{h,cpp}` (SDL-free, unit-tested).
+## Choosing the UI language
+
+The language is resolved at startup (issue #123):
+
+1. **`--lang <code>`** on the command line (e.g. `--lang de`).
+2. **`lang = <code>`** in the config file.
+3. Neither set means English (`en`).
+
+A non-English code loads `assets/lang/<code>.json` and overlays it on the English
+table, so a key the locale omits keeps its English value (ADR-0016). An unknown
+code is **not** an error: the game warns on stderr and keeps English. `--lang en`
+and no `--lang` are equivalent.
+
+The resolution logic lives in `core/data/Config.{h,cpp}` and the overlay in
+`core/i18n/StringTable.{h,cpp}` (SDL-free, unit-tested); the engine layer
+(`src/game/Game::loadLanguage`) applies it at init.
 
 ## Validating content
 

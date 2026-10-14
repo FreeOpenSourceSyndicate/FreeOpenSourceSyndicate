@@ -57,6 +57,11 @@ public:
     // init().
     void setExeDir(const std::string& dir) { exeDir_ = dir; }
 
+    // Selects the UI language (a locale code such as "de"). Empty or "en" means
+    // English. An unknown locale is not fatal: init() warns and keeps English.
+    // Call before init().
+    void setLang(const std::string& locale) { langCode_ = locale; }
+
     // Shows the authored pixel-art title card before play. Off by default so
     // automated runs (smoke tests, screenshots, attract mode) go straight to the
     // map; the interactive player sees it and presses a key to start.
@@ -106,6 +111,18 @@ public:
     // have loaded and resolve the keys the HUD/title card use, and a missing
     // key must fall back to its literal. Used by --check-lang.
     bool languageSelfTest() const;
+
+    // True when a non-English locale file was found and overlaid over the
+    // English fallback (issue #123). Used by --check-lang to prove a requested
+    // locale actually resolved, so a missing locale file fails the gate instead
+    // of silently passing on the English fallback.
+    bool langOverlayLoaded() const { return langOverlayLoaded_; }
+
+    // True when the loaded table carries `key` with a non-empty value.
+    bool langHasKey(const std::string& key) const
+    {
+        return lang_.has(key) && !lang_.get(key, "").empty();
+    }
 
 private:
     // Looks up a localised UI string, falling back to the literal when the table
@@ -235,6 +252,15 @@ private:
     // Directory containing the executable, used to find an external language
     // file (see loadLanguage).
     std::string exeDir_;
+
+    // Requested locale code (issue #123), e.g. "de". Empty or "en" means
+    // English. Set before init(); loadLanguage() uses it to overlay a locale
+    // file over the English fallback.
+    std::string langCode_;
+
+    // True once a non-English locale file has been overlaid (issue #123). Lets
+    // --check-lang tell "locale resolved" from "silently fell back to English".
+    bool langOverlayLoaded_ = false;
 
     // Localised UI strings (ADR-0016). Loaded once; empty means "no
     // localisation", in which case every lookup falls back to the literal.
