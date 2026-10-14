@@ -13,11 +13,22 @@ FOSSYND_TEST(Config, ParsesKeysAndIgnoresComments)
                              "; another\n"
                              "mission = assets/data/missions/demo.json\n"
                              "mission_dir =/usr/share/fossynd/missions\n"
+                             "lang = de\n"
                              "unknown_key = ignored\n";
     FOSSYND_CHECK(parseConfig(text, config, error));
     FOSSYND_CHECK(error.empty());
     FOSSYND_CHECK_EQ(config.mission, std::string("assets/data/missions/demo.json"));
     FOSSYND_CHECK_EQ(config.missionDir, std::string("/usr/share/fossynd/missions"));
+    FOSSYND_CHECK_EQ(config.lang, std::string("de"));
+}
+
+FOSSYND_TEST(Config, LangDefaultsToEmpty)
+{
+    // A config without a `lang` key leaves the language unset (English).
+    GameConfig config;
+    std::string error;
+    FOSSYND_CHECK(parseConfig("mission = demo.json\n", config, error));
+    FOSSYND_CHECK(config.lang.empty());
 }
 
 FOSSYND_TEST(Config, RejectsMalformedLine)

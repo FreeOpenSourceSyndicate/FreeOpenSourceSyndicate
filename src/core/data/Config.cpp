@@ -63,6 +63,10 @@ bool parseConfig(const std::string& text, GameConfig& out, std::string& error)
         {
             out.missionDir = value;
         }
+        else if (key == "lang")
+        {
+            out.lang = value;
+        }
         // Unknown keys are ignored (forward compatible).
     }
     return true;

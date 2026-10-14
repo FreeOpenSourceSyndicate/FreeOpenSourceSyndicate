@@ -64,10 +64,12 @@ int main(int argc, char** argv)
     bool checkBoxSelect = false;
     bool checkWaypointPath = false;
     bool checkLang = false;
+    const char* checkLangLocale = nullptr; // --check-lang [<locale>]
     const char* checkContent = nullptr;   // --check-content [<dataDir>]
     const char* screenshot = nullptr;
     std::string cliMission;   // --mission <path>
     std::string cliConfig;    // --config <path>
+    std::string cliLang;      // --lang <locale>
 
     for (int i = 1; i < argc; ++i)
     {
@@ -121,7 +123,13 @@ int main(int argc, char** argv)
         }
         else if (std::strcmp(argv[i], "--check-lang") == 0)
         {
+            // Optional locale argument; defaults to English.
             checkLang = true;
+            checkLangLocale = "en";
+            if (i + 1 < argc && argv[i + 1][0] != '-')
+            {
+                checkLangLocale = argv[++i];
+            }
         }
         else if (std::strcmp(argv[i], "--check-content") == 0)
         {
@@ -131,6 +139,10 @@ int main(int argc, char** argv)
             {
                 checkContent = argv[++i];
             }
+        }
+        else if (std::strcmp(argv[i], "--lang") == 0 && i + 1 < argc)
+        {
+            cliLang = argv[++i];
         }
         else if (std::strcmp(argv[i], "--mission") == 0 && i + 1 < argc)
         {
@@ -211,6 +223,11 @@ int main(int argc, char** argv)
         std::printf("mission: %s\n", missionPath.c_str());
     }
 
+    // Resolve the UI language (issue #123): a `--lang` flag overrides a `lang`
+    // config key; neither set means English. An unknown locale is handled by the
+    // game (warn and keep English), never a failure here.
+    const std::string lang = !cliLang.empty() ? cliLang : config.lang;
+
     // Default window size; the low-spec profile shrinks it (ADR-0008).
     int width = lowSpec ? 320 : 960;
     int height = lowSpec ? 200 : 600;
@@ -218,6 +235,7 @@ int main(int argc, char** argv)
     fossynd::game::Game game;
     game.setMissionPath(missionPath);
     game.setExeDir(exeDir);
+    game.setLang(lang);
 
     // Show the authored title card for a real, interactive player. Automated
     // runs (headless, screenshots, attract mode) skip it and go straight to the
@@ -292,9 +310,21 @@ int main(int argc, char** argv)
     if (checkLang)
     {
         // Headless guard for the UI string table (issue #53): the table must
-        // load and resolve every key the HUD/title card reads. Used by the
-        // game_lang ctest.
-        const bool ok = game.languageSelfTest();
+        // load and resolve every key the HUD/title card reads. With a locale
+        // argument (issue #123) it also proves that locale actually resolved —
+        // a non-English locale must overlay and must translate a known key.
+        bool ok = game.languageSelfTest();
+        if (ok && checkLangLocale != nullptr && std::strcmp(checkLangLocale, "en") != 0)
+        {
+            // The requested locale must have actually resolved — not silently
+            // fallen back to English — and must translate a known key.
+            ok = game.langOverlayLoaded() && game.langHasKey("hud.squad");
+            if (!ok)
+            {
+                std::fprintf(stderr, "language self-test: locale '%s' did not resolve\n",
+                             checkLangLocale);
+            }
+        }
         std::printf(ok ? "language: ok\n" : "language: FAILED\n");
         return ok ? 0 : 1;
     }

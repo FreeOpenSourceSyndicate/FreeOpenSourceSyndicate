@@ -139,23 +139,55 @@ bool Game::init(int width, int height, bool headless, bool lowSpec)
 
 void Game::loadLanguage()
 {
-    // The English table lives in assets/lang/en.json; prefer an external file
-    // (so translators can override it) and fall back to the copy embedded at
-    // build time (ADR-0016). A missing or unparsable file is not fatal: the
-    // table stays empty and every lookup uses its literal fallback, so the UI
-    // renders exactly today's text.
+    // Load the English table first: it is both the UI language for "en" and the
+    // fallback every other locale overlays onto (ADR-0016). Prefer an external
+    // file (so translators can override it) and fall back to the copy embedded
+    // at build time. A missing or unparsable file is not fatal: the table stays
+    // empty and every lookup uses its literal fallback, so the UI renders
+    // exactly today's text.
+    core::i18n::StringTable english;
     std::string error;
+    bool englishLoaded = false;
     for (const std::string& path : core::i18n::defaultLangPaths(exeDir_, "en"))
     {
-        if (core::fileExists(path) && lang_.loadFromFile(path, error))
+        if (core::fileExists(path) && english.loadFromFile(path, error))
         {
-            return;
+            englishLoaded = true;
+            break;
         }
     }
-    const core::Json root = core::Json::parse(kEnglishLangJson, error);
-    if (!lang_.loadFromJson(root, error))
+    if (!englishLoaded)
     {
-        std::fprintf(stderr, "language data error: %s\n", error.c_str());
+        const core::Json root = core::Json::parse(kEnglishLangJson, error);
+        if (english.loadFromJson(root, error))
+        {
+            englishLoaded = true;
+        }
+        else
+        {
+            std::fprintf(stderr, "language data error: %s\n", error.c_str());
+        }
+    }
+
+    // English (or an empty request) is the fallback itself — nothing to overlay.
+    if (langCode_.empty() || langCode_ == "en")
+    {
+        lang_ = english;
+        return;
+    }
+
+    // Overlay the requested locale on the English fallback (issue #123). A
+    // missing or malformed locale file is a warning, never fatal: the table is
+    // still populated from English, so the game starts in English rather than
+    // refusing to run.
+    std::string localeError;
+    if (lang_.loadForLocale(langCode_, exeDir_, english, localeError))
+    {
+        langOverlayLoaded_ = true;
+    }
+    else
+    {
+        std::fprintf(stderr, "language: %s\n", localeError.c_str());
     }
 }
 

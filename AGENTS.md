@@ -493,6 +493,13 @@ run the game target locally and note the result in the PR.
   translations as ASCII transliterations (`AE`/`OE`/`UE`/`SS`) and keep every
   locale's key set and `{placeholder}` set equal to `en.json`; the gates in
   `tests/test_i18n.cpp` enforce both (issues #95, #125).
+- **The UI language is selectable (issue #123):** `--lang <code>` (CLI, wins) or
+  `lang = <code>` in the config file picks a locale; `Game::loadLanguage`
+  overlays `assets/lang/<code>.json` on the English table (untranslated keys stay
+  English). An unknown code warns and keeps English — it is never fatal. Verify
+  with `--headless --lang de --check-lang de` (ctests `game_lang_de`,
+  `game_lang_unknown_falls_back`); `--check-lang <code>` fails if the locale did
+  not actually resolve, so a missing locale file cannot hide behind the fallback.
 - Combat/AI/mission logic lives in `src/core/sim/` (`Agent`, `Mission`, `Weapon`)
   and is unit-tested; keep it SDL-free.
 - **Enemy AI state machine** lives on `core::Agent` (`AiState`: `Idle`, `Patrol`,
