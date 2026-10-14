@@ -384,8 +384,8 @@ busiest-first so the next agent can pick the top free one.
 | Render | `focus: render` | — | 2 | #89 draw queued waypoint path; Phase 2 zoom (unfiled) |
 | Input/UI | `focus: input-ui` | — | 2 | #94 box-select drag; control-group polish |
 | Content | `focus: content` | — | 2 | #90 ship explosive weapon in `weapons.json` |
-| Text | `focus: text` | — | 2 | #95 locale resolution + second-locale stub |
-| Platform | `focus: platform` | — | 2 | #91 package smoke validates content; CI upkeep |
+| Text | `focus: text` | — | 1 | #95 locale resolution + `de` stub ✅ (merged #104); more locales, `--lang` flag (input-ui) |
+| Platform | `focus: platform` | — | 1 | #91 package smoke validates content ✅ (merged #105); #103 install every `assets/lang/*.json` |
 | Release | `focus: release` | — | 1 | #70 CHANGELOG reconcile ✅ (option A); next release cut |
 
 Legend: owner `—` = free this cycle. Workload is a rough size in "PRs" (one
@@ -419,6 +419,8 @@ a free, claimable task.
 | Medikit gadget (heal ally) | tactical | #88 | ✅ merged (#97) |
 | Reconcile `[0.5.0]` CHANGELOG with the tag | release | #70 | ✅ merged (#98, option A) |
 | String-pulled A* routes | world | #93 | ✅ merged (#99, smoothing) + wiring fix (#101) |
+| Locale resolution + `de` stub | text | #95 | ✅ merged (#104) |
+| Package ships catalogues + validates content | platform | #91 | ✅ merged (#105) |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 
