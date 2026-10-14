@@ -18,6 +18,7 @@
 # owner: focus: tactical
 /src/core/sim/Mission.h            @FreeOpenSourceSyndicate
 /src/core/sim/Mission.cpp          @FreeOpenSourceSyndicate
+/src/core/sim/Weapon.h             @FreeOpenSourceSyndicate
 /tests/test_mission.cpp            @FreeOpenSourceSyndicate
 
 # --- 2. World / Simulation ---

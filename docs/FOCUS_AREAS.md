@@ -49,7 +49,7 @@ edits those files*.
 
 | # | Area | Label | Owns (primary files) | Typical work |
 |---|------|-------|----------------------|--------------|
-| 1 | **Tactical / Mission** | `focus: tactical` | `src/core/sim/Mission.{h,cpp}`, `tests/test_mission.cpp`, `assets/data/missions/*.json` | AI, combat rules, objectives, win/lose, orders, mission design |
+| 1 | **Tactical / Mission** | `focus: tactical` | `src/core/sim/Mission.{h,cpp}`, `src/core/sim/Weapon.h`, `tests/test_mission.cpp`, `assets/data/missions/*.json` | AI, combat rules, weapon balance, objectives, win/lose, orders, mission design |
 | 2 | **World / Simulation** | `focus: world` | `src/core/world/*`, `src/core/math/*`, `src/core/sim/Agent.{h,cpp}`, `src/core/util/*`, matching `tests/` | pathfinding, tile grid, agent model, RNG |
 | 3 | **Render / Engine** | `focus: render` | `src/game/Game.cpp` (render/hud/camera), `src/game/Font.{h,cpp}` | draw the sim, sprites, camera, HUD, low-spec |
 | 4 | **Input / UI / UX** | `focus: input-ui` | `src/main.cpp`, `src/game/Game.cpp` (input/selection/title) | flags, controls, selection, menus, screenshots |
@@ -76,8 +76,8 @@ coordinator's contract step (§5):
 
 | Area | Surface |
 |------|---------|
-| Tactical | `Mission` public methods and outcome enum |
-| World | `Agent`, `Weapon`, `TileGrid`, `Pathfinding`, `Rng` public APIs |
+| Tactical | `Mission`, `Weapon`, public methods and outcome enum |
+| World | `Agent`, `TileGrid`, `Pathfinding`, `Rng` public APIs |
 | Render | nothing public (private `Game` methods) |
 | Input/UI | the CLI flags and the `Game::init`/`run`/`set*` surface used by `main.cpp` |
 | Content | `MissionData`, `Json`, `Config`, `ContentPaths` public APIs and the JSON schema |
