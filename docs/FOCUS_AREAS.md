@@ -321,13 +321,15 @@ This table tracks the **current** state. Update it whenever a queue issue closes
 | CPack packaging (Linux) | platform | #61 | ✅ merged (ADR-0017) |
 | Recruiter-gadget rename (legal) | coordinator | #57 | ✅ merged (#64, ADR-0018) |
 | HUD/title from string table + codename | client | #53, #48 | ✅ merged (#65) |
-| Control groups (hotkeys) | client | #33 | ◑ half-merged (#51); UI half → #75 |
+| Control groups (hotkeys) | client | #33 | ✅ merged (#51 UI, #75 waypoints) |
 | HUD objective tint (+ off-screen fix) | client | #72 | ✅ merged (#73) |
 | Per-agent waypoint queue (core API) | core | #42 | ✅ merged (#74) |
-| Split `Game.cpp` into `Hud.cpp`/`TitleCard.cpp` | client | #69 | ⬜ open (next `client` task) |
-| Shift-click append to the waypoint queue | client | #75 | ⬜ open (after #69) |
-| Walls block sight/fire | core | #63 | ⬜ open (next `core` task) |
-| Content validator (dangling `weaponId`/`agentId`) | content | #71 | ⬜ open |
+| Split `Game.cpp` into `Hud.cpp`/`TitleCard.cpp` | client | #69 | ✅ merged (#82) |
+| Shift-click append to the waypoint queue | client | #75 | ✅ merged (#83) |
+| Walls block sight/fire | core | #63 | ✅ merged (#77) |
+| Content validator (dangling `weaponId`/`agentId`) | content | #71 | ✅ merged (#80); flag wiring → #81 |
+| `--check-content` flag + `game_content` ctest | client | #81 | ⬜ open (after #69) |
+| AoE weapon radius | core | #79 | ⬜ open |
 | Reconcile `[0.5.0]` CHANGELOG with the tag | platform | #70 | ⬜ open (needs a user decision) |
 | Coordination hub | coordinator | #38 | this |
 
