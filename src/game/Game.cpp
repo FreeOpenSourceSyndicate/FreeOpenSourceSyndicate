@@ -594,6 +594,104 @@ bool Game::selectionSelfTest()
     return true;
 }
 
+bool Game::waypointSelfTest()
+{
+    // Exercise the shift-click queue through the real order path
+    // (orderSelectedMove -> Mission::queueMove), which is otherwise only
+    // reachable from the interactive mouse handler.
+    const auto& agents = mission_.agents();
+    std::size_t player = agents.size();
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (agents[i].isAlive() && agents[i].team() == core::Team::Player)
+        {
+            player = i;
+            break;
+        }
+    }
+    if (player == agents.size())
+    {
+        std::fprintf(stderr, "waypoint self-test: no living player agent\n");
+        return false;
+    }
+
+    // Find two distinct walkable tiles to use as the first and second waypoint.
+    const core::TilePos start = agents[player].tile();
+    core::TilePos first{-1, -1};
+    core::TilePos second{-1, -1};
+    for (int y = 0; y < grid_.height() && first.x < 0; ++y)
+    {
+        for (int x = 0; x < grid_.width(); ++x)
+        {
+            if (!grid_.isWalkable(x, y) || (x == start.x && y == start.y))
+            {
+                continue;
+            }
+            if (first.x < 0)
+            {
+                first = core::TilePos{x, y};
+            }
+            else if (x != first.x || y != first.y)
+            {
+                second = core::TilePos{x, y};
+                break;
+            }
+        }
+    }
+    if (second.x < 0)
+    {
+        std::fprintf(stderr, "waypoint self-test: need two distinct walkable tiles\n");
+        return false;
+    }
+
+    selectOnly(player);
+
+    // A plain move replaces the order and clears any queue.
+    orderSelectedMove(first, false);
+    if (mission_.moveQueueSize(player) != 0)
+    {
+        std::fprintf(stderr, "waypoint self-test: plain move left a non-empty queue\n");
+        return false;
+    }
+
+    // A shift-click appends: the first append queues a waypoint behind the
+    // standing move order, and the second append adds another.
+    orderSelectedMove(second, true);
+    if (mission_.moveQueueSize(player) != 1)
+    {
+        std::fprintf(stderr, "waypoint self-test: first append did not queue a waypoint\n");
+        return false;
+    }
+    orderSelectedMove(first, true);
+    if (mission_.moveQueueSize(player) != 2)
+    {
+        std::fprintf(stderr, "waypoint self-test: second append did not grow the queue\n");
+        return false;
+    }
+
+    // A fresh plain move supersedes the whole queued route.
+    orderSelectedMove(second, false);
+    if (mission_.moveQueueSize(player) != 0)
+    {
+        std::fprintf(stderr, "waypoint self-test: plain move did not clear the queue\n");
+        return false;
+    }
+
+    // An out-of-bounds or blocked goal is ignored, leaving no queue behind.
+    const core::TilePos outside{-1, -1};
+    orderSelectedMove(outside, true);
+    if (mission_.moveQueueSize(player) != 0)
+    {
+        std::fprintf(stderr, "waypoint self-test: invalid goal queued a waypoint\n");
+        return false;
+    }
+
+    // Leave a clean order behind so a later screenshot/run is unaffected.
+    mission_.clearMoveQueue(player);
+    selectAllPlayers();
+    return true;
+}
+
 int Game::enemyAtScreen(int x, int y) const
 {
     // Nearest living enemy agent to the click, or -1 (for attack orders).
@@ -630,6 +728,37 @@ void Game::orderAttackOn(int targetIndex)
     for (const std::size_t index : selected_)
     {
         mission_.orderAttack(index, target);
+    }
+}
+
+void Game::orderSelectedMove(const core::TilePos& goal, bool append)
+{
+    if (!grid_.inBounds(goal.x, goal.y) || !grid_.isWalkable(goal.x, goal.y))
+    {
+        return;
+    }
+    // A lone agent goes exactly where you clicked; a group spreads over a small
+    // 2-wide formation so agents do not stack on one another.
+    for (std::size_t i = 0; i < selected_.size(); ++i)
+    {
+        core::TilePos target = goal;
+        if (selected_.size() > 1)
+        {
+            const core::TilePos offset{static_cast<int>(i % 2) - 1, static_cast<int>(i / 2)};
+            const core::TilePos candidate{goal.x + offset.x, goal.y + offset.y};
+            if (grid_.inBounds(candidate.x, candidate.y) && grid_.isWalkable(candidate.x, candidate.y))
+            {
+                target = candidate;
+            }
+        }
+        if (append)
+        {
+            mission_.queueMove(selected_[i], target);
+        }
+        else
+        {
+            mission_.orderMove(selected_[i], target);
+        }
     }
 }
 
@@ -825,30 +954,11 @@ void Game::handleEvents(bool& running)
                 }
                 else
                 {
-                    // Clicking the ground orders the current selection there.
-                    const core::TilePos goal = screenToTile(event.button.x, event.button.y);
-                    if (grid_.inBounds(goal.x, goal.y) && grid_.isWalkable(goal.x, goal.y))
-                    {
-                        // A lone agent goes exactly where you clicked; a group
-                        // spreads over a small 2-wide formation so agents do not
-                        // stack on one another.
-                        for (std::size_t i = 0; i < selected_.size(); ++i)
-                        {
-                            core::TilePos target = goal;
-                            if (selected_.size() > 1)
-                            {
-                                const core::TilePos offset{static_cast<int>(i % 2) - 1,
-                                                           static_cast<int>(i / 2)};
-                                const core::TilePos candidate{goal.x + offset.x, goal.y + offset.y};
-                                if (grid_.inBounds(candidate.x, candidate.y) &&
-                                    grid_.isWalkable(candidate.x, candidate.y))
-                                {
-                                    target = candidate;
-                                }
-                            }
-                            mission_.orderMove(selected_[i], target);
-                        }
-                    }
+                    // Clicking the ground orders the current selection there. A
+                    // shift-click appends the waypoint to the queue instead of
+                    // replacing the order, so a squad can be walked along a path
+                    // (issue #75).
+                    orderSelectedMove(screenToTile(event.button.x, event.button.y), shift);
                 }
             }
             break;

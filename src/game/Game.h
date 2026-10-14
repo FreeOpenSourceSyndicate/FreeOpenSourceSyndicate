@@ -84,6 +84,11 @@ public:
     // without a display.
     bool selectionSelfTest();
 
+    // Headless self-check for the shift-click waypoint queue (issue #75):
+    // exercises orderSelectedMove against the real Mission queue and returns
+    // false if any invariant fails. Used by --check-waypoints.
+    bool waypointSelfTest();
+
     // Headless self-check for the UI string table (issue #53): the table must
     // have loaded and resolve the keys the HUD/title card use, and a missing
     // key must fall back to its literal. Used by --check-lang.
@@ -135,6 +140,10 @@ private:
     void assignControlGroup(int slot);
     void recallControlGroup(int slot);
     void orderAttackOn(int targetIndex);
+    // Orders the current selection to move to `goal`. A shift-click appends the
+    // goal to each agent's waypoint queue instead of replacing its order, so a
+    // squad can be walked along a path (issue #75).
+    void orderSelectedMove(const core::TilePos& goal, bool append);
     // Each selected agent uses its ComplianceBeacon on the nearest civilian in range.
     void persuadeNearestCivilian();
     // Releases the followers of every selected agent.
