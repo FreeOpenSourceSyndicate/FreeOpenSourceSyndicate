@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 
 #include "core/data/ContentPaths.h"
@@ -687,6 +688,123 @@ bool Game::waypointSelfTest()
     }
 
     // Leave a clean order behind so a later screenshot/run is unaffected.
+    mission_.clearMoveQueue(player);
+    selectAllPlayers();
+    return true;
+}
+
+bool Game::waypointPathSelfTest()
+{
+    // Headless guard for the queued-route overlay (issue #89). Builds a real
+    // queued route through the order path, then checks the exact screen-space
+    // geometry the renderer would draw.
+    const auto& agents = mission_.agents();
+    std::size_t player = agents.size();
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (agents[i].isAlive() && agents[i].team() == core::Team::Player)
+        {
+            player = i;
+            break;
+        }
+    }
+    if (player == agents.size())
+    {
+        std::fprintf(stderr, "waypoint-path self-test: no living player agent\n");
+        return false;
+    }
+
+    selectOnly(player);
+
+    // No queue yet: the overlay draws nothing.
+    if (!waypointRoute(player).empty())
+    {
+        std::fprintf(stderr, "waypoint-path self-test: drew a route with an empty queue\n");
+        return false;
+    }
+
+    // Find two distinct walkable tiles to queue.
+    const core::TilePos start = agents[player].tile();
+    core::TilePos first{-1, -1};
+    core::TilePos second{-1, -1};
+    for (int y = 0; y < grid_.height() && first.x < 0; ++y)
+    {
+        for (int x = 0; x < grid_.width(); ++x)
+        {
+            if (!grid_.isWalkable(x, y) || (x == start.x && y == start.y))
+            {
+                continue;
+            }
+            if (first.x < 0)
+            {
+                first = core::TilePos{x, y};
+            }
+            else if (x != first.x || y != first.y)
+            {
+                second = core::TilePos{x, y};
+                break;
+            }
+        }
+    }
+    if (second.x < 0)
+    {
+        std::fprintf(stderr, "waypoint-path self-test: need two distinct walkable tiles\n");
+        return false;
+    }
+
+    orderSelectedMove(first, false); // a standing move (no queue)
+    orderSelectedMove(second, true); // shift-click: queue `second` behind it
+    orderSelectedMove(first, true);  // shift-click: queue `first` after that
+
+    const std::vector<core::Vec2> route = waypointRoute(player);
+    // agent tile + two queued waypoints
+    if (route.size() != 3)
+    {
+        std::fprintf(stderr, "waypoint-path self-test: expected 3 route points, got %zu\n",
+                     route.size());
+        return false;
+    }
+
+    const core::Vec2 wantStart =
+        tileToScreen(core::Vec2{static_cast<float>(start.x), static_cast<float>(start.y)});
+    const core::Vec2 wantFirst =
+        tileToScreen(core::Vec2{static_cast<float>(second.x), static_cast<float>(second.y)});
+    const core::Vec2 wantSecond =
+        tileToScreen(core::Vec2{static_cast<float>(first.x), static_cast<float>(first.y)});
+    if (route[0].x != wantStart.x || route[0].y != wantStart.y ||
+        route[1].x != wantFirst.x || route[1].y != wantFirst.y ||
+        route[2].x != wantSecond.x || route[2].y != wantSecond.y)
+    {
+        std::fprintf(stderr, "waypoint-path self-test: route does not match the queue order\n");
+        return false;
+    }
+
+    // A non-selected agent's queue is not part of the overlay, but waypointRoute
+    // is per-agent: an unqueued agent still reports nothing.
+    std::size_t other = agents.size();
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (i != player && agents[i].isAlive() && agents[i].team() == core::Team::Player)
+        {
+            other = i;
+            break;
+        }
+    }
+    if (other != agents.size() && !waypointRoute(other).empty())
+    {
+        std::fprintf(stderr, "waypoint-path self-test: unqueued agent reported a route\n");
+        return false;
+    }
+
+    // A fresh plain move clears the queue, so the overlay disappears.
+    orderSelectedMove(second, false);
+    if (!waypointRoute(player).empty())
+    {
+        std::fprintf(stderr, "waypoint-path self-test: route survived a cleared queue\n");
+        return false;
+    }
+
+    // Leave a clean order behind.
     mission_.clearMoveQueue(player);
     selectAllPlayers();
     return true;
@@ -1381,6 +1499,102 @@ void Game::renderAgents()
     }
 }
 
+std::vector<core::Vec2> Game::waypointRoute(std::size_t agentIndex) const
+{
+    const auto& agents = mission_.agents();
+    if (agentIndex >= agents.size())
+    {
+        return {};
+    }
+    const core::Agent& agent = agents[agentIndex];
+    if (!agent.isAlive() || !agent.hasQueuedMoves())
+    {
+        return {};
+    }
+
+    // The route starts where the agent stands, then visits each queued
+    // waypoint in order. Drawn from the tile centre, matching the agents' own
+    // tiles, so the line reads as a plan rather than following the sprite.
+    std::vector<core::Vec2> route;
+    route.reserve(agent.moveQueue().size() + 1);
+    route.push_back(tileToScreen(core::Vec2{static_cast<float>(agent.tile().x),
+                                            static_cast<float>(agent.tile().y)}));
+    for (const core::TilePos& wp : agent.moveQueue())
+    {
+        route.push_back(tileToScreen(core::Vec2{static_cast<float>(wp.x),
+                                                static_cast<float>(wp.y)}));
+    }
+    return route;
+}
+
+void Game::renderWaypointPath()
+{
+    // Queued-route overlay (issue #89): for every selected agent with a
+    // non-empty shift-click queue, draw a polyline through the waypoints and a
+    // numbered dot on each one. View-only: it reads the core queue and never
+    // writes it (golden rule 4).
+    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
+    for (std::size_t index : selected_)
+    {
+        const std::vector<core::Vec2> route = waypointRoute(index);
+        if (route.size() < 2)
+        {
+            continue; // nothing queued: no overlay
+        }
+
+        SDL_SetRenderDrawColor(renderer_, hudstyle::kWaypointLine[0], hudstyle::kWaypointLine[1],
+                               hudstyle::kWaypointLine[2], 200);
+        for (std::size_t i = 1; i < route.size(); ++i)
+        {
+            // Integer Bresenham keeps the line cheap and crisp on the software
+            // renderer (no anti-aliasing needed for the pixel-art look).
+            int x0 = static_cast<int>(route[i - 1].x);
+            int y0 = static_cast<int>(route[i - 1].y);
+            const int x1 = static_cast<int>(route[i].x);
+            const int y1 = static_cast<int>(route[i].y);
+            const int dx = std::abs(x1 - x0);
+            const int sx = x0 < x1 ? 1 : -1;
+            const int dy = -std::abs(y1 - y0);
+            const int sy = y0 < y1 ? 1 : -1;
+            int err = dx + dy;
+            while (true)
+            {
+                SDL_RenderDrawPoint(renderer_, x0, y0);
+                if (x0 == x1 && y0 == y1)
+                {
+                    break;
+                }
+                const int e2 = 2 * err;
+                if (e2 >= dy)
+                {
+                    err += dy;
+                    x0 += sx;
+                }
+                if (e2 <= dx)
+                {
+                    err += dx;
+                    y0 += sy;
+                }
+            }
+        }
+
+        // Numbered dots on each queued waypoint (skip the agent's own tile, the
+        // route's first point) so the order is readable.
+        for (std::size_t i = 1; i < route.size(); ++i)
+        {
+            const int cx = static_cast<int>(route[i].x);
+            const int cy = static_cast<int>(route[i].y);
+            SDL_SetRenderDrawColor(renderer_, hudstyle::kWaypointDot[0], hudstyle::kWaypointDot[1],
+                                   hudstyle::kWaypointDot[2], 235);
+            SDL_Rect dot{cx - 3, cy - 3, 7, 7};
+            SDL_RenderFillRect(renderer_, &dot);
+            const std::string label = std::to_string(i);
+            font_.draw(renderer_, cx - font_.textWidth(label) / 2, cy - font_.lineHeight() / 2,
+                       label, hudstyle::kHudText);
+        }
+    }
+}
+
 bool Game::checkMinimap()
 {
     if (!minimap_.valid())
@@ -1421,6 +1635,7 @@ void Game::render()
     }
 
     renderAgents();
+    renderWaypointPath();
     if (titleCardActive_)
     {
         renderTitleCard();

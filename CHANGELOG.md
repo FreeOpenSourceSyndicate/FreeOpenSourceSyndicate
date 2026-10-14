@@ -33,6 +33,11 @@ contains no original assets, code, names, or trademarks.
 - **Agents path diagonally (smooth routes):** `Agent::moveTo` now uses 8-way A*
   with string-pulling, so agents walk straight across open ground instead of
   staircasing along the tile grid. Issue #93 (wiring fix for #99).
+- **Queued-route overlay:** a selected agent's shift-click waypoint queue is now
+  drawn as a yellow polyline with numbered dots, so the route built with
+  shift-click is visible before it is walked. Reads `Agent::moveQueue()`; draws
+  nothing when the queue is empty. View-only; new ctest `game_waypoint_path`
+  (`--headless --check-waypoint-path`) covers the drawn geometry. Issue #89.
 
 ### Changed
 

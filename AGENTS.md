@@ -569,10 +569,17 @@ run the game target locally and note the result in the PR.
   Example: `assets/data/fossynd.conf.example`. Details: `docs/DATA_FORMAT.md`.
 - Verification flags: `--headless --frames N`, `--headless --demo --frames N`,
   `--headless --title --frames N`, `--headless --check-sprites`,
-  `--headless --check-minimap`, `--headless --check-selection`, and
+  `--headless --check-minimap`, `--headless --check-selection`,
+  `--headless --check-waypoints`, `--headless --check-waypoint-path`, and
   `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
   `game_demo`, `game_low_spec`, `game_title`, `game_sprites`, `game_minimap`,
-  and `game_selection` cover the SDL layer headlessly.
+  `game_selection`, `game_waypoints`, and `game_waypoint_path` cover the SDL
+  layer headlessly.
+- **Queued-route overlay (issue #89):** the view draws a selected agent's
+  shift-click waypoint queue (`Agent::moveQueue()`) as a yellow polyline with
+  numbered dots, in `Game::renderWaypointPath()`; `Game::waypointRoute()` is the
+  screen-space geometry, shared with the `--check-waypoint-path` self-test. It
+  reads the core queue and never writes it (golden rule 4).
 - Engine-layer changes are covered by the CI `core + game` job (ADR-0005). The
   CI `low-spec` job builds the old-hardware profile (ADR-0008), the CI
   `sanitizers` job runs the core tests under ASan + UBSan (ADR-0015), and the CI

@@ -89,6 +89,12 @@ public:
     // false if any invariant fails. Used by --check-waypoints.
     bool waypointSelfTest();
 
+    // Headless self-check for the queued-route overlay (issue #89): builds a
+    // real queued route on a selected agent and confirms the screen-space route
+    // the renderer would draw starts at the agent and visits every queued
+    // waypoint in order. Used by --check-waypoint-path.
+    bool waypointPathSelfTest();
+
     // Headless self-check for the UI string table (issue #53): the table must
     // have loaded and resolve the keys the HUD/title card use, and a missing
     // key must fall back to its literal. Used by --check-lang.
@@ -115,6 +121,7 @@ private:
     void updateAgentViews(float dt);
     void render();
     void renderAgents();
+    void renderWaypointPath();
     void renderHud();
     void renderMinimap();
     void renderTitleCard();
@@ -153,6 +160,12 @@ private:
     core::TilePos screenToTile(int screenX, int screenY) const;
     void centerOn(const core::Vec2& tile);
     void clampCamera();
+
+    // Screen-space route the queued-route overlay draws for `agentIndex`: the
+    // agent's tile followed by each queued waypoint, in order. Empty when the
+    // agent is not alive or has no queued moves. Exposed so the headless
+    // self-test can verify the exact geometry the renderer uses.
+    std::vector<core::Vec2> waypointRoute(std::size_t agentIndex) const;
 
     // Writes a filled isometric diamond directly into a surface (used once).
     void fillDiamond(SDL_Surface* surface, int centerX, int centerY, float halfW, float halfH,
