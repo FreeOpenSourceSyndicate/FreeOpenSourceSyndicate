@@ -3,7 +3,7 @@
 ---
 name: Task
 about: A unit of work for an agent or human to claim
-title: "<area>: <short description>"
+title: "<focus>: <short description>"
 labels: ""
 assignees: ""
 ---
@@ -14,15 +14,47 @@ assignees: ""
 
 <!-- One sentence. -->
 
+## Focus area
+
+<!-- Exactly one. See docs/FOCUS_AREAS.md. The area owner (or a helper it tasks)
+     is the only agent that edits the files listed under Scope. -->
+
+- [ ] `focus: tactical` — `src/core/sim/Mission.*`, missions data
+- [ ] `focus: world` — `src/core/world|math|util`, `Agent.*`
+- [ ] `focus: render` — `src/game/Game.cpp` (draw/HUD/camera), `Font.*`
+- [ ] `focus: input-ui` — `src/main.cpp`, input/selection in `Game.cpp`
+- [ ] `focus: content` — `src/core/data/*`, `assets/data/**`
+- [ ] `focus: text` — strings, i18n, lore
+- [ ] `focus: platform` — build, CI, scripts, deps
+- [ ] `focus: release` — releases, changelog, release art
+
 ## Scope
 
-<!-- Files/areas this task may touch. Keep it to one subsystem where possible. -->
+<!-- Files/areas this task may touch. Keep it to one subsystem where possible.
+     If a file is shared (Game.cpp, test_mission.cpp), say so and name the other
+     area — see docs/FOCUS_AREAS.md §4. -->
 
 - `src/core/...`
 
 ## Interface contract
 
-<!-- Public API / signatures introduced or changed, agreed before coding. -->
+<!-- Public API / signatures introduced or changed, agreed before coding.
+     If this changes a shared header, the owning area lands a contract PR first
+     (docs/FOCUS_AREAS.md §4, Rule 3). -->
+
+## Cross-area request
+
+<!-- Fill in only if this task needs work in another area's files. Delete if not.
+     docs/FOCUS_AREAS.md §4, Rule 4. -->
+
+```
+Requested by: <area> (agent <model>)
+Needed in: <area> — <files>
+What & why: <one paragraph>
+Interface: <exact signature(s) wanted, or "no interface change">
+Blocks: <issue/PR that is waiting>
+Urgency: <e.g. "blocks PR #123">
+```
 
 ## Acceptance criteria
 

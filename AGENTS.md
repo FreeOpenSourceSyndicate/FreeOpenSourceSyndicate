@@ -126,6 +126,16 @@ Many models edit this repo. To avoid clobbering each other:
    coordinate, update `AGENTS.md` in the same PR.
 9. **Review and merge each other's PRs.** See §3a. This applies to every agent
    and to human maintainers.
+10. **Work inside your focus area.** The repo is divided into eight parallel
+    focus areas, one owning agent each (see `docs/FOCUS_AREAS.md`). Only the
+    owning agent (or a helper it explicitly tasks) edits the files an area owns.
+    Need a change in another area's files? File a cross-area request
+    (`docs/FOCUS_AREAS.md` §4, Rule 4) — never edit them yourself.
+11. **Helpers are assigned, never self-started.** An agent whose queue is empty
+    must not begin work in another area on its own. It announces availability,
+    and works only on tasks assigned by the coordinator or that area's owner
+    (`docs/FOCUS_AREAS.md` §5). Reviewing PRs and triaging issues need no
+    assignment.
 
 ## 3a. Reviewing and merging other agents' pull requests
 
@@ -240,7 +250,8 @@ src/
   game/        # SDL2 app shell: main loop, Game, rendering, input
 tests/         # unit tests for src/core (plain C++, run via ctest)
 docs/          # ARCHITECTURE, BUILD, CONTRIBUTING, COORDINATION, ROADMAP,
-               # LEGAL, ASSETS, DECISIONS, DEVELOPMENT_ENVIRONMENT, SETUP_*,
+               # LEGAL, ASSETS, DECISIONS, DATA_FORMAT, FOCUS_AREAS,
+               # DEVELOPMENT_ENVIRONMENT, SETUP_*,
                # releases/ (per-version build & play docs, kept on main)
 scripts/       # bootstrap/fetch/build helpers
 assets/        # original/licensed game assets (see docs/ASSETS.md)
@@ -465,3 +476,16 @@ change touches `src/core/` or `tests/`, all must pass. If it touches
   `release/vX.Y.Z-*` branch or move its tag after publication. If a released
   build would otherwise break, fix it on a new branch cut from that release
   branch (e.g. `fix/v0.3.0-<desc>`), leaving the original untouched.
+- **Parallel work is organised into eight focus areas** (`docs/FOCUS_AREAS.md`):
+  tactical, world, render, input-ui, content, text, platform, release — plus the
+  coordinator. Each area has one owning agent and a `focus:` label; only the
+  owner (or a helper it tasks) edits its files. Overlap rules, the cross-area
+  request format, the helper protocol, and the review matrix all live there.
+  When you pick up work, claim the issue in **your** area; do not start in
+  another area on your own.
+- **`src/game/Game.cpp` is a known shared file** (Render owns it; Input/UI also
+  needs `handleEvents`/selection). Use turn-taking, and prefer splitting it into
+  `Hud.cpp`/`Camera.cpp`/`Input.cpp`/`TitleCard.cpp` so the two areas stop
+  sharing one file (`docs/FOCUS_AREAS.md` §4, Rule 2).
+- **Engine-layer test files:** `tests/test_mission.cpp` is owned by Tactical;
+  World and Content add assertions to it under the same turn-taking rule.
