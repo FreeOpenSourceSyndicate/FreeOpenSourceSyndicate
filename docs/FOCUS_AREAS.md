@@ -432,9 +432,9 @@ what is taken without reading every issue.
 | Area | `focus:` | Live claim | Pending workload | Seeded / open tasks |
 |------|----------|------------|------------------|---------------------|
 | Tactical | `focus: tactical` | — | 1 | #120 enemies take cover under fire |
-| World | `focus: world` | — | 1 | #141 ✅ merged — **needs re-seed** |
+| World | `focus: world` | — | 1 | #146 path toward the nearest reachable tile |
 | Render | `focus: render` | — | 1 | #122 integer zoom levels (Phase 2's last item) |
-| Input/UI | `focus: input-ui` | — | 1 | #123 ✅ merged — **needs re-seed** |
+| Input/UI | `focus: input-ui` | — | 1 | #147 add `--version` and `--help` |
 | Content | `focus: content` | — | 1 | #124 minigun / flamethrower / laser |
 | Text | `focus: text` | — | 1 | #142 localise mission name/description |
 | Platform | `focus: platform` | — | 1 | #133 Windows packaging lane (macOS lane gated to manual dispatch ✅ #138) |
