@@ -182,11 +182,13 @@ jobs:
 
   packaging-macos:
     name: Packaging (macOS TGZ + DMG)
-    # macOS runners are scarce on this repo and can be cancelled while still
-    # queued, so this lane must never redden `main` or deadlock a merge (#136):
-    # it runs on PRs (a real check before merge) and on manual dispatch, and is
-    # non-blocking. Linux packaging stays a hard gate.
-    if: github.event_name != 'push'
+    # macOS runners are unavailable on this repo: the job queues and is then
+    # cancelled before it ever starts (0 steps, no runner), which reddens `main`
+    # and would deadlock a merge if required. `continue-on-error` does not cover a
+    # pre-run cancellation, so gate the lane to manual dispatch instead: it is
+    # skipped (neutral) on every push/PR and runs only when a maintainer asks,
+    # once macOS minutes are available (#136). Linux packaging stays a hard gate.
+    if: github.event_name == 'workflow_dispatch'
     continue-on-error: true
     runs-on: macos-latest
     steps:
