@@ -56,6 +56,14 @@ contains no original assets, code, names, or trademarks.
 
 ### Changed
 
+- **A path search now says *why* it failed.** `findPath` returned an empty vector
+  for both "no route exists" and "the A* node cap was hit" (#121), so a rejected
+  move order could not distinguish a genuinely unreachable target from one the
+  search abandoned for frame time. The new `core::findPathDetailed` returns a
+  `PathResult` whose `outcome` is `Found`, `NoPath`, or `CapExceeded`; `findPath`
+  becomes a thin wrapper (`findPathDetailed(...).path`), so existing callers see
+  no change. New tests cover all three outcomes, the out-of-bounds/blocked-goal
+  cases, and wrapper equality. Issue #141.
 - **The A* search is bounded by a node-expansion cap.** `findPath` now takes a
   `maxExpandedNodes` budget (default `kDefaultMaxExpandedNodes`, 2048) and
   returns "no path" instead of expanding the whole grid when it is exhausted, so

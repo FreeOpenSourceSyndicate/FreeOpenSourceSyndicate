@@ -500,6 +500,13 @@ run the game target locally and note the result in the PR.
   with `--headless --lang de --check-lang de` (ctests `game_lang_de`,
   `game_lang_unknown_falls_back`); `--check-lang <code>` fails if the locale did
   not actually resolve, so a missing locale file cannot hide behind the fallback.
+- **Path searches report *why* they failed (issue #141):** `findPath` returned an
+  empty vector for both "no route exists" and "the A* node cap was hit", so a
+  rejected order could not say which. `core::findPathDetailed` now returns a
+  `PathResult { PathOutcome outcome; path; }` — `Found` / `NoPath` /
+  `CapExceeded`. `findPath` is a thin wrapper (`findPathDetailed(...).path`), so
+  existing callers and results are unchanged. New tests in
+  `tests/test_pathfinding.cpp` cover all three outcomes and the wrapper equality.
 - Combat/AI/mission logic lives in `src/core/sim/` (`Agent`, `Mission`, `Weapon`)
   and is unit-tested; keep it SDL-free.
 - **Enemy AI state machine** lives on `core::Agent` (`AiState`: `Idle`, `Patrol`,
