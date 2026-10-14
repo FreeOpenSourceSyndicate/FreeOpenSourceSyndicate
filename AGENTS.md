@@ -294,8 +294,7 @@ Rules:
 1. **One release = one tag = one `release/vX.Y.Z-<slug>` branch** off `main`,
    plus a GitHub Release page. Follow SemVer and keep a matching `CHANGELOG.md`
    entry. Existing examples: `release/v0.1.0-playable-slice`,
-   `release/v0.2.0-command-control`, `release/v0.3.0-bystanders`,
-   `release/v0.4.0-smart-enemies`.
+   `release/v0.2.0-command-control`, `release/v0.3.0-bystanders`.
 2. **Every release must be visibly different from the previous one.** A player
    who runs both builds should immediately see *something* changed. While the
    game is small, this is strict: the change must be obvious, not subtle. Once
@@ -439,7 +438,7 @@ change touches `src/core/` or `tests/`, all must pass. If it touches
 - **Releases are playtest snapshots** (§6a): a `release/vX.Y.Z-*` branch + tag +
   GitHub Release, a matching `CHANGELOG.md` entry, version-specific
   `docs/releases/vX.Y.Z-*.md` (build/play + copy-to-another-computer steps), and
-  a change the player can actually see. Latest shipped: `v0.4.0`.
+  a change the player can actually see. Latest shipped: `v0.3.0`.
 - **Release process note:** when cutting a release, create the branch first,
   commit the release doc(s) on it, then tag the branch tip and push both — so the
   tag points at a commit whose instructions are already present on the branch.
