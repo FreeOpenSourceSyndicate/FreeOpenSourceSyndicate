@@ -26,6 +26,10 @@ contains no original assets, code, names, or trademarks.
   every lookup keeps its literal fallback, so the UI renders exactly today's
   text. New headless `--check-lang` guard (ctest `game_lang`) fails if a key the
   UI reads is missing. Issue #53.
+- **Title-card codename bumped to the current release:** the subtitle now shows
+  the v0.5.0 codename `RECRUITMENT` (was `SMART ENEMIES`, v0.4.0's), sourced
+  from a single `kReleaseCodename` constant (mirrored in `app.tagline`) so the
+  Release lane can bump it in one place each cut. Issue #48.
 
 ## [0.5.0] — 2026-10-14 — "Recruitment"
 

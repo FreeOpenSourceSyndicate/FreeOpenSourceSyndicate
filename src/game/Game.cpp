@@ -27,6 +27,12 @@ namespace fossynd::game
 namespace
 {
 
+// The on-screen codename for the current release, shown on the title card.
+// Bumped each cut in one place (like FOSSYND_VERSION); the English value is
+// mirrored in assets/lang/en.json `app.tagline`, which can override it for
+// translation (issue #48).
+constexpr const char* kReleaseCodename = "RECRUITMENT";
+
 constexpr std::uint32_t rgba(int r, int g, int b, int a = 255)
 {
     return static_cast<std::uint32_t>((a << 24) | (b << 16) | (g << 8) | r);
@@ -1543,7 +1549,7 @@ void Game::renderTitleCard()
     const std::string title = tr("app.title", "FOSSYND");
     const std::string version =
         substitute(tr("app.version", "v{version}"), {{"version", FOSSYND_VERSION}});
-    const std::string subtitle = tr("app.tagline", "SMART ENEMIES");
+    const std::string subtitle = tr("app.tagline", kReleaseCodename);
 
     int y = static_cast<int>(static_cast<float>(h) * 0.40f);
     font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(title) / 2, y, title, kHudText);
