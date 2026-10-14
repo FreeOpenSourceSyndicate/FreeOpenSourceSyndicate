@@ -160,6 +160,9 @@ jobs:
           # `de.json` is an added translation and must be in the package.
           tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/lang/en.json'
           tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/lang/de.json'
+          # Every mission in the tree must ship, not just `demo.json` (issue #126).
+          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/missions/demo.json'
+          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/missions/escort.json'
           dpkg-deb -f build/*.deb Package Version Depends
 
       - name: Run the packaged binary (headless)
