@@ -36,3 +36,10 @@ set_target_properties(run_tests PROPERTIES
 )
 
 add_test(NAME core_unit_tests COMMAND run_tests)
+
+# Under the sanitizer profile (FOSSYND_SANITIZE, ADR-0015) make the run strict:
+# the first error aborts, leak detection is on, and UBSan prints a stack trace.
+if(FOSSYND_SANITIZE)
+    set_tests_properties(core_unit_tests PROPERTIES ENVIRONMENT
+        "ASAN_OPTIONS=detect_leaks=1:abort_on_error=1:check_initialization_order=1;UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1")
+endif()

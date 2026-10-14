@@ -8,12 +8,13 @@ FOSSynd uses CMake and needs only **SDL2** beyond a C++17
 compiler. The **primary platform is Debian-based Linux** (Mint, Ubuntu); macOS
 and Windows are supported and documented, not tested regularly.
 
-## Two build modes
+## Build modes
 
 | Mode | Flag | Needs SDL2? | Use for |
 |------|------|-------------|---------|
 | **Core + game** (default) | `-DFOSSYND_BUILD_GAME=ON` | Yes | Running and developing the game |
 | **Core only** | `-DFOSSYND_BUILD_GAME=OFF` | No | Unit tests, CI, logic-only work |
+| **Sanitizers** | `-DFOSSYND_SANITIZE=ON` | No | Catching memory/logic bugs in `core` (developer/CI) |
 
 Game logic lives in `src/core/` and builds without SDL2 (ADR-0002), so you can
 work on gameplay with just a compiler.
@@ -39,6 +40,23 @@ cmake --build build -j
 A `FOSSYND_LOW_SPEC=ON` build runs in low-spec mode automatically. CI builds this
 profile on every change so it cannot bit-rot. If the game does not start on very
 old hardware, that is a bug — please report it.
+
+## Catching memory and logic bugs (sanitizers)
+
+`FOSSYND_SANITIZE=ON` builds the engine-agnostic core and its tests with
+**AddressSanitizer** and **UndefinedBehaviorSanitizer** (ADR-0015). Use it when
+you change `src/core/` — it catches buffer overflows, use-after-free, leaks, and
+undefined behaviour that ordinary tests miss:
+
+```bash
+cmake -S . -B build-san -DFOSSYND_BUILD_GAME=OFF -DFOSSYND_SANITIZE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build-san -j
+ctest --test-dir build-san --output-on-failure
+```
+
+The option is **OFF** by default, so normal and low-spec builds are unchanged and
+pay no runtime cost. The sanitizer profile is core-only (no SDL2 needed) and CI
+runs it on every change (the `Sanitizers (ASan + UBSan, core)` job).
 
 ## Prerequisites
 

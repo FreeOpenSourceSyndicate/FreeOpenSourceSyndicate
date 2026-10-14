@@ -458,3 +458,53 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by AD
     `tests/test_missiondata.cpp` (parsing, invalid schemas, disk loading).
   - Cross-lane touch (content: `MissionData`/`DATA_FORMAT.md`; render: one HUD
     string) is disclosed per `docs/FOCUS_AREAS.md` §4 Rule 3.
+
+---
+
+## ADR-0015 — A sanitizer build profile (`FOSSYND_SANITIZE`) and a CI lane
+
+- **Status:** Accepted (2026-10-14)
+- **Date:** 2026-10-14
+- **Context:** `src/core/` is the engine-agnostic game logic (ADR-0002) and is
+  where the subtle bugs live: the hand-rolled JSON parser, pathfinding, combat
+  math, and fixed-timestep arithmetic. The existing CI lanes (ADR-0005) prove the
+  core *builds* and its unit tests *pass*, but neither catches memory errors
+  (buffer overruns in the JSON reader, use-after-free, leaks) nor undefined
+  behaviour (signed overflow, bad shifts, misaligned access) that happen to
+  produce passing tests on one compiler.
+- **Options:**
+  1. **A CMake option `FOSSYND_SANITIZE` plus a core-only CI job.** The option
+     adds `-fsanitize=address,undefined -fno-sanitize-recover=all
+     -fno-omit-frame-pointer -g` to compile and link, and sets strict
+     `ASAN_OPTIONS`/`UBSAN_OPTIONS` on the test; CI runs it on every change.
+  2. A separate build script that always sanitizes. Rejected: duplicates the
+     CMake logic and drifts from the real build.
+  3. Sanitize every build. Rejected: opposed to the low-spec goal (AGENTS.md
+     §1b) — ASan inflates the binary and slows execution, and old hardware is the
+     target, not a sanitizer host.
+  4. Nothing. Rejected: memory/logic bugs would only surface as crashes on a
+     player's machine.
+- **Decision:** **Option 1.**
+  - `FOSSYND_SANITIZE` is a top-level CMake option, **OFF** by default, so normal
+    and low-spec builds are unchanged and pay no runtime cost (the low-spec
+    profile, ADR-0008, is untouched).
+  - `ON` applies ASan + UBSan to every target in the build; the CI lane uses
+    `-DFOSSYND_BUILD_GAME=OFF`, so the sanitizer build stays core-only, needs no
+    graphics dependencies, and stays fast.
+  - `-fno-sanitize-recover=all` makes the first UBSan finding fatal, and the
+    `core_unit_tests` test sets `ASAN_OPTIONS=detect_leaks=1:abort_on_error=1`
+    and `UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1`, so a red lane is
+    unambiguous.
+  - CI also installs and caches `ccache` in every job, so sanitizer and plain
+    builds are incremental.
+- **Consequences:**
+  - A new CI job `Sanitizers (ASan + UBSan, core)` runs on every push/PR; a red
+    lane means a real bug in `src/core/`, not a flaky test.
+  - The option is **additive**: no existing `FOSSYND_*` option, target name, or
+    job name changes, so other areas rebase freely (`docs/FOCUS_AREAS.md` §4
+    Rule 5).
+  - Sanitizers are a developer/CI tool and are never shipped: the released and
+    low-spec binaries do not link `libasan`/`libubsan`.
+  - Engine-layer (`src/game/`) code is not sanitized by this lane — that would
+    need SDL2 in CI and is deliberately out of scope for #36.
+
