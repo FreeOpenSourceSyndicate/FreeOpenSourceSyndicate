@@ -126,29 +126,34 @@ Many models edit this repo. To avoid clobbering each other:
    coordinate, update `AGENTS.md` in the same PR.
 9. **Review and merge each other's PRs.** See §3a. This applies to every agent
    and to human maintainers.
-10. **Work inside your focus area.** The repo is divided into four parallel
-    focus areas plus the coordinator (see `docs/FOCUS_AREAS.md`). Only the
-    owning agent (or a helper it explicitly tasks) edits the files an area owns.
-    Need a change in another area's files? File a cross-area request
-    (`docs/FOCUS_AREAS.md` §4, Rule 4) — never edit them yourself.
+10. **Work inside your focus area.** The repo is divided into eight focus areas
+    (see `docs/FOCUS_AREAS.md`). Each cycle, pick a **free** focus with the
+    **highest pending workload**, preferring one you already know (§7 of that
+    file). Only the owning agent (or a helper it explicitly tasks) edits the
+    files an area owns. Need a change in another area's files? File a cross-area
+    request (`docs/FOCUS_AREAS.md` §4, Rule 4) — never edit them yourself.
 11. **Helpers are assigned, never self-started.** An agent whose queue is empty
     must not begin work in another area on its own. It announces availability,
     and works only on tasks assigned by the coordinator or that area's owner
     (`docs/FOCUS_AREAS.md` §5). Reviewing PRs and triaging issues need no
     assignment.
-12. **Check in with the coordinator at the start and end of every cycle.** A
-    work cycle opens with a start check-in (model, lane, task claimed, branch)
-    and closes with an end check-in (done/in-progress/blocked, what landed, how
-    verified, stopping or available) on the coordination hub — the open
-    `focus: coordinator` issue. See `docs/COORDINATION.md` §7.
-13. **Questions go to the coordinator first.** Ask on the hub or the issue
-    thread. The coordinator answers, or passes genuinely human decisions
-    (product direction, licensing, a rule change, release policy) to a human —
-    with options and a recommendation. See `docs/COORDINATION.md` §8.
-14. **The coordinator balances the workload and may adapt the focus areas.** It
-    keeps roughly one active task per lane so agents finish together, monitors
-    the number of active agents, and may merge/split focus areas or reassign a
-    lane at a cycle boundary to match. See `docs/COORDINATION.md` §9.
+12. **Coordinating is a secondary role, taken if free.** When you start a cycle
+    and **no agent is currently coordinator**, you may take the role **in
+    addition to** your primary focus, and record it on the hub
+    (`docs/FOCUS_AREAS.md` §1.1); release it at your end check-in. Only one agent
+    holds it at a time; it is held for the cycle. There is no `focus:
+    coordinator` label.
+13. **Questions you cannot get answered go straight to the human.** Ask the
+    coordinator first for scope/ordering/ownership/process questions. If the
+    coordinator cannot answer it (product direction, licensing, a rule change,
+    release policy), **post it to the human maintainer yourself** on the issue
+    thread (`question` + `status: blocked`) — with options and a recommendation —
+    and continue on the reversible path. Do **not** relay it through the
+    coordinator. See `docs/COORDINATION.md` §8.
+14. **Keep the workload balanced.** The coordinator keeps the §8 workload plan
+    current (roughly one claimable task per area, comparable size) so agents
+    finish cycles together; the fleet size may be one or many, and the plan works
+    either way (`docs/COORDINATION.md` §9).
 
 ## 3a. Reviewing and merging other agents' pull requests
 
@@ -574,18 +579,22 @@ run the game target locally and note the result in the PR.
   `release/vX.Y.Z-*` branch or move its tag after publication. If a released
   build would otherwise break, fix it on a new branch cut from that release
   branch (e.g. `fix/v0.3.0-<desc>`), leaving the original untouched.
-- **Parallel work is organised into five focus areas** (`docs/FOCUS_AREAS.md`):
-  **core** (`src/core/**`), **client** (`src/game/**`, `src/main.cpp`),
-  **content** (`core/data`, `core/i18n`, `assets/data`, `assets/lang`), and
-  **platform** (build, CI, packaging, releases) — plus the coordinator. Each area
-  has one owning agent and a `focus:` label; only the owner (or a helper it
-  tasks) edits its files. Overlap rules, the cross-area request format, the
-  helper protocol, and the review matrix all live there. When you pick up work,
-  claim the issue in **your** area; do not start in another area on your own.
-- **`src/game/Game.cpp` is owned by Client** (drawing *and* input/selection/
-  title all live there after the 8→5 lane merge, so there is no cross-area
-  turn-taking now). Prefer splitting it into `Hud.cpp`/`Camera.cpp`/
-  `Input.cpp`/`TitleCard.cpp` as it grows (`docs/FOCUS_AREAS.md` §4, Rule 2).
-- **Engine-layer test files:** `tests/test_mission.cpp` is owned by Core (it
-  tests `src/core`); Content adds catalogue/lang assertions to its own test
+- **Parallel work is organised into eight focus areas** (`docs/FOCUS_AREAS.md`):
+  **tactical** (mission/combat/weapons), **world** (sim/agent/pathfinding/math),
+  **render** (`src/game` drawing), **input-ui** (`src/main.cpp`, input/selection),
+  **content** (`core/data`, `assets/data` minus missions), **text** (`core/i18n`,
+  `assets/lang`), **platform** (build, CI, packaging), **release** (`CHANGELOG`,
+  releases). Each area has one owning agent and a `focus:` label; only the owner
+  (or a helper it tasks) edits its files. Each cycle pick a free area with the
+  highest pending workload (§7). Overlap rules, the cross-area request format,
+  the helper protocol, and the review matrix all live there. When you pick up
+  work, claim the issue in **your** area; do not start in another area on your
+  own. **Coordinating is a secondary role** (§1), not an area: take it when no
+  agent holds it.
+- **`src/game/Game.cpp` is shared** by **Render** (drawing) and **Input/UI**
+  (input/selection) — serialise edits, never co-edit (`docs/FOCUS_AREAS.md` §4,
+  Rule 2). Prefer splitting it into `Hud.cpp`/`Camera.cpp`/`Input.cpp`/
+  `TitleCard.cpp` as it grows.
+- **Engine-layer test files:** `tests/test_mission.cpp` is owned by Tactical (it
+  tests `src/core`); Content/Text add catalogue/lang assertions to their own test
   files, not this one.

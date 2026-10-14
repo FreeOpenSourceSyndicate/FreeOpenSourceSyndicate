@@ -9,38 +9,67 @@
 # comment. The authoritative, machine-readable area->file map is
 # docs/FOCUS_AREAS.md §2; keep this file in sync with it.
 #
-# The project runs four focus areas (reduced from eight — see FOCUS_AREAS.md §2):
-# core, client, content, platform, plus the coordinator.
+# The project runs eight focus areas (restored — see FOCUS_AREAS.md §2):
+# tactical, world, render, input-ui, content, text, platform, release.
+# Coordinating is a secondary role, not an area (FOCUS_AREAS.md §1).
 #
 # When more accounts join, replace the account with the per-area agent's handle.
 
 # Default: the coordinator account reviews anything not matched below.
 *                       @FreeOpenSourceSyndicate
 
-# --- 1. Core / Simulation ---
-# owner: focus: core
-/src/core/                         @FreeOpenSourceSyndicate
+# --- 1. Tactical / Mission ---
+# owner: focus: tactical
+/src/core/sim/Mission.h            @FreeOpenSourceSyndicate
+/src/core/sim/Mission.cpp          @FreeOpenSourceSyndicate
+/src/core/sim/Weapon.h             @FreeOpenSourceSyndicate
+/src/core/sim/Objective.h          @FreeOpenSourceSyndicate
 /tests/test_mission.cpp            @FreeOpenSourceSyndicate
 
-# --- 2. Client / Rendering & UI ---
-# owner: focus: client
-/src/game/                         @FreeOpenSourceSyndicate
-/src/main.cpp                      @FreeOpenSourceSyndicate
-/assets/sprites/                   @FreeOpenSourceSyndicate
+# --- 2. World / Simulation ---
+# owner: focus: world
+/src/core/world/                   @FreeOpenSourceSyndicate
+/src/core/math/                    @FreeOpenSourceSyndicate
+/src/core/util/                    @FreeOpenSourceSyndicate
+/src/core/sim/Agent.h              @FreeOpenSourceSyndicate
+/src/core/sim/Agent.cpp            @FreeOpenSourceSyndicate
 
-# --- 3. Content / Data & Text ---
+# --- 3. Render / Engine ---
+# owner: focus: render
+/src/game/Game.cpp                 @FreeOpenSourceSyndicate
+/src/game/Game.h                   @FreeOpenSourceSyndicate
+/src/game/Hud.cpp                  @FreeOpenSourceSyndicate
+/src/game/Minimap.h                @FreeOpenSourceSyndicate
+/src/game/Minimap.cpp              @FreeOpenSourceSyndicate
+/src/game/Sprite.h                 @FreeOpenSourceSyndicate
+/src/game/Sprite.cpp               @FreeOpenSourceSyndicate
+/src/game/Font.h                   @FreeOpenSourceSyndicate
+/src/game/Font.cpp                 @FreeOpenSourceSyndicate
+/src/game/HudStyle.h               @FreeOpenSourceSyndicate
+/src/game/TitleCard.cpp            @FreeOpenSourceSyndicate
+/assets/sprites/                   @FreeOpenSourceSyndicate
+/assets/tiles/                     @FreeOpenSourceSyndicate
+
+# --- 4. Input / UI / UX ---
+# owner: focus: input-ui
+/src/main.cpp                      @FreeOpenSourceSyndicate
+
+# --- 5. Content / Data ---
 # owner: focus: content
 /src/core/data/                    @FreeOpenSourceSyndicate
-/src/core/i18n/                    @FreeOpenSourceSyndicate
 /assets/data/                      @FreeOpenSourceSyndicate
-/assets/lang/                      @FreeOpenSourceSyndicate
 /docs/DATA_FORMAT.md               @FreeOpenSourceSyndicate
-/docs/LORE.md                      @FreeOpenSourceSyndicate
-# Mission files are gameplay design, owned by Core (FOCUS_AREAS.md §2). This
+# Mission files are gameplay design, owned by Tactical (FOCUS_AREAS.md §2). This
 # rule must come AFTER /assets/data/ so it wins CODEOWNERS' last-match-wins.
 /assets/data/missions/             @FreeOpenSourceSyndicate
 
-# --- 4. Platform / Build & Release ---
+# --- 6. Text / i18n / Lore ---
+# owner: focus: text
+/src/core/i18n/                    @FreeOpenSourceSyndicate
+/assets/lang/                      @FreeOpenSourceSyndicate
+/docs/LORE.md                      @FreeOpenSourceSyndicate
+
+# --- 7. Build / CI / Tooling ---
 # owner: focus: platform
 /.github/workflows/                @FreeOpenSourceSyndicate
 /CMakeLists.txt                    @FreeOpenSourceSyndicate
@@ -48,8 +77,12 @@
 /src/core/CMakeLists.txt           @FreeOpenSourceSyndicate
 /tests/CMakeLists.txt              @FreeOpenSourceSyndicate
 /scripts/                          @FreeOpenSourceSyndicate
+
+# --- 8. Release / Playtest ---
+# owner: focus: release
 /CHANGELOG.md                      @FreeOpenSourceSyndicate
 /docs/releases/                    @FreeOpenSourceSyndicate
+/docs/BUILD.md                     @FreeOpenSourceSyndicate
 /assets/ui/                        @FreeOpenSourceSyndicate
 
 # --- Rules / coordination (coordinator only) ---

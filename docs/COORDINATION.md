@@ -12,7 +12,7 @@ merged so that agents do not overwrite each other.
 
 `AGENTS.md` (repo root) is the authoritative rulebook. This file is the
 practical playbook. **`docs/FOCUS_AREAS.md` is the assignment sheet**: it splits
-the repo into five parallel focus areas, names the owning agent of each, and
+the repo into eight parallel focus areas, names the owning agent of each, and
 defines the overlap and helper rules. Read it before claiming a task.
 
 ## 1. The unit of work: the issue
@@ -49,17 +49,21 @@ retired in favour of `focus:` (see `docs/FOCUS_AREAS.md` §6):
 
 | Label | Meaning |
 |-------|---------|
-| `focus: coordinator` | rules, ADR process, roadmap, merge queue, overlap arbitration |
-| `focus: core` | `src/core/**` — sim, world, math, agent, pathfinding, missions (see `FOCUS_AREAS.md`) |
-| `focus: client` | `src/game/**`, `src/main.cpp` — SDL2 drawing, HUD, camera, input/selection, CLI |
-| `focus: content` | `core/data`, `core/i18n`, `assets/data`, `assets/lang` — loaders, catalogues, config, strings, lore |
-| `focus: platform` | build, CI, scripts, deps, packaging, releases, changelog |
+| `focus: tactical` | `core/sim` mission, combat, weapons, objectives; `assets/data/missions` |
+| `focus: world` | `core/world`, `core/math`, `core/util`, `core/sim/Agent` — grid, pathfinding, LOS, agent model, RNG |
+| `focus: render` | `src/game` drawing, HUD, minimap, sprites, font |
+| `focus: input-ui` | `src/main.cpp`, `src/game/Game.cpp` input/selection, CLI flags |
+| `focus: content` | `core/data`, `assets/data` (except missions) — loaders, catalogues, config |
+| `focus: text` | `core/i18n`, `assets/lang` — strings, localisation, lore |
+| `focus: platform` | build, CI, scripts, deps, packaging |
+| `focus: release` | `CHANGELOG.md`, `docs/releases`, banners, tags |
 | `status: claimed` | An agent has claimed the task |
 | `status: blocked` | Blocked; the issue explains why |
 | `status: needs-review` | Waiting on review from a different agent/model |
 
 The `focus:` label is mandatory on every issue and is the single source of truth
-for area ownership; the `status:` labels track progress.
+for area ownership; the `status:` labels track progress. There is **no `focus:
+coordinator`** — coordinating is a secondary role (`docs/FOCUS_AREAS.md` §1).
 
 The `status:` labels are the source of truth. When a GitHub Project board exists
 (columns `Todo` → `In progress` → `Review` → `Done`), it mirrors those labels and
@@ -103,92 +107,97 @@ The real risk is two agents editing the same files. Mitigations:
 - `main` must always build and pass `ctest`.
 - Delete the branch after merge.
 
-## 6. Roles (focus areas)
+## 6. Focus areas and the coordinator role
 
-The project runs as **five focus areas**, one owning agent each, plus a
-**coordinator**. The full assignment sheet — files owned, overlap rules, helper
-protocol, review matrix — is `docs/FOCUS_AREAS.md`. Summary:
+The project runs as **eight focus areas**, one owning agent each. The full
+assignment sheet — files owned, overlap rules, helper protocol, review matrix —
+is `docs/FOCUS_AREAS.md`. Summary:
 
-| Role | Owns | Typical agent |
-|------|------|---------------|
-| Coordinator | `docs/`, roadmap, ADRs, rules, merge queue | one agent, rotates |
-| Core / Simulation | `src/core/**` (sim, world, math, agent), missions | strongest reasoning model |
-| Client / Rendering & UI | `src/game/**`, `src/main.cpp` (drawing, HUD, camera, input, CLI) | model good at C++/SDL/UX |
-| Content / Data & Text | `core/data`, `core/i18n`, `assets/data`, `assets/lang`, lore | fast/cheap or prose model |
-| Platform / Build & Release | `.github`, CMake, `scripts`, deps, packaging, `CHANGELOG`, releases | any, detail-oriented |
+| Focus area | `focus:` label | Owns | Typical agent |
+|------------|----------------|------|---------------|
+| Tactical / Mission | `focus: tactical` | `core/sim` mission, combat, weapons, objectives; missions | strongest reasoning model |
+| World / Simulation | `focus: world` | `core/world`, `core/math`, `core/util`, `core/sim/Agent` | model good at algorithms |
+| Render / Engine | `focus: render` | `src/game` drawing, HUD, minimap, sprites, font | model good at C++/SDL |
+| Input / UI / UX | `focus: input-ui` | `src/main.cpp`, input/selection, CLI flags | model good at UX |
+| Content / Data | `focus: content` | `core/data`, `assets/data` (except missions) | fast/cheap or detail model |
+| Text / i18n / Lore | `focus: text` | `core/i18n`, `assets/lang`, lore | prose model |
+| Build / CI / Tooling | `focus: platform` | `.github`, CMake, `scripts`, deps, packaging | detail-oriented |
+| Release / Playtest | `focus: release` | `CHANGELOG.md`, `docs/releases`, banners, tags | any, careful |
 
-> **Reduced from eight to five lanes** (see `docs/FOCUS_AREAS.md` §2): `world` →
-> `core`, `input-ui` → `client`, `text` → `content`, `release` → `platform`. The
-> retired `focus:` labels and their replacements are listed in
-> `docs/FOCUS_AREAS.md` §6.
+**The coordinator is a secondary role, not a focus area.** When an agent starts a
+cycle and no agent currently holds the role, that agent may take it *in addition
+to* its primary focus; it is held for the cycle and recorded on the hub
+(`docs/FOCUS_AREAS.md` §1.1). It owns the process docs (`AGENTS.md`, this file,
+`FOCUS_AREAS.md`, `DECISIONS.md`, roadmap), runs the merge queue, arbitrates
+overlap, and keeps the workload plan. It has no extra gameplay ownership.
 
 **Helpers.** An agent whose queue is empty helps another area **only on
 request** from that area's owner or the coordinator — never self-assigned. See
-`docs/FOCUS_AREAS.md` §5 for the protocol. Reviewing others' PRs and triaging
-issues need no permission.
+`docs/FOCUS_AREAS.md` §5. Reviewing others' PRs and triaging issues need no
+permission.
 
 ## 7. Work cycle
 
-A **work cycle** is one focused session by an agent: it claims one task, lands it
-(a merged PR or a reviewed change), then stops. To keep the fleet legible, every
-cycle **opens and closes with a check-in on the coordination hub** (the open
-`focus: coordinator` issue):
+A **work cycle** is one focused session by an agent: it picks a focus, claims one
+task, lands it (a merged PR or a reviewed change), then stops. To keep the fleet
+legible, every cycle **opens and closes with a check-in on the coordination hub**:
 
-**Start check-in** — state your model, your `focus:` lane, the issue you are
-claiming, and the branch you will use. This is how the coordinator sees who is
-active and on what, and it prevents two agents claiming the same task.
+**Start check-in** — state your model, your chosen `focus:` area (pick a free one
+with the highest pending workload, `docs/FOCUS_AREAS.md` §7), the issue you are
+claiming, and the branch. If you are taking the coordinator role, say so
+(`docs/FOCUS_AREAS.md` §1.1).
 
 **End check-in** — state `done` / `in-progress` / `blocked`, what landed (PR +
-merge SHA), how you verified it, and whether you are stopping or available. The
-cycle is not complete until this is posted.
+merge SHA), how you verified it, and whether you are stopping or available.
+Release the coordinator role here if you hold it. The cycle is not complete until
+this is posted.
 
 Between the two check-ins, work normally. If a cycle produces nothing mergeable
 (e.g. blocked), the end check-in is still mandatory — that is the signal the
-coordinator needs to reassign you.
+coordinator needs to reassign work.
 
 ## 8. Questions and escalation
 
-**Questions go to the coordinator first.** Post them on the hub (or the issue's
-thread) and mention the coordinator; do not sit on a blocker.
+**Ask the coordinator first** for questions about scope, ordering, ownership, or
+process. Post on the hub (or the issue's thread).
 
-- The coordinator answers directly when the question is about scope, ordering,
-  ownership, or process.
-- If it needs a **human decision** (product direction, licensing, a rule change,
-  release policy), the coordinator records it as an explicit question for the
-  human maintainer — with options and a recommendation — and keeps the fleet
-  moving on the reversible path meanwhile.
-- If a decision is contested or architectural, write an ADR in
-  `docs/DECISIONS.md` (options + recommendation) before implementing.
-- Do not block other work on an open question: pick the reversible path, note it,
-  and continue.
+**If the coordinator cannot answer it, the asking agent posts it to the human
+directly.** A question needing a **human decision** (product direction,
+licensing, a rule change, release policy) is posted by the **asking agent** on
+the issue thread, tagged `question` + `status: blocked`, with the options and a
+recommendation. There is **no relay through the coordinator** — the agent that
+hits the question asks the human itself, then continues on the reversible path
+if one exists. Do not sit on a blocker.
+
+If a decision is contested or architectural, write an ADR in `docs/DECISIONS.md`
+(options + recommendation) before implementing.
 
 ## 9. Workload balance and focus adaptation
 
-The coordinator keeps **every agent's workload similar** so agents finish their
-cycles at roughly the same time, and **monitors the number of active agents**.
+The coordinator keeps the **workload plan** (`docs/FOCUS_AREAS.md` §8) current so
+agents finish their cycles at roughly the same time. The number of active agents
+**varies** — it may be one or many — and the plan must work either way.
 
-- **Balance.** The coordinator keeps roughly **one active task per lane** so no
-  agent idles while another has a queue. If a lane is dry, the coordinator either
-  seeds a new task in it (from the roadmap) or assigns its agent *review/helper*
-  work — never lets an agent self-start.
-- **Adapt the focus areas.** If the active-agent count changes materially, the
-  coordinator **may merge or split focus areas** (and reassign owners) so the
-  areas keep giving every agent a similar workload and low file overlap. The
-  current split and its re-split trigger are in `docs/FOCUS_AREAS.md` §2/§8; the
-  coordinator records the change on the hub and in `docs/FOCUS_AREAS.md`.
-- **Reassign focus.** The coordinator may reassign an agent's lane at a cycle
-  boundary (never mid-task) when balance or connectivity requires it. An agent
-  asked to change lanes finishes or hands off its current task first.
+- **Pick by workload.** Each agent picks a free focus with the **highest pending
+  workload**, preferring one it knows (`docs/FOCUS_AREAS.md` §7.1).
+- **Seed tasks.** The coordinator seeds at least one concrete, claimable task per
+  area from the roadmap, sized comparably (roughly one PR each).
+- **Adapt, but do not delete areas.** Fewer agents than areas is fine — agents
+  take the busiest free areas first and the rest wait. If the agent count drops
+  for a sustained period, the coordinator may *temporarily* merge the thinnest
+  pairs (`world`→`tactical`, `input-ui`→`render`, `text`→`content`,
+  `release`→`platform`) and record it; the eight are the default to restore.
+- **Reassign.** The coordinator may reassign an agent's focus at a cycle boundary
+  (never mid-task) when balance requires it.
 
 ## 10. What "good" looks like
 
 - `main` is always green.
 - Every merge is traceable to an issue and an agent.
 - Every work cycle opens and closes with a hub check-in (§7).
-- Questions reach the coordinator, and only genuinely human ones reach the human
-  (§8).
-- The active lanes match the active agents, and their workloads are comparable
-  (§9).
+- Agents pick the highest-workload free focus, so work spreads out (§7/§9).
+- A question the coordinator cannot answer goes straight to the human from the
+  asking agent — no relay (§8).
 - New agents can read `AGENTS.md` + `docs/DECISIONS.md` and be productive in one
   sitting.
 - No task is duplicated or lost.
