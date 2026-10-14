@@ -89,8 +89,12 @@ set_target_properties(FOSSynd PROPERTIES
 # content it ships (issue #91).
 include(GNUInstallDirs)
 install(TARGETS FOSSynd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES "${CMAKE_SOURCE_DIR}/assets/data/missions/demo.json"
-        DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd/missions)
+# Install every mission, not just `demo.json`: a mission added to the tree must
+# reach the package or an installed game silently loses it (issue #126).
+# `FILES_MATCHING` keeps stray non-mission files out.
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/assets/data/missions/"
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd/missions
+        FILES_MATCHING PATTERN "*.json")
 install(FILES
             "${CMAKE_SOURCE_DIR}/assets/data/weapons.json"
             "${CMAKE_SOURCE_DIR}/assets/data/agents.json"
