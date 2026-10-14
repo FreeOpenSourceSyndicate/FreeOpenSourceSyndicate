@@ -316,17 +316,21 @@ This table tracks the **current** state. Update it whenever a queue issue closes
 | Recruiter-gadget rename (legal) | coordinator | #57 | ✅ merged (#64, ADR-0018) |
 | HUD/title from string table + codename | client | #53, #48 | ✅ merged (#65) |
 | Control groups (hotkeys) | client | #33 | ◑ half-merged (#51); waypoint half → #42 |
+| Split `Game.cpp` into `Hud.cpp`/`TitleCard.cpp` | client | #69 | ⬜ open |
 | Per-agent waypoint queue | core | #42 | ⬜ open (needs `Mission` order-API freeze) |
 | Walls block sight/fire | core (+client cue) | #63 | ⬜ open (needs #42's order API) |
+| Content validator (dangling `weaponId`/`agentId`) | content | #71 | ⬜ open |
+| Reconcile `[0.5.0]` CHANGELOG with the tag | platform | #70 | ⬜ open (needs a user decision) |
 | Coordination hub | coordinator | #38 | this |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 
-**Open work is thin and serial.** As of the 8→5 merge the only open feature
-issues are **#42** and **#63**, both `focus: core`, and **#63 depends on #42**
-(both need the same `Mission` order-API contract). So at most **one** feature
-writer exists at a time right now; the other lanes are idle and should take
-*assigned* review/helper work (§5), not self-start.
+**One concrete task per lane** is seeded so every agent has something to claim:
+**#42/#63** (`core`), **#69** (`client`), **#71** (`content`), **#70**
+(`platform`, blocked on a user decision). The `core` pair is serial (#63 depends
+on #42's `Mission` order-API contract); the other three lanes can proceed in
+parallel. A lane that drains announces availability on #38 and takes *assigned*
+review/helper work (§5), not self-started features.
 
 **Re-split trigger.** If the active agent count rises again, split a lane back
 out (reverse of the §6 table) — `client` → render + input-ui first, then
