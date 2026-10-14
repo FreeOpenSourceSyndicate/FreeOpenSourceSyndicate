@@ -86,6 +86,24 @@ public:
     // Number of living agents following the agent at `index`.
     std::size_t followerCount(std::size_t index) const;
 
+    // --- Medikit -------------------------------------------------------------
+
+    // Sets how many medikits the agent at `index` carries (clamped to >= 0).
+    // Used by mission setup and tests. No-op for an invalid index.
+    void setMedikits(std::size_t index, int count);
+
+    // Number of medikits the agent at `index` carries (0 if the index is
+    // invalid).
+    int medikits(std::size_t index) const;
+
+    // Uses one medikit from the agent at `index` to heal the most-wounded living
+    // agent on the same team within `kMedikitRadius` tiles (the user itself or a
+    // team-mate). Consumes one kit and returns the amount healed, or 0 if there
+    // is no kit, the user is not a living combatant, or every agent in range is
+    // already at full health (a kit is never wasted on a healthy target).
+    // Deterministic: ties break by agent index.
+    float useMedikit(std::size_t index);
+
     // Index of the nearest living agent on `enemyTeam` to (x, y) in tile space,
     // or -1 if none. Used by the view to pick a target under the cursor.
     int nearestEnemyTo(float tileX, float tileY, Team enemyTeam) const;
@@ -165,6 +183,7 @@ private:
 
     const TileGrid* grid_ = nullptr;
     std::vector<Agent> agents_;
+    std::vector<int> medikits_;
     Rng rng_;
     ObjectiveSpec objective_;
     float elapsedSeconds_ = 0.0f;

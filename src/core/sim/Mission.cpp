@@ -51,6 +51,12 @@ constexpr float kRetreatDistance = 6.0f;
 // next one.
 constexpr float kPatrolWaypointRadius = 0.6f;
 
+// Medikit: range (tiles) within which a medikit can heal a team-mate (or the
+// user itself), and the health restored per use. Balance lives here until a
+// data format is fixed (ADR-0003).
+constexpr float kMedikitRadius = 3.0f;
+constexpr float kMedikitHealAmount = 40.0f;
+
 // The opposing combatant team for a given team. Civilians have no enemy.
 Team opposingTeam(Team team)
 {
@@ -73,6 +79,7 @@ std::size_t Mission::addAgent(Agent agent)
         agent.setThinkTimer(agent.speed() * 0.05f + 0.1f);
     }
     agents_.push_back(std::move(agent));
+    medikits_.push_back(0);
     return agents_.size() - 1;
 }
 
@@ -279,6 +286,71 @@ std::size_t Mission::followerCount(std::size_t index) const
         }
     }
     return count;
+}
+
+void Mission::setMedikits(std::size_t index, int count)
+{
+    if (index >= agents_.size())
+    {
+        return;
+    }
+    medikits_[index] = count < 0 ? 0 : count;
+}
+
+int Mission::medikits(std::size_t index) const
+{
+    return index < medikits_.size() ? medikits_[index] : 0;
+}
+
+float Mission::useMedikit(std::size_t index)
+{
+    if (index >= agents_.size() || medikits_[index] <= 0)
+    {
+        return 0.0f;
+    }
+    Agent& user = agents_[index];
+    if (!user.isAlive() || !user.isCombatant())
+    {
+        return 0.0f;
+    }
+
+    // Heal the most-wounded living team-mate (or the user) in range. Ties break
+    // by agent index, so the choice is deterministic; no RNG.
+    int best = -1;
+    float bestFraction = 1.0f;
+    for (std::size_t i = 0; i < agents_.size(); ++i)
+    {
+        const Agent& candidate = agents_[i];
+        if (!candidate.isAlive() || candidate.team() != user.team())
+        {
+            continue;
+        }
+        if (candidate.healthFraction() >= 1.0f)
+        {
+            continue;
+        }
+        if (length(candidate.position() - user.position()) > kMedikitRadius)
+        {
+            continue;
+        }
+        if (candidate.healthFraction() < bestFraction)
+        {
+            best = static_cast<int>(i);
+            bestFraction = candidate.healthFraction();
+        }
+    }
+    if (best < 0)
+    {
+        // No wounded target in range: do not waste a kit.
+        return 0.0f;
+    }
+
+    const float healed = agents_[static_cast<std::size_t>(best)].heal(kMedikitHealAmount);
+    if (healed > 0.0f)
+    {
+        --medikits_[index];
+    }
+    return healed;
 }
 
 int Mission::nearestEnemyTo(float tileX, float tileY, Team enemyTeam) const

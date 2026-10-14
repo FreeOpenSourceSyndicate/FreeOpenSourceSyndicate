@@ -815,3 +815,87 @@ FOSSYND_TEST(Mission, BlastKillsCountAndCanKillCivilians)
     FOSSYND_CHECK_EQ(mission.civilianKills(), 1);
 }
 
+FOSSYND_TEST(Mission, MedikitHealsMostWoundedAllyInRange)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 21u);
+    // User at (2,2); two wounded allies: a graver one closer, a lighter one far.
+    const std::size_t user = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player));
+    mission.addAgent(makeAgent(3.0f, 2.0f, Team::Player)); // in range, graver
+    mission.addAgent(makeAgent(3.5f, 2.0f, Team::Player)); // in range, lighter
+    mission.addAgent(makeAgent(10.0f, 2.0f, Team::Player)); // out of range
+    mission.agents()[1].applyDamage(70.0f); // 30 hp
+    mission.agents()[2].applyDamage(20.0f); // 80 hp
+    mission.agents()[3].applyDamage(90.0f); // 10 hp but out of range
+    mission.setMedikits(user, 1);
+
+    const float healed = mission.useMedikit(user);
+
+    FOSSYND_CHECK_NEAR(healed, 40.0f);
+    FOSSYND_CHECK_NEAR(mission.agents()[1].health(), 70.0f); // graver ally healed
+    FOSSYND_CHECK_NEAR(mission.agents()[2].health(), 80.0f); // lighter ally untouched
+    FOSSYND_CHECK_NEAR(mission.agents()[3].health(), 10.0f); // out of range untouched
+    FOSSYND_CHECK_EQ(mission.medikits(user), 0);
+}
+
+FOSSYND_TEST(Mission, MedikitHealsTheUserWhenMostWounded)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 22u);
+    const std::size_t user = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player));
+    mission.addAgent(makeAgent(3.0f, 2.0f, Team::Player));
+    mission.agents()[user].applyDamage(80.0f); // user is graver (20 hp)
+    mission.agents()[1].applyDamage(30.0f);    // ally at 70 hp
+    mission.setMedikits(user, 2);
+
+    FOSSYND_CHECK_NEAR(mission.useMedikit(user), 40.0f);
+    FOSSYND_CHECK_NEAR(mission.agents()[user].health(), 60.0f);
+    FOSSYND_CHECK_EQ(mission.medikits(user), 1);
+}
+
+FOSSYND_TEST(Mission, MedikitIsNotWastedWhenAllInRangeAreHealthy)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 23u);
+    const std::size_t user = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player));
+    mission.addAgent(makeAgent(3.0f, 2.0f, Team::Player)); // full health
+    mission.setMedikits(user, 1);
+
+    FOSSYND_CHECK_NEAR(mission.useMedikit(user), 0.0f);
+    FOSSYND_CHECK_EQ(mission.medikits(user), 1); // kit kept
+}
+
+FOSSYND_TEST(Mission, MedikitNoKitOrDeadUserIsNoOp)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 24u);
+    const std::size_t user = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player));
+    mission.addAgent(makeAgent(3.0f, 2.0f, Team::Player));
+    mission.agents()[1].applyDamage(50.0f);
+
+    // No kits: no-op, nothing healed.
+    FOSSYND_CHECK_NEAR(mission.useMedikit(user), 0.0f);
+    FOSSYND_CHECK_NEAR(mission.agents()[1].health(), 50.0f);
+
+    // A dead user cannot use a kit.
+    mission.setMedikits(user, 1);
+    mission.agents()[user].applyDamage(1000.0f);
+    FOSSYND_CHECK(!mission.agents()[user].isAlive());
+    FOSSYND_CHECK_NEAR(mission.useMedikit(user), 0.0f);
+    FOSSYND_CHECK_EQ(mission.medikits(user), 1);
+}
+
+FOSSYND_TEST(Mission, MedikitDoesNotCrossTeams)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 25u);
+    const std::size_t user = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player));
+    mission.addAgent(makeAgent(3.0f, 2.0f, Team::Enemy)); // wounded enemy in range
+    mission.agents()[1].applyDamage(60.0f);
+    mission.setMedikits(user, 1);
+
+    FOSSYND_CHECK_NEAR(mission.useMedikit(user), 0.0f);
+    FOSSYND_CHECK_NEAR(mission.agents()[1].health(), 40.0f); // enemy untouched
+    FOSSYND_CHECK_EQ(mission.medikits(user), 1);
+}
+

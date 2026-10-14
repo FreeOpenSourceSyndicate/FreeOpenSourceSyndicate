@@ -361,7 +361,7 @@ busiest-first so the next agent can pick the top free one.
 
 | Area | `focus:` | Owner this cycle | Pending workload | Seeded / open tasks |
 |------|----------|------------------|------------------|---------------------|
-| Tactical | `focus: tactical` | — | 2 | #88 medikit gadget; mission-design backlog (Phase 3) |
+| Tactical | `focus: tactical` | — | 1 | #88 medikit ✅ (merged); mission-design backlog (Phase 3) |
 | World | `focus: world` | — | 2 | #93 string-pull A* routes; LOS follow-ups |
 | Render | `focus: render` | — | 2 | #89 draw queued waypoint path; Phase 2 zoom (unfiled) |
 | Input/UI | `focus: input-ui` | — | 2 | #94 box-select drag; control-group polish |
@@ -398,6 +398,7 @@ a free, claimable task.
 | Content validator (dangling `weaponId`/`agentId`) | content | #71 | ✅ merged (#80) |
 | `--check-content` flag + `game_content` ctest | input-ui | #81 | ✅ merged (#85) |
 | AoE weapon radius | tactical | #79 | ✅ merged (#86) |
+| Medikit gadget (heal ally) | tactical | #88 | ✅ merged (#97) |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 
