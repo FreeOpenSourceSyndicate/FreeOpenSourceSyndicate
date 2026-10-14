@@ -27,7 +27,7 @@ void runUntilDone(Mission& mission, float maxSeconds, float dt = 0.05f)
 
 } // namespace
 
-FOSSYND_TEST(Persuadertron, RecruitsNearestCivilianInRange)
+FOSSYND_TEST(ComplianceBeacon, RecruitsNearestCivilianInRange)
 {
     TileGrid grid(30, 30);
     Mission mission(grid, 21u);
@@ -42,7 +42,7 @@ FOSSYND_TEST(Persuadertron, RecruitsNearestCivilianInRange)
     FOSSYND_CHECK_EQ(mission.followerCount(0), static_cast<std::size_t>(1));
 }
 
-FOSSYND_TEST(Persuadertron, IgnoresTargetsOutOfRange)
+FOSSYND_TEST(ComplianceBeacon, IgnoresTargetsOutOfRange)
 {
     TileGrid grid(30, 30);
     Mission mission(grid, 22u);
@@ -53,7 +53,7 @@ FOSSYND_TEST(Persuadertron, IgnoresTargetsOutOfRange)
     FOSSYND_CHECK_EQ(mission.followerCount(0), static_cast<std::size_t>(0));
 }
 
-FOSSYND_TEST(Persuadertron, CooldownBlocksRepeatedUse)
+FOSSYND_TEST(ComplianceBeacon, CooldownBlocksRepeatedUse)
 {
     TileGrid grid(30, 30);
     Mission mission(grid, 23u);
@@ -78,7 +78,7 @@ FOSSYND_TEST(Persuadertron, CooldownBlocksRepeatedUse)
     FOSSYND_CHECK_EQ(mission.followerCount(0), static_cast<std::size_t>(2));
 }
 
-FOSSYND_TEST(Persuadertron, FollowerTrailsTheLeader)
+FOSSYND_TEST(ComplianceBeacon, FollowerTrailsTheLeader)
 {
     TileGrid grid(40, 40);
     Mission mission(grid, 24u);
@@ -107,7 +107,7 @@ FOSSYND_TEST(Persuadertron, FollowerTrailsTheLeader)
     FOSSYND_CHECK(endGap < 3.0f);     // and kept up
 }
 
-FOSSYND_TEST(Persuadertron, FreeReleasesFollowers)
+FOSSYND_TEST(ComplianceBeacon, FreeReleasesFollowers)
 {
     TileGrid grid(30, 30);
     Mission mission(grid, 25u);
@@ -122,7 +122,7 @@ FOSSYND_TEST(Persuadertron, FreeReleasesFollowers)
     FOSSYND_CHECK_EQ(mission.followerCount(0), static_cast<std::size_t>(0));
 }
 
-FOSSYND_TEST(Persuadertron, FollowersAreNotAutoTargeted)
+FOSSYND_TEST(ComplianceBeacon, FollowersAreNotAutoTargeted)
 {
     TileGrid grid(30, 30);
     Mission mission(grid, 26u);
@@ -140,7 +140,7 @@ FOSSYND_TEST(Persuadertron, FollowersAreNotAutoTargeted)
     FOSSYND_CHECK_EQ(mission.civilianKills(), 0);
 }
 
-FOSSYND_TEST(Persuadertron, NonCombatantCannotPersuade)
+FOSSYND_TEST(ComplianceBeacon, NonCombatantCannotPersuade)
 {
     TileGrid grid(30, 30);
     Mission mission(grid, 27u);
@@ -148,7 +148,7 @@ FOSSYND_TEST(Persuadertron, NonCombatantCannotPersuade)
     mission.addAgent(makeAgent(3.0f, 2.0f, Team::Civilian)); // 1
     mission.addAgent(makeAgent(3.5f, 2.0f, Team::Civilian)); // 2
 
-    // A civilian has no Persuadertron.
+    // A civilian has no ComplianceBeacon.
     FOSSYND_CHECK_EQ(mission.persuade(1), -1);
     FOSSYND_CHECK_EQ(mission.followerCount(1), static_cast<std::size_t>(0));
 }

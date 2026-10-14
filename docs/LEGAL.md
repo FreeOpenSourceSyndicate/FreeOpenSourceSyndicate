@@ -46,6 +46,11 @@ stay on the safe side of that line.
 - Factions, corporations, characters, weapons, and gadgets must be **new
   names**. If a name is memorable from the original, do not reuse it.
 - Keep a distinct visual identity. Aim for "inspired by", not "looks identical".
+- **Before naming a new gadget/weapon/faction**, take the name from the
+  `focus: text` lexicon in `docs/LORE.md` §3, or propose a new entry there. If a
+  name would echo the original, it needs an ADR (`docs/DECISIONS.md`) before it
+  lands — see ADR-0018, which renamed the recruiter gadget off the original's
+  name.
 
 ## Assets
 

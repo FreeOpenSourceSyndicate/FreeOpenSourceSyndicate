@@ -615,3 +615,55 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
   - `FOSSYND_LOW_SPEC`/`FOSSYND_SANITIZE` builds are unaffected; packaging is not
     part of the shipped runtime and adds no dependency to the binary.
 
+---
+
+## ADR-0018 — Rename the recruiter gadget to an original name ("Compliance Beacon")
+
+- **Status:** Accepted (2026-10-14)
+- **Date:** 2026-10-14
+- **Context:** The recruiter device introduced for the civilian/follower
+  mechanic shipped under the name **Persuadertron** — which is the *original
+  1993 game's* gadget name. `docs/LEGAL.md` hard rule 4 ("No verbatim text … no
+  names of characters/factions/companies") and its naming rule ("If a name is
+  memorable from the original, do not reuse it") forbid this. The name was in
+  the shipped v0.5.0 (32 references across `core/sim`, `game`, tests, data, and
+  docs), so it is a **legal** defect, not a cosmetic one. `docs/LORE.md` §5 had
+  flagged it; issue #57 tracked it.
+- **Options:**
+  1. **Rename the gadget to an original term and keep the generic verb
+     "persuade".** Chosen: the proper noun is the protected expression; the
+     verb is ordinary English and widely used across games, so it stays
+     (`Mission::persuade`, `persuadeCooldown`).
+  2. Rename the verb too (`Mission::convert`). Rejected: churn for no legal
+     gain — "persuade" is not a distinctive original name — and it would break
+     more call sites than necessary.
+  3. Keep the name and treat it as a homage. Rejected: directly violates
+     `docs/LEGAL.md`; no homage exception exists.
+- **Decision:** **Option 1.**
+  - The type/struct is `core::ComplianceBeacon`
+    (`src/core/sim/ComplianceBeacon.h`), the factory is `makeComplianceBeacon()`,
+    and the `Agent` accessors are `beacon()` / `setComplianceBeacon()`. The noun
+    **Compliance Beacon** (short form **Beacon**) is the name proposed by
+    `focus: text` in `docs/LORE.md` §3 and frozen here.
+  - The generic verb is unchanged: `Mission::persuade`,
+    `Agent::persuadeCooldown`, `Game::persuadeNearestCivilian`.
+  - The rename covers code, tests, `tests/CMakeLists.txt`, and every doc/site
+    reference (CHANGELOG, ARCHITECTURE, ROADMAP, BUILD, CONTRIBUTING, LORE,
+    AGENTS, `assets/ui/make_banner.py`).
+- **Consequences:**
+  - This is a **cross-cutting rename**, so per `docs/FOCUS_AREAS.md` §4 Rule 5
+    it is landed by the **coordinator** as one atomic change rather than split
+    across `focus: tactical` / `world` / `render` / `text`, because the tree does
+    not compile while half-renamed.
+  - The shipped **v0.5.0 branch and tag are immutable (`AGENTS.md` §6b,
+    ADR-0011)** and keep the old name; users of that snapshot are unaffected and
+    the fix lands on `main` for the next release. In the **current tree** the
+    name is removed everywhere — including the copied release notes in
+    `docs/releases/` — so the repo does not perpetuate the original name; the
+    frozen release branches/tags retain their historical copies.
+  - No behaviour, balance, or data-format change: identical values, identical
+    semantics, identical tests (renamed only).
+  - Hardens the process: a gadget/weapon/faction **name** now needs the
+    `focus: text` lexicon (`docs/LORE.md` §3) before it is introduced, so this
+    class of legal defect is caught before it ships again.
+

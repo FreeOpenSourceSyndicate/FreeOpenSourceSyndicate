@@ -56,9 +56,9 @@ public:
     // can see). Returns the number of allies alerted. Deterministic; no RNG.
     std::size_t alertAllies(std::size_t source, float radius);
 
-    // --- Persuadertron ----------------------------------------------------
+    // --- ComplianceBeacon ----------------------------------------------------
 
-    // Uses the Persuadertron from the agent at `index`. Turns the nearest
+    // Uses the ComplianceBeacon from the agent at `index`. Turns the nearest
     // un-recruited civilian within range into a follower of `index` and returns
     // its index, or -1 if there is no valid target (or the device is cooling
     // down). The user is not the agent: persuasion is deterministic and never

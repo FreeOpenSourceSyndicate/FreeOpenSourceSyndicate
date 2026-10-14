@@ -8,7 +8,16 @@ contains no original assets, code, names, or trademarks.
 
 ## [Unreleased]
 
-_No changes yet._
+### Changed
+
+- **The recruiter gadget is renamed to "Compliance Beacon"** (ADR-0018). The
+  former name was the *original 1993 game's* gadget name, which
+  `docs/LEGAL.md` hard rule 4 forbids. `core::Persuadertron` →
+  `core::ComplianceBeacon` (`src/core/sim/ComplianceBeacon.h`),
+  `Agent::persuadertron()` → `Agent::beacon()`, and every doc reference updated.
+  No behaviour change. The generic verb (`Mission::persuade`, the `[P] PERSUADE`
+  hint) is unchanged. The shipped v0.5.0 tag keeps the old name (immutable,
+  `AGENTS.md` §6b / ADR-0011).
 
 ## [0.5.0] — 2026-10-14 — "Recruitment"
 
@@ -65,8 +74,8 @@ survive), with a new sample mission to play.
   one sheet. The sheet is embedded in the binary; a bad sheet falls back to the
   old markers. New ctest `game_sprites` and `tests/test_sprites.cpp`. See
   ADR-0013.
-- **Persuadertron (recruit civilians):** a deterministic device in
-  `src/core/sim/Persuadertron.h`. `Mission::persuade` turns the nearest
+- **Compliance Beacon (recruit civilians):** a deterministic device in
+  `src/core/sim/ComplianceBeacon.h`. `Mission::persuade` turns the nearest
   un-recruited civilian in range into a *follower* of the using agent; followers
   keep `Team::Civilian` (so they are never valid combat targets) and trail their
   leader via the existing pathfinding. `Mission::freeFollowersOf` releases them

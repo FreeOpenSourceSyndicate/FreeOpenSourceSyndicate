@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "core/math/Vec2.h"
-#include "core/sim/Persuadertron.h"
+#include "core/sim/ComplianceBeacon.h"
 #include "core/sim/Weapon.h"
 #include "core/world/TileGrid.h"
 
@@ -176,12 +176,12 @@ public:
     int followerLeader() const { return followerLeader_; }
     void setFollowerLeader(int leader) { followerLeader_ = leader; }
 
-    // Seconds until the Persuadertron can be used again.
+    // Seconds until the ComplianceBeacon can be used again.
     float persuadeCooldown() const { return persuadeCooldown_; }
-    void beginPersuadeCooldown() { persuadeCooldown_ = persuadertron_.cooldown(); }
+    void beginPersuadeCooldown() { persuadeCooldown_ = beacon_.cooldown(); }
 
-    const Persuadertron& persuadertron() const { return persuadertron_; }
-    void setPersuadertron(Persuadertron device) { persuadertron_ = std::move(device); }
+    const ComplianceBeacon& beacon() const { return beacon_; }
+    void setComplianceBeacon(ComplianceBeacon device) { beacon_ = std::move(device); }
 
 private:
     Vec2 position_;
@@ -206,7 +206,7 @@ private:
     std::vector<TilePos> patrolRoute_;
     std::size_t patrolIndex_ = 0;
 
-    Persuadertron persuadertron_ = makePersuadertron();
+    ComplianceBeacon beacon_ = makeComplianceBeacon();
     float persuadeCooldown_ = 0.0f;
     int followerLeader_ = -1;
 };

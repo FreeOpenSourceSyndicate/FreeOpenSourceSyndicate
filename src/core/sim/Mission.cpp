@@ -145,7 +145,7 @@ int Mission::persuade(std::size_t index)
     // A use is consumed even on a miss, so mashing the key is not free.
     user.beginPersuadeCooldown();
 
-    const float range = user.persuadertron().range;
+    const float range = user.beacon().range;
     int best = -1;
     float bestDistance = 0.0f;
     for (std::size_t i = 0; i < agents_.size(); ++i)

@@ -17,7 +17,7 @@ set(FOSSYND_TEST_SOURCES
     test_json.cpp
     test_missiondata.cpp
     test_config.cpp
-    test_persuadertron.cpp
+    test_compliance_beacon.cpp
     test_sprites.cpp
     test_i18n.cpp
 )

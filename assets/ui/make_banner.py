@@ -174,7 +174,7 @@ def main():
     c.diamond(124, 12, 6, RED)
     c.diamond(124, 12, 2, RED_HI)
 
-    # Two recruited followers trailing the squad (v0.5.0's Persuadertron), drawn
+    # Two recruited followers trailing the squad (v0.5.0's Compliance Beacon), drawn
     # in the same cyan the game uses for followers.
     c.diamond(34, 16, 5, FOLLOWER)
     c.diamond(102, 17, 5, FOLLOWER)

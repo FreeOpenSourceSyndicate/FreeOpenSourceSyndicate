@@ -135,7 +135,7 @@ agents before your squad is wiped out.
 | **`A`** | Select the whole squad |
 | **Left click the ground** | Order the selected agents to move (2-wide formation) |
 | **Right click an enemy (or left-click it)** | Order the selection to focus fire on that enemy |
-| **`P`** | Use the selected agents' Persuadertrons to recruit the nearest civilian in range |
+| **`P`** | Use the selected agents' Compliance Beacons to recruit the nearest civilian in range |
 | **`F`** | Release the selected agents' followers back into the crowd |
 | **Arrow keys** | Scroll the camera |
 | **R** | Restart the mission (new seed) |
