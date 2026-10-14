@@ -71,6 +71,12 @@ public:
     // the game_minimap ctest via --check-minimap.
     bool checkMinimap();
 
+    // Headless self-check for the selection / control-group logic (issue #33).
+    // Exercises the real selection helpers and returns false if any invariant
+    // fails. Used by the --check-selection flag so the input path is covered
+    // without a display.
+    bool selectionSelfTest();
+
 private:
     void buildMission();
     void buildMapTexture();
@@ -101,6 +107,13 @@ private:
     void selectOnly(std::size_t index);
     void toggleSelect(std::size_t index);
     void selectAllPlayers();
+    // Selects the nth living player agent (0-based), or does nothing if there is
+    // no such agent. Used by the `5`-`8` direct-selection keys.
+    void selectPlayerByOrdinal(int ordinal);
+    // Control groups: stores the current selection under `slot`, or replaces the
+    // selection with that group. Slots are 0-based; dead members are dropped.
+    void assignControlGroup(int slot);
+    void recallControlGroup(int slot);
     void orderAttackOn(int targetIndex);
     // Each selected agent uses its Persuadertron on the nearest civilian in range.
     void persuadeNearestCivilian();
@@ -183,6 +196,12 @@ private:
     // Indices into mission_.agents() selected for orders. For the demo the whole
     // squad moves together; selection is tracked for the HUD.
     std::vector<std::size_t> selected_;
+
+    // Control groups (view-only, like selection): Ctrl+1..4 stores the current
+    // selection in a slot; 1..4 recalls it. Empty means "unassigned".
+    static constexpr int kControlGroups = 4;
+    std::vector<std::size_t> controlGroups_[kControlGroups];
+
     std::uint64_t seed_ = 0xC0FFEEu;
 
     bool autoPlay_ = false;

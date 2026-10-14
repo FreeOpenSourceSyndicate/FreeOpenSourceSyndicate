@@ -428,10 +428,17 @@ the result in the PR.
   attract mode (`--demo`), and a depth-sorted sprite pass with a walk cycle. See
   `docs/ROADMAP.md` Phase 2.
 - Player command layer (v0.2.0, "Command & Control"): individual agent selection
-  (click, shift-add, keys `1`–`4`, `A` for all) and focus-fire attack orders
+  (click, shift-add, keys `5`–`8`, `A` for all) and focus-fire attack orders
   (right-click / click an enemy). Agent orders live on `core::Agent`
   (`orderedTarget`) and are driven through `Mission::orderAttack`/`clearOrder`;
   the view only picks indices. Keep new orders in the core, not the view.
+- **Control groups (Phase 2, issue #33):** the view keeps 4 control-group slots
+  (`Game::controlGroups_`). **Ctrl+`1`–`4`** assigns the current selection to a
+  slot, **`1`–`4`** recalls it (dead members are dropped; an empty/dead group is a
+  no-op that keeps a valid selection), and **`5`–`8`** select the 1st–4th living
+  agent (the pre-#33 meaning of `1`–`4`). This is view-only state — like
+  `selected_`, it never feeds the simulation. `--headless --check-selection`
+  (ctest `game_selection`) covers the logic.
 - Combat/AI/mission logic lives in `src/core/sim/` (`Agent`, `Mission`, `Weapon`)
   and is unit-tested; keep it SDL-free.
 - **Enemy AI state machine** lives on `core::Agent` (`AiState`: `Idle`, `Patrol`,
@@ -497,10 +504,10 @@ the result in the PR.
   Example: `assets/data/fossynd.conf.example`. Details: `docs/DATA_FORMAT.md`.
 - Verification flags: `--headless --frames N`, `--headless --demo --frames N`,
   `--headless --title --frames N`, `--headless --check-sprites`,
-  `--headless --check-minimap`, and
+  `--headless --check-minimap`, `--headless --check-selection`, and
   `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
-  `game_demo`, `game_low_spec`, `game_title`, `game_sprites`, and `game_minimap`
-  cover the SDL layer headlessly.
+  `game_demo`, `game_low_spec`, `game_title`, `game_sprites`, `game_minimap`,
+  and `game_selection` cover the SDL layer headlessly.
 - Engine-layer changes are covered by the CI `core + game` job (ADR-0005). The
   CI `low-spec` job builds the old-hardware profile (ADR-0008), and the CI
   `sanitizers` job runs the core tests under ASan + UBSan (ADR-0015).

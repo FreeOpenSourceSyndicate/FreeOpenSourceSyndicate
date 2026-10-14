@@ -105,7 +105,9 @@ agents before your squad is wiped out.
 |-------|--------|
 | **Left click an agent** | Select that agent (highlighted) |
 | **Shift + left click an agent** | Add/remove that agent from the selection |
-| **Keys `1`–`4`** | Select the 1st–4th living agent |
+| **Keys `5`–`8`** | Select the 1st–4th living agent |
+| **Ctrl + keys `1`–`4`** | Assign the current selection to control group 1–4 |
+| **Keys `1`–`4`** | Recall control group 1–4 |
 | **`A`** | Select the whole squad |
 | **Left click the ground** | Order the selected agents to move (2-wide formation) |
 | **Right click an enemy (or left-click it)** | Order the selection to focus fire on that enemy |
@@ -144,6 +146,7 @@ They flee when gunfire starts nearby. Civilian deaths you cause are counted as
 | `--screenshot PATH` | Render one frame to a BMP and exit (with `--frames` first, simulates then captures) |
 | `--check-sprites` | Headless guard: exit non-zero if the sprite sheet fails to bake |
 | `--check-minimap` | Headless guard: exit non-zero if the minimap panel or blips fail |
+| `--check-selection` | Run the selection / control-group self-check headlessly and exit (ctest `game_selection`) |
 
 ### Core-only build (no SDL2 needed)
 

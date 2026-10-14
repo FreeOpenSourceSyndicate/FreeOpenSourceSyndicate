@@ -10,6 +10,12 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **Control groups:** the squad view now supports four control-group slots.
+  **Ctrl+`1`–`4`** assigns the current selection to a slot and **`1`–`4`** recalls
+  it; dead members are dropped on recall and an empty group is a safe no-op.
+  **`5`–`8`** select the 1st–4th living agent (the previous meaning of `1`–`4`).
+  The squad panel shows each agent's group tag. View-only state; new ctest
+  `game_selection` (`--headless --check-selection`) covers it. Issue #33.
 - **Minimap:** a whole-board overview panel in the top-right HUD corner shows the
   static terrain and a live blip per living agent (players green, enemies red,
   civilians pale, followers cyan; selected players highlighted). The terrain is
