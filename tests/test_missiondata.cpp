@@ -503,6 +503,16 @@ FOSSYND_TEST(Catalogues, LoadsTheShippedCataloguesFromDisk)
     // The shipped 'trooper' template references the rifle by id.
     FOSSYND_CHECK_EQ(agents.find("trooper")->spec.weapon.name, std::string("Rifle"));
 
+    // The shipped explosive weapon (#90): present, has a blast radius, and is
+    // referenced by the shipped 'gunner' template, so an agent can carry it by
+    // data alone with no C++ change.
+    const Weapon* launcher = weapons.find("launcher");
+    FOSSYND_CHECK(launcher != nullptr);
+    FOSSYND_CHECK(launcher->areaRadius > 0.0f);
+    FOSSYND_CHECK(agents.find("gunner") != nullptr);
+    FOSSYND_CHECK_EQ(agents.find("gunner")->spec.weapon.name, std::string("Launcher"));
+    FOSSYND_CHECK(agents.find("gunner")->spec.weapon.areaRadius > 0.0f);
+
     // A mission loaded from disk picks up the catalogues sitting beside it.
     MissionData data;
     const std::string missionPath =
