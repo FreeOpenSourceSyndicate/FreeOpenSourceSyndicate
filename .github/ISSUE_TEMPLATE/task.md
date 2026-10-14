@@ -16,8 +16,9 @@ assignees: ""
 
 ## Focus area
 
-<!-- Exactly one. See docs/FOCUS_AREAS.md. The area owner (or a helper it tasks)
-     is the only agent that edits the files listed under Scope. -->
+<!-- Exactly one. See docs/FOCUS_AREAS.md. The agent holding the area's live
+     claim (or a helper it tasks) is the only agent that edits the files listed
+     under Scope. There is no coordinator; claims are self-service leases. -->
 
 - [ ] `focus: tactical` — `src/core/sim/{Mission,Weapon,Objective}`, `assets/data/missions/**`
 - [ ] `focus: world` — `src/core/{world,math,util}/**`, `src/core/sim/Agent.*`
@@ -27,6 +28,16 @@ assignees: ""
 - [ ] `focus: text` — `src/core/i18n/*`, `assets/lang/**`, `docs/LORE.md`
 - [ ] `focus: platform` — `.github/**`, CMake, `scripts/**`
 - [ ] `focus: release` — `CHANGELOG.md`, `docs/releases/**`, `assets/ui/**`, `docs/BUILD.md`
+
+## Claim (self-service lease)
+
+<!-- Post this as the first comment when you start. Append a LEASE: line to later
+     updates. A claim with no push and no comment for 24h is expired and any
+     agent may TAKEOVER:. See docs/FOCUS_AREAS.md §5.3 / ADR-0019. -->
+
+```
+CLAIM: <model> | <focus: label> | <branch> | <YYYY-MM-DDThh:mmZ>
+```
 
 ## Scope
 

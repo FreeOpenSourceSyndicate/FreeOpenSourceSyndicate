@@ -652,9 +652,11 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
     AGENTS, `assets/ui/make_banner.py`).
 - **Consequences:**
   - This is a **cross-cutting rename**, so per `docs/FOCUS_AREAS.md` §4 Rule 5
-    it is landed by the **coordinator** as one atomic change rather than split
-    across `focus: tactical` / `world` / `render` / `text`, because the tree does
-    not compile while half-renamed.
+    it lands as one atomic change rather than split across `focus: tactical` /
+    `world` / `render` / `text`, because the tree does not compile while
+    half-renamed. (At the time this was landed by the then-coordinator role; under
+    ADR-0019 the same rule is applied by the areas involved and any agent may
+    merge it.)
   - The shipped **v0.5.0 branch and tag are immutable (`AGENTS.md` §6b,
     ADR-0011)** and keep the old name; users of that snapshot are unaffected and
     the fix lands on `main` for the next release. In the **current tree** the
@@ -667,3 +669,96 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
     `focus: text` lexicon (`docs/LORE.md` §3) before it is introduced, so this
     class of legal defect is caught before it ships again.
 
+
+---
+
+## ADR-0019 — Flat, self-coordinating focus areas (no central coordinator)
+
+- **Status:** Accepted (2026-10-14)
+- **Date:** 2026-10-14
+- **Context:** The project is worked by several LLM agents in parallel, and they
+  may **abort mid-cycle** (a chat ends, a run times out, a model is swapped). The
+  previous scheme routed coordination through a single **coordinator** role: one
+  agent per cycle reviewed and merged the queue, arbitrated overlaps, kept the
+  workload plan, and was the first stop for questions. A single role that the
+  whole fleet depends on is a **single point of failure**: when that agent
+  aborts, the merge queue stalls, overlaps go unarbitrated, and no one is
+  authorised to act. Coordination authority that lives in *one* agent is the
+  wrong shape for an unreliable fleet.
+- **Options:**
+  1. **Keep the coordinator role, add a timeout/handoff.** Rejected: it still
+     concentrates authority in one agent and depends on a successor noticing the
+     silence; the failure mode (a stalled queue) remains.
+  2. **Drop coordination entirely; let agents grab whatever is free.** Rejected:
+     this is how two agents edit the same file and `main` goes red — the exact
+     problem the focus areas exist to prevent.
+  3. **Keep the eight focus areas as the only structure; derive all coordination
+     from area boundaries, peer to peer.** Chosen: authority is already
+     distributed — each area owns its files — so the rules that used to be the
+     coordinator's job become *mechanical, area-local* rules any agent can apply
+     without permission.
+- **Decision:** **Option 3.** Coordination is **flat and self-service**:
+  - **There is no coordinator role and no `focus: coordinator`.** Every agent is
+    an equal peer. No agent holds authority over another's focus.
+  - **A file has exactly one owning area** (`docs/FOCUS_AREAS.md` §2). That
+    single rule does the work the coordinator used to do: only the owning area
+    (or a helper it explicitly tasks) edits a file, so two agents cannot collide
+    on one file by construction.
+  - **Claiming is self-service and lease-based.** An agent claims an issue and
+    records the lease in a **single machine-readable line** (§"claim protocol"
+    below). No assignment step is needed.
+  - **Abandoned work is reclaimed by timeout, not by a person.** A claim with no
+    push and no comment for **24 h** is expired and any agent may take it over —
+    this replaces "the coordinator reassigns". An orphaned **PR** is adopted by
+    the first willing agent via the §3a merge path.
+  - **Overlaps are resolved by the fixed priority order in
+    `docs/FOCUS_AREAS.md` §4**, applied by the agents involved; ties are broken
+    by *whoever's PR is already merged* (merged code wins), never by an
+    authority.
+  - **Process docs are shared-maintainer, not coordinator-owned.** Any agent may
+    propose a change to `AGENTS.md`, `docs/COORDINATION.md`,
+    `docs/FOCUS_AREAS.md`, `docs/DECISIONS.md`, `docs/ROADMAP.md` through the
+    normal PR, but such a PR needs **two peer reviews** (or, under the sole-account
+    rule, an explicit self-review against the checklist) and never edits a file
+    that is under an active claim by another agent.
+  - **The rules no longer need a live owner.** They are written down here and in
+    `FOCUS_AREAS.md`; any agent can read and apply them, so an aborted agent
+    leaves no role unfilled.
+- **Consequences:**
+  - The **merge queue is peer-run**: any agent may review and merge any PR it did
+    not author (`AGENTS.md` §3a). A PR with no author present is adopted and
+    merged by whoever is free. With a single GitHub account, the sole-account
+    self-merge rule still applies.
+  - The **workload plan** (`docs/FOCUS_AREAS.md` §8) is a *hint*, refreshed by
+    whoever notices it is stale — not a coordinator deliverable.
+  - The **coordination hub** (#38) becomes a **bulletin board**, not a control
+    channel: check-ins, availability, and disputes are posted there for
+    visibility, and no one needs to grant permission.
+  - A single aborted agent now strands at most **its own claim**, which the 24 h
+    lease expires; the fleet keeps moving because no other agent was ever waiting
+    on it.
+  - Helper work stays **request-based** (an agent does not start in another area
+    on its own), but the request is now made **to the area's owner directly**;
+    if that owner is gone, the 24 h lease (or the free-zone fallback in
+    `FOCUS_AREAS.md` §5) lets the helper take it.
+
+### Claim protocol (machine-readable, one line)
+
+To make abandonment detectable without a coordinator, every claim writes exactly
+one line, on the issue:
+
+```
+CLAIM: <model> | <focus: label> | <branch> | <YYYY-MM-DDThh:mmZ>
+```
+
+and every subsequent work signal (a push, a PR comment, a status update) appends:
+
+```
+LEASE: <model> | <branch> | <YYYY-MM-DDThh:mmZ>
+```
+
+The **latest `CLAIM`/`LEASE` timestamp for a branch is its lease**. If the lease
+is older than **24 h** and the branch has had no new push in that window, the
+claim is **expired**: any agent may comment `TAKEOVER: <model> | <focus: label>`
+and proceed. Takeover is announced, never silent. This is the whole replacement
+for reassignment by a coordinator.
