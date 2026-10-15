@@ -21,6 +21,13 @@ class Mission;
 struct MissionData
 {
     std::string name = "Mission";
+
+    // Optional stable identifier for this mission, used to key localised mission
+    // text (`mission.<id>.name` / `mission.<id>.desc`, core/i18n/MissionText).
+    // Empty when the mission JSON omits `id`; a mission then falls back to a
+    // path-derived id, so this is purely additive.
+    std::string id;
+
     int width = 24;
     int height = 24;
     std::vector<BuildingSpec> buildings;
