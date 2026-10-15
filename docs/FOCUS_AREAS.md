@@ -43,11 +43,11 @@ reclaims; nobody was ever waiting on it.
 
 | What used to need the coordinator | What happens now |
 |-----------------------------------|------------------|
-| Assigning work / reassigning foci | Agents **self-claim** the highest-workload free area (§7); a claim is a **lease** with a 24 h timeout (§5.3, ADR-0019). |
+| Assigning work / reassigning foci | Agents **self-claim** a free area with the highest workload (`scripts/coord claim`, §7); the claim is a **lease** with a TTL (§5.3, ADR-0021). |
 | Merging the queue | **Peer review/merge** (`AGENTS.md` §3a): any agent reviews and merges any PR it did not author; an orphaned PR is adopted by whoever is free. |
 | Arbitrating overlaps | The fixed **priority order in §4** decides; ties go to **merged code** (whoever landed first wins), never to an authority. |
 | Owning the process docs | **Shared maintainers**: any agent may PR a change to the rules, needing **two peer reviews** (§6) and never colliding with an active claim. |
-| Keeping the workload plan current | Anyone who notices §8 is stale **refreshes it**; it is a hint, not a deliverable. |
+| Keeping the workload plan current | The board is **generated** from the ledger (`scripts/coord board`, §8); there is no plan to keep current. |
 | Answering process questions | The rules are written down here and in `AGENTS.md`; read them. Genuine **human** questions go straight to the maintainer (§5.2). |
 
 **What is still not allowed.** An agent must not start work in another area's
@@ -55,20 +55,22 @@ files on its own — it **requests** it from that area's owner (§5). This is th
 one place the flat scheme keeps a boundary, and it is exactly what keeps two
 agents from colliding on one file.
 
-### 1.1 The coordination hub is a bulletin board, not a control channel
+### 1.1 Coordination state is the lease ledger
 
-The hub issue (currently #38) carries **no `focus:` label** and grants no
-authority. Use it to **broadcast**, not to ask permission:
+There is no hub issue and no bulletin board to check in on. The coordination
+state is the **lease ledger** — the git refs under `refs/coord/leases/*` — and
+its generated view, `docs/COORDINATION_BOARD.md`. Use it to **see**, not to ask:
 
-- **Start:** post your model, the `focus:` area you claimed, the issue, and the
-  branch.
-- **Idle:** post `@<area> available to help; my queue is empty`.
-- **End:** post done/in-progress/blocked, what landed (PR + SHA), how verified,
-  and whether you are stopping or available.
-- **Blocked / overlap dispute:** post the files and the areas.
+- **Start:** `scripts/coord claim` (the claim *is* your check-in; it is visible to
+  everyone the instant it is pushed).
+- **Idle:** read `scripts/coord status`; if an area is free and has work, claim
+  it. Reviewing/merging PRs needs no assignment (§5).
+- **End:** `scripts/coord release`.
+- **Blocked / overlap dispute:** `scripts/coord renew --state blocked --note "..."`,
+  then post the files and areas on the issue thread.
 
-No one has to read the hub before acting, and no comment on it is required to
-start, merge, or take over work.
+No one has to read the ledger before acting, and no comment is required to start,
+merge, or take over work.
 
 
 ---
@@ -77,10 +79,10 @@ start, merge, or take over work.
 
 Each area has a `focus:` label and a set of files it owns. "Owns" means *only the
 agent currently working that area (or a helper it explicitly tasks) edits those
-files*. An area has **no permanent owner**: whoever holds the live claim for the
-area's task is its owner **for that task**, and the area reverts to free when the
-claim ends (§5.3). Two agents never share a lane; if the team grows, re-split
-(§8) rather than sharing.
+files*. An area has **no permanent owner**: whoever holds the live **lease** for
+the area's task is its owner **for that task**, and the area reverts to free when
+the lease expires or is released (§5.3). Two agents never share a lane; if the
+team grows, re-split (§8) rather than sharing.
 
 | # | Area | Label | Owns (primary files) | Typical work |
 |---|------|-------|----------------------|--------------|
@@ -126,7 +128,7 @@ the owning area's **contract step** (§4, Rule 3):
 ## 3. How an area works
 
 1. **Pick from your queue.** Every area has open issues labelled with its
-   `focus:` label. Claim one self-service: comment the `CLAIM:` line (§5.3),
+   `focus:` label. Claim one self-service with `scripts/coord claim` (§5.3),
    branch, implement, PR.
 2. **Stay in your lane.** Only edit files your area owns. Need a change in
    someone else's file? Request it (§4, Rule 4), do not edit it.
@@ -191,10 +193,12 @@ there first — but it is one PR, serialised by the rules above, not a race.
 
 An issue has **one** claimant at a time (`AGENTS.md` §3.2). Before you start:
 
-1. Read the issue's comments. If there is a live `CLAIM:`/`LEASE:` (§5.3) within
-   the last 24 h, do **not** start it — pick your next queued task.
-2. If the lease is older than 24 h with no new push, the claim is **expired**:
-   post `TAKEOVER:` (§5.3) and proceed.
+1. Run `scripts/coord status` and read the ledger. If the issue's area has a
+   **live** lease (§5.3), do **not** claim it — pick a free area.
+2. If the lease is **expired** (past its TTL), the area is free: claim it
+   normally (`scripts/coord claim`). No announcement is needed — the clock
+   already freed it. To take a **live but stale** lease, use
+   `scripts/coord claim ... --takeover` (printed, never silent).
 3. If two agents nevertheless open PRs for the same issue, the **first merged PR
    wins**. The later one does not get merged; its author **rebases onto the
    winner** and keeps only the parts the winner is still missing (usually the
@@ -238,7 +242,8 @@ Deadline/urgency: <e.g. "blocks my PR #123">
 B's owner either implements it, delegates it to a helper (§5), or pushes back
 with a reason and a counter-proposal. If B's owner is gone (aborted), the request
 itself is the takeover signal: the first agent to notice may take the requested
-work under the normal lease rules (§5.3).
+work under the normal lease rules (§5.3) — if the area's lease has expired it is
+already free; if it is live but stale, claim it with `--takeover`.
 
 ### Rule 5 — Cross-cutting changes are serialised globally
 
@@ -281,13 +286,14 @@ authority involved:
 An agent whose own queue is empty **must not start work on its own initiative in
 another area**. It helps only on request:
 
-1. **Announce availability.** Comment on the coordination hub:
-   `@<area> available to help; my queue is empty`.
+1. **Announce availability.** Post `@<area> available to help; my queue is empty`
+   on the coordination board or the area's issue thread, then look at
+   `scripts/coord status`.
 2. **Ask the owner.** The agent holding the area's claim posts the task it wants
    done, with files, interface, and acceptance criteria.
 3. **Get assigned — by the owner, or by the lease.** The area's owner assigns the
-   task. If there is **no live owner** (the area is free, or its claim has
-   expired, §5.3), the helper takes the task itself by posting a `CLAIM:` line —
+   task. If there is **no live owner** (the area is free, or its lease has
+   expired, §5.3), the helper takes the task itself with `scripts/coord claim` —
    no one's permission is needed.
 4. **Respect ownership.** A helper edits the owner's files only for the assigned
    task, and the owner reviews the PR (`AGENTS.md` §3a).
@@ -308,33 +314,44 @@ another area**. It helps only on request:
 
 ### 5.3 Claims and leases — how abandonment is handled
 
-There is no reassignment step, so a claim must be self-expiring. Use the
-machine-readable protocol from **ADR-0019**:
+A claim is a **git-ref lease**, not a comment (ADR-0021). The mechanics live in
+`scripts/coord`; the full protocol is `docs/COORDINATION.md`. In one place:
 
-- **To claim**, comment on the issue:
-  `CLAIM: <model> | <focus: label> | <branch> | <YYYY-MM-DDThh:mmZ>`
-- **While working**, append a `LEASE:` line to any push, PR comment, or status
-  update: `LEASE: <model> | <branch> | <YYYY-MM-DDThh:mmZ>`
-- The **latest `CLAIM`/`LEASE` timestamp for a branch is its lease**. If that
-  timestamp is older than **24 h** and the branch has had no new push in that
-  window, the claim is **expired**.
-- **To take over**, comment `TAKEOVER: <model> | <focus: label>` and proceed.
-  Takeover is announced, never silent.
-- A **merged PR** ends the claim. A **closed PR** with no successor frees the
-  issue for the next claimer.
+- **To claim**, run:
+  `scripts/coord claim --area <area> --issue <n> --agent "<model>" --branch <branch>`
+  This writes `refs/coord/leases/<area>` on the remote via an atomic
+  `git push --force-with-lease`. If the area has a **live** lease, the claim fails
+  and names the holder; pick another free area.
+- **While working**, extend the lease: `scripts/coord renew --area <a> --issue <n>
+  --agent "<model>"` (optionally `--state blocked|needs-review --note "..."`).
+- **The TTL is the lease.** Default **6 h**, capped at **24 h**. A lease past its
+  expiry is **dead** and the area is claimable by anyone — no announcement needed,
+  because the ledger says so. A lease live but quiet for **> 12 h** shows as
+  **stale** on the board: `scripts/coord claim ... --takeover` is fair game and is
+  printed, never silent.
+- **To release**, run `scripts/coord release --area <a> --issue <n> --agent "<m>"`
+  — do this as soon as the PR merges, or when you abandon the task. A lease you
+  forget to release is reclaimed by the TTL, so the fleet never waits.
 
 This is the whole replacement for "the coordinator reassigns work": the clock
-does it, and the fleet never waits on a missing agent.
+does it, and the fleet never waits on a missing agent. `scripts/coord status` and
+`docs/COORDINATION_BOARD.md` are the authoritative views; do **not** infer a live
+claim from comment timestamps.
+
+The legacy `CLAIM:` / `LEASE:` / `TAKEOVER:` comment lines are **read** by
+`scripts/coord migrate` for the transition (`docs/COORDINATION_MIGRATION.md`) but
+are no longer the mechanism of record.
 
 ### What an idle agent may do without being asked
 
 - **Review** open PRs from other areas (never a file edit; `AGENTS.md` §3a
   explicitly asks for it).
-- **Adopt an orphaned PR** (one whose author has gone quiet): review it, ask for
-  any missing tests, and merge it under §3a. This is the peer replacement for a
-  coordinator draining the queue.
-- **Triage** issues: add the missing `focus:`/`status:` label, split a too-large
-  issue, write acceptance criteria, or refresh the §8 plan when it is stale.
+- **Adopt an orphaned PR** (one whose author has gone quiet — on the board its
+  area shows as **stale**): review it, ask for any missing tests, and merge it
+  under §3a. This is the peer replacement for a coordinator draining the queue.
+- **Triage** issues: add the missing `focus:` label, split a too-large issue, or
+  write acceptance criteria. (`status:` labels are mirrored from the ledger by the
+  sweep — do not hand-manage them.)
 - **Write tests** for behaviour that already exists and is owned by no one
   *inside your own area's test file* — never in another area's test file.
 
@@ -362,12 +379,13 @@ from §2. It is the single source of truth for *who may edit which files*:
 | `focus: platform` |
 | `focus: release` |
 
-Plus the `status:` labels (`claimed`, `blocked`, `needs-review`).
+Plus the `status:` labels (`claimed`, `blocked`, `needs-review`). These are a
+**convenience mirror** of the lease ledger, kept in sync by the scheduled sweep
+(`.github/workflows/coordination.yml`) — the **ledger is authoritative**, so do
+not hand-manage a `status:` label; use `scripts/coord renew --state ...`.
 
 **No `focus: coordinator`.** There is no coordinator role (ADR-0019); there is no
-label for it either. The one exception to "exactly one `focus:` label" is the
-**coordination hub issue itself** (process, not area work): it carries no
-`focus:` label.
+label for it either. Every issue has exactly one `focus:` label.
 
 Process-doc PRs (the rules themselves, §4 Rule 5) need **two peer reviews**, or
 under the sole-account rule an explicit self-review against the checklist below:
@@ -381,122 +399,60 @@ under the sole-account rule an explicit self-review against the checklist below:
 
 ## 7. Picking a focus and planning the workload
 
-**The fleet size varies** — there may be eight active agents, or only one. The
-scheme must work either way, so focus choice is driven by a **workload plan**
-(§8). The plan is a shared hint: **whoever notices it is stale refreshes it**;
-it is not owned by any agent.
+**The fleet size varies** — there may be ten active agents, or only one. The
+scheme must work either way, so focus choice is driven by the **ledger**, not by
+a hand-kept plan.
 
 ### 7.1 How an agent picks a focus each cycle
 
-1. **Read the workload plan (§8).** It lists each focus area with an estimate of
-   its **pending workload** (number/size of open tasks) and any live claim.
-2. **Pick a free focus with the highest pending workload.** "Free" means no other
-   agent holds a **live claim** (§5.3) in it this cycle. This keeps the busiest
-   areas moving and spreads agents out.
-3. **Prefer known foci to reduce scope.** Given a choice, prefer a focus the
-   agent has worked before (or one whose files it already knows) — familiar files
-   mean smaller, safer changes and fewer cross-area surprises.
-4. **Do not start a second agent in an area someone already holds.** If every
-   high-workload area is taken, take the next-free one, or help (§5).
-5. **Record the pick** in the start check-in on the hub (§1.1) and as a `CLAIM:`
-   line on the issue (§5.3).
+1. **Read the ledger.** `scripts/coord status` lists every live lease and the
+   **free areas** (`docs/COORDINATION_BOARD.md` is the same view, generated).
+2. **Pick a free area with pending work.** "Free" means **no live lease** in it
+   (§5.3). Prefer the area with the most open issues; this spreads agents out.
+3. **Prefer known areas to reduce scope.** Given a choice, prefer an area you have
+   worked before — familiar files mean smaller, safer changes.
+4. **Claim it.** `scripts/coord claim --area <area> --issue <n> --agent "<model>"
+   --branch <branch>`. If it turns out to be taken, the claim fails and names the
+   holder; go to step 2.
+5. **Do not start a second agent in an area someone already holds.** If every
+   busy area is taken, take the next free one, or review/merge a PR (§5).
 
-With one active agent, it simply takes the highest-workload free area (all are
-free). With eight, they fan out across the eight areas, busiest first. Nothing
-assigns these picks; each agent reads the plan and claims.
+With one active agent, it simply takes any free area. With ten, they fan out
+across the eight areas. Nothing assigns these picks; each agent reads the ledger
+and claims.
 
-### 7.2 Keeping the workload plan useful
+### 7.2 Keeping the plan useful
 
-- **Anyone** may refresh the §8 table when a task closes or is added; it is a
-  shared hint, not an owned deliverable. A stale plan is a bug anyone can fix.
-- Keep the **workload estimates** current, so "highest pending workload" stays
-  meaningful.
-- Seed at least **one concrete, claimable task** per area from the roadmap, so
-  "highest pending workload" is never zero for a busy area.
-- Keep estimates comparable in size (roughly one PR each) so agents finish their
-  cycles at about the same time.
-- When there are fewer agents than areas, do **not** delete areas — leave them
-  in the plan; agents simply take the highest-workload ones first, and the rest
-  wait. When there are more agents than areas, helpers (§5) take requested work.
+There is no hand-kept plan any more (ADR-0021). The **board is generated** from
+the ledger, and **pending workload is the open-issue count**, which GitHub already
+tracks. Concretely:
+
+- **Do not** edit `docs/COORDINATION_BOARD.md` by hand; the scheduled sweep
+  rewrites it.
+- **Do not** open a "refresh the queue" PR. That class of PR is gone: the git
+  history had 22 of them, each changing one table. Seeding a task now means
+  **opening an issue** with the right `focus:` label.
+- Keep at least one claimable issue per area so a free area is never empty of
+  work; if you notice an area with none, open one from the roadmap.
 
 ---
 
-## 8. Live queue and workload plan
+## 8. The live queue
 
-Shared hint — **refresh it whenever you notice it is stale**; no agent owns it.
-**Pending workload** is a rough size in "PRs" (one small PR ≈ 1). Areas are
-listed busiest-first so the next agent can pick the top free one. The **Live
-claim** column shows the current holder if any (§5.3), so a newcomer can see
-what is taken without reading every issue.
+The live queue is the **lease ledger** plus the open issues — not a Markdown
+table. To read it:
 
-| Area | `focus:` | Live claim | Pending workload | Seeded / open tasks |
-|------|----------|------------|------------------|---------------------|
-| Tactical | `focus: tactical` | — | 1 | #120 enemies take cover under fire |
-| World | `focus: world` | — | 0 | — (primitives complete; tactical owns #163) |
-| Render | `focus: render` | — | 1 | #122 integer zoom levels (Phase 2's last item) |
-| Input/UI | `focus: input-ui` | — | 0 | — (#152 `--window WxH` merged #168) |
-| Content | `focus: content` | — | 1 | #124 minigun / flamethrower / laser |
-| Text | `focus: text` | — | 1 | #142 localise mission name/description |
-| Platform | `focus: platform` | — | 1 | #133 Windows packaging lane (macOS lane gated to manual dispatch ✅ #138) |
-| Release | `focus: release` | — | 1 | #127 cut the next playtest snapshot (v0.6.0) |
+```bash
+scripts/coord status                 # live leases + free areas
+scripts/coord board --stdout         # the generated board
+gh issue list --label "focus: world" # the open tasks in one area
+```
 
-Legend: live claim `—` = free this cycle. Workload is a rough size in "PRs" (one
-small PR ≈ 1). All eight areas are seeded and claimable. The natural Text
-follow-up is #123 (`--lang`), which is why it is listed under Input/UI and
-Content rather than Text.
+`docs/COORDINATION_BOARD.md` is the checked-in, generated view; it is refreshed
+automatically and is never edited by hand.
 
 ### Recent history
 
-| Work | Area | Issue | State |
-|------|------|-------|-------|
-| Depth-sorted pixel-art sprites | render | #32 | ✅ merged (#39, ADR-0013) |
-| Objectives beyond "eliminate all" | tactical | #30 | ✅ merged (ADR-0014) |
-| Fixed-timestep interpolation | world+render | #31 | ✅ merged (#43 core, #56 client) |
-| Shared weapon/agent catalogues | content | #34 | ✅ merged (#60) |
-| Strings + `assets/lang` scaffolding | text | #35 | ✅ merged (#54, ADR-0016) |
-| Sanitizer CI lane | platform | #36 | ✅ merged (#47, ADR-0015) |
-| v0.5.0 release | release | #37 | ✅ merged (#55) |
-| Line-of-sight primitive | world | #59 | ✅ merged (#62) |
-| CPack packaging (Linux) | platform | #61 | ✅ merged (ADR-0017) |
-| Recruiter-gadget rename (legal) | tactical | #57 | ✅ merged (#64, ADR-0018) |
-| HUD/title from string table + codename | text+render | #53, #48 | ✅ merged (#65) |
-| Control groups (hotkeys) | input-ui | #33 | ✅ merged (#51 UI, #75 waypoints) |
-| HUD objective tint (+ off-screen fix) | render | #72 | ✅ merged (#73) |
-| Per-agent waypoint queue (core API) | world | #42 | ✅ merged (#74) |
-| Split `Game.cpp` into `Hud.cpp`/`TitleCard.cpp` | render | #69 | ✅ merged (#82) |
-| Shift-click append to the waypoint queue | input-ui | #75 | ✅ merged (#83) |
-| Walls block sight/fire | world | #63 | ✅ merged (#77) |
-| Content validator (dangling `weaponId`/`agentId`) | content | #71 | ✅ merged (#80) |
-| `--check-content` flag + `game_content` ctest | input-ui | #81 | ✅ merged (#85) |
-| AoE weapon radius | tactical | #79 | ✅ merged (#86) |
-| Medikit gadget (heal ally) | tactical | #88 | ✅ merged (#97) |
-| Reconcile `[0.5.0]` CHANGELOG with the tag | release | #70 | ✅ merged (#98, option A) |
-| String-pulled A* routes | world | #93 | ✅ merged (#99, smoothing) + wiring fix (#101) |
-| Locale resolution + `de` stub | text | #95 | ✅ merged (#104) |
-| Package ships catalogues + validates content | platform | #91 | ✅ merged (#105) |
-| Explosive weapon (`launcher`) in the catalogue | content | #90 | ✅ merged (#107) |
-| Queued-route overlay | render | #89 | ✅ merged (#109) |
-| Box-select by dragging a rectangle | input-ui | #94 | ✅ merged (#112) |
-| Flat self-coordination (remove the coordinator role) | platform | #114 | ✅ merged (ADR-0019) |
-| Package installs every `assets/lang/*.json` | platform | #103 | ✅ merged (#115) |
-| Package installs every `assets/data/missions/*.json` | platform | #126 | ✅ merged (#129) |
-| macOS packaging lane (CPack DragNDrop) | platform | #118 | ✅ merged (#132) |
-| macOS packaging lane gated to manual dispatch (runner shortage) | platform | #136 | ✅ merged (#138) |
-| Complete German UI translation + locale parity gates | text | #125 | ✅ merged (#135) |
-| Bound the A* search (node cap) | world | #121 | ✅ merged (#137) |
-| `--lang` + `lang` config key wire the i18n API into the runtime | input-ui | #123 | ✅ merged (#144) |
-| Distinguish "no path" from "cap exceeded" (`findPathDetailed`) | world | #141 | ✅ merged (#145) |
-| "Walk as close as you can" to a blocked goal (`findPathToNearest`) | world | #146 | ✅ merged (#151) |
-| CLI `--version` / `--help` | input-ui | #147 | ✅ merged (#150) |
-| `Agent::moveTo` uses `findPathToNearest` (walk as close as possible) | world | #149 | ✅ merged (#156) |
-| Destructible blocked tiles in `core::TileGrid` | world | #157 | ✅ merged (#162) |
-| CLI `--window WxH` | input-ui | #152 | ✅ merged (#168) |
-
-Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
-
-**Re-split / re-merge trigger.** The eight areas are the default. If the active
-agent count *drops* for a sustained period and areas sit empty, **any agent may**
-temporarily merge the thinnest, most-coupled pairs (`world`→`tactical`,
-`input-ui`→`render`, `text`→`content`, `release`→`platform`) via a rules PR (§6)
-and record it here — but the default to restore is these eight. Split by *file*,
-never by *phase*.
+See `git log --oneline -- CHANGELOG.md` and the merged PRs. This section no longer
+tracks a hand-maintained ledger of every merge — that was the churn ADR-0021
+removed.
