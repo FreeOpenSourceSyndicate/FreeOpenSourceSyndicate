@@ -100,7 +100,7 @@ void Game::renderTitleCard()
         tr("title.controls.move", "CLICK / L  MOVE THE SQUAD"),
         tr("title.controls.attack", "RIGHT-CLICK  FOCUS FIRE"),
         tr("title.controls.select", "1-4 RECALL  CTRL+1-4 SET  A  ALL"),
-        tr("title.controls.misc", "ARROWS  SCROLL   R  RESTART   ESC  QUIT"),
+        tr("title.controls.misc", "ARROWS  SCROLL   SPACE  PAUSE   R  RESTART   ESC  QUIT"),
     };
     int cy = static_cast<int>(static_cast<float>(h) * 0.68f);
     for (const std::string& line : controls)
