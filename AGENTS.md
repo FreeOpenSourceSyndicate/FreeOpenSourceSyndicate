@@ -531,6 +531,15 @@ PR.
   *move*); `NoPath` only when `start` is invalid or nothing else is reachable.
   The bounded BFS reuses the same node cap (ADR-0008) and corner rule as
   `findPath`. Consumer side (engine/input) is Input/UI's — a follow-up.
+- **Reachability primitive (issue #188):** `core::reachableTiles` returns every
+  walkable tile reachable from a start (in stable row-major order, start
+  included), and `core::areConnected` is a thin wrapper asking whether one tile
+  is in another's set. Both take the same `allowDiagonal` flag and node cap as
+  `findPath`, and share one internal `bfsReachable` walk with `findPathToNearest`
+  — so reachability and `findPath` agree exactly on the walk, the 4/8-way corner
+  rule, and the ADR-0008 budget. Use them instead of an A* per target for mission
+  validation (is the objective walled off?) or AI reachability; they are
+  deterministic and RNG-free.
 - Combat/AI/mission logic lives in `src/core/sim/` (`Agent`, `Mission`, `Weapon`)
   and is unit-tested; keep it SDL-free.
 - **Enemy AI state machine** lives on `core::Agent` (`AiState`: `Idle`, `Patrol`,
