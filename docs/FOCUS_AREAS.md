@@ -432,7 +432,7 @@ what is taken without reading every issue.
 | Area | `focus:` | Live claim | Pending workload | Seeded / open tasks |
 |------|----------|------------|------------------|---------------------|
 | Tactical | `focus: tactical` | — | 1 | #120 enemies take cover under fire |
-| World | `focus: world` | — | 1 | #157 destructible blocked tiles in `core::TileGrid` |
+| World | `focus: world` | — | 0 | — (primitives complete; tactical owns the #164 follow-up) |
 | Render | `focus: render` | — | 1 | #122 integer zoom levels (Phase 2's last item) |
 | Input/UI | `focus: input-ui` | — | 1 | #152 add `--window WxH` |
 | Content | `focus: content` | — | 1 | #124 minigun / flamethrower / laser |
@@ -489,6 +489,7 @@ Content rather than Text.
 | "Walk as close as you can" to a blocked goal (`findPathToNearest`) | world | #146 | ✅ merged (#151) |
 | CLI `--version` / `--help` | input-ui | #147 | ✅ merged (#150) |
 | `Agent::moveTo` uses `findPathToNearest` (walk as close as possible) | world | #149 | ✅ merged (#156) |
+| Destructible blocked tiles in `core::TileGrid` | world | #157 | ✅ merged (#162) |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 
