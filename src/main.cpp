@@ -42,6 +42,7 @@ void printUsage()
         "      --title                Show the title card.\n"
         "      --low-spec             Small window, software renderer (old hardware).\n"
         "      --window <W>x<H>       Set the window size in pixels (e.g. 1280x800).\n"
+        "      --fullscreen           Start in fullscreen (F11 toggles it).\n"
         "      --zoom <n>             Set the integer zoom level (1-3).\n"
         "      --headless             Run without a display.\n"
         "      --frames <n>           Run n frames, then exit.\n"
@@ -55,6 +56,7 @@ void printUsage()
         "      --check-box-select     Validate box-select.\n"
         "      --check-waypoint-path  Validate the queued-route overlay.\n"
         "      --check-zoom           Validate integer zoom levels.\n"
+        "      --check-fullscreen     Validate the fullscreen toggle.\n"
         "      --check-lang [locale]  Validate the UI string table.\n"
         "      --check-content [dir]  Validate mission/catalogue references.\n",
         FOSSYND_VERSION);
@@ -135,6 +137,7 @@ int main(int argc, char** argv)
     bool demo = false;
     bool lowSpec = false;
     bool title = false;
+    bool fullscreen = false;
     bool checkSprites = false;
     bool checkMinimap = false;
     bool checkSelection = false;
@@ -143,6 +146,7 @@ int main(int argc, char** argv)
     bool checkWaypointPath = false;
     bool checkLang = false;
     bool checkZoom = false;
+    bool checkFullscreen = false;
     const char* checkLangLocale = nullptr; // --check-lang [<locale>]
     const char* checkContent = nullptr;   // --check-content [<dataDir>]
     const char* screenshot = nullptr;
@@ -179,6 +183,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--window") == 0 && i + 1 < argc)
         {
             windowSpec = argv[++i];
+        }
+        else if (std::strcmp(argv[i], "--fullscreen") == 0)
+        {
+            fullscreen = true;
         }
         else if (std::strcmp(argv[i], "--demo") == 0)
         {
@@ -223,6 +231,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-zoom") == 0)
         {
             checkZoom = true;
+        }
+        else if (std::strcmp(argv[i], "--check-fullscreen") == 0)
+        {
+            checkFullscreen = true;
         }
         else if (std::strcmp(argv[i], "--check-lang") == 0)
         {
@@ -361,6 +373,7 @@ int main(int argc, char** argv)
     game.setExeDir(exeDir);
     game.setLang(lang);
     game.setInitialZoom(zoomLevel);
+    game.setFullscreen(fullscreen);
 
     // Show the authored title card for a real, interactive player. Automated
     // runs (headless, screenshots, attract mode) skip it and go straight to the
@@ -465,6 +478,16 @@ int main(int argc, char** argv)
         // game_zoom ctest.
         const bool ok = game.zoomSelfTest();
         std::printf(ok ? "zoom: ok\n" : "zoom: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkFullscreen)
+    {
+        // Headless guard for the fullscreen toggle (issue #194): the F11 state
+        // machine must flip and round-trip, and the SDL call must be a safe
+        // no-op without a display. Used by the game_fullscreen ctest.
+        const bool ok = game.fullscreenSelfTest();
+        std::printf(ok ? "fullscreen: ok\n" : "fullscreen: FAILED\n");
         return ok ? 0 : 1;
     }
 

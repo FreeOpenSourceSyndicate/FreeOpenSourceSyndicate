@@ -121,10 +121,24 @@ public:
     // self-check and the HUD.
     int zoomLevel() const { return zoom_; }
 
+    // Headless guard for the fullscreen toggle (issue #194): exercises the
+    // toggle state machine without a real display. Returns false on a broken
+    // invariant. Used by the game_fullscreen ctest.
+    bool fullscreenSelfTest();
+
     // Sets the initial integer zoom level (issue #122), clamped to
     // [kZoomMin, kZoomMax]. Used by `--zoom` for headless captures. Must be set
     // before init() so the initial camera clamp uses the right level.
     void setInitialZoom(int level);
+
+    // Starts the game in fullscreen (issue #194). F11 toggles it at runtime.
+    // The renderer keeps its logical size and the frame scales to the display
+    // (SDL_WINDOW_FULLSCREEN_DESKTOP). A no-op on a headless run. Must be set
+    // before init().
+    void setFullscreen(bool enabled) { startFullscreen_ = enabled; }
+
+    // True while the window is fullscreen. Exposed for the headless self-check.
+    bool isFullscreen() const { return fullscreen_; }
 
     // True when a non-English locale file was found and overlaid over the
     // English fallback (issue #123). Used by --check-lang to prove a requested
@@ -166,6 +180,11 @@ private:
     // Reflects the localised mission name in the OS window title (issue #176).
     // No-op when there is no window (e.g. a headless check path).
     void updateWindowTitle();
+    // Applies `fullscreen_` to the window (issue #194). No-op when there is no
+    // window, so a headless run is unaffected.
+    void applyFullscreen();
+    // Toggles fullscreen/windowed (issue #194, F11).
+    void toggleFullscreen();
     void restart();
     void handleEvents(bool& running);
     void update(float dt);
@@ -284,6 +303,15 @@ private:
     // Integer zoom (issue #122), applied at the screen boundary only. 1 is the
     // authored scale; stepping is clamped to [kZoomMin, kZoomMax].
     int zoom_ = 1;
+
+    // Fullscreen state (issue #194). `startFullscreen_` is the requested initial
+    // state (set before init); `fullscreen_` is the live state, toggled by F11.
+    // Both are ignored on a headless run (no window).
+    bool startFullscreen_ = false;
+    bool fullscreen_ = false;
+
+    // True on a headless run (dummy video driver). Fullscreen is a no-op then.
+    bool headless_ = false;
 
     core::TileGrid grid_{kMapWidth, kMapHeight};
     core::Mission mission_{grid_};

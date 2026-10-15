@@ -181,6 +181,15 @@ if(BUILD_TESTS)
              COMMAND FOSSynd --headless --zoom 2 --frames 1)
     add_test(NAME game_zoom_clamped
              COMMAND FOSSynd --headless --zoom 99 --frames 1)
+    # Fullscreen toggle (issue #194): F11 flips windowed/fullscreen and must
+    # round-trip; on a headless run the SDL call is a guarded no-op. Exits
+    # non-zero on a broken invariant.
+    add_test(NAME game_fullscreen
+             COMMAND FOSSynd --headless --check-fullscreen)
+    # `--fullscreen` must be a safe no-op headlessly (the dummy driver rejects a
+    # real mode set), so a headless start with the flag still exits 0.
+    add_test(NAME game_fullscreen_flag
+             COMMAND FOSSynd --headless --fullscreen --frames 1)
     # Content validation (issue #81): resolve every mission's weaponId/agentId
     # against the catalogues in the shipped assets/data and exit non-zero on a
     # dangling reference. Absolute path so it works from any build directory.
