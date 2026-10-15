@@ -140,6 +140,26 @@ public:
     // True while the window is fullscreen. Exposed for the headless self-check.
     bool isFullscreen() const { return fullscreen_; }
 
+    // Pause/resume (issue #210). `setPaused` is the pre-init request (used by
+    // `--pause` for a frozen screenshot); `togglePause` is the Space hotkey.
+    // While paused, update() advances no simulation steps. Resuming drops any
+    // banked time so no catch-up burst fires on the first unpaused frame.
+    void setPaused(bool paused)
+    {
+        if (paused_ && !paused)
+        {
+            clock_.reset();
+        }
+        paused_ = paused;
+    }
+    void togglePause() { setPaused(!paused_); }
+    bool isPaused() const { return paused_; }
+
+    // Headless guard for pause/resume (issue #210): a paused update() must
+    // advance no simulation time while an unpaused one does, and the toggle must
+    // round-trip. Returns false on a broken invariant. Used by game_pause.
+    bool pauseSelfTest();
+
     // True when a non-English locale file was found and overlaid over the
     // English fallback (issue #123). Used by --check-lang to prove a requested
     // locale actually resolved, so a missing locale file fails the gate instead
@@ -312,6 +332,10 @@ private:
 
     // True on a headless run (dummy video driver). Fullscreen is a no-op then.
     bool headless_ = false;
+
+    // Pause/resume (issue #210). While true, update() advances no simulation
+    // steps, so the fixed-step clock banks nothing and the board is frozen.
+    bool paused_ = false;
 
     core::TileGrid grid_{kMapWidth, kMapHeight};
     core::Mission mission_{grid_};

@@ -192,6 +192,19 @@ void Game::renderHud()
         font_.draw(renderer_, cx - font_.textWidth(sub) / 2, screenHeight_ / 2 + lineH / 2, sub,
                    hudstyle::kHudText);
     }
+
+    // Pause banner (issue #210): a distinct band so a frozen board is obvious.
+    // Drawn only mid-mission; the end-of-mission banner above wins otherwise.
+    if (paused_ && mission_.state() == core::MissionState::Running)
+    {
+        const std::string label = tr("state.paused", "PAUSED");
+        const int cx = screenWidth_ / 2;
+        SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 170);
+        SDL_Rect band{0, screenHeight_ / 2 - lineH, screenWidth_, lineH * 2};
+        SDL_RenderFillRect(renderer_, &band);
+        font_.draw(renderer_, cx - font_.textWidth(label) / 2, screenHeight_ / 2 - lineH / 2,
+                   label, hudstyle::kHudText);
+    }
 }
 
 } // namespace fossynd::game
