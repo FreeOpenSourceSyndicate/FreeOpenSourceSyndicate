@@ -603,6 +603,20 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
     packaged binary headless — so packaging cannot bit-rot.
   - macOS/Windows packaging is **out of scope** here (no regular testers) and is
     a follow-up.
+- **Update (2026-10-15) — platform follow-ups, same decision.** The other two
+  platforms landed on this same CPack foundation, so they are recorded here
+  rather than as new ADRs:
+  - **macOS:** `DragNDrop` (`.dmg`) + `TGZ`, added by #118. The `Packaging
+    (macOS …)` job is **gated to `workflow_dispatch` and non-blocking**, because
+    macOS runners on this repo can queue and then be cancelled before starting,
+    which would redden `main` and deadlock merges (#136, #138).
+  - **Windows:** `ZIP` (no NSIS/WiX tooling needed), added by #133. The target
+    links `SDL2::SDL2main` (SDL supplies `WinMain` and calls `main` from it) and
+    the install rules ship `SDL2.dll` next to `FOSSynd.exe` so the archive is
+    self-contained. Its CI job uses the same **dispatch-gated, non-blocking**
+    pattern as macOS. Linux remains the only hard packaging gate.
+  - No existing generator, `FOSSYND_*` option, target name, or job name changed,
+    so other areas still rebase freely (`docs/FOCUS_AREAS.md` §4 Rule 5).
 - **Consequences:**
   - `cmake --build build --target package` yields
     `FOSSynd-<version>-Linux.tar.gz` and `fossynd_<version>_amd64.deb`.

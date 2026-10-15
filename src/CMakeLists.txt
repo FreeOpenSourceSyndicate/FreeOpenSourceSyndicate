@@ -75,6 +75,13 @@ else()
     target_link_libraries(FOSSynd PRIVATE ${SDL2_LIBRARIES})
 endif()
 
+# Windows: SDL provides WinMain() and calls main() from it, so the SDL2main
+# static library must be linked (SDL_main.h redefines main only when it is).
+# Linux/macOS use the real main() and need nothing extra. Issue #133.
+if(WIN32 AND TARGET SDL2::SDL2main)
+    target_link_libraries(FOSSynd PRIVATE SDL2::SDL2main)
+endif()
+
 set_target_properties(FOSSynd PROPERTIES
     VERSION ${PROJECT_VERSION}
 )
@@ -89,6 +96,12 @@ set_target_properties(FOSSynd PROPERTIES
 # content it ships (issue #91).
 include(GNUInstallDirs)
 install(TARGETS FOSSynd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+# Windows: FOSSynd.exe links SDL2.dll, so ship the runtime DLL next to the
+# binary to keep the ZIP self-contained (unpack and run). Linux/macOS resolve
+# SDL2 from the system, so nothing extra is installed there. Issue #133.
+if(WIN32 AND TARGET SDL2::SDL2)
+    install(FILES "$<TARGET_FILE:SDL2::SDL2>" DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
 # Install every mission, not just `demo.json`: a mission added to the tree must
 # reach the package or an installed game silently loses it (issue #126).
 # `FILES_MATCHING` keeps stray non-mission files out.

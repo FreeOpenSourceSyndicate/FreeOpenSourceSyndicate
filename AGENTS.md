@@ -426,15 +426,20 @@ cmake --build build-san -j
 ctest --test-dir build-san --output-on-failure
 ```
 
-CI runs five jobs: a **core + game** job (installs `libsdl2-dev`, builds with
-`-DFOSSYND_BUILD_GAME=ON`, runs `ctest`, which includes the headless `game_smoke`
-test), a **core-only** job (no graphics deps), a **low-spec** job
-(`-DFOSSYND_LOW_SPEC=ON`, ADR-0008) so old-hardware support cannot bit-rot, a
-**sanitizers** job (`-DFOSSYND_SANITIZE=ON`, core-only, ADR-0015) that runs the
-unit tests under ASan + UBSan, and a **packaging** job (CPack, ADR-0017) that
-builds the Linux `.tar.gz` + `.deb` and runs the packaged binary. If your change
-touches `src/core/` or `tests/`, all must pass. If it touches `src/game/`, also
-run the game target locally and note the result in the PR.
+CI runs five jobs on every push/PR: a **core + game** job (installs
+`libsdl2-dev`, builds with `-DFOSSYND_BUILD_GAME=ON`, runs `ctest`, which
+includes the headless `game_smoke` test), a **core-only** job (no graphics deps),
+a **low-spec** job (`-DFOSSYND_LOW_SPEC=ON`, ADR-0008) so old-hardware support
+cannot bit-rot, a **sanitizers** job (`-DFOSSYND_SANITIZE=ON`, core-only,
+ADR-0015) that runs the unit tests under ASan + UBSan, and a **packaging** job
+(CPack, ADR-0017) that builds the Linux `.tar.gz` + `.deb` and runs the packaged
+binary. Two further packaging lanes — **macOS** (`TGZ` + `DMG`) and **Windows**
+(`ZIP`) — are **gated to `workflow_dispatch` and non-blocking**, because those
+runners can queue and be cancelled before starting, which would redden `main`
+and deadlock merges (#136, #138). Dispatch the workflow to exercise them. If your
+change touches `src/core/` or `tests/`, all five push/PR jobs must pass. If it
+touches `src/game/`, also run the game target locally and note the result in the
+PR.
 
 ## 9. Definition of Done
 
@@ -627,10 +632,12 @@ run the game target locally and note the result in the PR.
   `sanitizers` job runs the core tests under ASan + UBSan (ADR-0015), and the CI
   `packaging` job builds the Linux `.tar.gz` + `.deb` via CPack (ADR-0017).
 - **Packaging (Phase 5 tooling, ADR-0017):** `cmake --build build --target package`
-  produces `FOSSynd-<version>-Linux.tar.gz` and `fossynd_<version>_amd64.deb` from
-  the `install()` rules (single-sourced layout). CPack ships with CMake (no new
-  dependency); `TGZ` is always built, `DEB` only when `dpkg-deb` is present on a
-  non-Apple Unix. macOS/Windows packaging is a follow-up. Details: `docs/BUILD.md`.
+  produces `FOSSynd-<version>-Linux.tar.gz` + `fossynd_<version>_amd64.deb` on
+  Linux, `FOSSynd-<version>-Darwin.tar.gz` + `.dmg` on macOS, and
+  `FOSSynd-<version>-Windows.zip` on Windows, from the `install()` rules
+  (single-sourced layout). CPack ships with CMake (no new dependency). Linux is
+  the only hard gate; the macOS and Windows lanes are `workflow_dispatch`-gated
+  and non-blocking (#136, #138). Details: `docs/BUILD.md`.
 - **Releases are playtest snapshots** (§6a): a `release/vX.Y.Z-*` branch + tag +
   GitHub Release, a matching `CHANGELOG.md` entry, version-specific
   `docs/releases/vX.Y.Z-*.md` (build/play + copy-to-another-computer steps), and

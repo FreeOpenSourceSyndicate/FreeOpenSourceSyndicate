@@ -229,3 +229,63 @@ jobs:
           tar xzf build/FOSSynd-*-Darwin.tar.gz -C "$RUNNER_TEMP"
           SDL_VIDEODRIVER=dummy "$RUNNER_TEMP"/FOSSynd-*-Darwin/bin/FOSSynd --headless \
             --check-content "$RUNNER_TEMP"/FOSSynd-*-Darwin/share/fossynd
+
+  # Packaging lane (ADR-0017, issue #133): builds the Windows .zip via CPack so
+  # the project ships an artifact on a third platform. Like the macOS lane
+  # (#136/#138), Windows runners are not guaranteed on this repo, so the lane is
+  # gated to manual dispatch and is non-blocking: it can never redden `main` or
+  # deadlock a merge. Linux packaging remains the hard gate. Dispatch the
+  # workflow to exercise it after changing the packaging config.
+  packaging-windows:
+    name: Packaging (Windows ZIP)
+    if: github.event_name == 'workflow_dispatch'
+    continue-on-error: true
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      # MSYS2 UCRT64 supplies the same gcc/cmake/SDL2 toolchain the Windows build
+      # instructions in docs/BUILD.md use, and its SDL2 package provides the
+      # SDL2Config.cmake that `find_package(SDL2)` needs (incl. SDL2::SDL2main).
+      - name: Set up MSYS2 (UCRT64 toolchain + SDL2)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-SDL2
+            unzip
+
+      - name: Configure (core + SDL2 game target)
+        run: cmake -S . -B build -G Ninja -DFOSSYND_BUILD_GAME=ON -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Build packages (CPack)
+        run: cmake --build build --target package
+
+      - name: Verify package artifacts
+        run: |
+          ls -l build/*.zip
+          unzip -l build/FOSSynd-*-Windows.zip | grep -q 'bin/FOSSynd.exe'
+          unzip -l build/FOSSynd-*-Windows.zip | grep -q 'bin/SDL2.dll'
+          unzip -l build/FOSSynd-*-Windows.zip | grep -q 'share/fossynd/lang/en.json'
+          unzip -l build/FOSSynd-*-Windows.zip | grep -q 'share/fossynd/lang/de.json'
+          unzip -l build/FOSSynd-*-Windows.zip | grep -q 'share/fossynd/missions/demo.json'
+
+      - name: Run the packaged binary (headless)
+        run: |
+          unzip -q build/FOSSynd-*-Windows.zip -d pkg
+          pkg/FOSSynd-*-Windows/bin/FOSSynd.exe --headless --frames 2
+
+      - name: Validate the shipped content (headless)
+        run: |
+          unzip -q build/FOSSynd-*-Windows.zip -d pkg-check
+          pkg-check/FOSSynd-*-Windows/bin/FOSSynd.exe --headless \
+            --check-content pkg-check/FOSSynd-*-Windows/share/fossynd

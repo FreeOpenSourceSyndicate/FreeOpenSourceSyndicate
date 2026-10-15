@@ -61,10 +61,10 @@ endif()
 
 # ---------------------------------------------------------------------------
 # Packaging (CPack): produces a portable .tar.gz on every platform, plus a
-# Debian .deb where dpkg-deb is available and a drag-and-drop .dmg on macOS —
-# all built from the install() rules above, so the package layout stays in one
-# place. Additive: nothing changes unless the `package` target is invoked.
-# Windows packaging is a follow-up (no regular testers, AGENTS.md 1).
+# Debian .deb where dpkg-deb is available, a drag-and-drop .dmg on macOS, and a
+# portable .zip on Windows — all built from the install() rules above, so the
+# package layout stays in one place. Additive: nothing changes unless the
+# `package` target is invoked.
 # ---------------------------------------------------------------------------
 set(CPACK_PACKAGE_NAME "FOSSynd")
 set(CPACK_PACKAGE_VENDOR "FOSSynd project")
@@ -86,6 +86,12 @@ endif()
 if(APPLE)
     # DragNDrop is macOS-only; hdiutil (which it needs) ships with the OS.
     list(APPEND CPACK_GENERATOR "DragNDrop")
+endif()
+if(WIN32)
+    # ZIP is self-contained: no NSIS/WiX tooling needed on the runner, and it is
+    # portable (unpack anywhere and run). FOSSynd.exe needs SDL2.dll next to it,
+    # which the install() rules ship (see src/CMakeLists.txt). Issue #133.
+    list(APPEND CPACK_GENERATOR "ZIP")
 endif()
 
 # Debian metadata. libsdl2-2.0-0 is the SDL2 runtime the game links against.
