@@ -59,6 +59,24 @@ harmless (the parity test keeps the two locales in lockstep) and is left in plac
 so a future HUD status readout can use it; removing it is a content decision, not
 this audit's.
 
+## Known gap: data-driven names are not key-shaped literals
+
+The scan above only sees **literals in `src/`**. Two HUD values come from
+**authored data** instead, so no literal exists for rule 1 to find: the squad row
+substitutes `agent.name()` (callsign, e.g. `ALPHA`) and `agent.weapon().name`
+(e.g. `Rifle`) straight from `assets/data/missions/*.json` /
+`assets/data/{agents,weapons}.json` (`src/game/Hud.cpp:166-169`). Mission
+**names** are localised by a derived key (`mission.<id>.name`), but these have no
+key scheme, so a localised run shows them verbatim in English.
+
+This is **not** a bypass of the table in the sense this audit looks for — it is a
+deliberate "proper nouns" treatment that has never been written down. Whether to
+localise them (mirror `mission.<id>.name` as `weapon.<id>.name`) or to keep them
+as proper nouns is a product decision tracked in **#270**; `docs/FOCUS_AREAS.md`
+§2 puts localisation beyond English out of v1.0.0 scope, which favours documenting
+them as proper nouns. Recorded here so the "none found" result above is not read
+as "every user-visible string is localised".
+
 ## The guards
 
 A literal is easy to re-introduce. `tests/test_i18n_keys.py` (ctest
