@@ -54,6 +54,12 @@ struct PathResult
 // clear (verified with `hasLineOfSight`), so the route stays walkable. The 4-way
 // path is already minimal and is returned unsmoothed. Deterministic, RNG-free.
 //
+// Smoothing shares the `maxExpandedNodes` budget with the search: it may spend at
+// most that many `hasLineOfSight` probes, so a long route cannot make it cost
+// more than the search that produced it (ADR-0008). If the budget runs out the
+// remaining waypoints are kept verbatim — the raw A* path, which is always
+// walkable — so the route is simply less smoothed.
+//
 // The search is bounded by `maxExpandedNodes`: when that many nodes have been
 // expanded and the goal is still unpopped, the search gives up and returns an
 // empty path rather than expanding the rest of the grid. This keeps a

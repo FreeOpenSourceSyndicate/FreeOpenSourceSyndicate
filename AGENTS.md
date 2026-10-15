@@ -728,6 +728,12 @@ Do not start work outside the scope fence (ADR-0024).
   4-way default, so it was inert in game until #101 wired it up.) Smoothing never
   adds or moves a waypoint, so a route stays a subsequence of the A* path and is
   always walkable. Deterministic, RNG-free; the 4-way path is returned unchanged.
+  **The smoothing pass is bounded by the A* node budget (issue #309):** it may
+  spend at most `maxExpandedNodes` `hasLineOfSight` probes, then keeps the raw A*
+  tail. It is otherwise unbounded by the cap (O(n²) in the waypoint count — a
+  60x60 serpentine cost ~1.6M probes / ~54 ms vs. ~180 us for the search), which
+  would stall a frame (ADR-0008). Realistic orders stay far under the budget, so
+  their smoothing is unchanged. `simplifyPath` is internal to `Pathfinding.cpp`.
 - **Mission objectives are data-driven (ADR-0003):** `ObjectiveSpec`
   (`core/sim/Objective.h`) is `EliminateAll` (default), `ReachTile` (a living
   player agent on a target tile), `Survive` (a time limit), `Escort` (the agent

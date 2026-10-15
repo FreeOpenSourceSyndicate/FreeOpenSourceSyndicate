@@ -262,6 +262,79 @@ FOSSYND_TEST(Pathfinding, NodeCapLeavesUnderCapResultsUnchanged)
     FOSSYND_CHECK(withDefault == withHugeCap);
 }
 
+FOSSYND_TEST(Pathfinding, SmoothingIsBoundedByTheSearchBudget)
+{
+    // String-pulling shares the search's node budget, so a long route cannot make
+    // the smoothing pass cost more than the search that produced it (ADR-0008).
+    // On this board a small budget stops smoothing early and keeps more of the raw
+    // A* waypoints than a generous one — the route is less smoothed, never wrong.
+    TileGrid grid(14, 13);
+    const char* rows[] = {
+        "..............",
+        "###..##.......",
+        ".###.#.#..#...",
+        "#....#.##..#..",
+        ".......#...#..",
+        "..#.........##",
+        "....#.......##",
+        ".....#...#....",
+        "#.#..#.#...#..",
+        "##.###..#....#",
+        ".#.#..#..#..#.",
+        "..###......#..",
+        "..........#..#",
+    };
+    for (int y = 0; y < 13; ++y)
+    {
+        for (int x = 0; x < 14; ++x)
+        {
+            if (rows[y][x] == '#')
+            {
+                grid.setWalkable(x, y, false);
+            }
+        }
+    }
+
+    const TilePos start{8, 10};
+    const TilePos goal{3, 4};
+    const auto tight = findPathDetailed(grid, start, goal, true, /*maxExpandedNodes=*/20);
+    const auto generous = findPathDetailed(grid, start, goal, true, /*maxExpandedNodes=*/200);
+
+    FOSSYND_CHECK(tight.found());
+    FOSSYND_CHECK(generous.found());
+    // The bound only trims smoothing: the budgeted route still starts and ends
+    // correctly and every segment is walkable.
+    FOSSYND_CHECK(tight.path.front() == start);
+    FOSSYND_CHECK(tight.path.back() == goal);
+    FOSSYND_CHECK(everySegmentClear(grid, tight.path));
+    FOSSYND_CHECK(everySegmentClear(grid, generous.path));
+    // A tighter budget stops the pass earlier, so it keeps strictly more waypoints.
+    FOSSYND_CHECK(tight.path.size() > generous.path.size());
+}
+
+FOSSYND_TEST(Pathfinding, SmoothingBudgetIsDeterministic)
+{
+    // The budget is a fixed probe count, not a time budget, so the same bounded
+    // request smooths to the same route every time.
+    TileGrid grid(40, 40);
+    for (int y = 1; y < 40; y += 2)
+    {
+        for (int x = 0; x < 40; ++x)
+        {
+            const bool gap = ((y / 2) % 2 == 0) ? (x == 39) : (x == 0);
+            if (!gap)
+            {
+                grid.setWalkable(x, y, false);
+            }
+        }
+    }
+
+    const auto first = findPath(grid, TilePos{0, 0}, TilePos{0, 38}, /*allowDiagonal=*/true);
+    const auto second = findPath(grid, TilePos{0, 0}, TilePos{0, 38}, /*allowDiagonal=*/true);
+    FOSSYND_CHECK(!first.empty());
+    FOSSYND_CHECK(first == second);
+}
+
 FOSSYND_TEST(Pathfinding, NodeCapZeroStillResolvesStartEqualsGoal)
 {
     // The goal check runs before the cap, so a degenerate request is resolved
