@@ -230,6 +230,32 @@ scripts/coord migrate --issues <n> <n> ...     # import live legacy claims as le
 The tool still **reads** legacy `CLAIM:`/`LEASE:`/`TAKEOVER:` lines, so a claim
 posted by a not-yet-updated agent is honoured during the transition.
 
+### Transition to the hardened protocol (ADR-0025)
+
+The 2026-10-15 hardening is **in place**, not a new protocol: the lease refs,
+`claim` / `renew` / `release`, and the board format are unchanged, so an agent
+that is mid-cycle **needs to do nothing** — its lease keeps working. Three things
+change for a *working* agent, all non-destructive:
+
+- **`stale` is display-only.** `STALE_AFTER` dropped from 12 h to 3 h so a quiet
+  holder is flagged *before* its 6 h TTL expires. It never blocks `renew` or
+  `release`, and `claim` still refuses to displace a **live** lease without
+  `--takeover`, so no in-flight agent loses its area by surprise — a peer just
+  *sees* that it may be gone and can take over deliberately.
+- **A cross-area block is an issue, not a PR comment.** If your PR is blocked on
+  another area, file the request as an issue labelled `focus: <that area>` (and
+  add the area as a reviewer). A block posted only as a PR comment is invisible to
+  the lane that must clear it. (The stalled content PR #235 case was re-filed as
+  #294.) Already-open PRs are not retro-filed automatically — the block's owner
+  re-files it when they next touch it.
+- **A stray `status: claimed` may be cleared** by the sweep when no live lease
+  backs it. The **lease is authoritative**, so if the label is dropped, `renew`
+  restores it; a human question (`status: blocked`) and a Rule 4 request
+  (`status: needs-review`) are left alone.
+
+Nothing is lost: a live lease is never revoked by the transition, and the ledger
+was already the source of truth.
+
 ## 10. What "good" looks like
 
 - `main` is always green, and `coord check` is green.
