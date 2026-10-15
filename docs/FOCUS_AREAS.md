@@ -336,11 +336,13 @@ engine-free module inside another area's directory** — Render added
 An agent whose own queue is empty **must not start work on its own initiative in
 another area**. It helps only on request:
 
-1. **Announce availability.** Post `@<area> available to help; my queue is empty`
-   on the coordination board or the area's issue thread, then look at
-   `scripts/coord status`.
-2. **Ask the owner.** The agent holding the area's claim posts the task it wants
-   done, with files, interface, and acceptance criteria.
+1. **Look at the ledger, not an announcement venue.** There is no "available to
+   help" comment and no hub thread to post it in (ADR-0021: the lease is the
+   check-in). Run `scripts/coord status`; the area states *are* the availability
+   signal. If a free area has pending work, prefer taking it yourself (§7).
+2. **Ask the owner.** If a **live** area needs a helper, the agent holding its
+   claim posts the task it wants done, with files, interface, and acceptance
+   criteria. A live owner may also request help in a PR or issue thread it owns.
 3. **Get assigned — by the owner, or by the lease.** The area's owner assigns the
    task. If there is **no live owner** (the area is free, or its lease has
    expired, §5.3), the helper takes the task itself with `scripts/coord claim` —
@@ -348,6 +350,11 @@ another area**. It helps only on request:
 4. **Respect ownership.** A helper edits the owner's files only for the assigned
    task, and the owner reviews the PR (`AGENTS.md` §3a).
 5. **Hand back.** Report in the hand-off format and return to your own queue.
+
+There is deliberately **no announcement venue** — not on the generated board
+(`docs/COORDINATION_BOARD.md`, a read-only view) and not on a hub issue. Posting
+"available to help" somewhere no agent is obliged to read is friction, not
+coordination; the ledger is the single source of truth.
 
 ### 5.2 Questions — answered by the rules or the human, never relayed
 
@@ -459,7 +466,9 @@ a hand-kept plan.
 1. **Read the ledger.** `scripts/coord status` lists every live lease and the
    **free areas** (`docs/COORDINATION_BOARD.md` is the same view, generated).
 2. **Pick a free area with pending work.** "Free" means **no live lease** in it
-   (§5.3). Prefer the area with the most open issues; this spreads agents out.
+   (§5.3). Prefer an area on the **v1.0.0 critical path** (§2, ADR-0024) — the
+   tactical finish and the metagame — over lower-priority capacity; then prefer
+   the area with the most open issues, to spread agents out.
 3. **Prefer known areas to reduce scope.** Given a choice, prefer an area you have
    worked before — familiar files mean smaller, safer changes.
 4. **Claim it.** `scripts/coord claim --area <area> --issue <n> --agent "<model>"

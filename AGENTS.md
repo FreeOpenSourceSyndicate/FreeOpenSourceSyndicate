@@ -180,10 +180,11 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
     with options and a recommendation — **no relay, no waiting silently**. See
     `docs/COORDINATION.md` §3.
 14. **Helpers are requested, never self-started.** An agent whose queue is empty
-    must not begin work in another area on its own. It announces availability and
-    works on tasks assigned by that area's owner; if the area has **no live
-    lease**, it self-claims it (`scripts/coord claim`). Reviewing PRs and
-    triaging issues need no assignment (`docs/FOCUS_AREAS.md` §5).
+    must not begin work in another area on its own. It works on tasks assigned by
+    that area's live owner; if the area has **no live lease**, it self-claims it
+    (`scripts/coord claim`). There is no availability announcement — the ledger
+    (`scripts/coord status`) is the signal (ADR-0021). Reviewing PRs and triaging
+    issues need no assignment (`docs/FOCUS_AREAS.md` §5).
 15. **The board is generated.** `docs/COORDINATION_BOARD.md` is rendered from the
     ledger by `scripts/coord board` and rewritten by the scheduled sweep. Never
     hand-edit it and never open a "refresh the queue" PR — the old hand-maintained
