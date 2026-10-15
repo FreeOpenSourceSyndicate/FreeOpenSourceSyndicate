@@ -277,6 +277,31 @@ authority involved:
    proposal wins. A rules change is itself just a PR (§6), so it does not need a
    coordinator to bless it.
 
+### Rule 6a — A new file follows the area that owns its directory
+
+Most new files are obvious: they sit in one area's directory (§2) and belong to
+that area. The one case that has caused friction is a **feature area adding a new
+engine-free module inside another area's directory** — Render added
+`core/data/AgentSprites.*` (the agent-sprite bake, #39) and `core/data/TileSprites.*`
+(the ground-tile bake, #189). The rules decide it, so nobody has to negotiate:
+
+1. **The directory's area owns the file**, and its PR is reviewed normally (§3a).
+   The adding area states in the PR description what it added, why, and why it
+   cannot live in its own directory.
+2. **The forced exception is core purity.** Baking, parsing, and other logic that
+   must be SDL-free belongs in `src/core/` even when the *feature* is visual
+   (golden rule 1). Placement there is required by the architecture, not a claim
+   on the owning area's lane — so it is **not** an overlap to arbitrate.
+3. **Keep the addition self-contained** so it does not collide with the owning
+   area's files: a new `.h`/`.cpp` pair, one line in the directory's
+   `CMakeLists.txt`, and its **own** test file registered in
+   `tests/CMakeLists.txt`. That is how #39 and #189 landed with no merge conflict
+   and no shared-file turn-taking (Rule 2).
+4. **New test files belong to the adding area** (e.g. `tests/test_tilesprites.cpp`),
+   even though they live among the owning area's tests; the owning area still
+   reviews the PR. Do not add assertions to the owning area's test file for this —
+   that is a Rule 2 shared file.
+
 ---
 
 ## 5. Helpers, leases, and questions
