@@ -191,4 +191,14 @@ if(BUILD_TESTS)
     add_test(NAME game_help
              COMMAND FOSSynd --help)
     set_tests_properties(game_help PROPERTIES PASS_REGULAR_EXPRESSION "Usage: FOSSynd")
+    # Window size (issue #152): a valid --window runs headless and exits 0; the
+    # parse/validation is also covered by the invalid-input cases below.
+    add_test(NAME game_window
+             COMMAND FOSSynd --headless --window 640x480 --frames 1)
+    add_test(NAME game_window_invalid
+             COMMAND FOSSynd --headless --window 0x0 --frames 1)
+    set_tests_properties(game_window_invalid PROPERTIES WILL_FAIL TRUE)
+    add_test(NAME game_window_malformed
+             COMMAND FOSSynd --headless --window 640 --frames 1)
+    set_tests_properties(game_window_malformed PROPERTIES WILL_FAIL TRUE)
 endif()
