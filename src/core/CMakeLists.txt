@@ -15,6 +15,7 @@ set(FOSSYND_CORE_SOURCES
     data/Config.cpp
     data/ContentPaths.cpp
     data/AgentSprites.cpp
+    data/TileSprites.cpp
     i18n/StringTable.cpp
     i18n/MissionText.cpp
 )

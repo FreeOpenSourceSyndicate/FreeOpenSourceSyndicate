@@ -32,6 +32,7 @@ group is fine (e.g. "agent sprite sheet, 8 directions").
 |------|------|-------------|---------|-----------------|-------|
 | `assets/ui/banner.png` | release banner (pixel art) | FOSSynd agent (`assets/ui/make_banner.py`, stdlib) | MIT (project) | Original art, procedurally generated; not from any prompt | 160x56 native, 13-colour indexed palette, 4x nearest-neighbour. Release-page banner; not loaded at runtime. Regenerate for a release with `python3 assets/ui/make_banner.py <version> <CODENAME>` (defaults to the v0.4.0 art). Current art: `v0.5.0 RECRUITMENT`. |
 | `assets/sprites/agents.txt` | agent sprite sheet (pixel art, text) | FOSSynd agent (hand-authored) | MIT (project) | Original art, authored directly as text; no prompt, no external source | 4 agent frames (front/frontStep/back/backStep, 14x18) + 2 props (crate, barrel). Colours come from per-role palettes at bake time. Loaded and baked by `core::bakeSheet`; see ADR-0013. |
+| `assets/tiles/ground.txt` | isometric ground tile sheet (pixel art, text) | FOSSynd agent (`assets/tiles/make_tiles.py`, stdlib) | MIT (project) | Original art, procedurally generated from the isometric diamond the game already draws; no prompt, no external source | 4 tiles (floor light/dark, wall, destructible wall), 16x8 native, each filling its diamond. Loaded and baked by `core::bakeTileSprites`; drawn into the pre-baked static map at 4x nearest-neighbour. Regenerate with `python3 assets/tiles/make_tiles.py`. |
 
 ## File formats — prefer pixel art
 

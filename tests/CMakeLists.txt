@@ -19,6 +19,7 @@ set(FOSSYND_TEST_SOURCES
     test_config.cpp
     test_compliance_beacon.cpp
     test_sprites.cpp
+    test_tilesprites.cpp
     test_i18n.cpp
     test_content_validation.cpp
 )

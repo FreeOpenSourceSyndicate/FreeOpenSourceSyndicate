@@ -15,6 +15,7 @@
 #include "game/EmbeddedLang.h"
 #include "game/EmbeddedMission.h"
 #include "game/EmbeddedSprites.h"
+#include "game/EmbeddedTiles.h"
 #include "game/HudStyle.h"
 
 // The build sets this from the project() version (src/CMakeLists.txt); the
@@ -133,6 +134,7 @@ bool Game::init(int width, int height, bool headless, bool lowSpec)
     loadLanguage();
     buildMission();
     updateWindowTitle();
+    buildTiles();
     buildMapTexture();
     buildSprites();
     buildMinimap();
@@ -313,6 +315,21 @@ void Game::buildSprites()
     }
 }
 
+void Game::buildTiles()
+{
+    // The authored ground sheet is baked into the binary at build time (AGENTS.md
+    // 1b), so the game stays a single self-contained executable. Baked at the
+    // map cell size (kTileWidth x kTileHeight) so the map bake is one blit per
+    // cell.
+    std::string error;
+    if (!tiles_.build(kGroundTilesText, static_cast<int>(kTileWidth),
+                      static_cast<int>(kTileHeight), error))
+    {
+        // Not fatal: buildMapTexture falls back to flat diamond fills.
+        std::fprintf(stderr, "tile sheet error: %s\n", error.c_str());
+    }
+}
+
 void Game::buildMinimap()
 {
     // One texel per tile, magnified to a readable panel. Smaller on the low-spec
@@ -382,6 +399,25 @@ void Game::buildMapTexture()
             const int cy = static_cast<int>(center.y + mapOffsetY_);
 
             const bool walkable = grid_.isWalkable(x, y);
+            if (tiles_.valid())
+            {
+                // Authored pixel art: one blit per cell, chosen by tile state.
+                core::TileKind kind = core::TileKind::FloorDark;
+                if (!walkable)
+                {
+                    kind = grid_.isDestructible(x, y) ? core::TileKind::DestructibleWall
+                                                      : core::TileKind::Wall;
+                }
+                else if ((x + y) % 2 == 0)
+                {
+                    kind = core::TileKind::FloorLight;
+                }
+                tiles_.blit(surface, kind, cx, cy);
+                continue;
+            }
+
+            // Fallback: the original flat diamond fills (used only when the tile
+            // sheet failed to bake, so a bad sheet never stops the game).
             const std::uint32_t color = walkable
                                             ? (((x + y) % 2 == 0) ? kTileLight : kTileDark)
                                             : kTileBlocked;

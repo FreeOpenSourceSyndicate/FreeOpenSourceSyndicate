@@ -12,6 +12,7 @@ set(FOSSYND_GAME_SOURCES
     game/TitleCard.cpp
     game/Minimap.cpp
     game/Sprite.cpp
+    game/GroundTiles.cpp
 )
 
 # Embed the demo mission JSON into the binary so the game stays a single,
@@ -36,6 +37,17 @@ configure_file(
     @ONLY
 )
 list(APPEND FOSSYND_GAME_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/game/EmbeddedSprites.cpp")
+
+# Embed the authored ground tile sheet, same pattern, so the tile art is
+# data-driven but the binary stays self-contained.
+set(FOSSYND_TILES_FILE "${CMAKE_SOURCE_DIR}/assets/tiles/ground.txt")
+file(READ "${FOSSYND_TILES_FILE}" FOSSYND_GROUND_TILES_TEXT)
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/game/EmbeddedTiles.cpp.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/game/EmbeddedTiles.cpp"
+    @ONLY
+)
+list(APPEND FOSSYND_GAME_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/game/EmbeddedTiles.cpp")
 
 # Embed the English string table so the game is localisable from data (ADR-0016)
 # while still running with no data files present.
