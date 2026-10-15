@@ -181,4 +181,14 @@ if(BUILD_TESTS)
     add_test(NAME game_lang_unknown_falls_back
              COMMAND FOSSynd --headless --lang xx --check-lang en --frames 1)
     set_tests_properties(game_lang_unknown_falls_back PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    # CLI self-description (issue #147): `--version` prints the build version and
+    # exits 0 without initialising SDL or loading content; the PASS regex fails
+    # the test if the output is empty or not version-shaped. `--help` likewise
+    # prints a usage block listing the flags.
+    add_test(NAME game_version
+             COMMAND FOSSynd --version)
+    set_tests_properties(game_version PROPERTIES PASS_REGULAR_EXPRESSION "FOSSynd [0-9]")
+    add_test(NAME game_help
+             COMMAND FOSSynd --help)
+    set_tests_properties(game_help PROPERTIES PASS_REGULAR_EXPRESSION "Usage: FOSSynd")
 endif()

@@ -17,6 +17,46 @@
 namespace
 {
 
+// Build version, injected by CMake from `project(... VERSION ...)` so a release
+// bump changes the output automatically (issue #147). The fallback keeps a
+// non-CMake build compiling; it is never the version of a packaged build.
+#ifndef FOSSYND_VERSION
+#define FOSSYND_VERSION "0.0.0-unknown"
+#endif
+
+// The CLI help text. Lists every flag the parser below accepts, split into
+// player-facing options and the headless verification checks (issue #147).
+void printUsage()
+{
+    std::printf(
+        "FOSSynd %s\n"
+        "Usage: FOSSynd [options]\n"
+        "\n"
+        "Options:\n"
+        "  -h, --help                 Show this help and exit.\n"
+        "  -V, --version              Show the version and exit.\n"
+        "      --mission <path>       Load the given mission file.\n"
+        "      --config <path>        Load the given config file.\n"
+        "      --lang <locale>        Set the UI language (e.g. en, de).\n"
+        "      --demo                 Attract mode: the AI plays the mission.\n"
+        "      --title                Show the title card.\n"
+        "      --low-spec             Small window, software renderer (old hardware).\n"
+        "      --headless             Run without a display.\n"
+        "      --frames <n>           Run n frames, then exit.\n"
+        "      --screenshot <file>    Render a frame to <file> (BMP) and exit.\n"
+        "\n"
+        "Verification (headless checks, for CI):\n"
+        "      --check-sprites        Validate the sprite sheet bakes.\n"
+        "      --check-minimap        Validate the minimap bakes.\n"
+        "      --check-selection      Validate selection and control groups.\n"
+        "      --check-waypoints      Validate the shift-click waypoint queue.\n"
+        "      --check-box-select     Validate box-select.\n"
+        "      --check-waypoint-path  Validate the queued-route overlay.\n"
+        "      --check-lang [locale]  Validate the UI string table.\n"
+        "      --check-content [dir]  Validate mission/catalogue references.\n",
+        FOSSYND_VERSION);
+}
+
 // Directory containing the running executable, or "" if it cannot be found.
 // Used to locate mission data and config files next to the binary.
 std::string executableDir(const char* argv0)
@@ -67,6 +107,8 @@ int main(int argc, char** argv)
     const char* checkLangLocale = nullptr; // --check-lang [<locale>]
     const char* checkContent = nullptr;   // --check-content [<dataDir>]
     const char* screenshot = nullptr;
+    bool showHelp = false;
+    bool showVersion = false;
     std::string cliMission;   // --mission <path>
     std::string cliConfig;    // --config <path>
     std::string cliLang;      // --lang <locale>
@@ -76,6 +118,14 @@ int main(int argc, char** argv)
         if (std::strcmp(argv[i], "--headless") == 0)
         {
             headless = true;
+        }
+        else if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0)
+        {
+            showHelp = true;
+        }
+        else if (std::strcmp(argv[i], "--version") == 0 || std::strcmp(argv[i], "-V") == 0)
+        {
+            showVersion = true;
         }
         else if (std::strcmp(argv[i], "--frames") == 0 && i + 1 < argc)
         {
@@ -158,6 +208,20 @@ int main(int argc, char** argv)
     // A low-spec build always runs in low-spec mode unless the caller opts out.
     lowSpec = true;
 #endif
+
+    // --help / --version are informational: print and exit before any config
+    // lookup, content load, or SDL init, so they are fast and scriptable
+    // (issue #147). `--help` wins if both are given.
+    if (showHelp)
+    {
+        printUsage();
+        return 0;
+    }
+    if (showVersion)
+    {
+        std::printf("FOSSynd %s\n", FOSSYND_VERSION);
+        return 0;
+    }
 
     // Resolve which mission to load: config file first, then a CLI --mission
     // flag overrides it; if neither gives a path, scan the built-in fallback
