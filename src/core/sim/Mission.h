@@ -104,6 +104,26 @@ public:
     // Deterministic: ties break by agent index.
     float useMedikit(std::size_t index);
 
+    // --- Shield --------------------------------------------------------------
+
+    // Sets how many shield charges the agent at `index` carries (clamped to
+    // >= 0). Used by mission setup and tests. No-op for an invalid index.
+    void setShields(std::size_t index, int count);
+
+    // Number of shield charges the agent at `index` carries (0 if the index is
+    // invalid).
+    int shields(std::size_t index) const;
+
+    // Spends one shield charge on the agent at `index` to raise a shield that
+    // absorbs the next incoming hit. Returns true when a shield was raised, or
+    // false if there is no charge, the index is invalid, the agent is not a
+    // living combatant, or a shield is already raised (a charge is never wasted
+    // re-raising a shield that is already up).
+    bool activateShield(std::size_t index);
+
+    // True when the agent at `index` currently has a shield raised.
+    bool shieldUp(std::size_t index) const;
+
     // Index of the nearest living agent on `enemyTeam` to (x, y) in tile space,
     // or -1 if none. Used by the view to pick a target under the cursor.
     int nearestEnemyTo(float tileX, float tileY, Team enemyTeam) const;
@@ -173,6 +193,11 @@ private:
     // with a non-zero area radius (issue #79).
     void applyAreaDamage(std::size_t attacker, std::size_t target, float damage, float radius);
 
+    // The single point where weapon damage reaches an agent. A raised shield
+    // absorbs the hit entirely and drops; otherwise the damage is applied
+    // normally. Returns the damage actually dealt (0 when a shield absorbed it).
+    float damageAgent(std::size_t index, float amount);
+
     void evaluateOutcome();
 
     // True if any living player agent stands on the reach objective's tile.
@@ -197,6 +222,8 @@ private:
     TileGrid* grid_ = nullptr;
     std::vector<Agent> agents_;
     std::vector<int> medikits_;
+    std::vector<int> shields_;   // charges carried, sized to agents_
+    std::vector<bool> shieldUp_; // raised shield per agent, sized to agents_
     Rng rng_;
     ObjectiveSpec objective_;
     float elapsedSeconds_ = 0.0f;

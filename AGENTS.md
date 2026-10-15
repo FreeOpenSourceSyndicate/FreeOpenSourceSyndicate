@@ -578,6 +578,17 @@ PR.
   wastes a kit on a full-health target, never crosses teams, and is deterministic
   (ties break by index). The health primitive is `Agent::heal(amount)` (World
   area) — additive and defaulted, mirroring `applyDamage`.
+- **Shield gadget** (issue #211): `Mission::activateShield(index)` spends one of
+  the agent's charges to raise a shield that absorbs the **next** incoming hit
+  whole and then drops; the hit after it lands normally. Charges (`shields_`) and
+  the raised flag (`shieldUp_`) live on the **Mission** (`setShields`/`shields`/
+  `shieldUp`, one slot per agent, kept in sync by `addAgent`) — no `Agent` change.
+  It is a no-op for a civilian, a dead agent, or when a shield is already up (a
+  charge is never wasted). **All weapon damage now funnels through the private
+  `Mission::damageAgent(index, amount)`** (from `resolveFire`, `applyAreaDamage`,
+  and `applyStrayFire`); add new damage paths there, not by calling
+  `Agent::applyDamage` directly, or a shield will not cover them. Deterministic,
+  RNG-free. The shield is not yet surfaced to the player (no UI/content field).
 - Sprites and a minimap are in (see below); integer zoom levels (1x/2x/3x, `+`/`-`
   or wheel, `--zoom <n>`) are in too (Phase 2 complete).
 - **Agent routes are string-pulled (issue #93):** `findPath` with

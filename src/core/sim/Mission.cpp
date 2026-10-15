@@ -85,6 +85,8 @@ std::size_t Mission::addAgent(Agent agent)
     }
     agents_.push_back(std::move(agent));
     medikits_.push_back(0);
+    shields_.push_back(0);
+    shieldUp_.push_back(false);
     return agents_.size() - 1;
 }
 
@@ -356,6 +358,65 @@ float Mission::useMedikit(std::size_t index)
         --medikits_[index];
     }
     return healed;
+}
+
+void Mission::setShields(std::size_t index, int count)
+{
+    if (index >= agents_.size())
+    {
+        return;
+    }
+    shields_[index] = count < 0 ? 0 : count;
+}
+
+int Mission::shields(std::size_t index) const
+{
+    return index < shields_.size() ? shields_[index] : 0;
+}
+
+bool Mission::activateShield(std::size_t index)
+{
+    if (index >= agents_.size() || shields_[index] <= 0)
+    {
+        return false;
+    }
+    Agent& user = agents_[index];
+    if (!user.isAlive() || !user.isCombatant())
+    {
+        return false;
+    }
+    if (shieldUp_[index])
+    {
+        // Already shielded: do not burn another charge.
+        return false;
+    }
+    --shields_[index];
+    shieldUp_[index] = true;
+    return true;
+}
+
+bool Mission::shieldUp(std::size_t index) const
+{
+    return index < shieldUp_.size() && shieldUp_[index];
+}
+
+float Mission::damageAgent(std::size_t index, float amount)
+{
+    if (index >= agents_.size())
+    {
+        return 0.0f;
+    }
+    // A raised shield absorbs the whole hit and drops. It is a one-hit buffer,
+    // so the absorbed damage is reported as 0 (nothing reached the agent).
+    if (shieldUp_[index])
+    {
+        shieldUp_[index] = false;
+        return 0.0f;
+    }
+    Agent& victim = agents_[index];
+    const float before = victim.health();
+    victim.applyDamage(amount);
+    return before - victim.health();
 }
 
 int Mission::nearestEnemyTo(float tileX, float tileY, Team enemyTeam) const
@@ -1034,7 +1095,7 @@ void Mission::resolveFire()
         }
 
         Agent& victim = agents_[targetIndex];
-        victim.applyDamage(attacker.weapon().damage);
+        damageAgent(targetIndex, attacker.weapon().damage);
         if (!victim.isAlive())
         {
             if (victim.team() == Team::Enemy)
@@ -1071,7 +1132,7 @@ void Mission::applyAreaDamage(std::size_t attacker, std::size_t target, float da
         {
             continue;
         }
-        bystander.applyDamage(damage);
+        damageAgent(i, damage);
         if (!bystander.isAlive())
         {
             if (bystander.team() == Team::Enemy)
@@ -1104,7 +1165,7 @@ void Mission::applyStrayFire(std::size_t attacker, std::size_t target, float dam
         {
             continue;
         }
-        bystander.applyDamage(damage * kStrayDamageScale);
+        damageAgent(i, damage * kStrayDamageScale);
         if (!bystander.isAlive() && agents_[attacker].team() == Team::Player)
         {
             ++civilianKills_;

@@ -1085,3 +1085,108 @@ FOSSYND_TEST(Mission, FireLeavesANonDestructibleWallIntact)
     FOSSYND_CHECK(!grid.isDestructible(5, 2));
     FOSSYND_CHECK_NEAR(mission.agents()[1].health(), 100.0f);
 }
+
+// --- shield gadget (issue #211) --------------------------------------------
+//
+// The shield lives on the Mission (like the medikit), so the World-owned Agent
+// contract is untouched. It is a one-hit buffer: a raised shield absorbs the
+// next incoming hit entirely and drops, and the hit after that lands normally.
+
+FOSSYND_TEST(Mission, ShieldAbsorbsTheNextHitThenDrops)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 51u);
+    // Player holds position (no player AI) and always hits; the enemy carries a
+    // long-range, zero-accuracy weapon so it neither closes nor kills anyone.
+    const std::size_t hero = mission.addAgent(
+        makeAgent(3.0f, 2.0f, Team::Player, 100.0f, Weapon{"Test", 10.0f, 10.0f, 10.0f, 1.0f}));
+    const std::size_t foe = mission.addAgent(makeAgent(4.0f, 2.0f, Team::Enemy, 100.0f,
+                                                      Weapon{"None", 0.0f, 10.0f, 1.0f, 0.0f}));
+    (void)hero;
+
+    mission.setShields(foe, 1);
+    FOSSYND_CHECK(mission.activateShield(foe));
+    FOSSYND_CHECK(mission.shieldUp(foe));
+    FOSSYND_CHECK_EQ(mission.shields(foe), 0);
+
+    // The first hit is absorbed: the shield drops and no health is lost.
+    int guard = 0;
+    while (mission.shieldUp(foe) && guard++ < 200)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK(!mission.shieldUp(foe));
+    FOSSYND_CHECK_NEAR(mission.agents()[foe].health(), 100.0f);
+
+    // The next hit lands normally.
+    guard = 0;
+    while (mission.agents()[foe].health() >= 100.0f && guard++ < 200)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK_NEAR(mission.agents()[foe].health(), 90.0f);
+}
+
+FOSSYND_TEST(Mission, ShieldAbsorbsAnExplosiveHit)
+{
+    // Area damage also funnels through the shield: the blast is absorbed whole
+    // (the primary target loses nothing) and the shield drops.
+    TileGrid grid(20, 20);
+    Mission mission(grid, 52u);
+    const std::size_t hero = mission.addAgent(
+        makeAgent(2.0f, 2.0f, Team::Player, 100.0f, Weapon{"Test", 40.0f, 10.0f, 10.0f, 1.0f, 2.0f}));
+    const std::size_t foe = mission.addAgent(makeAgent(4.0f, 2.0f, Team::Enemy, 100.0f,
+                                                      Weapon{"None", 0.0f, 10.0f, 1.0f, 0.0f}));
+    (void)hero;
+
+    mission.setShields(foe, 1);
+    FOSSYND_CHECK(mission.activateShield(foe));
+
+    int guard = 0;
+    while (mission.shieldUp(foe) && guard++ < 200)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK(!mission.shieldUp(foe));
+    FOSSYND_CHECK_NEAR(mission.agents()[foe].health(), 100.0f); // blast absorbed
+}
+
+FOSSYND_TEST(Mission, ShieldWithNoChargeOrOnACivilianIsNoOp)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 53u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    const std::size_t bystander = mission.addAgent(makeAgent(3.0f, 2.0f, Team::Civilian, 20.0f));
+    (void)hero;
+
+    // No charges: nothing happens, no shield is raised.
+    FOSSYND_CHECK(!mission.activateShield(bystander));
+    FOSSYND_CHECK(!mission.shieldUp(bystander));
+
+    // Civilians cannot raise a shield even when handed a charge.
+    mission.setShields(bystander, 1);
+    FOSSYND_CHECK(!mission.activateShield(bystander));
+    FOSSYND_CHECK(!mission.shieldUp(bystander));
+    FOSSYND_CHECK_EQ(mission.shields(bystander), 1); // charge untouched
+
+    // A dead agent cannot raise one either.
+    const std::size_t dead = mission.addAgent(makeAgent(5.0f, 5.0f, Team::Enemy, 10.0f));
+    mission.setShields(dead, 1);
+    FOSSYND_CHECK(mission.activateShield(dead));
+    mission.agents()[dead].applyDamage(100.0f);
+    FOSSYND_CHECK(!mission.activateShield(dead));
+}
+
+FOSSYND_TEST(Mission, ShieldDoesNotStackWhileAlreadyUp)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 54u);
+    const std::size_t foe = mission.addAgent(makeAgent(4.0f, 2.0f, Team::Enemy, 100.0f));
+
+    mission.setShields(foe, 2);
+    FOSSYND_CHECK(mission.activateShield(foe));
+    // Re-activating while a shield is already up must not burn the second charge.
+    FOSSYND_CHECK(!mission.activateShield(foe));
+    FOSSYND_CHECK_EQ(mission.shields(foe), 1);
+}
+

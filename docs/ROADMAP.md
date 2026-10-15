@@ -84,7 +84,7 @@ A shippable demo, deliberately original in code and art.
 - [x] Weapons: pistol, uzi, minigun, flamethrower, rocket launcher, laser
       (catalogue is data-driven; the launcher does area damage)
 - [ ] Gadgets: Compliance Beacon, shield, medikit, scanner
-      (Compliance Beacon + medikit done; shield and scanner pending)
+      (Compliance Beacon + medikit + shield done; scanner pending)
 - [ ] Cybernetic upgrades (speed, accuracy, health, perception)
 - [ ] Vehicles: cars/trains, hijacking, mounted weapons
 - [ ] Destructible environment
