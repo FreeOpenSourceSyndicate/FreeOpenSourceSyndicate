@@ -188,7 +188,10 @@ FOSSYND_TEST(ContentValidation, ShippedContentPasses)
     const ValidationReport report = validateContentDir(dataDir);
     FOSSYND_CHECK(report.ok());
     FOSSYND_CHECK(report.missionsChecked >= static_cast<std::size_t>(2));
-    FOSSYND_CHECK(report.cataloguesChecked >= static_cast<std::size_t>(1));
+    // 7 weapons (the #124 tiers included) + 7 agent templates (the #160 carriers
+    // included). Pinned exactly so a tier or template cannot silently vanish from
+    // the shipped catalogue; bump it when content is added on purpose.
+    FOSSYND_CHECK_EQ(report.cataloguesChecked, static_cast<std::size_t>(14));
 }
 
 // The Phase 3 weapon tiers (issue #124) must be present in the shipped catalogue
