@@ -1,5 +1,6 @@
 {
   "name": "Rooftop Exfil",
+  "id": "escort",
   "width": 20,
   "height": 20,
   "objective": { "kind": "reach", "tileX": 18, "tileY": 18 },

@@ -158,6 +158,18 @@ bool MissionData::fromJson(const Json& root, MissionData& out, const WeaponCatal
     {
         out.name = root["name"].asString();
     }
+    // Optional stable localisation key. Absent leaves `id` empty (the mission
+    // then falls back to a path-derived id); a present-but-non-string `id` is a
+    // readable error rather than a silent empty id.
+    if (root.has("id"))
+    {
+        if (!root["id"].isString())
+        {
+            error = "mission 'id' must be a string";
+            return false;
+        }
+        out.id = root["id"].asString();
+    }
     out.width = root["width"].asInt(out.width);
     out.height = root["height"].asInt(out.height);
     if (out.width <= 0 || out.height <= 0)

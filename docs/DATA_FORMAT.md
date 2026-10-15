@@ -31,6 +31,7 @@ A mission file describes one mission. Example:
 ```jsonc
 {
   "name": "Downtown Sweep",   // optional, defaults to "Mission"
+  "id": "demo",                // optional: stable key for localised mission text
   "width": 24,                 // required, > 0
   "height": 24,                // required, > 0
 
@@ -72,6 +73,12 @@ A mission file describes one mission. Example:
 
 ### Field notes
 
+- **`id`** is optional. It is a stable, language-independent identifier for the
+  mission, used to key localised mission text: a mission with `"id": "demo"`
+  looks up `mission.demo.name` / `mission.demo.desc` in the string table (see
+  `core/i18n/MissionText.h`). Omit it and the mission falls back to an id derived
+  from its file name, so `id` is only needed when you want the key to survive a
+  rename. A present-but-non-string `id` is a readable error.
 - **`buildings`** are rectangular footprints; **only the perimeter blocks
   movement**, so the interior stays walkable. `width`/`height` are in tiles and
   must be positive.

@@ -73,6 +73,37 @@ FOSSYND_TEST(MissionData, ParsesAgentsAndWeapons)
     FOSSYND_CHECK(data.agents[2].team == Team::Civilian);
 }
 
+FOSSYND_TEST(MissionData, ParsesOptionalId)
+{
+    std::string error;
+
+    // Present: parsed verbatim.
+    Json root = Json::parse(R"({"id": "demo", "width": 4, "height": 4,
+                               "agents": [{"name":"X","team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(error.empty());
+    MissionData data;
+    FOSSYND_CHECK(MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_EQ(data.id, std::string("demo"));
+
+    // Absent: empty, and the rest of the mission is unaffected.
+    error.clear();
+    root = Json::parse(R"({"width": 4, "height": 4,
+                           "agents": [{"name":"X","team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(data.id.empty());
+    FOSSYND_CHECK_EQ(data.agents.size(), static_cast<std::size_t>(1));
+
+    // Present but not a string: a readable error, not a silent empty id.
+    error.clear();
+    root = Json::parse(R"({"id": 7, "width": 4, "height": 4,
+                           "agents": [{"name":"X","team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(error.find("id") != std::string::npos);
+}
+
 FOSSYND_TEST(MissionData, PopulatesAMissionFromData)
 {
     std::string error;
@@ -134,6 +165,7 @@ FOSSYND_TEST(MissionData, LoadsTheDemoMissionFromDisk)
     FOSSYND_CHECK_EQ(data.agents.size(), static_cast<std::size_t>(15));
     FOSSYND_CHECK_EQ(data.width, 24);
     FOSSYND_CHECK_EQ(data.height, 24);
+    FOSSYND_CHECK_EQ(data.id, std::string("demo"));
 }
 
 // --- Objective parsing (issue #30) ----------------------------------------
@@ -249,6 +281,7 @@ FOSSYND_TEST(MissionData, LoadsTheEscortMissionFromDisk)
     FOSSYND_CHECK_EQ(data.objective.tileX, 18);
     FOSSYND_CHECK_EQ(data.objective.tileY, 18);
     FOSSYND_CHECK_EQ(data.agents.size(), static_cast<std::size_t>(9));
+    FOSSYND_CHECK_EQ(data.id, std::string("escort"));
 }
 
 // --- Shared weapon/agent catalogues (issue #34) ---------------------------
