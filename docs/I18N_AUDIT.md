@@ -65,15 +65,20 @@ A literal is easy to re-introduce. `tests/test_i18n_keys.py` (ctest
 `i18n_key_coverage`) fails if:
 
 1. any key-shaped literal in `src/` does not resolve in `assets/lang/en.json`
-   (so a localised run cannot silently show an English fallback); or
+   (so a localised run cannot silently show an English fallback);
 2. any shipped locale does not carry **exactly** the English key set — a missing
    key (which would show English) or an invented key (a typo rendered raw), and
-   a duplicate key (a copy-paste that shadows an earlier entry).
+   a duplicate key (a copy-paste that shadows an earlier entry);
+3. any `tr(key, "literal")` fallback differs from `en.json[key]` — the fallback
+   is the no-localisation copy, so a table edit (e.g. #210 adding `SPACE  PAUSE`)
+   must not leave a stale one behind (#240). Adjacent C++ string literals are
+   concatenated before the comparison. One known drift is allow-listed in
+   `ALLOWED_FALLBACK_DRIFT` with the issue that will fix it (#238).
 
 It ignores file-name literals (`.json`, `.bmp`, …) and allow-lists `no.such.key`
-(looked up on purpose by `Game::languageSelfTest`). Both rules are
-mutation-checked: renaming a key, dropping one, or duplicating one makes it fail.
-The C++ parity gate in `tests/test_i18n.cpp`
+(looked up on purpose by `Game::languageSelfTest`). All three rules are
+mutation-checked: renaming a key, dropping one, duplicating one, or corrupting a
+`tr()` fallback each makes it fail. The C++ parity gate in `tests/test_i18n.cpp`
 (`ShippedLocalesMatchTheEnglishKeySet`) covers the same key-set rule for the
 in-engine loader, so the two guards agree.
 
