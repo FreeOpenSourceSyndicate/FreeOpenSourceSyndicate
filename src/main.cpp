@@ -101,6 +101,25 @@ bool parseWindowSize(const char* spec, int& width, int& height)
     return true;
 }
 
+// Parse a frame count for `--frames`. Requires a positive integer with no
+// trailing garbage, so a typo cannot silently mean "no limit" (0) or run a
+// partial count (`5x`) — `std::atoi` would accept both (issue #264).
+bool parsePositiveCount(const char* spec, int& out)
+{
+    if (spec == nullptr)
+    {
+        return false;
+    }
+    char* end = nullptr;
+    const long value = std::strtol(spec, &end, 10);
+    if (end == spec || *end != '\0' || value <= 0 || value > 1000000000L)
+    {
+        return false;
+    }
+    out = static_cast<int>(value);
+    return true;
+}
+
 // Directory containing the running executable, or "" if it cannot be found.
 // Used to locate mission data and config files next to the binary.
 std::string executableDir(const char* argv0)
@@ -181,9 +200,20 @@ int main(int argc, char** argv)
         {
             showVersion = true;
         }
-        else if (std::strcmp(argv[i], "--frames") == 0 && i + 1 < argc)
+        else if (std::strcmp(argv[i], "--frames") == 0)
         {
-            maxFrames = std::atoi(argv[++i]);
+            // Require a positive count: atoi would turn `abc`/`0`/`-3` into 0
+            // ("no limit", so the game never exits) and accept `5x` (issue #264).
+            if (i + 1 >= argc)
+            {
+                std::fprintf(stderr, "unknown or incomplete option '%s' (try --help)\n", argv[i]);
+                cliError = true;
+            }
+            else if (!parsePositiveCount(argv[++i], maxFrames))
+            {
+                std::fprintf(stderr, "invalid --frames '%s': expected a positive count\n", argv[i]);
+                cliError = true;
+            }
         }
         else if (std::strcmp(argv[i], "--screenshot") == 0 && i + 1 < argc)
         {

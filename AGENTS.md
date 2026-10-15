@@ -725,6 +725,13 @@ Do not start work outside the scope fence (ADR-0024).
   instead of silently running with defaults, matching `--mission`. The
   auto-discovery loop (no `--config`) still skips absent candidates. ctest
   `game_cli_config_missing` (`WILL_FAIL`) guards it.
+- **`--frames` must be a positive integer (issue #264):** a non-numeric, zero,
+  negative, or trailing-garbage value (`abc`, `0`, `-3`, `5x`) prints
+  `invalid --frames '<v>': expected a positive count` and exits 1, instead of
+  `atoi` turning it into `0` ("no limit", so the game never exits) or accepting
+  `5x` as 5. An absent `--frames` still means no limit. ctests
+  `game_cli_frames_nonnumeric`, `game_cli_frames_zero`, and
+  `game_cli_frames_trailing_garbage` (`WILL_FAIL`) guard it.
 - Verification flags: `--headless --frames N`, `--headless --demo --frames N`,
   `--headless --title --frames N`, `--headless --check-sprites`,
   `--headless --check-minimap`, `--headless --check-selection`,
