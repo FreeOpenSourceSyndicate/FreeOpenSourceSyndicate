@@ -8,7 +8,7 @@
   "hud.objective.eliminate": "OBJECTIVE: ELIMINATE ALL {count} ENEMY AGENTS",
   "hud.objective.reach": "OBJECTIVE: REACH TILE ({x},{y})",
   "hud.objective.survive": "OBJECTIVE: SURVIVE {seconds}s",
-  "hud.controls": "[L] MOVE   [SHIFT+CLICK] QUEUE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   [P] PERSUADE   [F] FREE   [R] RESTART",
+  "hud.controls": "[SHIFT+CLICK] QUEUE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   [P] PERSUADE   [F] FREE   [R] RESTART",
   "hud.followers": "FOLLOWERS: {count}",
   "hud.collateral": "COLLATERAL: {count}",
   "hud.squad": "SQUAD",
@@ -22,7 +22,7 @@
   "state.paused": "PAUSED",
 
   "title.prompt": "PRESS ANY KEY",
-  "title.controls.move": "CLICK / L  MOVE THE SQUAD",
+  "title.controls.move": "CLICK  MOVE THE SQUAD",
   "title.controls.attack": "RIGHT-CLICK  FOCUS FIRE",
   "title.controls.select": "1-4 RECALL  CTRL+1-4 SET  A  ALL",
   "title.controls.misc": "ARROWS  SCROLL   SPACE  PAUSE   R  RESTART   ESC  QUIT",

@@ -8,7 +8,7 @@
   "hud.objective.eliminate": "ZIEL: ALLE {count} FEINDE AUSSCHALTEN",
   "hud.objective.reach": "ZIEL: FELD ({x},{y}) ERREICHEN",
   "hud.objective.survive": "ZIEL: {seconds}s UEBERLEBEN",
-  "hud.controls": "[L] BEWEGEN   [SHIFT+KLICK] REIHEN   [KLICK FEIND/RECHTS] ANGRIFF   [1-4] GRUPPE   [A]LLE   [P] UEBERZEUGEN   [F] FREI   [R] NEUSTART",
+  "hud.controls": "[SHIFT+KLICK] REIHEN   [KLICK FEIND/RECHTS] ANGRIFF   [1-4] GRUPPE   [A]LLE   [P] UEBERZEUGEN   [F] FREI   [R] NEUSTART",
   "hud.followers": "GEFOLGTE: {count}",
   "hud.collateral": "KOLLATERAL: {count}",
   "hud.squad": "TRUPPE",
@@ -22,7 +22,7 @@
   "state.paused": "PAUSE",
 
   "title.prompt": "BELIEBIGE TASTE DRUECKEN",
-  "title.controls.move": "KLICK / L  TRUPPE BEWEGEN",
+  "title.controls.move": "KLICK  TRUPPE BEWEGEN",
   "title.controls.attack": "RECHTSKLICK  ZIELFEUER",
   "title.controls.select": "1-4 ABRUF  STRG+1-4 SETZEN  A  ALLE",
   "title.controls.misc": "PFEILE  SCROLLEN   LEER  PAUSE   R  NEUSTART   ESC  BEENDEN",

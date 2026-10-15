@@ -562,6 +562,14 @@ Do not start work outside the scope fence (ADR-0024).
   are owned by `focus: text`; the consumer side (`Game.cpp`) is Render's.
   `--headless --check-lang` (ctest `game_lang`) fails if a key the UI
   reads is missing.
+- **The control hints must match the bindings (issue #268):** the HUD
+  (`hud.controls`) and title card (`title.controls.*`) once advertised a `L` key
+  to move the squad that was **never bound** (the real key set is `ESC F11 SPACE
+  R A P F 1-8 ARROWS + -`). The labels were corrected to describe the real
+  controls (mouse click moves). When you add or change a hotkey, update the HUD
+  and title strings (and the `tr()` fallbacks in `Hud.cpp`/`TitleCard.cpp`) in the
+  same change; `test_tr_fallbacks_match_en_json` compares the fallbacks to
+  `en.json`, so a text-only change to one file fails the guard.
 - **Locale files must stay ASCII.** The embedded 5x7 bitmap font draws only
   ASCII 32–126, so a non-ASCII glyph (e.g. an umlaut) renders blank. Write
   translations as ASCII transliterations (`AE`/`OE`/`UE`/`SS`) and keep every

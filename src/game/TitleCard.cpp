@@ -97,7 +97,7 @@ void Game::renderTitleCard()
 
     // Controls, centred lower down.
     const std::string controls[] = {
-        tr("title.controls.move", "CLICK / L  MOVE THE SQUAD"),
+        tr("title.controls.move", "CLICK  MOVE THE SQUAD"),
         tr("title.controls.attack", "RIGHT-CLICK  FOCUS FIRE"),
         tr("title.controls.select", "1-4 RECALL  CTRL+1-4 SET  A  ALL"),
         tr("title.controls.misc", "ARROWS  SCROLL   SPACE  PAUSE   R  RESTART   ESC  QUIT"),
