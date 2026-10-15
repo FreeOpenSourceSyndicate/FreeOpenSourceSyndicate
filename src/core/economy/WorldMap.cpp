@@ -99,12 +99,6 @@ bool WorldMap::fromJson(const Json& root, WorldMap& out, std::string& error)
         }
         const std::string where = "territory " + std::to_string(territory.id);
 
-        if (out.find(territory.id) != nullptr)
-        {
-            error = where + ": duplicate id";
-            return false;
-        }
-
         territory.name = node.has("name") ? node["name"].asString() : std::string();
         if (territory.name.empty())
         {
@@ -133,6 +127,11 @@ bool WorldMap::fromJson(const Json& root, WorldMap& out, std::string& error)
 
         out.territories_.push_back(std::move(territory));
     }
+
+    // Store in id order so the dense-id invariant find() relies on holds, and
+    // so validate can report duplicates clearly.
+    std::sort(out.territories_.begin(), out.territories_.end(),
+              [](const Territory& a, const Territory& b) { return a.id < b.id; });
 
     return out.validate(error);
 }
@@ -203,6 +202,14 @@ bool WorldMap::validate(std::string& error) const
     {
         const Territory& territory = territories_[i];
         const std::string where = "territory " + std::to_string(territory.id);
+
+        // Territories are stored in id order (fromJson sorts them), so a
+        // duplicate is adjacent and gets its own clear message.
+        if (i > 0 && territory.id == territories_[i - 1].id)
+        {
+            error = "duplicate territory id " + std::to_string(territory.id);
+            return false;
+        }
 
         // Dense ids: the territory at index i must have id i, so find() can index
         // directly.

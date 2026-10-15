@@ -86,6 +86,47 @@ FOSSYND_TEST(WorldMap, RejectsNonDenseIds)
     FOSSYND_CHECK(!error.empty());
 }
 
+FOSSYND_TEST(WorldMap, RejectsDuplicateIds)
+{
+    std::string error;
+    // Two territories share id 0: ids are not unique.
+    const Json root = Json::parse(R"({
+      "territories": [
+        { "id": 0, "name": "A", "neighbours": [] },
+        { "id": 0, "name": "B", "neighbours": [] }
+      ]
+    })",
+                                   error);
+    FOSSYND_CHECK(error.empty());
+
+    WorldMap map;
+    FOSSYND_CHECK(!WorldMap::fromJson(root, map, error));
+    FOSSYND_CHECK(!error.empty());
+}
+
+FOSSYND_TEST(WorldMap, AcceptsOutOfOrderDenseIds)
+{
+    std::string error;
+    // Dense (0,1,2) but listed out of order; the parser sorts by id, so this is
+    // a valid map.
+    const Json root = Json::parse(R"({
+      "territories": [
+        { "id": 2, "name": "C", "neighbours": [1] },
+        { "id": 0, "name": "A", "neighbours": [1] },
+        { "id": 1, "name": "B", "neighbours": [0, 2] }
+      ]
+    })",
+                                   error);
+    FOSSYND_CHECK(error.empty());
+
+    WorldMap map;
+    FOSSYND_CHECK(WorldMap::fromJson(root, map, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_EQ(map.size(), std::size_t{3});
+    FOSSYND_CHECK_EQ(map.find(0)->name, std::string("A"));
+    FOSSYND_CHECK_EQ(map.find(2)->name, std::string("C"));
+}
+
 FOSSYND_TEST(WorldMap, RejectsUnknownNeighbourAndSelfLoop)
 {
     std::string error;
