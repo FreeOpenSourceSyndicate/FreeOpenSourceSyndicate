@@ -13,6 +13,7 @@
 #include "core/sim/Mission.h"
 #include "core/world/TileGrid.h"
 #include "game/Font.h"
+#include "game/GroundTiles.h"
 #include "game/Minimap.h"
 #include "game/Sprite.h"
 
@@ -175,6 +176,7 @@ private:
     void buildMission();
     void buildMapTexture();
     void buildSprites();
+    void buildTiles();
     void buildMinimap();
     void loadLanguage();
     // Reflects the localised mission name in the OS window title (issue #176).
@@ -358,6 +360,11 @@ private:
     // renderer falls back to the original flat diamonds, so a bad sheet never
     // stops the game from running.
     AgentSprites sprites_;
+
+    // Authored pixel-art ground tiles (Phase 2, issue #189). Baked into the
+    // static map once; when invalid the map falls back to the original flat
+    // diamond fills, so a bad sheet never stops the game from running.
+    GroundTiles tiles_;
 
     // Whole-board overview panel (Phase 2). Display-only; skipped when invalid.
     Minimap minimap_;
