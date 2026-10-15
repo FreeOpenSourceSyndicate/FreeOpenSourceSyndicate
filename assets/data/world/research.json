@@ -1,0 +1,12 @@
+{
+  "nodes": [
+    { "id": "minigun", "name": "Minigun", "cost": 500, "time": 60,
+      "requires": [], "unlocks": "minigun" },
+    { "id": "gauss", "name": "Gauss Rifle", "cost": 900, "time": 90,
+      "requires": ["minigun"], "unlocks": "gauss" },
+    { "id": "longshot", "name": "Longshot Rifle", "cost": 700, "time": 75,
+      "requires": ["minigun"], "unlocks": "longshot" },
+    { "id": "railgun", "name": "Railgun", "cost": 1600, "time": 150,
+      "requires": ["gauss", "longshot"], "unlocks": "railgun" }
+  ]
+}

@@ -22,6 +22,7 @@ set(FOSSYND_TEST_SOURCES
     test_tilesprites.cpp
     test_worldmap.cpp
     test_economy.cpp
+    test_research.cpp
     test_i18n.cpp
     test_content_validation.cpp
 )
