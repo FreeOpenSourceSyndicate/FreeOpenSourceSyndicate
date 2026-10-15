@@ -82,7 +82,7 @@ void Game::renderHud()
                  "   " + prefix;
     }
     const std::string controls = tr("hud.controls",
-                                    "[L] MOVE   [SHIFT+CLICK] QUEUE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   "
+                                    "[SHIFT+CLICK] QUEUE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   "
                                     "[P] PERSUADE   [F] FREE   [R] RESTART");
     // The objective label is tinted by state; the static controls hint stays dim.
     // Together they used to overflow the default width, which right-aligned the
