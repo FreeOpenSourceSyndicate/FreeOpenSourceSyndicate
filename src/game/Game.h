@@ -73,6 +73,13 @@ public:
     // Used by the `game_campaign` ctest.
     bool campaignSelfTest() { return campaign_.selfTest(); }
 
+    // Headless guard for deploying from the map onto the tactical board (issue
+    // #312): the deployed mission must start with the chosen loadout applied to
+    // the player agents, and a mission result must feed back to the campaign and
+    // return to the map. Drives the real CampaignScreen + Game path and restores
+    // the deployment state before returning. Used by the `game_deploy` ctest.
+    bool deploySelfTest();
+
     // Directory containing the executable, used to find an external language
     // file. May be empty (relative search paths are then tried). Call before
     // init().
@@ -257,6 +264,17 @@ private:
     // Toggles fullscreen/windowed (issue #194, F11).
     void toggleFullscreen();
     void restart();
+    // Starts a mission deployed from the campaign map (issue #312): loads the
+    // mission at `missionPath` (a resolved file, never the embedded fallback) and
+    // applies `loadout` to its player agents via R1's `applyLoadout`, so the
+    // bought squad reaches the board. Replaces the current mission; `restart()`
+    // replays this same deployment, so a loss can be retried.
+    void startDeployedMission(const std::string& missionPath, const core::PlayerLoadout& loadout);
+    // Records the ended deployment's result on the campaign and shows the map
+    // again (issue #312). No-op when no deployment is pending, so it is safe to
+    // call every frame. Shared by update() and deploySelfTest() so the guard
+    // exercises the real feedback path.
+    void finishDeployment();
     void handleEvents(bool& running);
     void update(float dt);
     void updateAutoPlay(float dt);
@@ -408,6 +426,18 @@ private:
 
     // Resolved mission file, or empty to use the embedded copy (ADR-0003).
     std::string missionPath_;
+
+    // The loadout of a mission deployed from the campaign map (issue #312). An
+    // empty loadout means the mission uses its authored squad, so a normal
+    // (non-campaign) start is unchanged. Applied in buildMission() through R1's
+    // `applyLoadout`; kept so `restart()` replays the same deployment.
+    core::PlayerLoadout activeLoadout_;
+
+    // The campaign mission currently being played, or -1 when the tactical board
+    // is not a deployment. Set when a deployment starts, consumed once when the
+    // mission ends: the win/lose is recorded on the campaign and the map is shown
+    // again, so the campaign loop closes.
+    core::TerritoryId deployedTerritory_ = -1;
 
     // The campaign management screen (Milestone B): the world map, funds, tax,
     // research, and deployment, driven from its own translation unit. Invalid

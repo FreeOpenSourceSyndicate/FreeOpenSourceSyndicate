@@ -260,6 +260,13 @@ if(BUILD_TESTS)
     add_test(NAME game_campaign
              COMMAND FOSSynd --headless --check-campaign)
     set_tests_properties(game_campaign PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    # Deploy from the map onto the tactical board (issue #312): the territory's
+    # mission must start with the chosen loadout applied to the squad, and a
+    # mission result must feed back to the campaign and return to the map. Run
+    # from the repo root so the shipped campaign and missions are found.
+    add_test(NAME game_deploy
+             COMMAND FOSSynd --headless --check-deploy)
+    set_tests_properties(game_deploy PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     # `--map` starts on the management screen; it must render and exit cleanly
     # headlessly, so the world-map path is exercised, not just the flag.
     add_test(NAME game_map_flag

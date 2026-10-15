@@ -9,6 +9,7 @@
 #include "core/economy/Equipment.h"
 #include "core/economy/Research.h"
 #include "core/economy/WorldMap.h"
+#include "core/sim/PlayerLoadout.h"
 #include "core/util/Rng.h"
 
 namespace fossynd::core
@@ -78,6 +79,17 @@ public:
     TerritoryId selectedTerritory() const { return selectedTerritory_; } // -1 if none
     const std::string& selectedMissionId() const { return selectedMissionId_; } // empty if none
     const std::vector<int>& selectedSlots() const { return selectedSlots_; }
+
+    // The bought loadout for the selected mission, resolved from the squad's
+    // equipment slots (Milestone B deployment). Slot i of the result is the
+    // equipment assigned to squad slot `selectedSlots()[i]`: a weapon id from
+    // the shared weapon catalogue, a gadget id from the tactical gadget
+    // vocabulary, or both; a cybernetic (a passive upgrade) contributes nothing
+    // because it is not a loadout item. An empty result means "keep the
+    // mission's authored squad" (R1, docs/METAGAME.md §7). The engine layer hands
+    // this to `applyLoadout`, so a bought weapon/gadget reaches the deployed
+    // agent instead of the mission's default (issue #312).
+    PlayerLoadout selectedLoadout() const;
 
     // --- progression ---
 

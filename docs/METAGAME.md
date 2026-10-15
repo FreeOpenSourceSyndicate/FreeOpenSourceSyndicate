@@ -484,7 +484,12 @@ Campaign ──owns──▶ WorldMap      (topology + ownership + tax level)
   `weaponId`/`gadgetId` per slot) plus `core::applyLoadout(loadout, mission,
   weapons, error)` in `core/data/MissionData`; an empty id keeps the authored
   default and an unknown id is a content error (ADR-0027). The engine-side wiring
-  (`Game`/`CampaignScreen` handing a loadout over on deploy) is issue #312.
+  (`Game`/`CampaignScreen` handing a loadout over on deploy) **landed in #312**:
+  `D` on the map resolves the territory's mission file and the bought squad
+  (`Campaign::selectedLoadout` → `PlayerLoadout`), starts it with
+  `Game::startDeployedMission` (which calls `applyLoadout` at load), and feeds the
+  mission's win/lose back to `Campaign::recordResult` (`Game::finishDeployment`),
+  returning the player to the map.
 - **R2 → Content.** The equipment catalogue's weapon ids must resolve to the
   shared weapon catalogue (`assets/data/weapons.json`). Needed so a bought weapon
   is the same `core::Weapon` the sim fires. Interface wanted: a documented id
@@ -506,13 +511,10 @@ Smallest useful first, so each PR is small and reviewable:
    (needs R1); the first slice that touches `src/game/**`. *(landed:
    `game::CampaignScreen` + `--map`/`--check-campaign`; R1 landed in #311
    (`PlayerLoadout`/`applyLoadout`), the engine-side deploy wiring is #312)*
-6. **Campaign progression** — unlock on win, end state, victory screen.
-   `game::CampaignScreen` + `--map`/`--check-campaign`; the mission-side loadout
-   override R1 is still open)*
-6. **Campaign progression** — attack the frontier, end state, victory
-   screen. *(landed: the frontier attack rule + `Campaign::canDeployTo`, so a
-   win claims an adjacent region and the map can actually be won — ADR-0029;
-   the victory screen is still a follow-up)*
+6. **Campaign progression** — attack the frontier, end state, victory screen.
+   *(landed: the frontier attack rule + `Campaign::canDeployTo`, so a win claims
+   an adjacent region and the map can actually be won — ADR-0029; the victory
+   screen is still a follow-up)*
 
 Each lands as its own PR under the `focus: metagame` lease (`AGENTS.md` §3,
 "one task = one branch = one PR"). The issue's checkboxes are ticked as they merge.

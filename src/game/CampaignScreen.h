@@ -32,7 +32,8 @@ public:
     // Loads the campaign from `path`, or from the first existing default location
     // when `path` is empty. Returns false when no campaign could be loaded (the
     // screen then stays invalid and the caller skips it, so a missing data file
-    // is never fatal — AGENTS.md §1b).
+    // is never fatal — AGENTS.md §1b). `exeDir` is used to search for campaign
+    // and mission files alongside the executable.
     bool init(const std::string& path, const std::string& exeDir);
 
     bool valid() const { return valid_; }
@@ -54,9 +55,34 @@ public:
     // [0, maxTaxLevel]). A no-op unless a player-owned territory is selected.
     void adjustTax(int delta);
 
+    // The territory currently selected on the map, or -1. Read-only, for the
+    // engine layer (e.g. the deploy self-test).
+    core::TerritoryId selectedTerritory() const { return selected_; }
+
     // Deploys the selected territory's mission with the full four-agent squad.
     // Returns false when nothing selectable is selected.
     bool deploySelected();
+
+    // True once a mission has been deployed from the map and is waiting to be
+    // played (issue #312). The engine layer reads the pending mission and its
+    // loadout, starts it, and clears the flag by calling `recordDeployResult`.
+    bool hasDeployed() const { return hasDeployed_; }
+
+    // The mission id and the loadout of the pending deployment. Both are empty
+    // when nothing is pending. `deployedLoadout` is what R1's `applyLoadout`
+    // takes, so the bought squad reaches the deployed agents.
+    const std::string& deployedMissionId() const { return deployedMissionId_; }
+    const core::PlayerLoadout& deployedLoadout() const { return deployedLoadout_; }
+    // The resolved mission file for the pending deployment, or empty when the
+    // mission id has no file on disk (the deploy then fails rather than starting
+    // the wrong mission).
+    const std::string& deployedMissionPath() const { return deployedMissionPath_; }
+
+    // Records the played mission's result: a win claims the territory for the
+    // player and the campaign advances; either way the pending deployment is
+    // cleared, so the map is ready for the next deploy. Returns the campaign
+    // state after the result, so the caller can show the end state.
+    core::CampaignState recordDeployResult(bool won);
 
     // Draws the screen: backdrop, world map, and the management panel.
     void render(SDL_Renderer* renderer, const BitmapFont& font, int w, int h) const;
@@ -91,6 +117,14 @@ private:
     // tolerance in pixels.
     int nodeAtScreen(int x, int y, int w, int h, int radius) const;
 
+    // Resolves a mission id (as named by a territory) to its JSON file. Searches
+    // the mission directory under the repo root, then alongside the executable,
+    // then the common install prefixes — the same order as the default mission
+    // search (core/data/ContentPaths.h). Returns an empty string when no file
+    // exists, so a deploy with no mission file fails instead of loading the
+    // wrong mission.
+    std::string resolveMissionFile(const std::string& missionId) const;
+
     core::Campaign campaign_;
     // Seeded so a campaign is reproducible: the only randomness is the revolt
     // roll (golden rule 2). Never reseeded at runtime.
@@ -99,6 +133,19 @@ private:
     bool visible_ = false;
     core::TerritoryId selected_ = -1;
     std::vector<LayoutPoint> layout_;
+
+    // The executable directory, kept so a deployed mission id resolves to a
+    // file alongside the executable when run from outside the repo (issue #312).
+    std::string exeDir_;
+
+    // A deployment waiting to be played (issue #312): the mission the selected
+    // territory names, its resolved file, and the loadout resolved from the
+    // bought squad. Cleared by recordDeployResult() once the mission has been
+    // played.
+    bool hasDeployed_ = false;
+    std::string deployedMissionId_;
+    std::string deployedMissionPath_;
+    core::PlayerLoadout deployedLoadout_;
 };
 
 } // namespace fossynd::game

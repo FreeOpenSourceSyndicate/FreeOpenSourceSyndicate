@@ -549,10 +549,11 @@ already-owned territory, so `own-all-territories` was unreachable — the map
 could never progress. A `missionId` may now be shared by several regions (the
 original reuses city maps), and `CampaignScreen::selfTest` wins by attacking, so
 unwinnable data fails `game_campaign` instead of a playtest.
-What remains for Milestone B: **`Campaign::recordResult` is not yet fed by a
-finished mission** (the map does not learn the win/lose result yet), **R1**
-(mapping a bought loadout onto the mission's player agents, Tactical/Content),
-the per-region mission content (Tactical), and the campaign victory screen.
+What remains for Milestone B: the per-region mission content (Tactical), and the
+campaign victory screen. The mission round-trip has landed (issue #312): `D` on
+the map starts the territory's mission on the tactical board with the bought
+squad (R1's `applyLoadout`), and the mission's win/lose is fed back to
+`Campaign::recordResult` and returns the player to the map.
 Claim it at issue #249 (`focus: metagame`);
 `docs/METAGAME.md` is the interface contract. Milestone A (finishing the tactical
 layer: cybernetics, scanner, vehicles, destructible environment) runs in
@@ -618,10 +619,12 @@ Do not start work outside the scope fence (ADR-0024).
   granted). **Frontier attacks (ADR-0029):** `D` deploys to the selected region
   when `Campaign::canDeployTo` accepts it — the player owns it or holds an
   adjacent region — and the panel shows `STATUS: ATTACK READY` / `NOT REACHABLE`;
-  a win claims it, so the map is attacked inward from the border and can be won.
-  Not wired yet: `Campaign::recordResult` (a finished mission does not
-  yet feed the map) and **R1** (bought loadout → mission player agents,
-  Tactical/Content). The screen's labels are plain literals, not i18n keys
+  **deploying starts the mission on the tactical board** (`Game::startDeployedMission`)
+  with the bought squad applied (`Campaign::selectedLoadout` → R1's
+  `applyLoadout`), and the mission's win/lose is fed back to
+  `Campaign::recordResult` (`Game::finishDeployment`) and returns the player to
+  the map, closing the loop. `--headless --check-deploy` (ctest `game_deploy`)
+  guards the round-trip. The screen's labels are plain literals, not i18n keys
   (localisation beyond English is out of scope, ADR-0024) — localising it is a
   follow-up for `focus: text`.
 - **UI text is data, not literals (issue #53):** the HUD and title card read
@@ -773,8 +776,10 @@ Do not start work outside the scope fence (ADR-0024).
   a silent fallback. The gadget vocabulary (`gadgetChargesForId`: `medkit` |
   `shield`, one charge each) lives in `PlayerLoadout.h`, **not** `core/economy`,
   so the loader stays below the metagame. This is the frozen interface the
-  metagame's engine-side deploy wiring (issue #312) builds against; the core
-  change ships no engine caller by design (Rule 2a's follow-up is #312). Tests in
+  metagame's engine-side deploy wiring (issue #312) builds against; the engine
+  side now consumes it (`Campaign::selectedLoadout` → `Game::startDeployedMission`
+  → `applyLoadout`), so a deployed squad's bought weapon/gadget reaches the board.
+  Tests in
   `tests/test_mission.cpp`.
 - **Mission objectives are data-driven (ADR-0003):** `ObjectiveSpec`
   (`core/sim/Objective.h`) is `EliminateAll` (default), `ReachTile` (a living
@@ -881,12 +886,14 @@ Do not start work outside the scope fence (ADR-0024).
   `--headless --check-minimap`, `--headless --check-selection`,
   `--headless --check-waypoints`, `--headless --check-waypoint-path`,
   `--headless --check-pause`, `--headless --check-campaign`,
+  `--headless --check-deploy`,
   `--headless --check-objectives`,
   `--headless --map --frames N`, and
   `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
   `game_demo`, `game_low_spec`, `game_title`, `game_sprites`, `game_minimap`,
   `game_selection`, `game_waypoints`, `game_waypoint_path`, `game_pause`,
-  `game_pause_flag`, `game_campaign`, `game_map_flag`, and `game_objectives`
+  `game_pause_flag`, `game_campaign`, `game_deploy`, `game_map_flag`, and
+  `game_objectives`
   cover the SDL layer
   headlessly.
 - **Queued-route overlay (issue #89):** the view draws a selected agent's

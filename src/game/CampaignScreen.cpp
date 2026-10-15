@@ -35,6 +35,27 @@ std::vector<std::string> defaultCampaignPaths(const std::string& exeDir)
     return paths;
 }
 
+// Candidate files for a mission id, in priority order. Mirrors the default
+// mission search (core/data/ContentPaths.h): a build tree first, then alongside
+// the executable and the common install prefixes. The mission directory is
+// `assets/data/missions/` under the content root.
+std::vector<std::string> missionFileCandidates(const std::string& missionId,
+                                               const std::string& exeDir)
+{
+    const std::string file = missionId + ".json";
+    std::vector<std::string> paths;
+    paths.push_back("assets/data/missions/" + file);
+    if (!exeDir.empty())
+    {
+        paths.push_back(exeDir + "/assets/data/missions/" + file);
+        paths.push_back(exeDir + "/../share/fossynd/missions/" + file);
+        paths.push_back(exeDir + "/data/missions/" + file);
+    }
+    paths.push_back("/usr/local/share/fossynd/missions/" + file);
+    paths.push_back("/usr/share/fossynd/missions/" + file);
+    return paths;
+}
+
 // The rectangle the map graph is laid out in: the screen minus a left panel and
 // a top title bar. Shared by the draw path and the hit-test so a click lands on
 // the node it looks like it lands on.
@@ -100,6 +121,7 @@ void ownerColor(int owner, std::uint8_t& r, std::uint8_t& g, std::uint8_t& b)
 
 bool CampaignScreen::init(const std::string& path, const std::string& exeDir)
 {
+    exeDir_ = exeDir;
     std::string resolved = path;
     if (resolved.empty())
     {
@@ -295,15 +317,64 @@ void CampaignScreen::adjustTax(int delta)
 
 bool CampaignScreen::deploySelected()
 {
-    // The squad is the four fixed slots, all of them; deployment loadout mapping
-    // into the mission is Tactical/Content's follow-up (docs/METAGAME.md §7, R1),
-    // so this records the selection the same way the core contract does.
+    // The squad is the four fixed slots, all of them; the loadout resolved from
+    // the bought equipment maps onto the deployed mission's player agents via
+    // R1's applyLoadout (issue #312).
     std::vector<int> slots;
     for (int slot = 0; slot < core::Equipment::kSquadSlots; ++slot)
     {
         slots.push_back(slot);
     }
-    return campaign_.selectMission(selected_, slots);
+    if (!campaign_.selectMission(selected_, slots))
+    {
+        return false;
+    }
+
+    // Record what to play: the mission id and the bought loadout. The engine
+    // layer starts it (Game::startDeployedMission) and calls recordDeployResult
+    // when the mission ends. Kept here (not in Game) so the campaign rules stay
+    // in this translation unit (docs/FOCUS_AREAS.md §4, Rule 2).
+    deployedMissionId_ = campaign_.selectedMissionId();
+    deployedMissionPath_ = resolveMissionFile(deployedMissionId_);
+    deployedLoadout_ = campaign_.selectedLoadout();
+    if (deployedMissionPath_.empty())
+    {
+        // No file for the mission: do not start a mission that is not the one
+        // the territory names. The selection stands; the deploy is a no-op.
+        std::fprintf(stderr, "campaign: mission '%s' has no file to deploy\n",
+                     deployedMissionId_.c_str());
+        deployedMissionId_.clear();
+        deployedLoadout_ = core::PlayerLoadout{};
+        return false;
+    }
+    hasDeployed_ = true;
+    return true;
+}
+
+core::CampaignState CampaignScreen::recordDeployResult(bool won)
+{
+    hasDeployed_ = false;
+    deployedMissionId_.clear();
+    deployedMissionPath_.clear();
+    deployedLoadout_ = core::PlayerLoadout{};
+    campaign_.recordResult(won, core::Campaign::kPlayerSyndicate);
+    return campaign_.state();
+}
+
+std::string CampaignScreen::resolveMissionFile(const std::string& missionId) const
+{
+    if (missionId.empty())
+    {
+        return {};
+    }
+    for (const std::string& candidate : missionFileCandidates(missionId, exeDir_))
+    {
+        if (core::fileExists(candidate))
+        {
+            return candidate;
+        }
+    }
+    return {};
 }
 
 void CampaignScreen::render(SDL_Renderer* renderer, const BitmapFont& font, int w, int h) const
