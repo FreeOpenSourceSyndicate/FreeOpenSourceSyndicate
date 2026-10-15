@@ -190,3 +190,48 @@ FOSSYND_TEST(ContentValidation, ShippedContentPasses)
     FOSSYND_CHECK(report.missionsChecked >= static_cast<std::size_t>(2));
     FOSSYND_CHECK(report.cataloguesChecked >= static_cast<std::size_t>(1));
 }
+
+// The Phase 3 weapon tiers (issue #124) must be present in the shipped catalogue
+// and parse to their intended niches. This is the guard that keeps a weapon from
+// silently vanishing from weapons.json, and it pins each tier's relationship to
+// the rifle so a mis-edit (e.g. a fire rate of 0) cannot slip through.
+FOSSYND_TEST(ContentValidation, ShippedWeaponTiersLoad)
+{
+    const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/weapons.json";
+    WeaponCatalogue catalogue;
+    bool found = false;
+    std::string error;
+    FOSSYND_CHECK(catalogue.loadFromFile(path, found, error));
+    FOSSYND_CHECK(found);
+
+    const Weapon* rifle = catalogue.find("rifle");
+    const Weapon* minigun = catalogue.find("minigun");
+    const Weapon* flamethrower = catalogue.find("flamethrower");
+    const Weapon* laser = catalogue.find("laser");
+    FOSSYND_CHECK(rifle != nullptr);
+    FOSSYND_CHECK(minigun != nullptr);
+    FOSSYND_CHECK(flamethrower != nullptr);
+    FOSSYND_CHECK(laser != nullptr);
+    if (rifle == nullptr || minigun == nullptr || flamethrower == nullptr || laser == nullptr)
+    {
+        return;
+    }
+
+    FOSSYND_CHECK_EQ(minigun->name, std::string("Minigun"));
+    FOSSYND_CHECK_EQ(flamethrower->name, std::string("Flamethrower"));
+    FOSSYND_CHECK_EQ(laser->name, std::string("Laser"));
+
+    // Minigun: the highest fire rate in the catalogue, but low per-shot damage.
+    FOSSYND_CHECK(minigun->fireRate > rifle->fireRate);
+    FOSSYND_CHECK(minigun->damage < rifle->damage);
+
+    // Flamethrower: short range, high rate.
+    FOSSYND_CHECK(flamethrower->range < rifle->range);
+    FOSSYND_CHECK(flamethrower->fireRate > rifle->fireRate);
+
+    // Laser: longest range and the highest per-shot damage of the three.
+    FOSSYND_CHECK(laser->range > rifle->range);
+    FOSSYND_CHECK(laser->damage > minigun->damage);
+    FOSSYND_CHECK(laser->damage > flamethrower->damage);
+    FOSSYND_CHECK(laser->fireRate < rifle->fireRate);
+}
