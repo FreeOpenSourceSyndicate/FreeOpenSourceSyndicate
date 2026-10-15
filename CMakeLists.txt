@@ -36,6 +36,17 @@ if(FOSSYND_SANITIZE)
     message(STATUS "Sanitizer profile enabled (ASan + UBSan, no-recover)")
 endif()
 
+# Warnings-as-errors: promote the `-Wall -Wextra -Wpedantic` warnings to hard
+# errors so a warning cannot land on `main` (AGENTS.md §4 Rule 9, §9). Off by
+# default, so local and release builds are unaffected; the CI job enables it.
+# `-Wno-error=deprecated-declarations` is deliberately NOT set: deprecations are
+# exactly the kind of rot this gate is meant to catch.
+option(FOSSYND_WERROR "Treat compiler warnings as errors (developer/CI only)" OFF)
+if(FOSSYND_WERROR)
+    add_compile_options(-Werror)
+    message(STATUS "Warnings-as-errors enabled (-Werror)")
+endif()
+
 if(WIN32)
     message(STATUS "Building for Windows")
 elseif(APPLE)

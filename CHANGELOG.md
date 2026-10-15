@@ -18,6 +18,11 @@ contains no original assets, code, names, or trademarks.
   the line, and slides to another covered neighbour when it can. An enemy in the
   open is unchanged, so existing missions play as before. Deterministic, no RNG
   (`Mission::findCoverTile`). Covered by `tests/test_mission.cpp`; see ADR-0022.
+- **Warnings-as-errors build + CI lane.** A `FOSSYND_WERROR=ON` CMake option
+  promotes the `-Wall -Wextra -Wpedantic` warnings to hard errors, and a new
+  `Warnings as errors (-Werror)` CI job (core + game) fails the build on any
+  warning so one cannot land on `main` (golden rule 9). OFF by default, so local
+  and release builds are unchanged. Issue #192.
 - **Windows packaging lane (CPack `ZIP`):** a `WIN32`-guarded generator built
   from the existing `install()` rules ships `FOSSynd-<version>-Windows.zip`
   (with `SDL2.dll` beside `FOSSynd.exe`), and a `workflow_dispatch`-gated,
