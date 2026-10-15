@@ -851,7 +851,10 @@ Do not start work outside the scope fence (ADR-0024).
   `assets/data/agents.json`. To add a weapon or agent template, append an entry
   to the matching file and reference it by `weaponId`/`agentId`; a mission that
   inlines its content (e.g. `demo.json`) is unaffected. Schema in
-  `docs/DATA_FORMAT.md` ("Shared catalogues").
+  `docs/DATA_FORMAT.md` ("Shared catalogues"). The shipped catalogue is 10
+  weapons + 10 templates; a new entry **must** bump the pinned
+  `cataloguesChecked` count in `tests/test_content_validation.cpp` and should add
+  a carrier template so the weapon is mission-referenceable, not inert.
 - **Mission selection is configurable:** `--mission <path>` (CLI) overrides a
   `mission`/`mission_dir` key in a config file (`--config <path>`, else
   `./fossynd.conf`, `<exe-dir>/fossynd.conf`, `/etc/fossynd.conf`,
