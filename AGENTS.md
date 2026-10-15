@@ -767,6 +767,19 @@ Do not start work outside the scope fence (ADR-0024).
   surface (`Game::buildMapTexture`), one blit per cell, so per-frame cost is
   unchanged. The sheet is embedded via `game/EmbeddedTiles.cpp.in`. A bad sheet is
   non-fatal (flat-diamond fallback). Extend the art in `ground.txt`, not in C++.
+- **Hijackable vehicles (issue #315):** `core::Vehicle` (`src/core/world/Vehicle.{h,cpp}`,
+  World area) is the engine-free vehicle entity — a car or train with fractional
+  tile position, A* movement (`driveTo`, identical search and "nearest reachable
+  tile" fallback as `Agent::moveTo`), an interpolated position for the renderer,
+  health/destruction, single-agent occupancy (`hijack`/`eject`/`driver`), and a
+  mounted `Weapon` whose fire needs an intact, occupied vehicle. It is
+  deliberately *policy-free*: it does not decide who may drive or what a hit
+  does — `Mission` (Tactical) owns that, so the entity stays unit-testable
+  (`tests/test_vehicle.cpp`). Movement does not require a driver, so a scripted
+  or runaway vehicle can follow a path. Stats are in code (`makeCar`/`makeTrain`)
+  until an `assets/data` vehicles catalogue lands (Content). Not yet wired into
+  `Mission`/the view — that integration is follow-up work on #315; do not treat
+  the entity as "the feature" on its own.
 - **The minimap is `game/Minimap.*` (Phase 2):** a whole-board overview panel in
   the top-right HUD corner. The static terrain is baked once into a one-texel-
   per-tile texture (`Minimap::init`), and only per-agent blips are drawn each
