@@ -144,6 +144,7 @@ the owning area's **contract step** (§4, Rule 3):
 | Input/UI | the CLI flags and the `Game::init`/`run`/`set*` surface used by `main.cpp` |
 | Content | `MissionData`, `Json`, `Config`, `ContentPaths`, `ContentValidation`, `AgentSprites` public APIs and the JSON schema |
 | Text | the `StringTable` lookup API and the `assets/lang` schema |
+| Metagame | the `core/economy` public APIs (`WorldMap`, `Economy`, `Research`, `Equipment`, `Campaign`) and the `assets/data/world` schema |
 | Platform | CMake options (`FOSSYND_*`), target names, CI job names |
 | Release | the `CHANGELOG.md` format and `docs/releases/*` layout |
 
@@ -166,6 +167,7 @@ the owning area's **contract step** (§4, Rule 3):
    | Input/UI | `feat/ui-*`, `feat/input-*`, `fix/ui-*` |
    | Content | `feat/data-*`, `feat/content-*` |
    | Text | `feat/i18n-*`, `docs/lore-*` |
+   | Metagame | `feat/meta-*`, `feat/economy-*` |
    | Platform | `chore/ci-*`, `build/*` |
    | Release | `release/*`, `docs/release-*` |
 
