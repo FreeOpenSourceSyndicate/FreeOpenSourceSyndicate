@@ -18,6 +18,13 @@ contains no original assets, code, names, or trademarks.
   damage path now funnels through `Mission::damageAgent`. Deterministic, no RNG.
   Covered by `tests/test_mission.cpp`; see ADR-0023. Not yet surfaced to the
   player (a UI binding and a content `shields` field are follow-ups). Issue #211.
+- **Pixel-art ground tiles.** The map is no longer flat colour fills: each cell
+  is drawn from an authored isometric tile — light/dark checkerboard floor, a
+  raised wall, and a cracked destructible wall — baked from
+  `assets/tiles/ground.txt` at the original chunky resolution and scaled
+  nearest-neighbour into the pre-baked static map (one blit per cell, so it stays
+  cheap on old hardware). If the sheet cannot be baked the map falls back to the
+  previous flat diamonds. Issue #189.
 - **Enemies take cover under fire:** a combatant that is being shot at now
   breaks for the nearest cover instead of trading shots in the open. While
   engaged and under fire (just hit, or the shooter is still firing), an enemy
