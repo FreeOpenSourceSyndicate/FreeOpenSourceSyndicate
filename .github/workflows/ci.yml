@@ -66,6 +66,25 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
+  # Shell linting (issue #286). The helper scripts have produced three real
+  # platform bugs (#227, #256/#277/#280), all caught by a human rather than by
+  # CI. shellcheck finds that class mechanically: SC1128 is exactly the
+  # shebang-below-the-marker bug that made build.sh inert under `sh`. It is a
+  # developer/CI-only tool, never linked into or shipped with the binary, so it
+  # adds no distribution dependency (AGENTS.md 1c). The tree is clean at
+  # shellcheck's default (strictest) severity, so the gate is green on `main`.
+  shellcheck:
+    name: Shell scripts (shellcheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Lint the shell scripts
+        run: shellcheck scripts/*.sh
+
   core-only:
     name: Core build (no graphics dependencies)
     runs-on: ubuntu-latest
