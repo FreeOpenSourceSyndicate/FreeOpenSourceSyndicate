@@ -73,6 +73,7 @@ Game::~Game()
 
 bool Game::init(int width, int height, bool headless, bool lowSpec)
 {
+    headless_ = headless;
     if (headless)
     {
         SDL_setenv("SDL_VIDEODRIVER", "dummy", 1);
@@ -95,6 +96,11 @@ bool Game::init(int width, int height, bool headless, bool lowSpec)
         return false;
     }
 
+    // Apply the requested initial fullscreen state (issue #194). Done before the
+    // renderer is created so the logical-size mapping is set up consistently.
+    fullscreen_ = startFullscreen_ && !headless_;
+    applyFullscreen();
+
     // Prefer a software renderer so the game runs on machines without a GPU. In
     // the low-spec profile (ADR-0008) it is required, not merely preferred.
     renderer_ = SDL_CreateRenderer(window_, -1, SDL_RENDERER_SOFTWARE);
@@ -107,6 +113,13 @@ bool Game::init(int width, int height, bool headless, bool lowSpec)
         std::fprintf(stderr, "SDL_CreateRenderer failed: %s\n", SDL_GetError());
         return false;
     }
+
+    // Fix the logical resolution (issue #194): the game draws in its authored
+    // pixel space and SDL scales the frame to the window/display, so fullscreen
+    // fills the screen without changing the drawing code or the pixel-art look
+    // (nearest-neighbour, AGENTS.md 1). SDL also maps mouse events back to this
+    // space, so selection stays correct when scaled.
+    SDL_RenderSetLogicalSize(renderer_, screenWidth_, screenHeight_);
 
     // Smooth the health bars / diamonds a little. Harmless on old hardware.
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
@@ -262,6 +275,29 @@ void Game::updateWindowTitle()
     }
     const std::string title = "FOSSynd v" FOSSYND_VERSION " - " + missionName_;
     SDL_SetWindowTitle(window_, title.c_str());
+}
+
+void Game::applyFullscreen()
+{
+    // No window on a headless run (and the dummy driver would reject the call),
+    // so fullscreen is a safe no-op there (issue #194).
+    if (window_ == nullptr || headless_)
+    {
+        return;
+    }
+    const Uint32 flags = fullscreen_ ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0;
+    if (SDL_SetWindowFullscreen(window_, flags) != 0)
+    {
+        std::fprintf(stderr, "fullscreen: %s\n", SDL_GetError());
+    }
+}
+
+void Game::toggleFullscreen()
+{
+    // Flip the logical state even headless so the toggle is unit-testable; the
+    // SDL call inside applyFullscreen() is what is guarded.
+    fullscreen_ = !fullscreen_;
+    applyFullscreen();
 }
 
 void Game::buildSprites()
@@ -673,6 +709,38 @@ bool Game::zoomSelfTest()
     }
 
     zoom_ = kZoomMin;
+    return true;
+}
+
+bool Game::fullscreenSelfTest()
+{
+    // The toggle must flip the live state and survive repeated toggles; on a
+    // headless run the SDL call is a guarded no-op (issue #194). This is the
+    // state machine the F11 handler drives, so a break here would leave the
+    // player unable to leave fullscreen.
+    fullscreen_ = false;
+    toggleFullscreen();
+    if (!fullscreen_)
+    {
+        std::fprintf(stderr, "fullscreen self-test: toggle on failed\n");
+        return false;
+    }
+    toggleFullscreen();
+    if (fullscreen_)
+    {
+        std::fprintf(stderr, "fullscreen self-test: toggle off failed\n");
+        return false;
+    }
+    // An even number of toggles returns to the start.
+    toggleFullscreen();
+    toggleFullscreen();
+    if (fullscreen_)
+    {
+        std::fprintf(stderr, "fullscreen self-test: round-trip failed\n");
+        return false;
+    }
+    // Restore the requested initial state so a later render is unaffected.
+    fullscreen_ = startFullscreen_ && !headless_;
     return true;
 }
 
@@ -1317,6 +1385,11 @@ void Game::handleEvents(bool& running)
                 {
                     running = false;
                 }
+                else if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_F11)
+                {
+                    // Fullscreen toggle works on the title card too (issue #194).
+                    toggleFullscreen();
+                }
                 else
                 {
                     titleCardStartRequested_ = true;
@@ -1335,6 +1408,10 @@ void Game::handleEvents(bool& running)
             {
             case SDLK_ESCAPE:
                 running = false;
+                break;
+            case SDLK_F11:
+                // Toggle fullscreen/windowed at runtime (issue #194).
+                toggleFullscreen();
                 break;
             case SDLK_r:
                 restart();
