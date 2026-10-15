@@ -19,12 +19,13 @@
   "state.inProgress": "IN PROGRESS",
   "state.won": "MISSION COMPLETE",
   "state.lost": "SQUAD LOST",
+  "state.paused": "PAUSED",
 
   "title.prompt": "PRESS ANY KEY",
   "title.controls.move": "CLICK / L  MOVE THE SQUAD",
   "title.controls.attack": "RIGHT-CLICK  FOCUS FIRE",
   "title.controls.select": "1-4 RECALL  CTRL+1-4 SET  A  ALL",
-  "title.controls.misc": "ARROWS  SCROLL   R  RESTART   ESC  QUIT",
+  "title.controls.misc": "ARROWS  SCROLL   SPACE  PAUSE   R  RESTART   ESC  QUIT",
   "title.footer": "FOSSYND v{version}  -  FREE OPEN SOURCE SYNDICATE",
 
   "mission.demo.name": "Downtown Sweep",

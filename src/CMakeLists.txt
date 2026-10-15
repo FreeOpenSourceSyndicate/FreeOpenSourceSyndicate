@@ -202,6 +202,15 @@ if(BUILD_TESTS)
     # real mode set), so a headless start with the flag still exits 0.
     add_test(NAME game_fullscreen_flag
              COMMAND FOSSynd --headless --fullscreen --frames 1)
+    # Pause/resume (issue #210): a paused update() advances no simulation time
+    # while an unpaused one does, and the toggle round-trips. Exits non-zero on a
+    # broken invariant.
+    add_test(NAME game_pause
+             COMMAND FOSSynd --headless --check-pause)
+    # `--pause` must be a safe no-op headlessly (the board is frozen, then exits),
+    # so a headless start with the flag still exits 0.
+    add_test(NAME game_pause_flag
+             COMMAND FOSSynd --headless --pause --frames 1)
     # Content validation (issue #81): resolve every mission's weaponId/agentId
     # against the catalogues in the shipped assets/data and exit non-zero on a
     # dangling reference. Absolute path so it works from any build directory.

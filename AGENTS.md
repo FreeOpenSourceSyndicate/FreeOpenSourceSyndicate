@@ -495,6 +495,19 @@ PR.
   independent while motion stays smooth (golden rule 4). The camera follow and
   the walk cycle remain view-only and follow real elapsed time. Keep the sim on
   `clock_.step()`; never step the mission with a variable `dt`.
+- **Pause/resume (issue #210):** **`Space`** toggles a view-only `Game::paused_`
+  flag; `--pause` starts paused. While paused, `Game::update` returns before the
+  fixed-step loop, so `mission_.update` never runs and the clock banks nothing;
+  resuming calls `clock_.reset()` so no catch-up burst fires. The banner cue is
+  drawn in `Hud.cpp` (Render-owned) from the flag and the localised `state.paused`
+  key. `--headless --check-pause` (ctest `game_pause`) proves a paused `update()`
+  advances `Mission::elapsedSeconds()` by 0 while an unpaused one advances it, and
+  that the toggle round-trips.
+- **Fullscreen (issue #194):** **`F11`** toggles fullscreen/windowed; `--fullscreen`
+  starts fullscreen (`SDL_WINDOW_FULLSCREEN_DESKTOP`). The renderer keeps its
+  logical size and the frame scales to the display, so the pixel-art look and
+  mouse mapping are unchanged. A no-op on a headless run; `--headless
+  --check-fullscreen` (ctest `game_fullscreen`) guards the toggle state machine.
 - **UI text is data, not literals (issue #53):** the HUD and title card read
   their strings from `core::i18n::StringTable` (`assets/lang/en.json`, ADR-0016)
   via `Game::tr(key, fallback)` and `substitute()` for `{token}`s. Add new UI
@@ -648,11 +661,12 @@ PR.
 - Verification flags: `--headless --frames N`, `--headless --demo --frames N`,
   `--headless --title --frames N`, `--headless --check-sprites`,
   `--headless --check-minimap`, `--headless --check-selection`,
-  `--headless --check-waypoints`, `--headless --check-waypoint-path`, and
+  `--headless --check-waypoints`, `--headless --check-waypoint-path`,
+  `--headless --check-pause`, and
   `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
   `game_demo`, `game_low_spec`, `game_title`, `game_sprites`, `game_minimap`,
-  `game_selection`, `game_waypoints`, and `game_waypoint_path` cover the SDL
-  layer headlessly.
+  `game_selection`, `game_waypoints`, `game_waypoint_path`, `game_pause`, and
+  `game_pause_flag` cover the SDL layer headlessly.
 - **Queued-route overlay (issue #89):** the view draws a selected agent's
   shift-click waypoint queue (`Agent::moveQueue()`) as a yellow polyline with
   numbered dots, in `Game::renderWaypointPath()`; `Game::waypointRoute()` is the

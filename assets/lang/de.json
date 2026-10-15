@@ -19,12 +19,13 @@
   "state.inProgress": "LAEUFT",
   "state.won": "MISSION ERFUELLT",
   "state.lost": "TRUPPE VERLOREN",
+  "state.paused": "PAUSE",
 
   "title.prompt": "BELIEBIGE TASTE DRUECKEN",
   "title.controls.move": "KLICK / L  TRUPPE BEWEGEN",
   "title.controls.attack": "RECHTSKLICK  ZIELFEUER",
   "title.controls.select": "1-4 ABRUF  STRG+1-4 SETZEN  A  ALLE",
-  "title.controls.misc": "PFEILE  SCROLLEN   R  NEUSTART   ESC  BEENDEN",
+  "title.controls.misc": "PFEILE  SCROLLEN   LEER  PAUSE   R  NEUSTART   ESC  BEENDEN",
   "title.footer": "FOSSYND v{version}  -  FREIES OPEN-SOURCE-SYNDIKAT",
 
   "mission.demo.name": "Innenstadt-Saeuberung",

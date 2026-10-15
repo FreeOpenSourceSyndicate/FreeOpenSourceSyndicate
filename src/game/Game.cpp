@@ -347,6 +347,8 @@ void Game::restart()
     seed_ = seed_ * 6364136223846793005ull + 1442695040888963407ull;
     buildMission();
     updateWindowTitle();
+    // A fresh mission runs: clear a stale pause so `R` always resumes play.
+    paused_ = false;
     // Drop any banked time so the new mission starts on a clean step boundary.
     clock_.reset();
     centerOn(mission_.agents().front().position());
@@ -777,6 +779,52 @@ bool Game::fullscreenSelfTest()
     }
     // Restore the requested initial state so a later render is unaffected.
     fullscreen_ = startFullscreen_ && !headless_;
+    return true;
+}
+
+bool Game::pauseSelfTest()
+{
+    // A paused update() must advance no simulation time, and an unpaused one
+    // must advance some — so a broken pause guard (sim keeps running, or never
+    // runs) fails the gate (issue #210).
+    if (mission_.state() != core::MissionState::Running)
+    {
+        std::fprintf(stderr, "pause self-test: mission is not running\n");
+        return false;
+    }
+
+    paused_ = true;
+    const float before = mission_.elapsedSeconds();
+    update(0.5f);
+    if (mission_.elapsedSeconds() != before)
+    {
+        std::fprintf(stderr, "pause self-test: sim advanced while paused\n");
+        return false;
+    }
+
+    // Resuming must let the sim run again (and must not burst-catch-up).
+    paused_ = false;
+    clock_.reset();
+    update(0.5f);
+    if (mission_.elapsedSeconds() <= before)
+    {
+        std::fprintf(stderr, "pause self-test: sim did not advance after resume\n");
+        return false;
+    }
+
+    // The toggle must round-trip.
+    togglePause();
+    if (!paused_)
+    {
+        std::fprintf(stderr, "pause self-test: toggle on failed\n");
+        return false;
+    }
+    togglePause();
+    if (paused_)
+    {
+        std::fprintf(stderr, "pause self-test: toggle off failed\n");
+        return false;
+    }
     return true;
 }
 
@@ -1449,6 +1497,10 @@ void Game::handleEvents(bool& running)
                 // Toggle fullscreen/windowed at runtime (issue #194).
                 toggleFullscreen();
                 break;
+            case SDLK_SPACE:
+                // Pause/resume the simulation (issue #210).
+                togglePause();
+                break;
             case SDLK_r:
                 restart();
                 break;
@@ -1618,6 +1670,14 @@ void Game::update(float frameSeconds)
         {
             titleCardActive_ = false;
         }
+        return;
+    }
+
+    // Pause (issue #210): freeze the simulation without touching the clock, so
+    // resuming drops the banked time (below) instead of firing a catch-up burst.
+    // The view still runs, so a paused frame redraws (e.g. a selection box).
+    if (paused_)
+    {
         return;
     }
 

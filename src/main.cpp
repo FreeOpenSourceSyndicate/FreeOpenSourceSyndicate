@@ -43,6 +43,7 @@ void printUsage()
         "      --low-spec             Small window, software renderer (old hardware).\n"
         "      --window <W>x<H>       Set the window size in pixels (e.g. 1280x800).\n"
         "      --fullscreen           Start in fullscreen (F11 toggles it).\n"
+        "      --pause                Start paused (Space toggles it).\n"
         "      --zoom <n>             Set the integer zoom level (1-3).\n"
         "      --headless             Run without a display.\n"
         "      --frames <n>           Run n frames, then exit.\n"
@@ -57,6 +58,7 @@ void printUsage()
         "      --check-waypoint-path  Validate the queued-route overlay.\n"
         "      --check-zoom           Validate integer zoom levels.\n"
         "      --check-fullscreen     Validate the fullscreen toggle.\n"
+        "      --check-pause          Validate pause/resume.\n"
         "      --check-lang [locale]  Validate the UI string table.\n"
         "      --check-content [dir]  Validate mission/catalogue references.\n",
         FOSSYND_VERSION);
@@ -138,6 +140,7 @@ int main(int argc, char** argv)
     bool lowSpec = false;
     bool title = false;
     bool fullscreen = false;
+    bool startPaused = false;
     bool checkSprites = false;
     bool checkMinimap = false;
     bool checkSelection = false;
@@ -147,6 +150,7 @@ int main(int argc, char** argv)
     bool checkLang = false;
     bool checkZoom = false;
     bool checkFullscreen = false;
+    bool checkPause = false;
     const char* checkLangLocale = nullptr; // --check-lang [<locale>]
     const char* checkContent = nullptr;   // --check-content [<dataDir>]
     const char* screenshot = nullptr;
@@ -187,6 +191,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--fullscreen") == 0)
         {
             fullscreen = true;
+        }
+        else if (std::strcmp(argv[i], "--pause") == 0)
+        {
+            startPaused = true;
         }
         else if (std::strcmp(argv[i], "--demo") == 0)
         {
@@ -235,6 +243,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-fullscreen") == 0)
         {
             checkFullscreen = true;
+        }
+        else if (std::strcmp(argv[i], "--check-pause") == 0)
+        {
+            checkPause = true;
         }
         else if (std::strcmp(argv[i], "--check-lang") == 0)
         {
@@ -374,6 +386,7 @@ int main(int argc, char** argv)
     game.setLang(lang);
     game.setInitialZoom(zoomLevel);
     game.setFullscreen(fullscreen);
+    game.setPaused(startPaused);
 
     // Show the authored title card for a real, interactive player. Automated
     // runs (headless, screenshots, attract mode) skip it and go straight to the
@@ -488,6 +501,16 @@ int main(int argc, char** argv)
         // no-op without a display. Used by the game_fullscreen ctest.
         const bool ok = game.fullscreenSelfTest();
         std::printf(ok ? "fullscreen: ok\n" : "fullscreen: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkPause)
+    {
+        // Headless guard for pause/resume (issue #210): a paused update() must
+        // advance no simulation time, an unpaused one must, and the toggle must
+        // round-trip. Used by the game_pause ctest.
+        const bool ok = game.pauseSelfTest();
+        std::printf(ok ? "pause: ok\n" : "pause: FAILED\n");
         return ok ? 0 : 1;
     }
 
