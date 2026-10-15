@@ -41,7 +41,7 @@ public:
 
 private:
     SDL_Surface* surfaces_[static_cast<int>(core::TileKind::Count)] = {nullptr, nullptr, nullptr,
-                                                                      nullptr};
+                                                                      nullptr, nullptr};
     bool valid_ = false;
 };
 

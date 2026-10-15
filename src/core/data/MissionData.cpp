@@ -115,6 +115,9 @@ bool parseBlocked(const Json& array, int mapWidth, int mapHeight, std::vector<Ti
         TileSpec tile;
         tile.x = node["x"].asInt();
         tile.y = node["y"].asInt();
+        // Optional: a destructible blocked tile is a wall weapon fire can break
+        // (issue #157). Absent, the tile is a plain solid wall.
+        tile.destructible = node.has("destructible") && node["destructible"].asBool();
         // An off-map blocked tile is silently dropped by buildGrid (issue #212).
         if (tile.x < 0 || tile.y < 0 || tile.x >= mapWidth || tile.y >= mapHeight)
         {
@@ -323,6 +326,12 @@ TileGrid buildGrid(const MissionData& data)
     for (const TileSpec& tile : data.blocked)
     {
         grid.setWalkable(tile.x, tile.y, false);
+        // A destructible wall keeps its blocking but can be breached by fire
+        // (issue #157); it then reads as rubble (issue #217/#218).
+        if (tile.destructible)
+        {
+            grid.setDestructible(tile.x, tile.y, true);
+        }
     }
 
     // Scatter presentational decor over some interior blocked tiles (crates and

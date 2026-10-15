@@ -44,6 +44,7 @@ void printUsage()
         "      --window <W>x<H>       Set the window size in pixels (e.g. 1280x800).\n"
         "      --fullscreen           Start in fullscreen (F11 toggles it).\n"
         "      --pause                Start paused (Space toggles it).\n"
+        "      --breach               Breach all destructible walls before rendering.\n"
         "      --zoom <n>             Set the integer zoom level (1-3).\n"
         "      --headless             Run without a display.\n"
         "      --frames <n>           Run n frames, then exit.\n"
@@ -59,6 +60,7 @@ void printUsage()
         "      --check-zoom           Validate integer zoom levels.\n"
         "      --check-fullscreen     Validate the fullscreen toggle.\n"
         "      --check-pause          Validate pause/resume.\n"
+        "      --check-rubble         Validate breached-tile rubble rendering.\n"
         "      --check-lang [locale]  Validate the UI string table.\n"
         "      --check-content [dir]  Validate mission/catalogue references.\n",
         FOSSYND_VERSION);
@@ -141,6 +143,7 @@ int main(int argc, char** argv)
     bool title = false;
     bool fullscreen = false;
     bool startPaused = false;
+    bool breachWalls = false;
     bool checkSprites = false;
     bool checkMinimap = false;
     bool checkSelection = false;
@@ -151,6 +154,7 @@ int main(int argc, char** argv)
     bool checkZoom = false;
     bool checkFullscreen = false;
     bool checkPause = false;
+    bool checkRubble = false;
     const char* checkLangLocale = nullptr; // --check-lang [<locale>]
     const char* checkContent = nullptr;   // --check-content [<dataDir>]
     const char* screenshot = nullptr;
@@ -195,6 +199,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--pause") == 0)
         {
             startPaused = true;
+        }
+        else if (std::strcmp(argv[i], "--breach") == 0)
+        {
+            breachWalls = true;
         }
         else if (std::strcmp(argv[i], "--demo") == 0)
         {
@@ -247,6 +255,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-pause") == 0)
         {
             checkPause = true;
+        }
+        else if (std::strcmp(argv[i], "--check-rubble") == 0)
+        {
+            checkRubble = true;
         }
         else if (std::strcmp(argv[i], "--check-lang") == 0)
         {
@@ -402,6 +414,13 @@ int main(int argc, char** argv)
     }
     game.setAutoPlay(demo);
 
+    // `--breach` opens every destructible wall up front so a headless screenshot
+    // (or a manual run) shows the rubble art without waiting for combat (#218).
+    if (breachWalls)
+    {
+        game.breachAllDestructibles();
+    }
+
     if (checkSprites)
     {
         // Headless guard for the sprite pipeline: the authored sheet must bake
@@ -511,6 +530,16 @@ int main(int argc, char** argv)
         // round-trip. Used by the game_pause ctest.
         const bool ok = game.pauseSelfTest();
         std::printf(ok ? "pause: ok\n" : "pause: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkRubble)
+    {
+        // Headless guard for breached-tile rendering (issue #218): a destructible
+        // wall must bake as its art, then as the rubble tile once breached, and
+        // the breach must re-bake the static map. Used by the game_rubble ctest.
+        const bool ok = game.rubbleSelfTest();
+        std::printf(ok ? "rubble: ok\n" : "rubble: FAILED\n");
         return ok ? 0 : 1;
     }
 

@@ -135,6 +135,7 @@ bool TileGrid::damageTile(int x, int y, int amount)
     destructible_[i] = 0;
     walkable_[i] = 1;
     rubble_[i] = 1;
+    ++breachEpoch_;
     decor_[i] = static_cast<std::uint8_t>(Decor::None);
     return true;
 }

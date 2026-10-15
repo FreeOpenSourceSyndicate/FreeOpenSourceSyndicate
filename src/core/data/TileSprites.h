@@ -18,7 +18,8 @@ enum class TileKind : std::uint8_t
     FloorDark = 1,
     Wall = 2,
     DestructibleWall = 3,
-    Count = 4,
+    Rubble = 4,
+    Count = 5,
 };
 
 struct TileSprites
@@ -32,10 +33,10 @@ struct TileSprites
 
 // The authored tile frame names, in sheet order (also the order
 // bakeTileSprites expects). Exposed so the view can report a readable error.
-extern const char* const kTileFrameNames[4];
+extern const char* const kTileFrameNames[5];
 
-// Bakes the four authored ground tiles from `text` (the content of
-// assets/tiles/ground.txt, or the copy embedded at build time). All four frames
+// Bakes the five authored ground tiles from `text` (the content of
+// assets/tiles/ground.txt, or the copy embedded at build time). All five frames
 // must exist and share one size. No anchor is required: a tile is drawn aligned
 // to its diamond cell. Engine-agnostic and free of I/O, like bakeSheet.
 bool bakeTileSprites(const std::string& text, TileSprites& out, std::string& error);

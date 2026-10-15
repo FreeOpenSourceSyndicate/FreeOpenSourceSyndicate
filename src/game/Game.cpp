@@ -40,6 +40,9 @@ constexpr std::uint32_t kTileDark = rgba(46, 53, 46);
 constexpr std::uint32_t kTileBlocked = rgba(30, 34, 30);
 constexpr std::uint32_t kBlockedEdge = rgba(90, 96, 90);
 constexpr std::uint32_t kGridLine = rgba(24, 27, 24);
+// Breached-tile rubble (no-art fallback only): a warm grey so a breach never
+// reads as plain floor.
+constexpr std::uint32_t kTileRubble = rgba(66, 58, 48);
 constexpr std::uint32_t kBackground = rgba(12, 13, 12);
 
 void setPixel(SDL_Surface* surface, int x, int y, std::uint32_t color)
@@ -401,34 +404,35 @@ void Game::buildMapTexture()
             const int cy = static_cast<int>(center.y + mapOffsetY_);
 
             const bool walkable = grid_.isWalkable(x, y);
+            const core::TileKind kind = tileKindAt(x, y);
             if (tiles_.valid())
             {
                 // Authored pixel art: one blit per cell, chosen by tile state.
-                core::TileKind kind = core::TileKind::FloorDark;
-                if (!walkable)
-                {
-                    kind = grid_.isDestructible(x, y) ? core::TileKind::DestructibleWall
-                                                      : core::TileKind::Wall;
-                }
-                else if ((x + y) % 2 == 0)
-                {
-                    kind = core::TileKind::FloorLight;
-                }
                 tiles_.blit(surface, kind, cx, cy);
                 continue;
             }
 
             // Fallback: the original flat diamond fills (used only when the tile
             // sheet failed to bake, so a bad sheet never stops the game).
-            const std::uint32_t color = walkable
-                                            ? (((x + y) % 2 == 0) ? kTileLight : kTileDark)
-                                            : kTileBlocked;
+            const bool rubble = kind == core::TileKind::Rubble;
+            const std::uint32_t color = !walkable ? kTileBlocked
+                                        : rubble  ? kTileRubble
+                                        : (((x + y) % 2 == 0) ? kTileLight : kTileDark);
             fillDiamond(surface, cx, cy, halfW, halfH, color);
 
             if (!walkable)
             {
                 fillDiamond(surface, cx, cy, halfW * 0.85f, halfH * 0.85f, kBlockedEdge);
                 fillDiamond(surface, cx, cy, halfW * 0.7f, halfH * 0.7f, kTileBlocked);
+            }
+            else if (rubble)
+            {
+                // Scatter a few dark chunks so a breach reads even without art.
+                fillDiamond(surface, cx, cy, halfW * 0.9f, halfH * 0.9f, color);
+                fillDiamond(surface, cx - halfW * 0.3f, cy, halfW * 0.16f, halfH * 0.28f,
+                            kTileBlocked);
+                fillDiamond(surface, cx + halfW * 0.28f, cy + halfH * 0.18f, halfW * 0.13f,
+                            halfH * 0.22f, kTileBlocked);
             }
             else
             {
@@ -440,6 +444,26 @@ void Game::buildMapTexture()
 
     SDL_UpdateTexture(mapTexture_, nullptr, surface->pixels, surface->pitch);
     SDL_FreeSurface(surface);
+
+    // Remember the breach count this texture reflects, so update() re-bakes only
+    // when the world reports a new one (issue #218).
+    mapBreachEpoch_ = grid_.breachEpoch();
+}
+
+core::TileKind Game::tileKindAt(int x, int y) const
+{
+    if (!grid_.isWalkable(x, y))
+    {
+        return grid_.isDestructible(x, y) ? core::TileKind::DestructibleWall
+                                          : core::TileKind::Wall;
+    }
+    if (grid_.isRubble(x, y))
+    {
+        // A breached wall: draw the rubble it left behind, not floor
+        // (issue #218, core state from #217).
+        return core::TileKind::Rubble;
+    }
+    return ((x + y) % 2 == 0) ? core::TileKind::FloorLight : core::TileKind::FloorDark;
 }
 
 core::Vec2 Game::tileToSurface(const core::Vec2& tile) const
@@ -823,6 +847,111 @@ bool Game::pauseSelfTest()
     if (paused_)
     {
         std::fprintf(stderr, "pause self-test: toggle off failed\n");
+        return false;
+    }
+    return true;
+}
+
+void Game::breachAllDestructibles()
+{
+    for (int y = 0; y < grid_.height(); ++y)
+    {
+        for (int x = 0; x < grid_.width(); ++x)
+        {
+            if (grid_.isDestructible(x, y) && !grid_.isRubble(x, y))
+            {
+                grid_.damageTile(x, y, grid_.tileHitPoints(x, y));
+            }
+        }
+    }
+    // Re-bake so a subsequent render (e.g. a screenshot) shows the rubble.
+    if (grid_.breachEpoch() != mapBreachEpoch_)
+    {
+        buildMapTexture();
+    }
+}
+
+void Game::forceBreachForTest()
+{
+    for (int y = 0; y < grid_.height(); ++y)
+    {
+        for (int x = 0; x < grid_.width(); ++x)
+        {
+            if (grid_.isDestructible(x, y) && !grid_.isRubble(x, y))
+            {
+                // Break it in one hit, whatever its hit points. Deliberately does
+                // not re-bake: rubbleSelfTest() must prove update() does that.
+                grid_.damageTile(x, y, grid_.tileHitPoints(x, y));
+                return;
+            }
+        }
+    }
+}
+
+bool Game::rubbleSelfTest()
+{
+    // The map must bake as a destructible wall, then as rubble once breached,
+    // and the breach must make update() re-bake the static map (issue #218). The
+    // mission carries a destructible wall (buildMission), so this path is real.
+    int wallX = -1;
+    int wallY = -1;
+    for (int y = 0; y < grid_.height() && wallX < 0; ++y)
+    {
+        for (int x = 0; x < grid_.width(); ++x)
+        {
+            if (grid_.isDestructible(x, y))
+            {
+                wallX = x;
+                wallY = y;
+                break;
+            }
+        }
+    }
+    if (wallX < 0)
+    {
+        std::fprintf(stderr, "rubble self-test: mission has no destructible wall\n");
+        return false;
+    }
+
+    if (tileKindAt(wallX, wallY) != core::TileKind::DestructibleWall)
+    {
+        std::fprintf(stderr, "rubble self-test: intact wall did not bake as destructible\n");
+        return false;
+    }
+
+    // Breach without re-baking, so the map is left stale. update() must notice
+    // the new breach and re-bake through the real per-frame path.
+    const int epochBefore = grid_.breachEpoch();
+    forceBreachForTest();
+    if (grid_.breachEpoch() <= epochBefore)
+    {
+        std::fprintf(stderr, "rubble self-test: breach did not bump the epoch\n");
+        return false;
+    }
+    if (mapBreachEpoch_ == grid_.breachEpoch())
+    {
+        std::fprintf(stderr, "rubble self-test: map was not left stale by the breach\n");
+        return false;
+    }
+
+    update(0.02f);
+    if (mapBreachEpoch_ != grid_.breachEpoch())
+    {
+        std::fprintf(stderr, "rubble self-test: update() did not re-bake on the breach\n");
+        return false;
+    }
+    if (tileKindAt(wallX, wallY) != core::TileKind::Rubble)
+    {
+        std::fprintf(stderr, "rubble self-test: breached wall did not bake as rubble\n");
+        return false;
+    }
+
+    // A further frame with no new breach must leave the map in sync (a change
+    // check, not an every-frame rebuild).
+    update(0.02f);
+    if (mapBreachEpoch_ != grid_.breachEpoch())
+    {
+        std::fprintf(stderr, "rubble self-test: map fell out of sync after a frame\n");
         return false;
     }
     return true;
@@ -1701,6 +1830,13 @@ void Game::update(float frameSeconds)
     if (autoPlay_)
     {
         followSquad(frameSeconds);
+    }
+    // A breach changes the static map, so re-bake it once the world reports one
+    // (issue #218). Cheap per frame — a counter compare — and a full bake only
+    // when a tile actually breaks.
+    if (grid_.breachEpoch() != mapBreachEpoch_)
+    {
+        buildMapTexture();
     }
     updateAgentViews(frameSeconds);
 }

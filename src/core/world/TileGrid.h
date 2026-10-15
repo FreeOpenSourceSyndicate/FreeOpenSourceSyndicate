@@ -70,6 +70,11 @@ public:
     // stays rubble. False for out-of-bounds, floor, and intact walls.
     bool isRubble(int x, int y) const;
 
+    // Monotonic count of tiles breached so far (issue #218). The view bakes the
+    // static map once and re-bakes only when this changes, so it can notice a
+    // breach without scanning every tile each frame. Never decreases.
+    int breachEpoch() const { return breachEpoch_; }
+
 private:
     std::size_t index(int x, int y) const;
 
@@ -81,6 +86,7 @@ private:
     std::vector<std::uint8_t> destructible_;
     std::vector<std::uint8_t> rubble_;
     std::vector<int> hitPoints_;
+    int breachEpoch_ = 0;
 };
 
 } // namespace fossynd::core
