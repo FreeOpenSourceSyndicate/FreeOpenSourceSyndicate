@@ -48,6 +48,12 @@ find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
     add_test(NAME coord_tests
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_coord.py)
+
+    # String-table key coverage (issue #191): every key-shaped literal in src/
+    # must resolve in assets/lang/en.json, so a localised run cannot silently
+    # show an English fallback. Python because it scans source text.
+    add_test(NAME i18n_key_coverage
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_i18n_keys.py)
 else()
     message(STATUS "Python3 not found: skipping coord_tests")
 endif()
