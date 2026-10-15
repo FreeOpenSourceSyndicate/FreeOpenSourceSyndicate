@@ -42,6 +42,32 @@ A `FOSSYND_LOW_SPEC=ON` build runs in low-spec mode automatically. CI builds thi
 profile on every change so it cannot bit-rot. If the game does not start on very
 old hardware, that is a bug — please report it.
 
+### The binary-size budget
+
+The whole point of the profile is a **small** binary, so CI enforces a cap on it
+(issue #222, AGENTS.md §1b, ADR-0008): the **stripped low-spec binary must be
+<= 256 KiB**. As measured today, the low-spec build is ~183 KiB and the default
+Release build is ~418 KiB, so the budget leaves ~1.4x headroom while still
+failing loudly if the profile flags are ever dropped or a heavy dependency
+sneaks in.
+
+The CI `low-spec` job runs the check as a named step:
+
+```bash
+./scripts/check-size.sh build/src/FOSSynd
+```
+
+The same check is available locally as the `low_spec_binary_size` ctest, which
+is registered only for a `FOSSYND_LOW_SPEC=ON` build:
+
+```bash
+ctest --test-dir build -R low_spec_binary_size --output-on-failure
+```
+
+To change the cap, set `FOSSYND_SIZE_BUDGET_BYTES=<bytes>` (the default is
+`262144`). Raise it only with a justification in the pull request — a larger
+budget works against the reason the profile exists.
+
 ## Catching memory and logic bugs (sanitizers)
 
 `FOSSYND_SANITIZE=ON` builds the engine-agnostic core and its tests with
