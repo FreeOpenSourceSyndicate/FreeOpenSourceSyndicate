@@ -86,6 +86,79 @@ std::vector<TilePos> simplifyPath(const TileGrid& grid, const std::vector<TilePo
 constexpr float kStraightCost = 1.0f;
 constexpr float kDiagonalCost = 1.41421356f;
 
+// `cameFrom` marker for a tile the BFS never reached. `-1` means "reached, and
+// is the start" (no predecessor); any other value is the predecessor index.
+constexpr int kUnvisited = -2;
+
+// Breadth-first flood of the walkable tiles reachable from `start`, honouring
+// the same corner rule as `findPath`: a diagonal step is refused when either
+// orthogonal neighbour is blocked, so a route can never squeeze through a
+// one-tile corner. This is the single walk shared by `findPathToNearest` (which
+// picks a nearest tile from the result) and `reachableTiles` (which returns the
+// whole set), so both agree on exactly which tiles are reachable.
+//
+// Returns a row-major `cameFrom` array: `kUnvisited` for unreached tiles, `-1`
+// for `start`, else the predecessor index. The scan expands at most
+// `maxExpandedNodes` tiles (ADR-0008) — a fixed count, never a time budget, so
+// the result is deterministic and RNG-free. Callers must pass an in-bounds,
+// walkable `start` (the public entry points check this first).
+std::vector<int> bfsReachable(const TileGrid& grid, TilePos start, bool allowDiagonal,
+                              int maxExpandedNodes)
+{
+    const int w = grid.width();
+    const int count = w * grid.height();
+    const auto idx = [w](int x, int y) { return y * w + x; };
+
+    std::vector<int> cameFrom(static_cast<std::size_t>(count), kUnvisited);
+    std::queue<int> frontier;
+    const int startIdx = idx(start.x, start.y);
+    cameFrom[static_cast<std::size_t>(startIdx)] = -1;
+    frontier.push(startIdx);
+
+    const int dirs4[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    const int dirs8[8][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
+
+    int expanded = 0;
+    while (!frontier.empty())
+    {
+        if (++expanded > maxExpandedNodes)
+        {
+            break; // best-so-far wins; the scan stays bounded (ADR-0008)
+        }
+        const int current = frontier.front();
+        frontier.pop();
+        const int cx = current % w;
+        const int cy = current / w;
+
+        const int dirCount = allowDiagonal ? 8 : 4;
+        for (int d = 0; d < dirCount; ++d)
+        {
+            const int* dir = allowDiagonal ? dirs8[d] : dirs4[d];
+            const int nx = cx + dir[0];
+            const int ny = cy + dir[1];
+
+            if (!grid.inBounds(nx, ny) || !grid.isWalkable(nx, ny))
+            {
+                continue;
+            }
+            const bool diagonal = dir[0] != 0 && dir[1] != 0;
+            if (diagonal && (!grid.isWalkable(cx + dir[0], cy) || !grid.isWalkable(cx, cy + dir[1])))
+            {
+                continue; // do not cut corners through blocked tiles
+            }
+
+            const int nIdx = idx(nx, ny);
+            if (cameFrom[static_cast<std::size_t>(nIdx)] != kUnvisited)
+            {
+                continue;
+            }
+            cameFrom[static_cast<std::size_t>(nIdx)] = current;
+            frontier.push(nIdx);
+        }
+    }
+    return cameFrom;
+}
+
 float heuristic(int dx, int dy, bool allowDiagonal)
 {
     const float ax = static_cast<float>(std::abs(dx));
@@ -240,17 +313,10 @@ PathResult findPathToNearest(const TileGrid& grid, TilePos start, TilePos goal, 
     }
 
     const int w = grid.width();
-    const int count = w * grid.height();
     const auto idx = [w](int x, int y) { return y * w + x; };
 
-    // BFS over walkable tiles, honouring the same corner rule as findPath so the
-    // set of reachable tiles matches what the returned path can actually walk.
-    constexpr int kUnvisited = -2;
-    std::vector<int> cameFrom(static_cast<std::size_t>(count), kUnvisited);
-    std::queue<int> frontier;
-    const int startIdx = idx(start.x, start.y);
-    cameFrom[static_cast<std::size_t>(startIdx)] = -1;
-    frontier.push(startIdx);
+    // Flood the reachable region once, then pick the tile nearest the goal.
+    const std::vector<int> cameFrom = bfsReachable(grid, start, allowDiagonal, maxExpandedNodes);
 
     const auto manhattanToGoal = [goal](int x, int y) {
         return std::abs(x - goal.x) + std::abs(y - goal.y);
@@ -260,54 +326,19 @@ PathResult findPathToNearest(const TileGrid& grid, TilePos start, TilePos goal, 
     // the lowest tile index so the choice is deterministic.
     int bestIdx = -1;
     int bestDistance = 0;
-
-    const int dirs4[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-    const int dirs8[8][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
-
-    int expanded = 0;
-    while (!frontier.empty())
+    const int count = w * grid.height();
+    for (int i = 0; i < count; ++i)
     {
-        if (++expanded > maxExpandedNodes)
+        if (cameFrom[static_cast<std::size_t>(i)] == kUnvisited || i == idx(start.x, start.y))
         {
-            break; // best-so-far wins; the scan stays bounded (ADR-0008)
+            continue;
         }
-        const int current = frontier.front();
-        frontier.pop();
-        const int cx = current % w;
-        const int cy = current / w;
-
-        const int dirCount = allowDiagonal ? 8 : 4;
-        for (int d = 0; d < dirCount; ++d)
+        const int distance = manhattanToGoal(i % w, i / w);
+        if (bestIdx < 0 || distance < bestDistance ||
+            (distance == bestDistance && i < bestIdx))
         {
-            const int* dir = allowDiagonal ? dirs8[d] : dirs4[d];
-            const int nx = cx + dir[0];
-            const int ny = cy + dir[1];
-
-            if (!grid.inBounds(nx, ny) || !grid.isWalkable(nx, ny))
-            {
-                continue;
-            }
-            const bool diagonal = dir[0] != 0 && dir[1] != 0;
-            if (diagonal && (!grid.isWalkable(cx + dir[0], cy) || !grid.isWalkable(cx, cy + dir[1])))
-            {
-                continue; // do not cut corners through blocked tiles
-            }
-
-            const int nIdx = idx(nx, ny);
-            if (cameFrom[static_cast<std::size_t>(nIdx)] != kUnvisited)
-            {
-                continue;
-            }
-            cameFrom[static_cast<std::size_t>(nIdx)] = current;
-            frontier.push(nIdx);
-
-            const int distance = manhattanToGoal(nx, ny);
-            if (bestIdx < 0 || distance < bestDistance ||
-                (distance == bestDistance && nIdx < bestIdx))
-            {
-                bestIdx = nIdx;
-                bestDistance = distance;
-            }
+            bestIdx = i;
+            bestDistance = distance;
         }
     }
 
@@ -333,6 +364,46 @@ PathResult findPathToNearest(const TileGrid& grid, TilePos start, TilePos goal, 
     result.outcome = PathOutcome::Found;
     result.path = std::move(path);
     return result;
+}
+
+std::vector<TilePos> reachableTiles(const TileGrid& grid, TilePos start, bool allowDiagonal,
+                                    int maxExpandedNodes)
+{
+    if (!grid.inBounds(start.x, start.y) || !grid.isWalkable(start.x, start.y))
+    {
+        return {};
+    }
+
+    const int w = grid.width();
+    const int count = w * grid.height();
+    const std::vector<int> cameFrom = bfsReachable(grid, start, allowDiagonal, maxExpandedNodes);
+
+    // Row-major order is the natural order of `cameFrom`, and it is stable, so the
+    // returned set needs no sort and compares cheaply.
+    std::vector<TilePos> tiles;
+    for (int i = 0; i < count; ++i)
+    {
+        if (cameFrom[static_cast<std::size_t>(i)] != kUnvisited)
+        {
+            tiles.push_back(TilePos{i % w, i / w});
+        }
+    }
+    return tiles;
+}
+
+bool areConnected(const TileGrid& grid, TilePos a, TilePos b, bool allowDiagonal,
+                  int maxExpandedNodes)
+{
+    if (!grid.inBounds(a.x, a.y) || !grid.isWalkable(a.x, a.y) || !grid.inBounds(b.x, b.y) ||
+        !grid.isWalkable(b.x, b.y))
+    {
+        return false;
+    }
+
+    const int w = grid.width();
+    const int bIdx = b.y * w + b.x;
+    const std::vector<int> cameFrom = bfsReachable(grid, a, allowDiagonal, maxExpandedNodes);
+    return cameFrom[static_cast<std::size_t>(bIdx)] != kUnvisited;
 }
 
 } // namespace fossynd::core

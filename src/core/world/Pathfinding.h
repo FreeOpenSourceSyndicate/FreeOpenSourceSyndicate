@@ -97,4 +97,32 @@ PathResult findPathToNearest(const TileGrid& grid, TilePos start, TilePos goal,
                              bool allowDiagonal = false,
                              int maxExpandedNodes = kDefaultMaxExpandedNodes);
 
+// Every walkable tile reachable from `start` under the same movement rules as
+// `findPath` (4-way, or 8-way when `allowDiagonal`, never cutting a blocked
+// corner), `start` itself included. Returned in ascending row-major tile order
+// so the set is stable and cheap to compare. Empty when `start` is not a
+// walkable in-bounds tile.
+//
+// This is the reusable reachability query (issue #188): a caller can ask "which
+// tiles can the squad get to from here?" once, instead of running an A* per
+// target. It shares the exact walk and node budget of `findPathToNearest`, so
+// the reachable set always matches what a returned path can actually walk.
+//
+// The breadth-first scan is bounded by `maxExpandedNodes` (ADR-0008): when the
+// budget is exhausted the scan stops, so the result is what the budget reached
+// rather than the whole region. A fixed node count, never a time budget, so the
+// result is deterministic and RNG-free.
+std::vector<TilePos> reachableTiles(const TileGrid& grid, TilePos start,
+                                    bool allowDiagonal = false,
+                                    int maxExpandedNodes = kDefaultMaxExpandedNodes);
+
+// True when `b` is in `reachableTiles(grid, a, ...)` — the same rules and budget,
+// so this is exactly "a can walk to b". False when `a` or `b` is not a walkable
+// in-bounds tile. A `maxExpandedNodes` budget too small to reach `b` reports
+// false, matching `findPath`: the cap only ever turns a would-be route into "no
+// route". Deterministic and RNG-free.
+bool areConnected(const TileGrid& grid, TilePos a, TilePos b,
+                  bool allowDiagonal = false,
+                  int maxExpandedNodes = kDefaultMaxExpandedNodes);
+
 } // namespace fossynd::core
