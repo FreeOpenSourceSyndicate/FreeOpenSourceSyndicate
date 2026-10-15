@@ -157,6 +157,7 @@ int main(int argc, char** argv)
     const char* windowSpec = nullptr;     // --window <W>x<H>
     bool showHelp = false;
     bool showVersion = false;
+    bool cliError = false;    // set on an unrecognised option (issue #248)
     int zoomLevel = 1;        // --zoom <n>
     std::string cliMission;   // --mission <path>
     std::string cliConfig;    // --config <path>
@@ -279,6 +280,14 @@ int main(int argc, char** argv)
         {
             cliConfig = argv[++i];
         }
+        else
+        {
+            // Unknown option or a value flag with a missing value: report it
+            // rather than silently ignoring it, so a typo (`--pausee`) cannot
+            // start the game with the wrong settings (issue #248).
+            std::fprintf(stderr, "unknown or incomplete option '%s' (try --help)\n", argv[i]);
+            cliError = true;
+        }
     }
 
 #if defined(FOSSYND_LOW_SPEC_BUILD)
@@ -298,6 +307,12 @@ int main(int argc, char** argv)
     {
         std::printf("FOSSynd %s\n", FOSSYND_VERSION);
         return 0;
+    }
+    // A bad option must not start a game with the wrong settings: fail fast,
+    // before any config lookup or content load (issue #248).
+    if (cliError)
+    {
+        return 1;
     }
 
     // Validate --window up front so a bad value fails fast (before any config
