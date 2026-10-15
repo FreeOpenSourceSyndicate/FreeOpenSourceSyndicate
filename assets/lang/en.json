@@ -8,6 +8,9 @@
   "hud.objective.eliminate": "OBJECTIVE: ELIMINATE ALL {count} ENEMY AGENTS",
   "hud.objective.reach": "OBJECTIVE: REACH TILE ({x},{y})",
   "hud.objective.survive": "OBJECTIVE: SURVIVE {seconds}s",
+  "hud.objective.escort": "OBJECTIVE: ESCORT {name} TO ({x},{y})",
+  "hud.objective.destroy": "OBJECTIVE: DESTROY ({x},{y})",
+  "hud.objective.persuade": "OBJECTIVE: RECRUIT {count} FOLLOWERS",
   "hud.controls": "[SHIFT+CLICK] QUEUE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   [P] PERSUADE   [F] FREE   [R] RESTART",
   "hud.followers": "FOLLOWERS: {count}",
   "hud.collateral": "COLLATERAL: {count}",
@@ -31,5 +34,5 @@
   "mission.demo.name": "Downtown Sweep",
   "mission.demo.desc": "Sweep the downtown block: eliminate every enemy agent while keeping civilian casualties down.",
   "mission.escort.name": "Rooftop Exfil",
-  "mission.escort.desc": "Cross the rooftops and get a living agent onto the exfil tile."
+  "mission.escort.desc": "Escort DELTA across the rooftops to the exfil tile; losing DELTA fails the run."
 }

@@ -187,6 +187,12 @@ public:
     // rescan. Returns false on a broken invariant. Used by game_rubble.
     bool rubbleSelfTest();
 
+    // Headless guard for the objective banner (issue #281): every objective kind
+    // must render a non-empty, kind-specific, localised banner with no unsubstituted
+    // `{placeholder}` left in it. Returns false on a broken invariant. Used by
+    // game_objectives. Restores the mission's real objective before returning.
+    bool objectiveSelfTest();
+
     // Breaches every destructible wall and re-bakes the map (issue #218). Used
     // by `--breach` so a headless screenshot can show the rubble art without
     // waiting for combat to break a wall.
@@ -230,6 +236,11 @@ private:
     // destructible art when blocked, rubble once breached, else floor. Shared by
     // the map bake and rubbleSelfTest() so the test checks the real decision.
     core::TileKind tileKindAt(int x, int y) const;
+
+    // The objective banner text for the current mission (issue #281). Shared by
+    // renderHud() and objectiveSelfTest() so the guard checks the real string.
+    // `urgent` reports the low-count/low-time emphasis the banner also uses.
+    std::string objectiveBannerText(bool& urgent) const;
     // Breaches the first intact destructible wall, without re-baking. Used by
     // rubbleSelfTest() so it can prove update() performs the re-bake itself.
     void forceBreachForTest();

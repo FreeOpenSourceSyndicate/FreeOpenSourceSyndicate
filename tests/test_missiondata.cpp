@@ -284,6 +284,103 @@ FOSSYND_TEST(MissionData, ExplicitEliminateObjectiveIsAccepted)
     FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::EliminateAll);
 }
 
+// --- The remaining objective kinds (issue #281) ---------------------------
+
+FOSSYND_TEST(MissionData, ParsesEscortObjective)
+{
+    std::string error;
+    const Json root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "escort", "agentIndex": 1, "tileX": 5, "tileY": 3 },
+        "agents": [{"team":"player","x":1,"y":1},{"team":"player","x":2,"y":1}]})", error);
+    MissionData data;
+    FOSSYND_CHECK(MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Escort);
+    FOSSYND_CHECK_EQ(data.objective.agentIndex, 1);
+    FOSSYND_CHECK_EQ(data.objective.tileX, 5);
+    FOSSYND_CHECK_EQ(data.objective.tileY, 3);
+}
+
+FOSSYND_TEST(MissionData, ParsesDestroyObjective)
+{
+    std::string error;
+    const Json root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "destroy", "tileX": 4, "tileY": 2 },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    MissionData data;
+    FOSSYND_CHECK(MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Destroy);
+    FOSSYND_CHECK_EQ(data.objective.tileX, 4);
+    FOSSYND_CHECK_EQ(data.objective.tileY, 2);
+}
+
+FOSSYND_TEST(MissionData, ParsesPersuadeObjective)
+{
+    std::string error;
+    const Json root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "persuade", "targetCount": 3 },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    MissionData data;
+    FOSSYND_CHECK(MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Persuade);
+    FOSSYND_CHECK_EQ(data.objective.targetCount, 3);
+}
+
+FOSSYND_TEST(MissionData, RejectsInvalidNewObjectives)
+{
+    std::string error;
+    MissionData data;
+
+    // Escort without a target tile.
+    Json root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "escort", "agentIndex": 0 },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
+
+    // Escort naming an agent that is not in the mission.
+    error.clear();
+    root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "escort", "agentIndex": 5, "tileX": 1, "tileY": 1 },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
+
+    // Escort tile off the map.
+    error.clear();
+    root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "escort", "agentIndex": 0, "tileX": 99, "tileY": 1 },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
+
+    // Destroy without a target tile.
+    error.clear();
+    root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "destroy" },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
+
+    // Destroy tile off the map.
+    error.clear();
+    root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "destroy", "tileX": 0, "tileY": 99 },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
+
+    // Persuade with a non-positive target.
+    error.clear();
+    root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "persuade", "targetCount": 0 },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
+}
+
 FOSSYND_TEST(MissionData, RejectsInvalidObjectives)
 {
     std::string error;
@@ -291,7 +388,7 @@ FOSSYND_TEST(MissionData, RejectsInvalidObjectives)
 
     // Unknown kind.
     Json root = Json::parse(R"({"width": 8, "height": 6,
-        "objective": { "kind": "escort" },
+        "objective": { "kind": "teleport" },
         "agents": [{"team":"player","x":1,"y":1}]})", error);
     FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
     FOSSYND_CHECK(!error.empty());
@@ -344,11 +441,27 @@ FOSSYND_TEST(MissionData, LoadsTheEscortMissionFromDisk)
     const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/missions/escort.json";
     FOSSYND_CHECK(MissionData::loadFromFile(path, data, error));
     FOSSYND_CHECK(error.empty());
-    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::ReachTile);
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Escort);
+    FOSSYND_CHECK_EQ(data.objective.agentIndex, 3);
     FOSSYND_CHECK_EQ(data.objective.tileX, 18);
     FOSSYND_CHECK_EQ(data.objective.tileY, 18);
     FOSSYND_CHECK_EQ(data.agents.size(), static_cast<std::size_t>(9));
     FOSSYND_CHECK_EQ(data.id, std::string("escort"));
+}
+
+FOSSYND_TEST(MissionData, PopulateMissionCarriesAnEscortObjective)
+{
+    MissionData data;
+    std::string error;
+    const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/missions/escort.json";
+    FOSSYND_CHECK(MissionData::loadFromFile(path, data, error));
+
+    TileGrid grid = buildGrid(data);
+    Mission mission(grid, 1u);
+    populateMission(data, mission);
+    FOSSYND_CHECK(mission.objective().kind == ObjectiveSpec::Kind::Escort);
+    FOSSYND_CHECK_EQ(mission.objective().agentIndex, 3);
+    FOSSYND_CHECK_EQ(mission.agents()[3].name(), std::string("DELTA"));
 }
 
 // --- Shared weapon/agent catalogues (issue #34) ---------------------------

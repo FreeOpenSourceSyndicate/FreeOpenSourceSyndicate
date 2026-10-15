@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <set>
 #include <string>
 
 #include "core/data/ContentPaths.h"
@@ -963,6 +964,67 @@ bool Game::rubbleSelfTest()
     return true;
 }
 
+bool Game::objectiveSelfTest()
+{
+    // Every objective kind must produce a non-empty, localised banner with no
+    // unsubstituted `{placeholder}` left in it. The demo mission supplies the
+    // agents the escort/persuade kinds refer to (issue #281).
+    const std::size_t agentCount = mission_.agents().size();
+    if (agentCount < 2)
+    {
+        std::fprintf(stderr, "objective self-test: mission has too few agents\n");
+        return false;
+    }
+
+    const core::ObjectiveSpec saved = mission_.objective();
+    const core::ObjectiveSpec::Kind kinds[] = {
+        core::ObjectiveSpec::Kind::EliminateAll, core::ObjectiveSpec::Kind::ReachTile,
+        core::ObjectiveSpec::Kind::Survive,      core::ObjectiveSpec::Kind::Escort,
+        core::ObjectiveSpec::Kind::Destroy,      core::ObjectiveSpec::Kind::Persuade,
+    };
+
+    std::set<std::string> seen;
+    bool ok = true;
+    for (core::ObjectiveSpec::Kind kind : kinds)
+    {
+        core::ObjectiveSpec spec;
+        spec.kind = kind;
+        spec.tileX = 1;
+        spec.tileY = 1;
+        spec.seconds = 30.0f;
+        spec.agentIndex = 0;
+        spec.targetCount = 1;
+        mission_.setObjective(spec);
+
+        bool urgent = false;
+        const std::string text = objectiveBannerText(urgent);
+        if (text.empty())
+        {
+            std::fprintf(stderr, "objective self-test: kind '%s' rendered an empty banner\n",
+                         core::objectiveKindName(kind));
+            ok = false;
+            continue;
+        }
+        if (text.find('{') != std::string::npos || text.find('}') != std::string::npos)
+        {
+            std::fprintf(stderr, "objective self-test: kind '%s' left a placeholder: %s\n",
+                         core::objectiveKindName(kind), text.c_str());
+            ok = false;
+        }
+        // Distinct kinds must not share a banner: a kind that fell through to the
+        // default would collide with `eliminate`.
+        if (!seen.insert(text).second)
+        {
+            std::fprintf(stderr, "objective self-test: duplicate banner for kind '%s': %s\n",
+                         core::objectiveKindName(kind), text.c_str());
+            ok = false;
+        }
+    }
+
+    mission_.setObjective(saved);
+    return ok;
+}
+
 bool Game::languageSelfTest() const
 {
     // The table must have loaded (from the external file or the embedded copy).
@@ -980,6 +1042,7 @@ bool Game::languageSelfTest() const
         "title.prompt",        "title.controls.move",  "title.controls.attack",
         "title.controls.select", "title.controls.misc", "title.footer",
         "hud.objective.eliminate", "hud.objective.reach", "hud.objective.survive",
+        "hud.objective.escort", "hud.objective.destroy", "hud.objective.persuade",
         "hud.controls",        "hud.followers",        "hud.collateral",
         "hud.squad",           "hud.agentRow",         "hud.winSub",
         "hud.loseSub",         "state.won",            "state.lost",

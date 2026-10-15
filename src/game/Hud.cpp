@@ -19,19 +19,10 @@
 namespace fossynd::game
 {
 
-void Game::renderHud()
+std::string Game::objectiveBannerText(bool& urgent) const
 {
-    const int margin = 8;
-    const int lineH = font_.lineHeight();
-
-    // Semi-transparent top bar.
-    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 170);
-    SDL_Rect topBar{0, 0, screenWidth_, lineH + margin};
-    SDL_RenderFillRect(renderer_, &topBar);
-
+    urgent = false;
     std::string objective;
-    bool urgent = false;
     switch (mission_.objective().kind)
     {
     case core::ObjectiveSpec::Kind::ReachTile:
@@ -49,6 +40,45 @@ void Game::renderHud()
                        {{"seconds", std::to_string(remaining > 0 ? remaining : 0)}});
         break;
     }
+    case core::ObjectiveSpec::Kind::Escort:
+    {
+        // Name the escorted unit when it is known; fall back to a generic label
+        // so a hand-built spec without a valid index still renders.
+        const int index = mission_.objective().agentIndex;
+        std::string name = "AGENT";
+        if (index >= 0 && static_cast<std::size_t>(index) < mission_.agents().size())
+        {
+            name = mission_.agents()[static_cast<std::size_t>(index)].name();
+        }
+        objective = hudstyle::substitute(
+            tr("hud.objective.escort", "OBJECTIVE: ESCORT {name} TO ({x},{y})"),
+            {{"name", name},
+             {"x", std::to_string(mission_.objective().tileX)},
+             {"y", std::to_string(mission_.objective().tileY)}});
+        break;
+    }
+    case core::ObjectiveSpec::Kind::Destroy:
+        objective = hudstyle::substitute(tr("hud.objective.destroy", "OBJECTIVE: DESTROY ({x},{y})"),
+                               {{"x", std::to_string(mission_.objective().tileX)},
+                                {"y", std::to_string(mission_.objective().tileY)}});
+        break;
+    case core::ObjectiveSpec::Kind::Persuade:
+    {
+        // Show how many more followers are still needed, mirroring the
+        // "enemies left" counter of the eliminate objective.
+        std::size_t recruited = 0;
+        for (std::size_t i = 0; i < mission_.agents().size(); ++i)
+        {
+            recruited += mission_.followerCount(i);
+        }
+        const int target = mission_.objective().targetCount < 1 ? 1
+                                                                : mission_.objective().targetCount;
+        const int remaining = target - static_cast<int>(recruited);
+        objective = hudstyle::substitute(
+            tr("hud.objective.persuade", "OBJECTIVE: RECRUIT {count} FOLLOWERS"),
+            {{"count", std::to_string(remaining > 0 ? remaining : 0)}});
+        break;
+    }
     case core::ObjectiveSpec::Kind::EliminateAll:
     default:
     {
@@ -60,6 +90,22 @@ void Game::renderHud()
         break;
     }
     }
+    return objective;
+}
+
+void Game::renderHud()
+{
+    const int margin = 8;
+    const int lineH = font_.lineHeight();
+
+    // Semi-transparent top bar.
+    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 170);
+    SDL_Rect topBar{0, 0, screenWidth_, lineH + margin};
+    SDL_RenderFillRect(renderer_, &topBar);
+
+    bool urgent = false;
+    const std::string objective = objectiveBannerText(urgent);
     std::size_t followers = 0;
     for (std::size_t i = 0; i < mission_.agents().size(); ++i)
     {

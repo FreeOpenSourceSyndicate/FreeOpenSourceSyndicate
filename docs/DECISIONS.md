@@ -436,9 +436,11 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
      block in mission JSON.** Chosen: the smallest extension that is data-driven,
      stays engine-free, and keeps the default behaviour identical.
 - **Decision:** **Option 3.**
-  - `core/sim/Objective.h` defines `ObjectiveSpec { kind, tileX, tileY, seconds }`
-    with `Kind` ∈ `{ EliminateAll, ReachTile, Survive }`, plus `objectiveKindName`.
-    It is a plain value type with no JSON or SDL dependency.
+  - `core/sim/Objective.h` defines `ObjectiveSpec { kind, tileX, tileY, seconds,
+    agentIndex, targetCount }` with `Kind` ∈ `{ EliminateAll, ReachTile, Survive,
+    Escort, Destroy, Persuade }`, plus `objectiveKindName`. It is a plain value
+    type with no JSON or SDL dependency. (`agentIndex`/`targetCount` and the last
+    three kinds were added in #281; see the amendment below.)
   - `MissionData` (content lane) gains an `objective` field and
     `parseObjectiveJson`, wired into `fromJson`; `populateMission` calls
     `Mission::setObjective`. `docs/DATA_FORMAT.md` documents the block.
@@ -453,11 +455,46 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
     common "add a mission" path stays a JSON-only change.
   - The `reach` target tile is not bounds-checked against the grid at load time:
     parsing stays independent of `TileGrid`; an out-of-bounds target simply can
-    never be won. Revisit if it proves confusing.
+    never be won. Revisit if it proves confusing. (Superseded in practice by
+    #212: `reach` — and now `escort`/`destroy` — tiles are bounds-checked against
+    the declared `width`/`height` at load, which is still grid-independent.)
   - Covered by `tests/test_mission.cpp` (evaluation) and
     `tests/test_missiondata.cpp` (parsing, invalid schemas, disk loading).
   - Cross-lane touch (content: `MissionData`/`DATA_FORMAT.md`; render: one HUD
     string) is disclosed per `docs/FOCUS_AREAS.md` §4 Rule 3.
+
+### Amendment (#281, 2026-10-15) — the rest of the objective set
+
+- **Context:** the Roadmap's last Milestone A objective item asks for the
+  complete 1993 set: persuade, escort/retrieve, and destroy, alongside the
+  existing eliminate and reach. The `ObjectiveSpec` design already anticipated
+  "a new enum value + a data branch".
+- **Decision:** extend `ObjectiveSpec` in place rather than fork:
+  - `Kind` gains `Escort`, `Destroy`, `Persuade`; the struct gains `agentIndex`
+    (escort) and `targetCount` (persuade), both defaulted so the existing kinds
+    and every existing mission are byte-for-byte unchanged.
+  - `Escort` names a unit by index and **loses** the mission if that unit dies,
+    which is the one place a lose condition is objective-specific; the universal
+    squad-dead rule still applies.
+  - `Destroy` reuses the destructible-environment work (`TileGrid::isRubble`,
+    #217): the win is the breach, not the defenders' deaths.
+  - `Persuade` reuses the ComplianceBeacon followers (`Mission::followerCount`):
+    the win is `targetCount` living followers across the squad.
+  - Evaluation stays in `Mission::evaluateOutcome` via small const helpers, so
+    the switch is a data branch, not a fork. The per-kind conditions are
+    unit-testable in isolation.
+  - The loader bounds-checks an escort's `agentIndex` against the parsed agents
+    (a content error otherwise), and shares one on-map tile check across
+    `reach`/`escort`/`destroy` (the #212 pattern).
+- **Consequences:**
+  - `assets/data/missions/escort.json` becomes the first escort mission, and the
+    HUD banner reads a per-kind string (`hud.objective.escort/destroy/persuade`).
+  - `assassinate` and `retrieve` are deliberately **not** new kinds: they are a
+    thin variant of `eliminate` (one named target) and `escort` (a prop instead
+    of an agent). If a mission needs them they can be added the same way, but the
+    Roadmap treats "escort/retrieve" as one item and it is satisfied.
+  - Covered by `tests/test_mission.cpp` (win/lose per kind, determinism) and
+    `tests/test_missiondata.cpp` (parsing, invalid schemas, disk load, populate).
 
 ---
 

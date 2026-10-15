@@ -47,6 +47,9 @@ A mission file describes one mission. Example:
     "kind": "eliminate"        // "eliminate" | "reach" | "survive"
     // "kind": "reach", "tileX": 20, "tileY": 20
     // "kind": "survive", "seconds": 60
+    // "kind": "escort", "agentIndex": 3, "tileX": 20, "tileY": 20
+    // "kind": "destroy", "tileX": 12, "tileY": 13
+    // "kind": "persuade", "targetCount": 3
   },
 
   "agents": [                  // required, non-empty
@@ -98,9 +101,23 @@ A mission file describes one mission. Example:
     `(tileX, tileY)`. Both are required and are integer tile coordinates.
   - `"survive"` — win after `seconds` (a number, `> 0`) of mission time have
     elapsed.
-  - The lose condition is universal and unchanged: every player agent dead.
-    Civilians never affect win/lose. `Mission::elapsedSeconds()` reports the
-    mission clock (frozen once the mission ends).
+  - `"escort"` — win when the agent at `agentIndex` (an integer index into the
+    `agents` array, `>= 0`) reaches the tile `(tileX, tileY)` **alive**. Unlike
+    `"reach"` it names one unit: the mission is lost if that unit dies, even while
+    the rest of the squad lives. The index must name an agent in the mission, and
+    the tile must be on the map.
+  - `"destroy"` — win when the tile `(tileX, tileY)` has been **breached**, i.e.
+    it is a `destructible` blocked tile that weapon fire has broken (see
+    `blocked`). The mission is not won by killing the defenders. The tile must be
+    on the map (it is not checked for being destructible, since the breach can
+    only ever happen on one).
+  - `"persuade"` — win when at least `targetCount` (an integer, `>= 1`)
+    civilians have been recruited as followers of the player's agents (the
+    ComplianceBeacon). Counts living followers across the whole squad.
+  - The lose condition is universal and unchanged: every player agent dead (and,
+    for `"escort"`, the escorted unit dying). Civilians never affect win/lose.
+    `Mission::elapsedSeconds()` reports the mission clock (frozen once the
+    mission ends).
 - **`team`** must be `player`, `enemy`, or `civilian`. Civilians are never
   auto-targeted and never affect win/lose (see `AGENTS.md` §10).
 - **Agent coordinates** are fractional tile positions, matching `Agent(x, y, …)`;

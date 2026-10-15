@@ -546,8 +546,8 @@ finished mission** (the map does not learn the win/lose result yet), **R1**
 (mapping a bought loadout onto the mission's player agents, Tactical/Content),
 and the campaign victory screen. Claim it at issue #249 (`focus: metagame`);
 `docs/METAGAME.md` is the interface contract. Milestone A (finishing the tactical
-layer: cybernetics, scanner, vehicles, destructible environment, the remaining
-objectives) runs in parallel.
+layer: cybernetics, scanner, vehicles, destructible environment) runs in
+parallel — its objective set is complete (#281).
 Do not start work outside the scope fence (ADR-0024).
 
 - The game now has a **playable vertical slice** with authored pixel-art
@@ -730,12 +730,19 @@ Do not start work outside the scope fence (ADR-0024).
   always walkable. Deterministic, RNG-free; the 4-way path is returned unchanged.
 - **Mission objectives are data-driven (ADR-0003):** `ObjectiveSpec`
   (`core/sim/Objective.h`) is `EliminateAll` (default), `ReachTile` (a living
-  player agent on a target tile), or `Survive` (a time limit). A mission sets it
-  with an optional `objective` JSON object (`docs/DATA_FORMAT.md`); `MissionData`
-  parses it and `populateMission` calls `Mission::setObjective`. Evaluation is in
-  `Mission::evaluateOutcome`; the universal lose condition (squad dead) wins over
-  any objective. `Mission::elapsedSeconds()` is the frozen-on-end mission clock.
-  New objectives need no C++ change beyond the enum — prefer data.
+  player agent on a target tile), `Survive` (a time limit), `Escort` (the agent
+  at `agentIndex` reaches the tile **alive**; losing it loses the mission),
+  `Destroy` (the target tile is breached rubble), or `Persuade` (at least
+  `targetCount` civilians recruited as followers, counted across the squad). A
+  mission sets it with an optional `objective` JSON object
+  (`docs/DATA_FORMAT.md`); `MissionData` parses it and `populateMission` calls
+  `Mission::setObjective`. Evaluation is in `Mission::evaluateOutcome`; the
+  universal lose condition (squad dead) wins over any objective, and an `Escort`
+  adds "the escorted unit died" to it. The per-kind checks are small const
+  helpers (`anyPlayerOnTile`, `escortedAgentOnTile`, `escortUnitLost`,
+  `targetTileBreached`, `followerTargetMet`). `Mission::elapsedSeconds()` is the
+  frozen-on-end mission clock. New objectives need no C++ change beyond the enum
+  — prefer data. Added the full set in #281.
 - **Sprites are authored text (ADR-0013):** agent and prop art lives in
   `assets/sprites/agents.txt` as `frame` blocks of `B`/`T`/`S`/`D`/`.`/`A`
   pixels. `core::bakeSheet` (`core/data/AgentSprites.*`, SDL-free, unit-tested)
@@ -813,11 +820,13 @@ Do not start work outside the scope fence (ADR-0024).
   `--headless --check-minimap`, `--headless --check-selection`,
   `--headless --check-waypoints`, `--headless --check-waypoint-path`,
   `--headless --check-pause`, `--headless --check-campaign`,
+  `--headless --check-objectives`,
   `--headless --map --frames N`, and
   `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
   `game_demo`, `game_low_spec`, `game_title`, `game_sprites`, `game_minimap`,
   `game_selection`, `game_waypoints`, `game_waypoint_path`, `game_pause`,
-  `game_pause_flag`, `game_campaign`, and `game_map_flag` cover the SDL layer
+  `game_pause_flag`, `game_campaign`, `game_map_flag`, and `game_objectives`
+  cover the SDL layer
   headlessly.
 - **Queued-route overlay (issue #89):** the view draws a selected agent's
   shift-click waypoint queue (`Agent::moveQueue()`) as a yellow polyline with

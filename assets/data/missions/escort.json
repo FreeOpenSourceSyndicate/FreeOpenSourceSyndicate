@@ -3,7 +3,7 @@
   "id": "escort",
   "width": 20,
   "height": 20,
-  "objective": { "kind": "reach", "tileX": 18, "tileY": 18 },
+  "objective": { "kind": "escort", "agentIndex": 3, "tileX": 18, "tileY": 18 },
   "buildings": [
     { "x": 4, "y": 4, "width": 4, "height": 4 },
     { "x": 12, "y": 9, "width": 4, "height": 4 }

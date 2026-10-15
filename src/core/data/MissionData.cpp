@@ -131,6 +131,23 @@ bool parseBlocked(const Json& array, int mapWidth, int mapHeight, std::vector<Ti
     return true;
 }
 
+// Shared bounds check for objective kinds that name a target tile (reach,
+// escort, destroy). A tile off the map can never be reached or breached, so the
+// mission would be silently unwinnable (issue #212). `label` names the kind in
+// the error message.
+bool objectiveTileOnMap(const ObjectiveSpec& spec, int mapWidth, int mapHeight, const char* label,
+                        std::string& error)
+{
+    if (spec.tileX < 0 || spec.tileY < 0 || spec.tileX >= mapWidth || spec.tileY >= mapHeight)
+    {
+        error = "a '" + std::string(label) + "' objective tile (" + std::to_string(spec.tileX) +
+                ", " + std::to_string(spec.tileY) + ") is outside the " + std::to_string(mapWidth) +
+                "x" + std::to_string(mapHeight) + " map";
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
 bool MissionData::parseObjectiveJson(const Json& node, int mapWidth, int mapHeight,
@@ -160,11 +177,8 @@ bool MissionData::parseObjectiveJson(const Json& node, int mapWidth, int mapHeig
         out.tileY = node["tileY"].asInt();
         // A reach target off the map can never be reached, so the mission would
         // be silently unwinnable (issue #212).
-        if (out.tileX < 0 || out.tileY < 0 || out.tileX >= mapWidth || out.tileY >= mapHeight)
+        if (!objectiveTileOnMap(out, mapWidth, mapHeight, "reach", error))
         {
-            error = "a 'reach' objective tile (" + std::to_string(out.tileX) + ", " +
-                    std::to_string(out.tileY) + ") is outside the " + std::to_string(mapWidth) + "x" +
-                    std::to_string(mapHeight) + " map";
             return false;
         }
     }
@@ -178,10 +192,58 @@ bool MissionData::parseObjectiveJson(const Json& node, int mapWidth, int mapHeig
             return false;
         }
     }
+    else if (kind == "escort")
+    {
+        out.kind = ObjectiveSpec::Kind::Escort;
+        if (!node.has("tileX") || !node.has("tileY") || !node.has("agentIndex"))
+        {
+            error = "an 'escort' objective needs numeric 'tileX', 'tileY', and 'agentIndex'";
+            return false;
+        }
+        out.tileX = node["tileX"].asInt();
+        out.tileY = node["tileY"].asInt();
+        out.agentIndex = node["agentIndex"].asInt();
+        if (out.agentIndex < 0)
+        {
+            error = "an 'escort' objective needs an 'agentIndex' >= 0";
+            return false;
+        }
+        if (!objectiveTileOnMap(out, mapWidth, mapHeight, "escort", error))
+        {
+            return false;
+        }
+        // `agentIndex` is bounds-checked against the agent list in `fromJson`,
+        // once the agents are parsed (the objective is parsed first).
+    }
+    else if (kind == "destroy")
+    {
+        out.kind = ObjectiveSpec::Kind::Destroy;
+        if (!node.has("tileX") || !node.has("tileY"))
+        {
+            error = "a 'destroy' objective needs numeric 'tileX' and 'tileY'";
+            return false;
+        }
+        out.tileX = node["tileX"].asInt();
+        out.tileY = node["tileY"].asInt();
+        if (!objectiveTileOnMap(out, mapWidth, mapHeight, "destroy", error))
+        {
+            return false;
+        }
+    }
+    else if (kind == "persuade")
+    {
+        out.kind = ObjectiveSpec::Kind::Persuade;
+        out.targetCount = node["targetCount"].asInt(out.targetCount);
+        if (out.targetCount < 1)
+        {
+            error = "a 'persuade' objective needs 'targetCount' >= 1";
+            return false;
+        }
+    }
     else
     {
         error = "unknown objective kind '" + kind +
-                "' (expected eliminate, reach, or survive)";
+                "' (expected eliminate, reach, survive, escort, destroy, or persuade)";
         return false;
     }
     return true;
@@ -253,6 +315,17 @@ bool MissionData::fromJson(const Json& root, MissionData& out, const WeaponCatal
             return false;
         }
         out.agents.push_back(std::move(spec));
+    }
+
+    // The escorted unit must exist: an escort objective naming an agent that is
+    // not in the mission can never be won, so it is a content error (issue #212
+    // pattern). Checked here because the objective is parsed before the agents.
+    if (out.objective.kind == ObjectiveSpec::Kind::Escort &&
+        static_cast<std::size_t>(out.objective.agentIndex) >= out.agents.size())
+    {
+        error = "an 'escort' objective 'agentIndex' (" + std::to_string(out.objective.agentIndex) +
+                ") is outside the " + std::to_string(out.agents.size()) + "-agent mission";
+        return false;
     }
     return true;
 }

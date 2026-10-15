@@ -8,6 +8,9 @@
   "hud.objective.eliminate": "ZIEL: ALLE {count} FEINDE AUSSCHALTEN",
   "hud.objective.reach": "ZIEL: FELD ({x},{y}) ERREICHEN",
   "hud.objective.survive": "ZIEL: {seconds}s UEBERLEBEN",
+  "hud.objective.escort": "ZIEL: {name} NACH ({x},{y}) GELEITEN",
+  "hud.objective.destroy": "ZIEL: ({x},{y}) ZERSTOEREN",
+  "hud.objective.persuade": "ZIEL: {count} GEFOLGTE ANWERBEN",
   "hud.controls": "[SHIFT+KLICK] REIHEN   [KLICK FEIND/RECHTS] ANGRIFF   [1-4] GRUPPE   [A]LLE   [P] UEBERZEUGEN   [F] FREI   [R] NEUSTART",
   "hud.followers": "GEFOLGTE: {count}",
   "hud.collateral": "KOLLATERAL: {count}",
@@ -31,5 +34,5 @@
   "mission.demo.name": "Innenstadt-Saeuberung",
   "mission.demo.desc": "Den Innenstadtblock saeubern: alle feindlichen Agenten ausschalten und zivile Opfer gering halten.",
   "mission.escort.name": "Dach-Exfiltration",
-  "mission.escort.desc": "Ueber die Daecher ziehen und einen lebenden Agenten auf das Exfil-Feld bringen."
+  "mission.escort.desc": "DELTA ueber die Daecher zum Exfil-Feld geleiten; der Verlust von DELTA beendet den Einsatz."
 }
