@@ -81,8 +81,16 @@ A mission file describes one mission. Example:
   rename. A present-but-non-string `id` is a readable error.
 - **`buildings`** are rectangular footprints; **only the perimeter blocks
   movement**, so the interior stays walkable. `width`/`height` are in tiles and
-  must be positive.
-- **`blocked`** marks single tiles as impassable (in addition to buildings).
+  must be positive. The whole rectangle must lie inside the map.
+- **`blocked`** marks single tiles as impassable (in addition to buildings). Each
+  tile must be inside the map.
+- **Geometry must fit the map** (issue #212). A building, a `blocked` tile, an
+  agent position, or a `reach` objective tile that falls outside
+  `[0, width) × [0, height)` is a readable error rather than being silently
+  dropped or left unreachable. Positions are checked with `< width`/`< height`,
+  so a fractional position on the far edge (e.g. `8.0` on an 8-wide map) is
+  rejected. This keeps an unwinnable mission (`--check-content` failing) out of
+  CI instead of letting it fail at play time.
 - **`objective`** is the mission's win condition; omit it for the default.
   - `"eliminate"` — win when every enemy agent is dead (the default, so existing
     missions are unchanged).
@@ -241,9 +249,10 @@ if (!report.ok())
   names the file: `content: assets/data/missions/demo.json: unknown weaponId ...`.
 - It reports a missing `weaponId`/`agentId`, a duplicate catalogue `id`, an
   out-of-range catalogue or inline weapon field (`damage`/`range`/`fireRate` ≤ 0,
-  `accuracy` outside `[0, 1]`, negative `areaRadius`), a bad `team`, a malformed
-  mission, and a missing catalogue directory. Each message names the file and the
-  offending entry/field.
+  `accuracy` outside `[0, 1]`, negative `areaRadius`), a bad `team`, off-map
+  mission geometry (a building, `blocked` tile, agent, or `reach` tile outside
+  the grid), a malformed mission, and a missing catalogue directory. Each message
+  names the file and the offending entry/field.
 - A `dataDir` with **no** catalogue files is reported, because then no mission
   reference could ever resolve — a likely misconfiguration.
 - The shipped content is covered by `tests/test_content_validation.cpp`

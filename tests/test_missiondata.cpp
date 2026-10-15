@@ -155,6 +155,73 @@ FOSSYND_TEST(MissionData, RejectsInvalidSchema)
     FOSSYND_CHECK(!error.empty());
 }
 
+FOSSYND_TEST(MissionData, RejectsOffMapGeometry)
+{
+    std::string error;
+    MissionData data;
+
+    // A building that runs off the map is clipped by buildGrid, so reject it.
+    Json root = Json::parse(R"({"width": 8, "height": 8,
+        "buildings": [ { "x": 6, "y": 6, "width": 5, "height": 5 } ],
+        "agents": [{"name":"X","team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(error.find("building") != std::string::npos);
+
+    // A negative building origin is off the map too.
+    error.clear();
+    root = Json::parse(R"({"width": 8, "height": 8,
+        "buildings": [ { "x": -1, "y": 0, "width": 2, "height": 2 } ],
+        "agents": [{"name":"X","team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(error.find("building") != std::string::npos);
+
+    // An off-map blocked tile is silently dropped by buildGrid.
+    error.clear();
+    root = Json::parse(R"({"width": 8, "height": 8,
+        "blocked": [ { "x": 50, "y": 50 } ],
+        "agents": [{"name":"X","team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(error.find("blocked") != std::string::npos);
+
+    // An agent outside the map is never drawn and never reachable.
+    error.clear();
+    root = Json::parse(R"({"width": 8, "height": 8,
+        "agents": [{"name":"X","team":"player","x":99.5,"y":99.5}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(error.find("agent") != std::string::npos);
+
+    // An agent exactly on the far edge is outside (positions are < width/height).
+    error.clear();
+    root = Json::parse(R"({"width": 8, "height": 8,
+        "agents": [{"name":"X","team":"player","x":8,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+
+    // A 'reach' target off the map can never be reached: the mission is
+    // silently unwinnable, so reject it.
+    error.clear();
+    root = Json::parse(R"({"width": 8, "height": 8,
+        "objective": { "kind": "reach", "tileX": 99, "tileY": 99 },
+        "agents": [{"name":"X","team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(error.find("reach") != std::string::npos);
+}
+
+FOSSYND_TEST(MissionData, AcceptsInBoundsBoundaryGeometry)
+{
+    std::string error;
+    MissionData data;
+
+    // A building flush against the far corner is fully in bounds.
+    Json root = Json::parse(R"({"width": 8, "height": 8,
+        "buildings": [ { "x": 5, "y": 5, "width": 3, "height": 3 } ],
+        "blocked": [ { "x": 0, "y": 0 }, { "x": 7, "y": 7 } ],
+        "objective": { "kind": "reach", "tileX": 7, "tileY": 7 },
+        "agents": [{"name":"X","team":"player","x":0,"y":0},
+                   {"name":"Y","team":"enemy","x":7.99,"y":7.99}]})", error);
+    FOSSYND_CHECK(MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(error.empty());
+}
+
 FOSSYND_TEST(MissionData, LoadsTheDemoMissionFromDisk)
 {
     MissionData data;

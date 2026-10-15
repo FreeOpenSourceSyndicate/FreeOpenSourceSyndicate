@@ -237,6 +237,44 @@ FOSSYND_TEST(ContentValidation, BadMissionInlineWeaponIsReported)
     FOSSYND_CHECK(reportMentions(report, "range"));
 }
 
+FOSSYND_TEST(ContentValidation, OffMapMissionGeometryIsReported)
+{
+    TempContent content("off_map_geometry");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    // Every off-map hazard at once: an unwinnable 'reach' objective, a building
+    // that runs off the edge, an off-map blocked tile, and an off-map agent. The
+    // validator stops at the first per-mission error, so use one mission per
+    // hazard to prove each is caught with the file name.
+    content.write("missions/reach.json", R"({
+        "name": "Unwinnable", "width": 8, "height": 8,
+        "objective": { "kind": "reach", "tileX": 99, "tileY": 99 },
+        "agents": [{"team": "player", "x": 1, "y": 1}]
+    })");
+    content.write("missions/building.json", R"({
+        "name": "Clipped", "width": 8, "height": 8,
+        "buildings": [ { "x": 6, "y": 6, "width": 5, "height": 5 } ],
+        "agents": [{"team": "player", "x": 1, "y": 1}]
+    })");
+    content.write("missions/blocked.json", R"({
+        "name": "Dropped", "width": 8, "height": 8,
+        "blocked": [ { "x": 50, "y": 50 } ],
+        "agents": [{"team": "player", "x": 1, "y": 1}]
+    })");
+    content.write("missions/agent.json", R"({
+        "name": "Invisible", "width": 8, "height": 8,
+        "agents": [{"team": "player", "x": 99.5, "y": 99.5}]
+    })");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(!report.ok());
+    FOSSYND_CHECK_EQ(report.missionsChecked, static_cast<std::size_t>(4));
+    FOSSYND_CHECK(reportMentions(report, "reach.json"));
+    FOSSYND_CHECK(reportMentions(report, "building.json"));
+    FOSSYND_CHECK(reportMentions(report, "blocked.json"));
+    FOSSYND_CHECK(reportMentions(report, "agent.json"));
+}
+
 // The shipped content must always be valid: this is the guard that keeps a
 // broken mission or catalogue out of `main`.
 FOSSYND_TEST(ContentValidation, ShippedContentPasses)
