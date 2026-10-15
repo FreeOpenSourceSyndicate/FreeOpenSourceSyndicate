@@ -153,7 +153,7 @@ Coordination changed; **review policy did not**. Keep the queue moving:
 
 ## 7. The nine focus areas
 
-The areas are unchanged (full file map: `docs/FOCUS_AREAS.md` §2):
+The areas are the lock (full file map: `docs/FOCUS_AREAS.md` §2):
 
 | Area | `focus:` label | Owns (summary) |
 |------|----------------|-----------------|

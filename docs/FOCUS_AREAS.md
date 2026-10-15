@@ -466,7 +466,9 @@ a hand-kept plan.
 1. **Read the ledger.** `scripts/coord status` lists every live lease and the
    **free areas** (`docs/COORDINATION_BOARD.md` is the same view, generated).
 2. **Pick a free area with pending work.** "Free" means **no live lease** in it
-   (§5.3). Prefer the area with the most open issues; this spreads agents out.
+   (§5.3). Prefer an area on the **v1.0.0 critical path** (§2, ADR-0024) — the
+   tactical finish and the metagame — over lower-priority capacity; then prefer
+   the area with the most open issues, to spread agents out.
 3. **Prefer known areas to reduce scope.** Given a choice, prefer an area you have
    worked before — familiar files mean smaller, safer changes.
 4. **Claim it.** `scripts/coord claim --area <area> --issue <n> --agent "<model>"
