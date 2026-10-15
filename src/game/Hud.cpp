@@ -30,10 +30,6 @@ void Game::renderHud()
     SDL_Rect topBar{0, 0, screenWidth_, lineH + margin};
     SDL_RenderFillRect(renderer_, &topBar);
 
-    font_.draw(renderer_, margin, margin / 2,
-               tr("app.title", "FOSSYND") + " " +
-                   hudstyle::substitute(tr("app.version", "v{version}"), {{"version", FOSSYND_VERSION}}),
-               hudstyle::kHudText);
     std::string objective;
     bool urgent = false;
     switch (mission_.objective().kind)
@@ -97,11 +93,30 @@ void Game::renderHud()
     const bool showControls =
         font_.textWidth(label + "   " + controls) <= screenWidth_ - 2 * margin;
     const std::string tail = showControls ? "   " + controls : std::string();
-    int x = std::max(margin, screenWidth_ - margin - font_.textWidth(label + tail));
-    font_.draw(renderer_, x, margin / 2, label, objectiveColor);
+    const int objectiveX = std::max(margin, screenWidth_ - margin - font_.textWidth(label + tail));
+
+    // Top-left: the version, then the mission name (issue #187) so the current
+    // mission is visible in-game, not just in the window title (#176). The name
+    // is dropped rather than allowed to overlap the right-aligned objective on a
+    // narrow window; it is a status prefix, so it stays dim like the others.
+    const std::string title = tr("app.title", "FOSSYND") + " " +
+                              hudstyle::substitute(tr("app.version", "v{version}"),
+                                                   {{"version", FOSSYND_VERSION}});
+    std::string titleLine = title;
+    if (!missionName_.empty())
+    {
+        const std::string withName = title + " - " + missionName_;
+        if (font_.textWidth(withName) <= objectiveX - margin - 8)
+        {
+            titleLine = withName;
+        }
+    }
+    font_.draw(renderer_, margin, margin / 2, titleLine, hudstyle::kHudText);
+
+    font_.draw(renderer_, objectiveX, margin / 2, label, objectiveColor);
     if (showControls)
     {
-        font_.draw(renderer_, x + font_.textWidth(label), margin / 2, tail, hudstyle::kHudDim);
+        font_.draw(renderer_, objectiveX + font_.textWidth(label), margin / 2, tail, hudstyle::kHudDim);
     }
 
     // Squad panel (bottom-left).
