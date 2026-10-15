@@ -17,8 +17,8 @@ assignees: ""
 ## Focus area
 
 <!-- Exactly one. See docs/FOCUS_AREAS.md. The agent holding the area's live
-     claim (or a helper it tasks) is the only agent that edits the files listed
-     under Scope. There is no coordinator; claims are self-service leases. -->
+     lease (or a helper it tasks) is the only agent that edits the files listed
+     under Scope. There is no coordinator; leases are self-service. -->
 
 - [ ] `focus: tactical` — `src/core/sim/{Mission,Weapon,Objective}`, `assets/data/missions/**`
 - [ ] `focus: world` — `src/core/{world,math,util}/**`, `src/core/sim/Agent.*`
@@ -31,13 +31,15 @@ assignees: ""
 
 ## Claim (self-service lease)
 
-<!-- Post this as the first comment when you start. Append a LEASE: line to later
-     updates. A claim with no push and no comment for 24h is expired and any
-     agent may TAKEOVER:. See docs/FOCUS_AREAS.md §5.3 / ADR-0019. -->
+<!-- Take the lease when you start; this is the whole check-in:
 
-```
-CLAIM: <model> | <focus: label> | <branch> | <YYYY-MM-DDThh:mmZ>
-```
+    scripts/coord claim --area <area> --issue <this-issue> --agent "<model>" --branch <branch>
+
+     It writes refs/coord/leases/<area>/<issue> atomically and expires on its own
+     (default 6h, max 24h) - if you stop mid-work, the area frees itself and no
+     peer has to notice. `scripts/coord renew` to extend, `scripts/coord release`
+     when the PR merges. See docs/COORDINATION.md / ADR-0021. The old CLAIM:
+     comment lines are read only for migration (docs/COORDINATION_MIGRATION.md). -->
 
 ## Scope
 

@@ -1,0 +1,78 @@
+# AI/LLM-generated file. Do not treat as human-written source documentation.
+# This comment must be preserved in future generated files.
+#
+# Coordination maintenance (docs/COORDINATION.md, ADR-0021).
+#
+# Two jobs, both mechanical - no agent has to remember to run anything:
+#
+#   * verify - a hard gate: two live leases must never collide on an area or an
+#              issue. Runs on every relevant push/PR, so a bad claim fails fast.
+#   * sweep  - deletes expired lease refs, syncs issue labels/claims, and
+#              regenerates docs/COORDINATION_BOARD.md, committing it when it
+#              changed. Runs on a schedule (and on demand), so an agent that
+#              aborts mid-cycle strands nothing: its lease simply ages out and
+#              the area becomes claimable again. Nobody hand-edits a "refresh the
+#              queue" PR any more - the board is generated from the ledger.
+name: Coordination
+
+on:
+  schedule:
+    # Every 30 minutes. Cheap (a few git ref reads + at most one commit).
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/coord"
+      - "docs/COORDINATION_BOARD.md"
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/coord"
+      - "tests/test_coord.py"
+      - "docs/COORDINATION.md"
+      - "docs/COORDINATION_MIGRATION.md"
+      - "docs/FOCUS_AREAS.md"
+      - "AGENTS.md"
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: coordination
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Lease ledger check
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # The lease refs live on the remote, not in the checkout; fetch them.
+          ref: main
+      - name: Fetch the lease ledger
+        run: git fetch --prune --force origin '+refs/coord/leases/*:refs/coord/leases/*' || true
+      - name: Check for live lease collisions
+        run: python3 scripts/coord check --offline
+      - name: Unit-test the coordination tool
+        run: python3 tests/test_coord.py
+
+  sweep:
+    name: Sweep expired leases
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+      - name: Fetch the lease ledger
+        run: git fetch --prune --force origin '+refs/coord/leases/*:refs/coord/leases/*' || true
+      - name: Sweep expired leases, sync labels, rebuild the board
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/coord sweep --gh --commit-board

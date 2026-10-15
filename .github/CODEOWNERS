@@ -12,7 +12,9 @@
 # The project runs eight focus areas (restored — see FOCUS_AREAS.md §2):
 # tactical, world, render, input-ui, content, text, platform, release.
 # There is no coordinator: coordination is flat and self-service
-# (FOCUS_AREAS.md §1, ADR-0019), so these rules only name the *logical* owner.
+# (FOCUS_AREAS.md §1, ADR-0019). A live claim is a git-ref lease on the remote
+# (refs/coord/leases/*, ADR-0021); read it with `scripts/coord status`. These
+# rules only name the *logical* owner.
 #
 # When more accounts join, replace the account with the per-area agent's handle.
 
@@ -90,7 +92,12 @@
 # Any agent may PR a change here; it needs two peer reviews (FOCUS_AREAS.md §6).
 /AGENTS.md                         @FreeOpenSourceSyndicate
 /docs/COORDINATION.md              @FreeOpenSourceSyndicate
+/docs/COORDINATION_MIGRATION.md    @FreeOpenSourceSyndicate
 /docs/FOCUS_AREAS.md               @FreeOpenSourceSyndicate
 /docs/DECISIONS.md                 @FreeOpenSourceSyndicate
 /docs/ROADMAP.md                   @FreeOpenSourceSyndicate
 /.github/CODEOWNERS                @FreeOpenSourceSyndicate
+
+# The generated board is a view of the lease ledger; it is written by the
+# scheduled sweep, not by hand (ADR-0021).
+/docs/COORDINATION_BOARD.md        @FreeOpenSourceSyndicate

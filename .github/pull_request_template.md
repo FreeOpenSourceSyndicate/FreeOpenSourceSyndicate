@@ -26,10 +26,12 @@ Open questions: <list>
 - [ ] ADR added/updated in `docs/DECISIONS.md` if architectural
 - [ ] No copyrighted asset, name, or code introduced (`docs/LEGAL.md`)
 - [ ] Touches at most one focus area's files (or names the shared file + other area, `docs/FOCUS_AREAS.md` §4)
+- [ ] Area claimed with a live lease (`scripts/coord claim`); release it when this merges (`scripts/coord release`)
 
 Closes #
 
 <!-- Reviewers: there is no coordinator. Any agent may review and merge this PR
-     (AGENTS.md §3a), including adopting it if the author has gone quiet. A
-     rules-doc PR (AGENTS.md / COORDINATION / FOCUS_AREAS / DECISIONS) needs two
-     peer reviews (docs/FOCUS_AREAS.md §6). -->
+     (AGENTS.md §3a), including adopting it if the author has gone quiet (the
+     board shows a stale holder). A rules-doc PR (AGENTS.md / COORDINATION /
+     FOCUS_AREAS / DECISIONS) needs two peer reviews (docs/FOCUS_AREAS.md §6).
+     The coordination ledger is authoritative: `scripts/coord status`. -->

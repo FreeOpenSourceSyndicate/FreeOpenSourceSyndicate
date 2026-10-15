@@ -104,15 +104,17 @@ happens on a branch and lands through a pull request. See §6.
 
 ## 3. Multi-agent coordination protocol
 
-Many models edit this repo. To avoid clobbering each other:
+Many models edit this repo. Coordination is **flat** (no coordinator, ADR-0019)
+and **machine-checked**: a claim is a **git-ref lease**, not a comment
+(ADR-0021). The whole protocol is `docs/COORDINATION.md`; the short form:
 
 1. **One task = one branch = one PR.** Use the branch naming scheme in §6.
-2. **Claim before you build.** Open (or comment on) the GitHub issue for the
-   task and post the machine-readable claim line (`CLAIM: <model> | <focus:
-   label> | <branch> | <timestamp>`, §3.11), or comment `claiming this` on the PR.
-   Do not start a task another agent has claimed within the last 24 h. Tag the
-   issue with its `focus:` label and, once claimed, a `status:` label so parallel
-   work stays visible (see `docs/COORDINATION.md` §2).
+2. **Claim before you build, with the ledger.** `scripts/coord claim --area
+   <area> --issue <n> --agent "<model>" --branch <branch>`. The **area is the
+   lock** (`docs/FOCUS_AREAS.md` §2): a live lease on an area blocks a second
+   agent from it. `scripts/coord status` is authoritative — do not read comment
+   timestamps. The claim is a **lease** with a TTL (default 6 h, max 24 h);
+   `scripts/coord renew` extends it and `scripts/coord release` ends it.
 3. **Small, reviewable PRs.** Prefer < ~400 changed lines. Split large features.
 4. **Never force-push a branch another agent may be using.** If you must rewrite
    history on a shared branch, say so in the PR first.
@@ -128,25 +130,23 @@ Many models edit this repo. To avoid clobbering each other:
 9. **Review and merge each other's PRs.** See §3a. This applies to every agent
    and to human maintainers.
 10. **Work inside your focus area.** The repo is divided into eight focus areas
-    (see `docs/FOCUS_AREAS.md`). Each cycle, pick a **free** focus with the
-    **highest pending workload**, preferring one you already know (§7 of that
-    file). Only the agent holding the area's live claim (or a helper it explicitly
-    tasks) edits the files an area owns. Need a change in another area's files?
-    File a cross-area request (`docs/FOCUS_AREAS.md` §4, Rule 4) — never edit them
-    yourself.
-11. **Claims are self-service leases; abandoned work is reclaimed by timeout.**
-    Claim a task by commenting `CLAIM: <model> | <focus: label> | <branch> |
-    <timestamp>` on its issue, and append `LEASE: ...` to later updates
-    (`docs/FOCUS_AREAS.md` §5.3, ADR-0019). A claim with no push and no comment
-    for **24 h** is expired and any agent may `TAKEOVER:`. There is **no
-    reassignment step** — no coordinator hands out work.
+    (see `docs/FOCUS_AREAS.md`). Claim a **free** area with the **highest pending
+    workload**, preferring one you already know. Only the agent holding the
+    area's live lease (or a helper it explicitly tasks) edits the files an area
+    owns. Need a change in another area's files? File a cross-area request
+    (`docs/FOCUS_AREAS.md` §4, Rule 4) — never edit them yourself.
+11. **Leases expire; abandoned work is reclaimed by the clock.** A lease past its
+    TTL is **dead** and any agent may claim the area (`scripts/coord claim`), or
+    take a live-but-quiet one with `--takeover` (announced, never silent). There
+    is **no reassignment step** and no coordinator. If you stop mid-task, your
+    lease ages out on its own — no peer or human has to notice.
 12. **There is no coordinator; coordination is flat.** No agent owns the merge
     queue, the workload plan, or the process docs, and no agent has authority over
     another's focus. Review and merge any PR you did not author (§3a); adopt an
-    orphaned green PR; refresh the §8 plan when it is stale; resolve overlaps by
-    the fixed rules in `docs/FOCUS_AREAS.md` §4, where **merged code wins ties**.
-    Process-doc changes are self-service too, needing two peer reviews
-    (`docs/FOCUS_AREAS.md` §6). There is no `focus: coordinator` label.
+    orphaned green PR (its holder now shows as **stale** on the board); resolve
+    overlaps by the fixed rules in `docs/FOCUS_AREAS.md` §4, where **merged code
+    wins ties**. Process-doc changes are self-service too, needing two peer
+    reviews (`docs/FOCUS_AREAS.md` §6). There is no `focus: coordinator` label.
 13. **Questions are answered by the rules, or go straight to the human.** Read
     `AGENTS.md` and `docs/FOCUS_AREAS.md` first — scope/ordering/ownership/process
     questions are answered there and any agent applies them itself. If the rules
@@ -155,16 +155,16 @@ Many models edit this repo. To avoid clobbering each other:
     (product direction, licensing, a rule change, release policy) is posted by the
     **asking agent itself** on the issue thread (`question` + `status: blocked`),
     with options and a recommendation — **no relay, no waiting silently**. See
-    `docs/COORDINATION.md` §8.
+    `docs/COORDINATION.md` §3.
 14. **Helpers are requested, never self-started.** An agent whose queue is empty
     must not begin work in another area on its own. It announces availability and
     works on tasks assigned by that area's owner; if the area has **no live
-    owner**, it self-claims under the lease rules (§11). Reviewing PRs and
+    lease**, it self-claims it (`scripts/coord claim`). Reviewing PRs and
     triaging issues need no assignment (`docs/FOCUS_AREAS.md` §5).
-15. **Keep the workload plan useful.** The §8 workload plan is a **shared hint**:
-    anyone may refresh it (roughly one claimable task per area, comparable size)
-    so agents finish cycles together; the fleet size may be one or many, and the
-    plan works either way (`docs/COORDINATION.md` §9).
+15. **The board is generated.** `docs/COORDINATION_BOARD.md` is rendered from the
+    ledger by `scripts/coord board` and rewritten by the scheduled sweep. Never
+    hand-edit it and never open a "refresh the queue" PR — the old hand-maintained
+    §8 table is gone (ADR-0021).
 
 ## 3a. Reviewing and merging other agents' pull requests
 
@@ -172,7 +172,8 @@ Agents should keep the queue moving: **review open PRs that you did not author
 and merge them when they are good.** A stale, green PR that nobody merges is
 lost work. **No one owns the queue** (there is no coordinator, §3.12): the first
 free agent merges the oldest mergeable PR, and **adopts an orphaned PR** (its
-author gone quiet — no push/comment for 24 h) by reviewing and merging it itself.
+author gone quiet — its area now shows as a **stale** holder on the coordination
+board, `docs/COORDINATION.md` §4) by reviewing and merging it itself.
 This is how the fleet drains the queue without any agent depending on another.
 
 **Who may merge.** Normally, merge PRs **authored by someone else**: the point is
@@ -658,13 +659,14 @@ PR.
   **render** (`src/game` drawing), **input-ui** (`src/main.cpp`, input/selection),
   **content** (`core/data`, `assets/data` minus missions), **text** (`core/i18n`,
   `assets/lang`), **platform** (build, CI, packaging), **release** (`CHANGELOG`,
-  releases). Each area has a `focus:` label; only the agent holding its live claim
+  releases). Each area has a `focus:` label; only the agent holding its live lease
   (or a helper it tasks) edits its files. Each cycle pick a free area with the
-  highest pending workload (§7). Overlap rules, the cross-area request format,
-  the helper protocol, the claim/lease protocol, and the review matrix all live
-  there. When you pick up work, claim the issue in **your** area; do not start in
-  another area on your own. **There is no coordinator** (ADR-0019): claims are
-  self-service leases (24 h takeover), the queue is drained peer-to-peer, and
+  highest pending workload (`scripts/coord status`, §7). Overlap rules, the
+  cross-area request format, the helper protocol, the claim/lease protocol, and
+  the review matrix all live there. When you pick up work, claim the issue's area
+  with `scripts/coord claim`; do not start in another area on your own. **There is
+  no coordinator** (ADR-0019): claims are self-service git-ref leases with a TTL
+  (ADR-0021, default 6 h / max 24 h), the queue is drained peer-to-peer, and
   overlaps are settled by the §4 rules with merged code winning ties.
 - **`src/game/Game.cpp` is shared** by **Render** (drawing) and **Input/UI**
   (input/selection) — serialise edits, never co-edit (`docs/FOCUS_AREAS.md` §4,

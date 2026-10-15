@@ -77,7 +77,8 @@ FOSSynd/
 ├── assets/                # original/licensed assets (see docs/ASSETS.md)
 ├── docs/
 │   ├── ARCHITECTURE.md    # design overview
-│   ├── COORDINATION.md    # how multiple agents work together
+│   ├── COORDINATION.md    # how multiple agents work together (lease ledger)
+│   ├── COORDINATION_BOARD.md  # GENERATED view of the live lease ledger
 │   ├── ROADMAP.md         # phased plan
 │   ├── DECISIONS.md       # architecture decision records (ADRs)
 │   ├── LEGAL.md           # copyright policy
@@ -90,7 +91,9 @@ FOSSynd/
 │   │   └── sim/           # agents, movement (headless)
 │   └── game/              # SDL2 app shell (window, loop, render, input)
 ├── tests/                 # unit tests for src/core (run via ctest)
-└── scripts/               # build helpers
+└── scripts/
+    ├── coord              # coordination lease ledger (claim/renew/release)
+    └── ...                # build helpers
 ```
 
 ## Roadmap
@@ -104,7 +107,8 @@ playable SDL2 shell on top.
 See [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) and
 [`docs/COORDINATION.md`](docs/COORDINATION.md). In short:
 
-1. Find or open an issue; claim it.
+1. Find or open an issue; claim its **area** with `scripts/coord claim` (the
+   area is the lock; see `docs/COORDINATION.md`).
 2. Branch (`feat/…`, `fix/…`, …), make a small change.
 3. Build and test the core locally; keep the build warning-free.
 4. Open a PR using the template, including the handoff block and the model used.
