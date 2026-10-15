@@ -25,6 +25,13 @@ Rules
 6. No value in ``en.json`` or any locale may be empty — ``StringTable::get``
    returns a present key verbatim, so an empty value wins over the ``tr()``
    fallback and blanks the UI element (#254).
+7. Every value in ``en.json`` — not just the locales — must be renderable by the
+   embedded font (ASCII 32..126). ``BitmapFont::draw`` maps any byte outside that
+   range to a blank glyph, and English values are drawn directly (the window
+   title, and ``mission.<id>.name`` / ``mission.<id>.desc``, which have no
+   ``tr()`` fallback), so a non-ASCII English string ships an invisible glyph.
+   The C++ renderability gate (``ShippedLocalesKeepPlaceholdersAndAreRenderable``)
+   covers only the locale files, so the reference table was unchecked (#288).
 
 A key-shaped literal is a double-quoted string of the form
 ``segment(.segment)+`` where each segment is ``[a-z][A-Za-z0-9_]*`` (the shape
@@ -366,6 +373,34 @@ class StringTableKeyCoverage(unittest.TestCase):
                 "empty string value(s) would blank a UI element:\n"
                 + "\n".join(problems)
                 + "\nGive every key a non-empty value."
+            )
+
+    def test_english_values_are_renderable(self):
+        # BitmapFont::draw maps any byte outside ASCII 32..126 to a blank glyph
+        # (src/game/Font.cpp). English values are drawn by that same font, some
+        # with no tr() fallback to hide behind (the window title, and
+        # mission.<id>.name / .desc), so a non-ASCII English string ships an
+        # invisible glyph. The C++ renderability gate only walks the locale
+        # files, so the reference table itself was unchecked (#288).
+        problems = []
+        with open(EN_JSON, encoding="utf-8") as handle:
+            root = json.load(handle)
+        for key, value in root.items():
+            if key.startswith("_"):
+                continue
+            if not isinstance(value, str):
+                continue
+            bad = sorted({ch for ch in value if not 32 <= ord(ch) <= 126})
+            if bad:
+                shown = ", ".join(f"{ch!r} (U+{ord(ch):04X})" for ch in bad)
+                problems.append(f"  {key}: {shown}")
+        if problems:
+            self.fail(
+                "en.json value(s) use a character the embedded font cannot "
+                "draw (it renders blank):\n"
+                + "\n".join(problems)
+                + "\nThe 5x7 bitmap font covers ASCII 32..126 only; use an ASCII "
+                "transliteration (e.g. '-' for an em-dash)."
             )
 
 

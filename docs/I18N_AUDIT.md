@@ -106,11 +106,21 @@ A literal is easy to re-introduce. `tests/test_i18n_keys.py` (ctest
    `StringTable::get` returns a present key's value verbatim, so `""` wins over
    the `tr()` fallback and blanks the UI element. The mission path already treats
    empty as untranslated (`localizeMissionText`), the UI path does not (#254).
+7. any value in `en.json` uses a character the embedded font cannot draw. The 5x7
+   bitmap font covers ASCII 32–126 only (`src/game/Font.cpp`), and
+   `BitmapFont::draw` maps any other byte to a blank glyph. The English reference
+   is drawn by that same font, and some of its values have no `tr()` fallback to
+   hide behind — the OS window title and `mission.<id>.name` / `.desc` — so a
+   non-ASCII English string (a typographic quote, an em-dash, an accent) ships an
+   invisible glyph. The C++ renderability gate walked only the **locale** files,
+   so the reference table was the one place this went unchecked (#288); it now
+   asserts the English entries too.
 
 It ignores file-name literals (`.json`, `.bmp`, …) and allow-lists `no.such.key`
 (looked up on purpose by `Game::languageSelfTest`). The rules are mutation-checked:
 renaming a key, dropping one, duplicating one, corrupting a `tr()` fallback,
-adding a mission without its keys, or emptying a value each makes the guard fail.
+adding a mission without its keys, emptying a value, or adding a non-ASCII
+character to an English value each makes the guard fail.
 The C++ parity gate
 in `tests/test_i18n.cpp`
 (`ShippedLocalesMatchTheEnglishKeySet`) covers the same key-set rule for the
