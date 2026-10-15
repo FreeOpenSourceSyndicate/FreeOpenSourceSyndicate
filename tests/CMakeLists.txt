@@ -24,6 +24,7 @@ set(FOSSYND_TEST_SOURCES
     test_economy.cpp
     test_research.cpp
     test_equipment.cpp
+    test_campaign.cpp
     test_i18n.cpp
     test_content_validation.cpp
 )

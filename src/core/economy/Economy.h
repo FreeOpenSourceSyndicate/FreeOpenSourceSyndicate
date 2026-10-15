@@ -35,6 +35,7 @@ public:
     static bool fromJson(const Json& root, EconomyConfig& out, std::string& error);
 
     void configure(const EconomyConfig& config) { config_ = config; }
+    EconomyConfig& config() { return config_; }
     const EconomyConfig& config() const { return config_; }
 
     // Advances the economy by `dt` in-game seconds: every `tickSeconds` it adds
