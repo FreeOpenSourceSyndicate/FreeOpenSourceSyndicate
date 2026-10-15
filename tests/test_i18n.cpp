@@ -107,6 +107,27 @@ const std::string& englishPath()
     return path;
 }
 
+// Every shipped mission id, taken from the file stem of
+// assets/data/missions/*.json. The id is what `missionNameKey` derives the
+// localisation key from, so the directory — not a hardcoded list — is the
+// authoritative mission set: a new mission file cannot be forgotten here.
+std::vector<std::string> shippedMissionIds()
+{
+    const std::filesystem::path dir =
+        std::string(FOSSYND_SOURCE_DIR) + "/assets/data/missions";
+    std::vector<std::string> ids;
+    std::error_code ec;
+    for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(dir, ec))
+    {
+        if (entry.path().extension() == ".json")
+        {
+            ids.push_back(entry.path().stem().string());
+        }
+    }
+    std::sort(ids.begin(), ids.end());
+    return ids;
+}
+
 } // namespace
 
 FOSSYND_TEST(I18n, LoadsKeyValuePairs)
@@ -448,8 +469,11 @@ FOSSYND_TEST(I18n, ShippedMissionsHaveLocalisedTextInEveryLocale)
     using fossynd::core::i18n::missionDescKey;
     using fossynd::core::i18n::missionNameKey;
 
-    // The shipped missions are identified by their file stem (demo, escort).
-    const std::vector<std::string> missionIds = {"demo", "escort"};
+    // The shipped missions are the files in assets/data/missions; the id is the
+    // file stem. Deriving the set here (rather than hardcoding it) means a new
+    // mission without translations fails this test instead of slipping through.
+    const std::vector<std::string> missionIds = shippedMissionIds();
+    FOSSYND_CHECK(!missionIds.empty());
 
     const std::string srcDir = FOSSYND_SOURCE_DIR;
     StringTable english;

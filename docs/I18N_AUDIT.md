@@ -72,13 +72,24 @@ A literal is easy to re-introduce. `tests/test_i18n_keys.py` (ctest
 3. any `tr(key, "literal")` fallback differs from `en.json[key]` — the fallback
    is the no-localisation copy, so a table edit (e.g. #210 adding `SPACE  PAUSE`)
    must not leave a stale one behind (#240). Adjacent C++ string literals are
-   concatenated before the comparison. One known drift is allow-listed in
-   `ALLOWED_FALLBACK_DRIFT` with the issue that will fix it (#238).
+   concatenated before the comparison. `ALLOWED_FALLBACK_DRIFT` exists for a
+   known drift pending a fix in another area's file, and is currently **empty**
+   (the #238 drift it held was fixed by #245);
+4. `en.json` itself has a duplicate key — the locale rule above uses `en.json` as
+   the reference, so its own duplicates were the one place the check did not
+   reach (#246);
+5. any shipped mission (a file in `assets/data/missions/`) lacks
+   `mission.<id>.name` or `mission.<id>.desc` in `en.json` or any locale. Mission
+   keys are derived **at runtime** from the file stem (`core::i18n::MissionText`),
+   so they are not key-shaped literals in `src/` and rule 1 cannot see them; the
+   C++ gate now derives the mission set from the same directory rather than a
+   hardcoded list (#246).
 
 It ignores file-name literals (`.json`, `.bmp`, …) and allow-lists `no.such.key`
-(looked up on purpose by `Game::languageSelfTest`). All three rules are
-mutation-checked: renaming a key, dropping one, duplicating one, or corrupting a
-`tr()` fallback each makes it fail. The C++ parity gate in `tests/test_i18n.cpp`
+(looked up on purpose by `Game::languageSelfTest`). The rules are mutation-checked:
+renaming a key, dropping one, duplicating one, corrupting a `tr()` fallback, or
+adding a mission without its keys each makes the guard fail. The C++ parity gate
+in `tests/test_i18n.cpp`
 (`ShippedLocalesMatchTheEnglishKeySet`) covers the same key-set rule for the
 in-engine loader, so the two guards agree.
 
