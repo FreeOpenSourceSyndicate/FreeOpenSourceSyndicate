@@ -32,6 +32,7 @@ jobs:
   core-build-and-test:
     name: Core build & unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -57,6 +58,7 @@ jobs:
   werror:
     name: Warnings as errors (-Werror)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -89,6 +91,7 @@ jobs:
   shellcheck:
     name: Shell scripts (shellcheck)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -101,6 +104,7 @@ jobs:
   core-only:
     name: Core build (no graphics dependencies)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -126,6 +130,7 @@ jobs:
   low-spec:
     name: Low-spec build (old hardware)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -166,6 +171,7 @@ jobs:
   sanitizers:
     name: Sanitizers (ASan + UBSan, core)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -194,6 +200,7 @@ jobs:
   packaging:
     name: Packaging (Linux TGZ + DEB)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -280,6 +287,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     continue-on-error: true
     runs-on: macos-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -335,6 +343,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     continue-on-error: true
     runs-on: windows-latest
+    timeout-minutes: 45
     defaults:
       run:
         shell: msys2 {0}
