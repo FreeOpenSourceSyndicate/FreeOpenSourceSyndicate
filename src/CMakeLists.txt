@@ -121,6 +121,15 @@ endif()
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/assets/data/missions/"
         DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd/missions
         FILES_MATCHING PATTERN "*.json")
+# Install the metagame content (`assets/data/world/**`): the campaign, world map,
+# research tree, and equipment catalogue are shipped data (ADR-0003, golden rule
+# 7), so a package without them cannot start a campaign. Same class as the
+# mission (#126) and locale (#103) rules above; `FILES_MATCHING` keeps stray
+# non-JSON files out. Metagame owns the files (docs/FOCUS_AREAS.md §2 area 7);
+# this is the packaging rule, which Platform owns.
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/assets/data/world/"
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd/world
+        FILES_MATCHING PATTERN "*.json")
 install(FILES
             "${CMAKE_SOURCE_DIR}/assets/data/weapons.json"
             "${CMAKE_SOURCE_DIR}/assets/data/agents.json"
