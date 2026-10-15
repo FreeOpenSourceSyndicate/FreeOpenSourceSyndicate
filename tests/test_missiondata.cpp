@@ -80,7 +80,7 @@ FOSSYND_TEST(MissionData, PopulatesAMissionFromData)
     MissionData data;
     FOSSYND_CHECK(MissionData::fromJson(root, data, error));
 
-    const TileGrid grid = buildGrid(data);
+    TileGrid grid = buildGrid(data);
     Mission mission(grid);
     populateMission(data, mission);
 
@@ -231,7 +231,7 @@ FOSSYND_TEST(MissionData, PopulateMissionCarriesTheObjective)
     MissionData data;
     FOSSYND_CHECK(MissionData::fromJson(root, data, error));
 
-    const TileGrid grid = buildGrid(data);
+    TileGrid grid = buildGrid(data);
     Mission mission(grid, 1u);
     populateMission(data, mission);
     FOSSYND_CHECK(mission.objective().kind == ObjectiveSpec::Kind::Survive);

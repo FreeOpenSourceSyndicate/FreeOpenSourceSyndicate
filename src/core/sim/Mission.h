@@ -34,7 +34,7 @@ enum class MissionState
 class Mission
 {
 public:
-    explicit Mission(const TileGrid& grid, std::uint64_t seed = 0xC0FFEEu);
+    explicit Mission(TileGrid& grid, std::uint64_t seed = 0xC0FFEEu);
 
     // Adds an agent and returns its index. The agent's initial think timer is
     // staggered so AI decisions do not all land on the same frame.
@@ -155,6 +155,13 @@ private:
     // never affects combatants, so combat outcomes are unchanged.
     void applyStrayFire(std::size_t attacker, std::size_t target, float damage);
 
+    // The first blocked tile on the straight line between two tiles, or
+    // `found = false` when the line is clear. Used by `resolveFire` to find the
+    // wall a shot lands on when the target itself is not directly hittable. The
+    // two endpoints are never returned; the walk matches `hasLineOfSight`, so a
+    // tile is reported here exactly when it is what blocks the line.
+    TilePos firstWallOnLine(TilePos from, TilePos to, bool& found) const;
+
     // Damages every other living agent within `radius` tiles of `target`'s tile
     // (excluding the attacker and the primary target). Used by explosive weapons
     // with a non-zero area radius (issue #79).
@@ -181,7 +188,7 @@ private:
     // through walls.
     bool seesTarget(std::size_t observer, std::size_t target) const;
 
-    const TileGrid* grid_ = nullptr;
+    TileGrid* grid_ = nullptr;
     std::vector<Agent> agents_;
     std::vector<int> medikits_;
     Rng rng_;
