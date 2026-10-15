@@ -734,6 +734,20 @@ Do not start work outside the scope fence (ADR-0024).
   60x60 serpentine cost ~1.6M probes / ~54 ms vs. ~180 us for the search), which
   would stall a frame (ADR-0008). Realistic orders stay far under the budget, so
   their smoothing is unchanged. `simplifyPath` is internal to `Pathfinding.cpp`.
+- **Squad loadout is applied at mission load (issue #311, ADR-0027):**
+  `core::PlayerLoadout` (`core/sim/PlayerLoadout.h`, header-only, data-only
+  `weaponId`/`gadgetId` per slot) plus `core::applyLoadout(loadout, mission,
+  weapons, error)` in `core/data/MissionData` override a mission's authored
+  player weapons/gadgets at load time, so a metagame-bought squad reaches the
+  deployed agents (docs/METAGAME.md §7 R1). Slot `i` maps to the i-th **player**
+  agent in authored order; a slot past the squad is ignored. An empty id keeps
+  the authored default; an **unknown** id is a content error (returns false), not
+  a silent fallback. The gadget vocabulary (`gadgetChargesForId`: `medkit` |
+  `shield`, one charge each) lives in `PlayerLoadout.h`, **not** `core/economy`,
+  so the loader stays below the metagame. This is the frozen interface the
+  metagame's engine-side deploy wiring (issue #312) builds against; the core
+  change ships no engine caller by design (Rule 2a's follow-up is #312). Tests in
+  `tests/test_mission.cpp`.
 - **Mission objectives are data-driven (ADR-0003):** `ObjectiveSpec`
   (`core/sim/Objective.h`) is `EliminateAll` (default), `ReachTile` (a living
   player agent on a target tile), `Survive` (a time limit), `Escort` (the agent

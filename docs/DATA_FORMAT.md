@@ -204,6 +204,41 @@ fossynd::core::populateMission(data, mission);
 The engine layer (`src/game/`) decides the file path and renders the result; it
 contains no schema knowledge.
 
+### Applying a squad loadout (deployment)
+
+Milestone B's deployment (docs/METAGAME.md §7 R1, ADR-0027) can override the
+mission's authored player weapons and gadgets at load time, without changing the
+mission file. A `core::PlayerLoadout` names catalogue ids per slot; slot `i`
+maps to the i-th **player** agent in authored order, and a slot past the last
+player agent is ignored:
+
+```cpp
+#include "core/data/Catalogues.h"
+#include "core/sim/PlayerLoadout.h"
+
+fossynd::core::PlayerLoadout loadout;
+loadout.slots.resize(2);
+loadout.slots[0].weaponId = "rifle";   // resolved against weapons.json
+loadout.slots[1].gadgetId = "medkit";  // "medkit" | "shield"
+
+fossynd::core::WeaponCatalogue weapons;
+bool found = false;
+weapons.loadFromFile("assets/data/weapons.json", found, error);
+
+// `mission` was already filled by populateMission(data, mission).
+if (!fossynd::core::applyLoadout(loadout, mission, weapons, error))
+{
+    // error is human-readable, e.g. "loadout slot 0: unknown weaponId 'railgun'"
+}
+```
+
+An empty `weaponId`/`gadgetId` (or a missing slot) keeps the mission's authored
+default, so a mission with no loadout is byte-for-byte unchanged. An id that is
+not in its catalogue is a **content error** (`applyLoadout` returns false), not a
+silent fallback. The gadget vocabulary is `medkit` (one heal) and `shield` (one
+absorbed hit), matching the `kind: "gadget"` items in
+`assets/data/world/equipment.json`.
+
 ## Choosing which mission to load
 
 The path is resolved at startup, highest priority first:

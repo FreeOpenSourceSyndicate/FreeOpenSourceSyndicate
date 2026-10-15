@@ -1370,3 +1370,66 @@ for reassignment by a coordinator.
     new to maintain.
   - A blocked issue is still *visible* on the board and in the ledger; it is only
     excluded from the *claim* suggestion.
+
+## ADR-0027 — A squad loadout is applied at mission load, in `core/data`
+
+- **Status:** Accepted (2026-10-15)
+- **Date:** 2026-10-15
+- **Context:** Milestone B's *mission selection & deployment* records which four
+  slots to send and their bought weapons/gadgets (`Campaign::selectMission`), but
+  a mission still loaded its own authored player `AgentSpec`s, so "buy a loadout
+  → deploy → fight with it" never happened (docs/METAGAME.md §7, request R1).
+  The loop was open at its last step. Three questions had to be settled:
+
+  1. **Where does the override live?** The mission's agents are `core::Agent`
+     (owned by `focus: world`); the loader is `core/data` (`focus: content`);
+     deployment is `core/economy` (`focus: metagame`). A loadout touches all
+     three, so its home decides which area's contract it extends.
+  2. **What shape is a loadout?** A resolved `Weapon` (needs the catalogue at the
+     call site) or a set of **ids** resolved by the loader?
+  3. **How strict is a bad id?** Silently keep the default, or fail the load?
+
+- **Options:**
+  1. **Put the override on `Agent`/`Mission` and pass `core::Weapon`s.** Rejected:
+     it makes `core/sim` the place deployment logic lives, and a caller must hold
+     a `WeaponCatalogue` to build a loadout — the exact coupling R1 wanted to
+     avoid.
+  2. **A new `core/economy` deploy step that mutates the mission.** Rejected: the
+     metagame would then edit mission agents directly, inverting the dependency
+     (`economy` already sits above `sim`) and duplicating the weapon-id join.
+  3. **A data-only `PlayerLoadout` of catalogue ids, applied by the mission
+     loader.** Chosen: `core::PlayerLoadout` (new, in `core/sim`, header-only,
+     no `Weapon`) names a `weaponId`/`gadgetId` per slot; `applyLoadout(...)` in
+     `core/data/MissionData` resolves the ids against the shared
+     `WeaponCatalogue` and the tactical gadget vocabulary and writes the mission's
+     player agents. The `core/economy` → `core/data` direction already exists
+     (the metagame loads content), so no new dependency edge is created.
+
+- **Decision:** **Option 3.**
+  - `PlayerLoadout { std::vector<LoadoutSlot> slots; }` and
+    `LoadoutSlot { std::string weaponId, gadgetId; }` live in
+    `src/core/sim/PlayerLoadout.h`. They carry **ids only**, so `core/sim` stays
+    free of the content loader and there is no include cycle.
+  - Slot `i` maps to the i-th **player** agent in authored order, so the mapping
+    is independent of enemy/civilian interleaving. A slot past the last player
+    agent is ignored, so a four-slot loadout is safe against a smaller squad.
+  - `applyLoadout(loadout, mission, weapons, error)` is the single join point. An
+    empty id keeps the authored default (a missing loadout changes nothing,
+    AGENTS.md §1b). An **unknown** id is a content error — it returns false and
+    sets `error`, so a typo cannot silently deploy the wrong weapon (the same
+    strictness as an unknown `weaponId`/`agentId` in a mission file).
+  - The gadget vocabulary (`gadgetChargesForId`: "medkit" | "shield") lives in
+    `PlayerLoadout.h`, **not** in `core/economy`, so the loader stays below the
+    metagame. It matches the `kind: "gadget"` items in the equipment catalogue;
+    one charge per gadget, because a medikit heals once and a shield absorbs one
+    hit.
+
+- **Consequences:**
+  - The v1.0.0 loop closes at its last step: a bought loadout reaches the
+    deployed agents, and `focus: metagame`'s deploy issue (#312) can hand one
+    over. The engine-side wiring (`Game`/`CampaignScreen`) is a separate
+    follow-up in that area, not this contract.
+  - The interface is frozen: `PlayerLoadout`/`LoadoutSlot` and `applyLoadout` are
+    the surface `focus: metagame` builds against (FOCUS_AREAS §2.1).
+  - Adding a gadget means adding one arm to `gadgetChargesForId` and one entry to
+    the equipment catalogue — a small, local change, not a schema change.
