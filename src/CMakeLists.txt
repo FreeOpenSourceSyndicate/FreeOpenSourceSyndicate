@@ -64,6 +64,13 @@ target_link_libraries(FOSSynd PRIVATE fossynd_core)
 # SDL2: prefer the CMake config package, fall back to pkg-config.
 find_package(SDL2 QUIET)
 if(TARGET SDL2::SDL2)
+    # Windows: link SDL2main *before* SDL2. SDL provides WinMain() and calls
+    # main() from it, so SDL2main is required; and it references SDL symbols that
+    # the SDL2 import library resolves, so MinGW's order-sensitive static link
+    # needs SDL2main first. Linux/macOS use the real main() and need nothing.
+    if(WIN32 AND TARGET SDL2::SDL2main)
+        target_link_libraries(FOSSynd PRIVATE SDL2::SDL2main)
+    endif()
     target_link_libraries(FOSSynd PRIVATE SDL2::SDL2)
 elseif(SDL2_FOUND)
     target_include_directories(FOSSynd PRIVATE ${SDL2_INCLUDE_DIRS})
@@ -73,13 +80,6 @@ else()
     pkg_check_modules(SDL2 REQUIRED sdl2)
     target_include_directories(FOSSynd PRIVATE ${SDL2_INCLUDE_DIRS})
     target_link_libraries(FOSSynd PRIVATE ${SDL2_LIBRARIES})
-endif()
-
-# Windows: SDL provides WinMain() and calls main() from it, so the SDL2main
-# static library must be linked (SDL_main.h redefines main only when it is).
-# Linux/macOS use the real main() and need nothing extra. Issue #133.
-if(WIN32 AND TARGET SDL2::SDL2main)
-    target_link_libraries(FOSSynd PRIVATE SDL2::SDL2main)
 endif()
 
 set_target_properties(FOSSynd PROPERTIES
