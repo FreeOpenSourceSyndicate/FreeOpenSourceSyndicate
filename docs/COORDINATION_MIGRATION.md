@@ -103,9 +103,12 @@ These are gone and should not be re-introduced:
   correctness hazard only in extreme cases.
 - **A pre-fix client is still running.** An agent on the old per-issue layout
   (`refs/coord/leases/<area>/<issue>`) writes a ref that *blocks* the area ref
-  (git cannot hold `leases/world` and `leases/world/200` at once). `coord check`
-  fails loudly on such a ref and the next `sweep` clears it, so the area frees
-  itself; `coord claim` also deletes it in the same atomic push when it can.
+  (git cannot hold `leases/world` and `leases/world/200` at once, and it checks
+  that before running an atomic transaction, so the delete cannot share the
+  claim's push). `coord check` fails loudly on such a ref and the next `sweep`
+  clears it, so the area frees itself; `coord claim` refuses with the exact fix,
+  and `coord claim --takeover` clears the stale ref and claims the area in one
+  step. Either way no agent is blocked by a ref it did not write.
 
 ## 6. Timeline
 
