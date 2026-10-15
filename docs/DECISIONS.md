@@ -1255,9 +1255,12 @@ for reassignment by a coordinator.
     `focus: <area B>` (and, when a PR is blocked, with B added as a reviewer),
     never as a bare PR comment.
   - **The label mirror is reconciled**: `coord release` clears the labels
-    best-effort against a real GitHub remote, and `sweep --gh` clears any
-    `status:` label on an issue with no live lease behind it. The ledger stays the
-    single source of truth.
+    best-effort against a real GitHub remote, and `sweep --gh` clears a lease-set
+    `status: claimed` on any **open** issue with no live lease behind it. It leaves
+    `status: blocked` / `status: needs-review` alone (they also mark human
+    questions and Rule 4 requests, which have no lease) and leaves **closed**
+    issues untouched � history stays as-is. The ledger stays the single source of
+    truth.
   - **`scripts/coord next`** walks a fixed ladder and **never prints nothing**:
     finish a held lease → claim a free critical-path area's issue → claim any free
     area's issue → file a new issue from the roadmap when the backlog is empty →

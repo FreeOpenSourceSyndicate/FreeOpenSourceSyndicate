@@ -889,21 +889,34 @@ STATUS_LABELS = ("status: claimed", "status: blocked", "status: needs-review")
 
 
 def _reconcile_status_labels(live_issues: set[int]) -> None:
-    """Strip `status:` labels from issues no live lease covers.
+    """Clear a lease-set `status: claimed` from an open issue no live lease backs.
 
-    The labels are a convenience mirror of the ledger, so they must not outlive
-    the lease.  A release or a closed issue leaves no ref behind for the sweep to
-    notice, so reconcile from the GitHub side: any issue still carrying a
-    `status:` label but absent from ``live_issues`` is stale by definition.
-    Best-effort - a failure never aborts a sweep.
+    The labels are a convenience mirror of the ledger, so a *lease-set* label must
+    not outlive the lease.  A released lease leaves no ref behind, so reconcile
+    from the GitHub side instead: any **open** issue still carrying
+    `status: claimed` but absent from ``live_issues`` is stale by definition.
+
+    Scope is deliberately narrow:
+
+    - **open issues only** — a closed issue is historical; its labels are left
+      as-is rather than mass-edited on the first sweep;
+    - **`status: claimed` only** — the one label *only* a lease ever sets.
+      `status: blocked` / `status: needs-review` are also used by the
+      human-question (§5.2) and Rule 4 conventions, which have no lease, so
+      clearing them here would delete legitimate state.
+
+    Best-effort: a failure never aborts a sweep.
     """
     try:
-        proc = gh("issue", "list", "--state", "all", "--limit", "500",
-                  "--json", "number,state,labels", check=False)
-        if proc.returncode != 0:
-            return
+        proc = gh("issue", "list", "--state", "open", "--limit", "500",
+                  "--json", "number,labels", check=False)
+    except OSError:  # gh binary absent
+        return
+    if proc.returncode != 0:
+        return
+    try:
         rows = json.loads(proc.stdout or "[]")
-    except (CoordError, OSError, json.JSONDecodeError) as exc:  # pragma: no cover
+    except json.JSONDecodeError as exc:  # pragma: no cover
         print(f"warning: status-label reconcile skipped: {exc}", file=sys.stderr)
         return
     for row in rows:
@@ -911,16 +924,13 @@ def _reconcile_status_labels(live_issues: set[int]) -> None:
         if number in live_issues:
             continue
         names = {l.get("name") for l in row.get("labels", [])}
-        if not names & set(STATUS_LABELS):
+        if "status: claimed" not in names:
             continue
-        args = ["issue", "edit", str(number)]
-        for label in STATUS_LABELS:
-            args += ["--remove-label", label]
         try:
-            gh(*args)
-            print(f"cleared stale status label(s) on #{number} ({row.get('state')})")
+            gh("issue", "edit", str(number), "--remove-label", "status: claimed")
+            print(f"cleared stale status: claimed on open issue #{number}")
         except (CoordError, OSError) as exc:  # pragma: no cover
-            print(f"warning: could not clear labels on #{number}: {exc}",
+            print(f"warning: could not clear label on #{number}: {exc}",
                   file=sys.stderr)
 
 

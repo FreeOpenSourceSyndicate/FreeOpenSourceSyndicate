@@ -352,34 +352,58 @@ class TestNextAction(CoordTestCase):
 
 
 class TestStatusLabelReconcile(CoordTestCase):
-    """The `status:` labels are a mirror; the reconciler clears ones with no lease."""
+    """The `status:` labels are a mirror; the reconciler clears only lease-set ones."""
 
-    def test_reconcile_clears_labels_for_issues_with_no_live_lease(self):
+    def _stub_gh(self, rows):
         calls = []
 
         def fake_gh(*args, **kwargs):
             calls.append(args)
             if args[:2] == ("issue", "list"):
                 return subprocess.CompletedProcess(
-                    args, 0, stdout=json.dumps([
-                        {"number": 222, "state": "CLOSED",
-                         "labels": [{"name": "status: claimed"}]},
-                        {"number": 249, "state": "OPEN",
-                         "labels": [{"name": "status: claimed"}]},
-                    ]), stderr="")
+                    args, 0, stdout=json.dumps(rows), stderr="")
             return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
 
         orig = coord.gh
         coord.gh = fake_gh
         self.addCleanup(setattr, coord, "gh", orig)
+        return calls
 
-        # #249 has a live lease; #222 does not (its lease was released).
-        coord._reconcile_status_labels({249})
-
+    def test_reconcile_clears_claimed_on_an_open_issue_with_no_lease(self):
+        # A released lease leaves `status: claimed` behind; it must be cleared.
+        calls = self._stub_gh([
+            {"number": 219, "state": "OPEN",
+             "labels": [{"name": "status: claimed"}]},
+            {"number": 249, "state": "OPEN",
+             "labels": [{"name": "status: claimed"}]},
+        ])
+        coord._reconcile_status_labels({249})  # #249 has a live lease
         edited = [c for c in calls if c[:2] == ("issue", "edit")]
         self.assertEqual(len(edited), 1)
-        self.assertEqual(edited[0][2], "222")
+        self.assertEqual(edited[0][2], "219")
         self.assertIn("--remove-label", edited[0])
+
+    def test_reconcile_leaves_a_human_question_blocked_label_alone(self):
+        # `status: blocked` / `status: needs-review` have no lease (they belong to
+        # the human-question and Rule 4 conventions), so they must not be cleared.
+        calls = self._stub_gh([
+            {"number": 216, "state": "OPEN",
+             "labels": [{"name": "question"}, {"name": "status: blocked"}]},
+            {"number": 294, "state": "OPEN",
+             "labels": [{"name": "status: needs-review"}]},
+        ])
+        coord._reconcile_status_labels(set())
+        edited = [c for c in calls if c[:2] == ("issue", "edit")]
+        self.assertEqual(edited, [])
+
+    def test_reconcile_asks_only_for_open_issues(self):
+        # Closed issues are historical; the sweep must not mass-edit them.
+        calls = self._stub_gh([])
+        coord._reconcile_status_labels(set())
+        listed = [c for c in calls if c[:2] == ("issue", "list")]
+        self.assertEqual(len(listed), 1)
+        self.assertIn("--state", listed[0])
+        self.assertEqual(listed[0][listed[0].index("--state") + 1], "open")
 
     def test_reconcile_never_raises_when_gh_is_unavailable(self):
         def failing_gh(*args, **kwargs):
