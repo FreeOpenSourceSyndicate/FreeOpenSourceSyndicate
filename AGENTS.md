@@ -713,6 +713,13 @@ Do not start work outside the scope fence (ADR-0024).
   and the first that exists wins; otherwise the embedded copy is used. Logic in
   `core/data/Config.*` and `core/data/ContentPaths.*` (SDL-free, unit-tested).
   Example: `assets/data/fossynd.conf.example`. Details: `docs/DATA_FORMAT.md`.
+- **Unknown CLI options fail fast (issue #248):** the `main` argument loop now
+  ends in a trailing `else`, so an unrecognised option (a typo like `--pausee`)
+  or a value flag missing its value (`--frames` with nothing after it) prints a
+  one-line message to stderr and exits 1 before any config lookup, content load,
+  or SDL init — instead of silently starting the game with the wrong settings.
+  Valid invocations are unchanged. ctests `game_cli_unknown_option` and
+  `game_cli_missing_value` (`WILL_FAIL`) guard it; `--help`/`--version` still win.
 - Verification flags: `--headless --frames N`, `--headless --demo --frames N`,
   `--headless --title --frames N`, `--headless --check-sprites`,
   `--headless --check-minimap`, `--headless --check-selection`,

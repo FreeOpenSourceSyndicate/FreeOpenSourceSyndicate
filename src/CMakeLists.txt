@@ -258,4 +258,13 @@ if(BUILD_TESTS)
     add_test(NAME game_window_malformed
              COMMAND FOSSynd --headless --window 640 --frames 1)
     set_tests_properties(game_window_malformed PROPERTIES WILL_FAIL TRUE)
+    # CLI option handling (issue #248): an unrecognised option, or a value flag
+    # missing its value, must fail fast rather than start the game with the
+    # wrong settings (a typo like `--pausee` used to be silently ignored).
+    add_test(NAME game_cli_unknown_option
+             COMMAND FOSSynd --headless --no-such-flag --frames 1)
+    set_tests_properties(game_cli_unknown_option PROPERTIES WILL_FAIL TRUE)
+    add_test(NAME game_cli_missing_value
+             COMMAND FOSSynd --headless --frames)
+    set_tests_properties(game_cli_missing_value PROPERTIES WILL_FAIL TRUE)
 endif()
