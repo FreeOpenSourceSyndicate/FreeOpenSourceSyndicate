@@ -64,9 +64,15 @@ public:
 
     // --- selection & deployment ---
 
+    // True if a mission can be deployed to `territory`: it must have a mission,
+    // and it must be player-owned or on the frontier — adjacent to a territory
+    // the player holds. A win at a frontier territory claims it, so ownership
+    // grows inward from the border (the Syndicate attack model, ADR-0027).
+    bool canDeployTo(TerritoryId territory) const;
+
     // Selects the mission deployed from `territory` and the agent slots to send
-    // (at most Equipment::kSquadSlots). Returns false if the territory is not
-    // player-owned, has no mission, or the slot list is too large.
+    // (at most Equipment::kSquadSlots). `territory` must satisfy canDeployTo.
+    // Returns false otherwise, or if a slot is out of range.
     bool selectMission(TerritoryId territory, const std::vector<int>& agentSlots);
 
     TerritoryId selectedTerritory() const { return selectedTerritory_; } // -1 if none

@@ -66,8 +66,11 @@ public:
     std::vector<TerritoryId> territoriesOwnedBy(int syndicate) const;
 
     // Full structural check: dense ids (0..size-1), symmetric adjacency, no
-    // self-loops, non-empty unique names, and every non-empty missionId unique.
-    // Returns false and sets `error` on the first problem found.
+    // self-loops, and non-empty unique names. A non-empty missionId is not
+    // required to be unique: several territories may be attacked through the same
+    // mission (the original reuses city maps across regions), so a small mission
+    // set can still cover a large map. Returns false and sets `error` on the
+    // first problem found.
     bool validate(std::string& error) const;
 
 private:

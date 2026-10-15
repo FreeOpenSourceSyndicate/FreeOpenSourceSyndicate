@@ -285,9 +285,15 @@ public:
     Equipment& equipment();
 
     // --- selection & deployment ---
+    // True if a mission can be deployed to `territory`: it has a mission, and it
+    // is player-owned or on the frontier (adjacent to a player-held territory).
+    // A win at a frontier territory claims it, so ownership grows inward from the
+    // border (ADR-0029). A neutral behind other neutrals is not yet reachable.
+    bool canDeployTo(TerritoryId territory) const;
+
     // Selects the mission deployed from `territory` and the agent slots to send
     // (at most `Equipment::kSquadSlots`). Returns false if the territory is not
-    // owned, has no mission, or the slot list is too large.
+    // deployable, or the slot list is too large or out of range.
     bool selectMission(TerritoryId territory, const std::vector<int>& agentSlots);
     TerritoryId selectedTerritory() const;      // -1 if none
     const std::string& selectedMissionId() const;  // empty if none
@@ -311,6 +317,15 @@ campaign begins the "tax → research → buy" loop with money. `fromJson` (pars
 only) never moves money, so parsing a config cannot mutate a ledger. `tick` owns
 no clock of its own: the caller supplies `dt` and an `Rng`, and the game layer
 drives it on the campaign clock (§4.6).
+
+**Deploy targets (settled — ADR-0029).** The original attacks *outward*: a region
+is a legitimate target when the player already owns it or holds an **adjacent**
+region. `canDeployTo` encodes that, and `selectMission` gates on it, so ownership
+spreads inward from the frontier and the map is winnable. A neutral region behind
+other neutrals is not yet reachable — the player must take a neighbour first.
+Every non-owned region that can ever be attacked needs a `missionId` (a mission
+is the only way to take it), and a `missionId` may be **shared** by several
+regions, so a small mission set covers a larger map.
 
 ### 4.6 Game-layer wiring — the management screen (slice 5, landed)
 
@@ -350,14 +365,18 @@ public:
   territory's tax; `D` deploys.
 - **Headless guard.** `--check-campaign` (ctest `game_campaign`) runs
   `CampaignScreen::selfTest`, which on a *copy* of the shipped campaign exercises
-  starting funds → tax → income → research → buy → assign → deploy → win through
-  the real core systems. `--map` (ctest `game_map_flag`) starts on the screen so
-  the render path is exercised headlessly.
+  starting funds → tax → income → research → buy → assign → attack the frontier
+  → win through the real core systems. It wins by *deploying and claiming* each
+  remaining region, so a data file that leaves the campaign unwinnable fails the
+  guard instead of a playtest. `--map` (ctest `game_map_flag`) starts on the
+  screen so the render path is exercised headlessly.
 
-Deployment currently records the selection (`Campaign::selectMission` with the
-four fixed slots). Mapping the bought loadout onto the mission's player agents is
-still **R1** (§7) — the screen calls the contract, and the mission-side override
-is Tactical/Content's follow-up.
+Deployment records the selection (`Campaign::selectMission` with the four fixed
+slots) for any region `Campaign::canDeployTo` accepts — owned or on the frontier
+(§4.5, ADR-0029); the screen shows the selected region's `STATUS` as
+`ATTACK READY` or `NOT REACHABLE`. Mapping the bought loadout onto the mission's
+player agents is still **R1** (§7) — the screen calls the contract, and the
+mission-side override is Tactical/Content's follow-up.
 
 ## 5. Data schema (`assets/data/world/**`)
 
@@ -371,7 +390,7 @@ use `jsonc` for annotation only, exactly as `docs/DATA_FORMAT.md` does).
 {
   "territories": [
     { "id": 0, "name": "Riverside", "neighbours": [1, 2], "owner": 0, "missionId": "demo" },
-    { "id": 1, "name": "The Docks",  "neighbours": [0, 2], "owner": -1 },
+    { "id": 1, "name": "The Docks",  "neighbours": [0, 2], "owner": -1, "missionId": "demo" },
     { "id": 2, "name": "Old Town",  "neighbours": [0, 1], "owner": -1, "missionId": "demo" }
   ]
 }
@@ -381,6 +400,8 @@ use `jsonc` for annotation only, exactly as `docs/DATA_FORMAT.md` does).
 - `neighbours` — adjacency; **undirected**, so both sides must list each other.
 - `owner` — syndicate index, or `-1`/omitted for neutral.
 - `missionId` — optional; must match a mission's `id` (or file stem) when present.
+  A neutral region needs one to be attackable, and the same `missionId` may be
+  shared by several regions (ADR-0029), so a small mission set covers a larger map.
 
 ### 5.2 `research.json`
 
@@ -486,6 +507,12 @@ Smallest useful first, so each PR is small and reviewable:
    `game::CampaignScreen` + `--map`/`--check-campaign`; R1 landed in #311
    (`PlayerLoadout`/`applyLoadout`), the engine-side deploy wiring is #312)*
 6. **Campaign progression** — unlock on win, end state, victory screen.
+   `game::CampaignScreen` + `--map`/`--check-campaign`; the mission-side loadout
+   override R1 is still open)*
+6. **Campaign progression** — attack the frontier, end state, victory
+   screen. *(landed: the frontier attack rule + `Campaign::canDeployTo`, so a
+   win claims an adjacent region and the map can actually be won — ADR-0029;
+   the victory screen is still a follow-up)*
 
 Each lands as its own PR under the `focus: metagame` lease (`AGENTS.md` §3,
 "one task = one branch = one PR"). The issue's checkboxes are ticked as they merge.

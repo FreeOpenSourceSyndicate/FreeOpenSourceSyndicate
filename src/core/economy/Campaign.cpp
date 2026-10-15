@@ -155,10 +155,33 @@ bool Campaign::loadFromFile(const std::string& path, Campaign& out, std::string&
     return true;
 }
 
-bool Campaign::selectMission(TerritoryId territory, const std::vector<int>& agentSlots)
+bool Campaign::canDeployTo(TerritoryId territory) const
 {
     const Territory* node = map_.find(territory);
-    if (node == nullptr || node->owner != kPlayerSyndicate || node->missionId.empty())
+    if (node == nullptr || node->missionId.empty())
+    {
+        return false;
+    }
+    if (node->owner == kPlayerSyndicate)
+    {
+        return true;
+    }
+    // Otherwise the territory must be on the frontier: adjacent to one the
+    // player holds. That is what makes the map winnable — a neutral territory
+    // reachable from an owned one can be attacked and claimed.
+    for (const TerritoryId neighbour : node->neighbours)
+    {
+        if (map_.owner(neighbour) == kPlayerSyndicate)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Campaign::selectMission(TerritoryId territory, const std::vector<int>& agentSlots)
+{
+    if (!canDeployTo(territory))
     {
         return false;
     }
@@ -175,7 +198,7 @@ bool Campaign::selectMission(TerritoryId territory, const std::vector<int>& agen
     }
 
     selectedTerritory_ = territory;
-    selectedMissionId_ = node->missionId;
+    selectedMissionId_ = map_.find(territory)->missionId;
     selectedSlots_ = agentSlots;
     return true;
 }

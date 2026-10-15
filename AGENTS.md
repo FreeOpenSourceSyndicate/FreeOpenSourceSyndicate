@@ -541,10 +541,19 @@ tactical sim and ticks the campaign clock instead (economy + research).
 `--check-campaign` (ctest `game_campaign`) runs the real loop on a copy of the
 shipped campaign; `--map` (ctest `game_map_flag`) exercises the render path.
 `loadFromFile` now grants `startingFunds` (it was parsed but never granted).
+The campaign is now **winnable**: a region is a deploy target when the player
+owns it **or holds an adjacent region** (`Campaign::canDeployTo`, the frontier
+attack rule, ADR-0029), and a win claims it, so ownership spreads inward from
+the border. Before this the shipped `world.json` had a mission on only the one
+already-owned territory, so `own-all-territories` was unreachable — the map
+could never progress. A `missionId` may now be shared by several regions (the
+original reuses city maps), and `CampaignScreen::selfTest` wins by attacking, so
+unwinnable data fails `game_campaign` instead of a playtest.
 What remains for Milestone B: **`Campaign::recordResult` is not yet fed by a
 finished mission** (the map does not learn the win/lose result yet), **R1**
 (mapping a bought loadout onto the mission's player agents, Tactical/Content),
-and the campaign victory screen. Claim it at issue #249 (`focus: metagame`);
+the per-region mission content (Tactical), and the campaign victory screen.
+Claim it at issue #249 (`focus: metagame`);
 `docs/METAGAME.md` is the interface contract. Milestone A (finishing the tactical
 layer: cybernetics, scanner, vehicles, destructible environment) runs in
 parallel — its objective set is complete (#281).
@@ -606,7 +615,11 @@ Do not start work outside the scope fence (ADR-0024).
   assign → deploy → win) on a **copy** of the shipped campaign;
   `--headless --map --frames N` (ctest `game_map_flag`) exercises the render path.
   `Campaign::loadFromFile` now grants `startingFunds` (parsed before, never
-  granted). Not wired yet: `Campaign::recordResult` (a finished mission does not
+  granted). **Frontier attacks (ADR-0029):** `D` deploys to the selected region
+  when `Campaign::canDeployTo` accepts it — the player owns it or holds an
+  adjacent region — and the panel shows `STATUS: ATTACK READY` / `NOT REACHABLE`;
+  a win claims it, so the map is attacked inward from the border and can be won.
+  Not wired yet: `Campaign::recordResult` (a finished mission does not
   yet feed the map) and **R1** (bought loadout → mission player agents,
   Tactical/Content). The screen's labels are plain literals, not i18n keys
   (localisation beyond English is out of scope, ADR-0024) — localising it is a
