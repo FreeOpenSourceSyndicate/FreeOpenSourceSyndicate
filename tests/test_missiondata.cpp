@@ -513,6 +513,31 @@ FOSSYND_TEST(Catalogues, LoadsTheShippedCataloguesFromDisk)
     FOSSYND_CHECK_EQ(agents.find("gunner")->spec.weapon.name, std::string("Launcher"));
     FOSSYND_CHECK(agents.find("gunner")->spec.weapon.areaRadius > 0.0f);
 
+    // The Phase 3 weapon tiers (#124) are carried by templates (#160), so the
+    // tiers are referenceable from a mission rather than inert. Each template's
+    // `weaponId` must resolve; a dangling id would have failed the load above.
+    struct Carrier
+    {
+        const char* agentId;
+        const char* weaponId;
+        const char* weaponName;
+    };
+    const Carrier carriers[] = {
+        {"suppressor", "minigun", "Minigun"},
+        {"pyro", "flamethrower", "Flamethrower"},
+        {"marksman", "laser", "Laser"},
+    };
+    for (const Carrier& carrier : carriers)
+    {
+        const AgentEntry* agent = agents.find(carrier.agentId);
+        FOSSYND_CHECK(agent != nullptr);
+        FOSSYND_CHECK(weapons.find(carrier.weaponId) != nullptr);
+        if (agent != nullptr)
+        {
+            FOSSYND_CHECK_EQ(agent->spec.weapon.name, std::string(carrier.weaponName));
+        }
+    }
+
     // A mission loaded from disk picks up the catalogues sitting beside it.
     MissionData data;
     const std::string missionPath =
