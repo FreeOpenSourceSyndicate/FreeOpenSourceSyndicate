@@ -57,6 +57,11 @@ public:
     int owner(TerritoryId id) const;
     void setOwner(TerritoryId id, int syndicate);
 
+    // Taxation. `level` is clamped to >= 0; setTaxLevel is a no-op for an unknown
+    // id. The economy reads it for income and resets it when a revolt fires.
+    int taxLevel(TerritoryId id) const;
+    void setTaxLevel(TerritoryId id, int level);
+
     // Every territory owned by `syndicate`, in id order.
     std::vector<TerritoryId> territoriesOwnedBy(int syndicate) const;
 

@@ -198,6 +198,21 @@ FOSSYND_TEST(WorldMap, SetOwnerUpdatesOwnershipQueries)
     FOSSYND_CHECK_EQ(map.owner(99), -1);
 }
 
+FOSSYND_TEST(WorldMap, TaxLevelGetSetAndClamp)
+{
+    WorldMap map = parseOrFail(kWorldJson);
+
+    FOSSYND_CHECK_EQ(map.taxLevel(0), 0);
+    map.setTaxLevel(0, 4);
+    FOSSYND_CHECK_EQ(map.taxLevel(0), 4);
+
+    map.setTaxLevel(1, -3); // clamped to 0
+    FOSSYND_CHECK_EQ(map.taxLevel(1), 0);
+
+    map.setTaxLevel(99, 2); // unknown id: no-op, no crash
+    FOSSYND_CHECK_EQ(map.taxLevel(99), 0);
+}
+
 FOSSYND_TEST(WorldMap, LoadsShippedWorldFile)
 {
     std::string error;

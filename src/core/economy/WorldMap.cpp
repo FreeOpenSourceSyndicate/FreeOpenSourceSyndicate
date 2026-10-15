@@ -182,6 +182,21 @@ void WorldMap::setOwner(TerritoryId id, int syndicate)
     territories_[static_cast<std::size_t>(id)].owner = syndicate;
 }
 
+int WorldMap::taxLevel(TerritoryId id) const
+{
+    const Territory* territory = find(id);
+    return territory != nullptr ? territory->taxLevel : 0;
+}
+
+void WorldMap::setTaxLevel(TerritoryId id, int level)
+{
+    if (id < 0 || static_cast<std::size_t>(id) >= territories_.size())
+    {
+        return;
+    }
+    territories_[static_cast<std::size_t>(id)].taxLevel = level < 0 ? 0 : level;
+}
+
 std::vector<TerritoryId> WorldMap::territoriesOwnedBy(int syndicate) const
 {
     std::vector<TerritoryId> owned;
