@@ -10,6 +10,24 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **Windows packaging lane (CPack `ZIP`):** a `WIN32`-guarded generator built
+  from the existing `install()` rules ships `FOSSynd-<version>-Windows.zip`
+  (with `SDL2.dll` beside `FOSSynd.exe`), and a `workflow_dispatch`-gated,
+  non-blocking CI lane uses the MSYS2 UCRT64 toolchain. Linux stays the only hard
+  gate (ADR-0017). Issue #133.
+
+## [0.6.0] — 2026-10-15 — "Firestorm"
+
+The battlefield now has walls that matter and weapons that hurt more than one
+agent. Sight and fire are blocked by walls, the catalogue gained an explosive
+`launcher` (area blast) plus a minigun, flamethrower, and laser, and gadgets let
+you heal allies and recruit bystanders. Squad control is smoother — drag a
+rectangle to select, shift-click to queue a route that is drawn on screen — and
+the project now ships as a real package for Linux (`.deb` / `.tar.gz`) and macOS
+(`.dmg`), with a German UI and a discoverable CLI (`--version` / `--help`).
+
+### Added
+
 - **"Walk as close as you can" to a blocked goal.** Clicking an unreachable or
   blocked tile used to drop the move order. The new `core::findPathToNearest`
   returns the normal path when the goal is reachable, and otherwise a path to the
@@ -62,55 +80,117 @@ contains no original assets, code, names, or trademarks.
   proves a locale resolved, so a missing locale file fails CI instead of
   silently passing on the fallback. New ctests `game_lang_de` and
   `game_lang_unknown_falls_back`. Issue #123.
+- **Area-of-effect weapons:** `core::Weapon` gained an optional `areaRadius`
+  (tiles, default `0` = single-target, so existing weapons and aggregate
+  initialisers are unchanged). On a successful hit with `areaRadius > 0`,
+  `Mission::resolveFire` damages every other living agent within the blast
+  (the primary target is hit once), and kill counters stay correct. Parsed from
+  the weapon JSON. Issue #79.
+- **An explosive weapon in the catalogue (area blast):** `assets/data/weapons.json`
+  ships a `launcher` (`areaRadius` 2.0) and `agents.json` a `gunner` template
+  that carries it, so the AoE support is usable by data alone — no C++ change.
+  Issue #90.
+- **Next weapon tier — minigun, flamethrower, laser:** three new original
+  weapons in the catalogue, each a distinct niche — minigun (highest rate of
+  fire), flamethrower (short range, high damage), laser (longest range, highest
+  per-shot damage). Data only; no C++ change. Issue #124.
+- **Line-of-sight primitive:** `core::hasLineOfSight(grid, from, to)` is a
+  deterministic, SDL-free supercover walk that visits every tile a sight line
+  touches, so a one-tile wall cannot be slipped between two points and a
+  diagonal cannot thread a one-tile corner. RNG-free. Issue #59.
+- **Shared weapon/agent catalogues referenced by id:** `assets/data/weapons.json`
+  and `assets/data/agents.json` (loaded by `core/data/Catalogues.h`) let a
+  mission reference weapons and agent templates by `weaponId` / `agentId`
+  instead of duplicating them; a missing catalogue is not an error, so the game
+  still starts with no data files. Extends the ADR-0003 schema. Issue #34.
+- **Content validation for mission references:** `core/data/ContentValidation.h`
+  resolves every mission's `weaponId` / `agentId` against the catalogues and
+  reports readable problems (missing ids, duplicate ids, malformed missions), so
+  bad content is caught in CI instead of at play time. Issue #71.
+- **`--check-content` CLI flag:** runs the validator on a data directory
+  (default `assets/data`) before SDL init and exits non-zero on any dangling
+  reference, so packagers and CI can check shipped content headlessly. New
+  `game_content` ctest. Issue #81.
+- **`--version` and `--help`:** `--version`/`-V` prints `FOSSynd <version>` from
+  the single-sourced `FOSSYND_VERSION` define (so a version bump changes it
+  automatically); `--help`/`-h` prints a grouped usage block of every flag. Both
+  print and exit 0 before any config lookup or SDL init. Issues #146/#147.
+- **`--window WxH`:** choose the window resolution at startup (the default is
+  unchanged), so the game can run at a size that suits the display. Issue #152.
+- **Box-select by dragging:** hold the left button and drag to select every
+  player agent inside the rectangle (shift-drag adds); a press that does not
+  pass a small threshold is still a click, so click / shift-click / attack
+  behaviour is unchanged. A translucent marquee is drawn while dragging. New
+  `game_box_select` ctest. Issue #94.
+- **Per-agent waypoint queue:** `Mission::queueMove` / `clearMoveQueue` /
+  `moveQueueSize` let the view append move orders that execute in order;
+  `orderMove`/`orderAttack` clear the queue, so a plain move or an attack
+  supersedes a queued route. Deterministic and SDL-free. Issue #42.
+- **Shift-click appends to the waypoint queue:** a plain ground click replaces
+  the order; shift-click appends the tile to each selected agent's queue, so a
+  squad can be walked along a path. New `game_waypoints` ctest. Issue #75.
+- **Locale resolution + a partial German stub:** `StringTable::loadForLocale`
+  resolves `assets/lang/<locale>.json`, overlays it on the English fallback
+  per-key (a missing key keeps English, never the raw key), and an unknown
+  locale warns but still yields English. Engine-free. Issue #95.
+- **CPack packaging (Linux `.tar.gz` + `.deb`):** built from the existing
+  `install()` rules so the layout stays single-sourced and versioned from
+  `project()`; installs `LICENSE` and `README` under `share/doc/fossynd`. New
+  packaging CI lane builds both artifacts and runs the packaged binary headless
+  (ADR-0017). Issue #58.
+- **macOS packaging lane (CPack DragNDrop `.dmg`):** appends the DragNDrop
+  generator on Apple (Linux is untouched) and adds a packaging job that verifies
+  the archive ships the binary, catalogues, every locale, and every mission, then
+  runs the packaged binary headless. Issue #118.
 
 ### Changed
 
-- **A path search now says *why* it failed.** `findPath` returned an empty vector
-  for both "no route exists" and "the A* node cap was hit" (#121), so a rejected
-  move order could not distinguish a genuinely unreachable target from one the
-  search abandoned for frame time. The new `core::findPathDetailed` returns a
-  `PathResult` whose `outcome` is `Found`, `NoPath`, or `CapExceeded`; `findPath`
-  becomes a thin wrapper (`findPathDetailed(...).path`), so existing callers see
-  no change. New tests cover all three outcomes, the out-of-bounds/blocked-goal
-  cases, and wrapper equality. Issue #141.
-- **The A* search is bounded by a node-expansion cap.** `findPath` now takes a
-  `maxExpandedNodes` budget (default `kDefaultMaxExpandedNodes`, 2048) and
-  returns "no path" instead of expanding the whole grid when it is exhausted, so
-  a pathological or very large request cannot stall a frame on the target
-  hardware (ADR-0008). The cap is a fixed node count, not a time budget, so the
-  search stays deterministic, and it only ever turns a would-be path into "no
-  path" — when it is not reached the result is unchanged. New tests in
-  `tests/test_pathfinding.cpp` cover the worst case, determinism, and the
-  unchanged-under-cap case. Issue #121.
-- **Coordination is flat; the coordinator role is removed** (ADR-0019). Agents
-  abort mid-cycle, and a single role that owned the merge queue, overlap
-  arbitration, and the workload plan was a single point of failure. Coordination
-  now derives from the eight focus-area boundaries: claims are **self-service
-  leases** with a 24 h takeover (`CLAIM:`/`LEASE:`/`TAKEOVER:` lines), the queue
-  is drained peer-to-peer (any agent reviews, merges, or adopts an orphaned PR),
-  and overlaps are settled by the fixed rules in `docs/FOCUS_AREAS.md` §4 with
-  merged code winning ties. No gameplay change. `AGENTS.md`, `docs/COORDINATION.md`,
-  `docs/FOCUS_AREAS.md`, the issue/PR templates, and `CODEOWNERS` updated.
+- **Walls block sight and fire:** the combat AI now uses `core::hasLineOfSight`
+  so a wall stops an enemy acquiring, engaging, alerting allies about, or
+  shooting a target behind it; `nearestEnemy` skips candidates with no clear
+  line, and `resolveFire`/`alertAllies` reject a blocked line even on an explicit
+  order. Some deterministic mission outcomes move as a result. Issue #63.
 - **The recruiter gadget is renamed to "Compliance Beacon"** (ADR-0018). The
-  former name was the *original 1993 game's* gadget name, which
-  `docs/LEGAL.md` hard rule 4 forbids. `core::Persuadertron` →
-  `core::ComplianceBeacon` (`src/core/sim/ComplianceBeacon.h`),
+  former name was the *original 1993 game's* gadget name, which `docs/LEGAL.md`
+  hard rule 4 forbids. `core::Persuadertron` → `core::ComplianceBeacon`,
   `Agent::persuadertron()` → `Agent::beacon()`, and every doc reference updated.
-  No behaviour change. The generic verb (`Mission::persuade`, the `[P] PERSUADE`
-  hint) is unchanged. The shipped v0.5.0 tag keeps the old name (immutable,
-  `AGENTS.md` §6b / ADR-0011).
-- **HUD and title card read from the UI string table:** every HUD objective
-  label, the squad roster row, the win/lose banner, and the title-card strings
-  now come from `core::i18n::StringTable` (`assets/lang/en.json`) instead of
-  hard-coded C++ literals (ADR-0016). The external file is preferred and the
-  copy embedded at build time is the fallback; a missing file is not fatal —
-  every lookup keeps its literal fallback, so the UI renders exactly today's
-  text. New headless `--check-lang` guard (ctest `game_lang`) fails if a key the
-  UI reads is missing. Issue #53.
-- **Title-card codename bumped to the current release:** the subtitle now shows
-  the v0.5.0 codename `RECRUITMENT` (was `SMART ENEMIES`, v0.4.0's), sourced
-  from a single `kReleaseCodename` constant (mirrored in `app.tagline`) so the
-  Release lane can bump it in one place each cut. Issue #48.
+  No behaviour change. The shipped v0.5.0 tag keeps the old name (immutable).
+- **The A* search is bounded by a node-expansion cap** (default 2048), so a
+  pathological or very large request cannot stall a frame on the target hardware
+  (ADR-0008). The cap is a fixed node count, so the search stays deterministic,
+  and it only ever turns a would-be path into "no path". Issue #121.
+- **A path search now says *why* it failed:** `findPath` returned an empty vector
+  for both "no route exists" and "the A* node cap was hit". The new
+  `core::findPathDetailed` returns a `PathResult` whose outcome is `Found`,
+  `NoPath`, or `CapExceeded`; `findPath` is a thin wrapper, so existing callers
+  see no change. Issue #141.
+- **`Game.cpp` split into `Hud.cpp` + `TitleCard.cpp`** with a shared
+  `HudStyle.h`, so future engine work stops growing one file. No behaviour
+  change (Game.cpp 1709 → 1384 lines). Issue #69.
+- **HUD objective line is tinted by state and kept on-screen:** urgent-red when
+  the objective is near deciding (survive ≤5 s left, eliminate ≤1 enemy left),
+  otherwise the dim HUD colour. Also fixes a latent layout bug that drew the
+  objective off-screen at the default width. Issue #72.
+- **Coordination is flat; the coordinator role is removed** (ADR-0019): claims
+  are self-service leases with a 24 h takeover (`CLAIM:`/`LEASE:`/`TAKEOVER:`
+  lines), the queue is drained peer-to-peer, and overlaps are settled by the
+  fixed rules in `docs/FOCUS_AREAS.md` §4. No gameplay change. Issue #114.
+- **The package ships all shipped data:** install every `assets/lang/*.json`,
+  every `assets/data/missions/*.json`, and the shared catalogues, and validate
+  the installed content in CI, so a locale, mission, or catalogue added to the
+  tree cannot silently fail to ship. Issues #91/#103/#126.
+- **The macOS packaging lane is gated to avoid reddening `main`:** it runs on
+  `pull_request` and manual dispatch only and is `continue-on-error`, so a macOS
+  runner shortage is neutral rather than a hard failure. Issue #136.
+- **On-screen version stamp reads `v0.6.0`** and the title-card codename is
+  `FIRESTORM` — window title, HUD, and title card (single-sourced from the CMake
+  project version and `kReleaseCodename`).
+
+### Release
+
+- Branch `release/v0.6.0-firestorm`, tag `v0.6.0`; per-version build, play, and
+  copy-to-another-computer instructions in
+  [`docs/releases/v0.6.0-firestorm.md`](docs/releases/v0.6.0-firestorm.md).
 
 ## [0.5.0] — 2026-10-14 — "Recruitment"
 
