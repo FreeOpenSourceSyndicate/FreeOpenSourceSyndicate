@@ -25,5 +25,10 @@
   "title.controls.attack": "RECHTSKLICK  ZIELFEUER",
   "title.controls.select": "1-4 ABRUF  STRG+1-4 SETZEN  A  ALLE",
   "title.controls.misc": "PFEILE  SCROLLEN   R  NEUSTART   ESC  BEENDEN",
-  "title.footer": "FOSSYND v{version}  -  FREIES OPEN-SOURCE-SYNDIKAT"
+  "title.footer": "FOSSYND v{version}  -  FREIES OPEN-SOURCE-SYNDIKAT",
+
+  "mission.demo.name": "Innenstadt-Saeuberung",
+  "mission.demo.desc": "Den Innenstadtblock saeubern: alle feindlichen Agenten ausschalten und zivile Opfer gering halten.",
+  "mission.escort.name": "Dach-Exfiltration",
+  "mission.escort.desc": "Ueber die Daecher ziehen und einen lebenden Agenten auf das Exfil-Feld bringen."
 }

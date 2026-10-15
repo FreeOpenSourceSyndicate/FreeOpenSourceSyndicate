@@ -85,6 +85,21 @@ UI text lives in `assets/lang/<lang>.json` and is read through
 - Add the same key to every language file you ship, or the fallback will show
   the key in that language.
 
+### 4a. Mission text keys
+
+Mission-authored copy (a mission's `name` / `description` in
+`assets/data/missions/*.json`) is localised through the same table (ADR-0020),
+keyed by a **stable mission id** rather than the English display name:
+
+- **Id** = the mission file stem (`assets/data/missions/demo.json` → `demo`), or
+  an explicit `id` field once the content schema carries one.
+- **Keys** = `mission.<id>.name` and `mission.<id>.desc`, resolved by
+  `core::i18n::localizeMissionText`. The value is the mission's display copy in
+  that language; the English value mirrors the mission file's own text.
+- A mission with no keys, no id, or an empty value shows its authored text — so
+  localisation is opt-in and never blanks a mission's copy.
+- Sentence case is fine here (§2): these are briefings, not HUD chrome.
+
 ## 5. Known naming concerns
 
 - **Resolved (ADR-0018):** the recruiter gadget was previously called by the
