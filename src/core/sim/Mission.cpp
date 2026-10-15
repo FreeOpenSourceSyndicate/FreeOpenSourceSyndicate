@@ -47,6 +47,11 @@ constexpr float kRetreatHealthFraction = 0.35f;
 constexpr float kAlertRadius = 8.0f;
 // A retreating agent aims for a walkable tile this far (tiles) from its threat.
 constexpr float kRetreatDistance = 6.0f;
+// A combatant under fire looks for cover among its eight neighbouring tiles
+// (issue #120). Only a tile the shooter cannot see counts, so the enemy must be
+// flanked to be dislodged. See Mission::updateCombatantAI.
+constexpr int kCoverNeighbours[8][2] = {{1, 0},  {-1, 0}, {0, 1},  {0, -1},
+                                        {1, 1},  {1, -1}, {-1, 1}, {-1, -1}};
 // How close (tiles) an agent must get to a patrol waypoint to advance to the
 // next one.
 constexpr float kPatrolWaypointRadius = 0.6f;
@@ -557,6 +562,23 @@ void Mission::updateCombatantAI(std::size_t index)
         agent.setOrderedTarget(target);
         alertAllies(index, kAlertRadius);
     }
+
+    // Under fire: step behind nearby cover instead of trading shots in the open
+    // (issue #120). A combatant counts as under fire when it has just been hit
+    // or when the shooter is still firing (the shooter's gunfire timer), so the
+    // decision survives the slower think interval while the fight continues.
+    // Cover holds until the shooter stops or loses the line; the agent then
+    // re-engages or slides to another covered neighbour. Deterministic; no RNG.
+    const Agent& shooter = agents_[targetIndex];
+    const bool underFire = agent.hitFlash() > 0.0f || shooter.gunfireTimer() > 0.0f;
+    TilePos cover{};
+    if (underFire && findCoverTile(index, targetIndex, cover))
+    {
+        agent.setAiState(AiState::Engage);
+        agent.moveTo(*grid_, cover);
+        return;
+    }
+
     agent.setAiState(AiState::Engage);
 
     const float weaponRange = agent.weapon().range;
@@ -570,6 +592,44 @@ void Mission::updateCombatantAI(std::size_t index)
         // In range: hold position and fire.
         agent.stop();
     }
+}
+
+bool Mission::findCoverTile(std::size_t index, std::size_t attacker, TilePos& out) const
+{
+    if (grid_ == nullptr || attacker >= agents_.size())
+    {
+        return false;
+    }
+
+    const TilePos here = agents_[index].tile();
+    const Vec2 threat = agents_[attacker].position();
+    bool found = false;
+    float best = 0.0f;
+    for (const auto& dir : kCoverNeighbours)
+    {
+        const int nx = here.x + dir[0];
+        const int ny = here.y + dir[1];
+        if (!grid_->inBounds(nx, ny) || !grid_->isWalkable(nx, ny))
+        {
+            continue;
+        }
+        // A tile the shooter can still see is not cover.
+        if (hasLineOfSight(*grid_, TilePos{nx, ny}, agents_[attacker].tile()))
+        {
+            continue;
+        }
+        // Prefer the cover tile furthest from the shooter, so the enemy also
+        // gains distance. Ties keep the first direction found (deterministic).
+        const Vec2 candidate{static_cast<float>(nx), static_cast<float>(ny)};
+        const float dist = length(candidate - threat);
+        if (!found || dist > best)
+        {
+            found = true;
+            best = dist;
+            out = TilePos{nx, ny};
+        }
+    }
+    return found;
 }
 
 // Walks the agent along its patrol route, advancing to the next waypoint when it

@@ -762,3 +762,58 @@ is older than **24 h** and the branch has had no new push in that window, the
 claim is **expired**: any agent may comment `TAKEOVER: <model> | <focus: label>`
 and proceed. Takeover is announced, never silent. This is the whole replacement
 for reassignment by a coordinator.
+
+---
+
+## ADR-0020 — Enemies take cover when under fire
+
+- **Status:** Accepted (2026-10-13)
+- **Date:** 2026-10-13
+- **Context:** Issue #120: enemies stand in the open and trade shots, so combat
+  is a pure damage race. With line of sight now blocking fire (issue #62/#63),
+  the pieces exist for a defensive move — a combatant under fire steps behind
+  cover the shooter cannot see through, so the player must flank rather than
+  out-DPS. Two questions had to be settled: **what counts as "under fire"**, and
+  **where the cover state lives**. `core::Agent` is owned by the `focus: world`
+  lane (`docs/FOCUS_AREAS.md` §2), so a new `AiState::TakeCover` there would be a
+  cross-lane contract change for a tactical behaviour; the issue scopes the work
+  to `Mission.{h,cpp}`.
+- **Options:**
+  1. **A new `AiState::TakeCover` on `core::Agent`.** Rejected for this change:
+     it edits a world-owned header for a decision that is purely tactical, and it
+     needs a cross-area contract PR (§4 Rule 3). The existing `AiState` values
+     describe *what the agent is doing*, which "Engage while moving to cover"
+     already covers.
+  2. **Stateful cover in `Mission` (a member recording "this enemy is in
+     cover").** Rejected: parallel per-agent state is easy to desync from the
+     agent list, and the behaviour is a pure function of the current board.
+  3. **Stateless cover, derived each think-tick from existing signals.** Chosen:
+     the enemy is "under fire" if it was just hit (`Agent::hitFlash`) **or** the
+     shooter is still firing (`shooter.gunfireTimer`, a 0.75 s window refreshed
+     each shot). Cover is re-evaluated from `hasClearShot` every tick, so no new
+     state is introduced and the decision is deterministic.
+- **Decision:** **Option 3.**
+  - `Mission::findCoverTile(index, attacker)` scans the eight neighbouring tiles
+    and returns the walkable tile the attacker **cannot** see
+    (`hasLineOfSight` false) that is furthest from the shooter; ties break by a
+    fixed direction order. No RNG.
+  - In `Mission::updateCombatantAI`, while engaged and under fire with usable
+    cover, the enemy paths to that tile and returns (no fire that tick). It
+    re-evaluates next think-tick: it stays if the tile still breaks the line, and
+    slides to another covered neighbour or re-engages when the shooter regains
+    the line.
+  - Because cover relies on the shooter's gunfire timer as well as the hit
+    flash, the behaviour survives the staggered think interval (0.4 s) during
+    sustained fire, and it persists while the shooter keeps firing — the enemy is
+    not dislodged by mere suppression, only by the shooter losing the line.
+  - No `core::Agent` change: cover uses `moveTo`, `stop`, and the existing
+    timers. `AiState` stays `Engage` while the agent is repositioning.
+- **Consequences:**
+  - Combat is now positional: an enemy with adjacent cover must be flanked to be
+    finished, while an enemy in the open behaves exactly as before.
+  - The behaviour is fully deterministic and RNG-free (AGENTS.md §10), so mission
+    replays are unchanged.
+  - Covered by `tests/test_mission.cpp`: `EnemyStepsIntoCoverWhenHit`,
+    `EnemyHoldsCoverWhileStillUnderFire`, `EnemyWithoutCoverEngagesAsBefore`.
+  - Only one step of cover is considered (the enemy does not path across the map
+    to better cover); revisit if the AI needs richer positioning.

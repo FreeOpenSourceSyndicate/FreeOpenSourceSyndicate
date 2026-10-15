@@ -144,6 +144,12 @@ private:
     void updateCombatantAI(std::size_t index);
     void updatePatrol(std::size_t index);
     bool stepAwayFrom(std::size_t index, std::size_t threat);
+
+    // Best cover tile for `index` against `attacker`: a walkable neighbour that
+    // the attacker cannot see (hasClearShot false). Prefers the tile furthest
+    // from the attacker; ties break by direction order. Returns false when no
+    // neighbour is usable cover. Deterministic; no RNG (issue #120).
+    bool findCoverTile(std::size_t index, std::size_t attacker, TilePos& out) const;
     void updateFollower(std::size_t index);
     void resolveFire();
 
