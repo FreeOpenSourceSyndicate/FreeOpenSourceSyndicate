@@ -71,6 +71,9 @@ such**:
 - **Code / config / markup files:** a comment on one of the first lines, e.g.
   `// AI/LLM-generated file. Do not treat as human-written source documentation.`
   (CMake uses `#`, and so on). Preserve the marker when you edit the file.
+  **If the file has a shebang, the shebang stays on line 1 and the marker goes on
+  line 2** — a script with the marker above the shebang is not executable via a
+  direct `exec` (`Exec format error`); that was the bug fixed in issue #256.
 - **Files a human reads** (Markdown docs, README, HTML shown to users): the
   notice must be **visible to the reader**, not hidden. Use an HTML comment at
   the top for rendered Markdown, and keep the wording visible in the page.
