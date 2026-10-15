@@ -3,7 +3,7 @@
 
   "app.title": "FOSSYND",
   "app.version": "v{version}",
-  "app.tagline": "FEUERSTURM",
+  "app.tagline": "ABBRUCH",
 
   "hud.objective.eliminate": "ZIEL: ALLE {count} FEINDE AUSSCHALTEN",
   "hud.objective.reach": "ZIEL: FELD ({x},{y}) ERREICHEN",
