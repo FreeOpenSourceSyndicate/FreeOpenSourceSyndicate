@@ -718,6 +718,21 @@ Do not start work outside the scope fence (ADR-0024).
   and `applyStrayFire`); add new damage paths there, not by calling
   `Agent::applyDamage` directly, or a shield will not cover them. Deterministic,
   RNG-free. The shield is not yet surfaced to the player (no UI/content field).
+- **Scanner and performance-drug gadgets** (issue #314, ADR-0028): the last two
+  Milestone A gadgets. `Mission::activateScanner(index)` spends a charge to start
+  a `kScannerPulseSeconds` pulse; `scanTargets(index)` lists the living enemies
+  within `kScannerRadius` tiles while it runs. The reveal is **presentation-only**
+  — the sim never reads it, so it cannot change a combat outcome — and the view
+  draws it (a `focus: render` follow-up, #218). `Mission::useDrugs(index)` spends
+  a dose for a `kDrugDurationSeconds` buff that multiplies movement speed by
+  `kDrugSpeedMultiplier` (multiplied in on activation, divided back out on expiry
+  in `Mission::update`) and the base hit chance by `kDrugAccuracyMultiplier`
+  (clamped to 1.0) in `resolveFire`; fire rate is untouched. Charges
+  (`scanners_`/`scannerTimer_`, `drugs_`/`drugsTimer_`) live on the **Mission**,
+  one slot per agent, kept in sync by `addAgent` — no `Agent` change. Both are
+  no-ops for a civilian, a dead agent, or when already active. Deterministic,
+  RNG-free. `gadgetChargesForId` (`PlayerLoadout.h`) accepts `"scanner"` and
+  `"drugs"`, so a bought gadget deploys like the medkit/shield.
 - Sprites and a minimap are in (see below); integer zoom levels (1x/2x/3x, `+`/`-`
   or wheel, `--zoom <n>`) are in too (Phase 2 complete).
 - **Agent routes are string-pulled (issue #93):** `findPath` with

@@ -1684,6 +1684,209 @@ FOSSYND_TEST(Mission, GadgetVocabularyRejectsUnknown)
 {
     FOSSYND_CHECK_EQ(gadgetChargesForId("medkit"), kGadgetCharges);
     FOSSYND_CHECK_EQ(gadgetChargesForId("shield"), kGadgetCharges);
+    FOSSYND_CHECK_EQ(gadgetChargesForId("scanner"), kGadgetCharges);
+    FOSSYND_CHECK_EQ(gadgetChargesForId("drugs"), kGadgetCharges);
     FOSSYND_CHECK_EQ(gadgetChargesForId(""), kUnknownGadget);
     FOSSYND_CHECK_EQ(gadgetChargesForId("jetpack"), kUnknownGadget);
+}
+
+FOSSYND_TEST(Mission, LoadoutGrantsScannerAndDrugs)
+{
+    // The two new gadget ids (#314) deploy through the same loadout path as the
+    // medkit/shield: a charge lands on the mapped player agent.
+    TileGrid grid(10, 10);
+    Mission mission(grid, 7u);
+    mission.addAgent(makeAgent(1.0f, 1.0f, Team::Player, 100.0f));
+    mission.addAgent(makeAgent(2.0f, 1.0f, Team::Player, 100.0f));
+    mission.addAgent(makeAgent(8.0f, 8.0f, Team::Enemy, 100.0f));
+
+    PlayerLoadout loadout;
+    loadout.slots.resize(2);
+    loadout.slots[0].gadgetId = "scanner";
+    loadout.slots[1].gadgetId = "drugs";
+
+    std::string error;
+    const WeaponCatalogue weapons = loadoutWeapons();
+    FOSSYND_CHECK(applyLoadout(loadout, mission, weapons, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_EQ(mission.scanners(0), 1);
+    FOSSYND_CHECK_EQ(mission.drugs(1), 1);
+}
+
+// --- scanner & performance-drug gadgets (Milestone A, issue #314) -------------
+
+FOSSYND_TEST(Mission, ScannerMarksEnemiesInRadiusAndConsumesACharge)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 61u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    // One enemy inside the scan radius, one far outside it.
+    const std::size_t nearFoe = mission.addAgent(makeAgent(6.0f, 2.0f, Team::Enemy, 100.0f));
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100.0f));
+
+    mission.setScanners(hero, 1);
+    FOSSYND_CHECK_EQ(mission.scanners(hero), 1);
+    FOSSYND_CHECK(mission.activateScanner(hero));
+    FOSSYND_CHECK_EQ(mission.scanners(hero), 0);
+    FOSSYND_CHECK(mission.scannerPulse(hero) > 0.0f);
+
+    const std::vector<std::size_t> targets = mission.scanTargets(hero);
+    FOSSYND_CHECK_EQ(targets.size(), static_cast<std::size_t>(1));
+    if (!targets.empty())
+    {
+        FOSSYND_CHECK_EQ(targets[0], nearFoe);
+    }
+}
+
+FOSSYND_TEST(Mission, ScannerConsumesAChargeAndMarksNothingWhenNoEnemyInRange)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 62u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100.0f));
+
+    mission.setScanners(hero, 1);
+    FOSSYND_CHECK(mission.activateScanner(hero));
+    FOSSYND_CHECK_EQ(mission.scanners(hero), 0);
+    FOSSYND_CHECK(mission.scanTargets(hero).empty());
+}
+
+FOSSYND_TEST(Mission, ScannerNoChargeOrCivilianOrAlreadyScanningIsNoOp)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 63u);
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    const std::size_t bystander = mission.addAgent(makeAgent(3.0f, 2.0f, Team::Civilian, 20.0f));
+
+    // No charge: nothing happens.
+    FOSSYND_CHECK(!mission.activateScanner(bystander));
+    FOSSYND_CHECK_NEAR(mission.scannerPulse(bystander), 0.0f);
+
+    // A civilian cannot scan even when handed a charge.
+    mission.setScanners(bystander, 1);
+    FOSSYND_CHECK(!mission.activateScanner(bystander));
+    FOSSYND_CHECK_EQ(mission.scanners(bystander), 1); // charge untouched
+
+    // A dead agent cannot scan.
+    const std::size_t dead = mission.addAgent(makeAgent(5.0f, 5.0f, Team::Enemy, 10.0f));
+    mission.setScanners(dead, 1);
+    FOSSYND_CHECK(mission.activateScanner(dead));
+    mission.agents()[dead].applyDamage(100.0f);
+    FOSSYND_CHECK(!mission.activateScanner(dead));
+
+    // Re-scanning while a pulse is active must not burn the second charge.
+    const std::size_t scout = mission.addAgent(makeAgent(8.0f, 8.0f, Team::Player, 100.0f));
+    mission.setScanners(scout, 2);
+    FOSSYND_CHECK(mission.activateScanner(scout));
+    FOSSYND_CHECK(!mission.activateScanner(scout));
+    FOSSYND_CHECK_EQ(mission.scanners(scout), 1);
+}
+
+FOSSYND_TEST(Mission, ScannerPulseExpiresAndClearsTheMarks)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 64u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    mission.addAgent(makeAgent(6.0f, 2.0f, Team::Enemy, 1000.0f));
+    // Zero-damage weapons on both sides keep the enemy alive through the pulse
+    // and keep the mission Running (an empty enemy list would win immediately).
+    mission.agents()[0].setWeapon(Weapon{"None", 0.0f, 10.0f, 1.0f, 0.0f});
+    mission.agents()[1].setWeapon(Weapon{"None", 0.0f, 10.0f, 1.0f, 0.0f});
+
+    mission.setScanners(hero, 1);
+    FOSSYND_CHECK(mission.activateScanner(hero));
+    FOSSYND_CHECK(!mission.scanTargets(hero).empty());
+
+    // Run past the pulse duration: the marks clear.
+    for (int i = 0; i < 200; ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK_NEAR(mission.scannerPulse(hero), 0.0f);
+    FOSSYND_CHECK(mission.scanTargets(hero).empty());
+}
+
+FOSSYND_TEST(Mission, DrugsBoostSpeedThenWearOff)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 65u);
+    const std::size_t hero = mission.addAgent(
+        makeAgent(2.0f, 2.0f, Team::Player, 100.0f, Weapon{"Test", 10.0f, 10.0f, 1.0f, 0.5f}));
+    // A distant enemy keeps the mission Running so the buff timer can tick.
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100.0f));
+
+    const float baseSpeed = mission.agents()[hero].speed();
+    mission.setDrugs(hero, 1);
+    FOSSYND_CHECK_EQ(mission.drugs(hero), 1);
+    FOSSYND_CHECK(mission.useDrugs(hero));
+    FOSSYND_CHECK_EQ(mission.drugs(hero), 0);
+    FOSSYND_CHECK(mission.drugsTimer(hero) > 0.0f);
+    // The buff raises speed by the documented multiplier.
+    FOSSYND_CHECK(mission.agents()[hero].speed() > baseSpeed);
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].speed(), baseSpeed * 1.5f);
+
+    // After the duration the speed is restored exactly.
+    for (int i = 0; i < 200; ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK_NEAR(mission.drugsTimer(hero), 0.0f);
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].speed(), baseSpeed);
+}
+
+FOSSYND_TEST(Mission, DrugsNoDoseOrCivilianOrAlreadyBoostedIsNoOp)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 66u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    const std::size_t bystander = mission.addAgent(makeAgent(3.0f, 2.0f, Team::Civilian, 20.0f));
+
+    FOSSYND_CHECK(!mission.useDrugs(bystander));
+
+    mission.setDrugs(bystander, 1);
+    const float civilianSpeed = mission.agents()[bystander].speed();
+    FOSSYND_CHECK(!mission.useDrugs(bystander)); // civilians cannot dose
+    FOSSYND_CHECK_EQ(mission.drugs(bystander), 1);
+    FOSSYND_CHECK_NEAR(mission.agents()[bystander].speed(), civilianSpeed);
+
+    // A second dose while boosted is refused and does not stack the speed.
+    mission.setDrugs(hero, 2);
+    const float baseSpeed = mission.agents()[hero].speed();
+    FOSSYND_CHECK(mission.useDrugs(hero));
+    const float boosted = mission.agents()[hero].speed();
+    FOSSYND_CHECK(!mission.useDrugs(hero));
+    FOSSYND_CHECK_EQ(mission.drugs(hero), 1);
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].speed(), boosted);
+    FOSSYND_CHECK(boosted > baseSpeed);
+}
+
+FOSSYND_TEST(Mission, DrugsRaiseHitChance)
+{
+    // The buff raises the base accuracy, so over a fixed seed the boosted
+    // shooter lands more hits than an identical unbuffed one. The sample stays
+    // inside the 8 s buff window and is large (140 shots) so the gap is far
+    // larger than the seed's noise.
+    TileGrid grid(30, 5);
+    Mission buffed(grid, 77u);
+    const std::size_t shooter = buffed.addAgent(
+        makeAgent(1.0f, 2.0f, Team::Player, 1000.0f, Weapon{"Test", 1.0f, 20.0f, 10.0f, 0.7f}));
+    const std::size_t dummy = buffed.addAgent(makeAgent(10.0f, 2.0f, Team::Enemy, 100000.0f,
+                                                        Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+    buffed.setDrugs(shooter, 1);
+    FOSSYND_CHECK(buffed.useDrugs(shooter));
+
+    Mission plain(grid, 77u);
+    plain.addAgent(
+        makeAgent(1.0f, 2.0f, Team::Player, 1000.0f, Weapon{"Test", 1.0f, 20.0f, 10.0f, 0.7f}));
+    const std::size_t dummy2 = plain.addAgent(makeAgent(10.0f, 2.0f, Team::Enemy, 100000.0f,
+                                                        Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+
+    for (int i = 0; i < 140; ++i)
+    {
+        buffed.update(0.05f);
+        plain.update(0.05f);
+    }
+    const float buffedDamage = 100000.0f - buffed.agents()[dummy].health();
+    const float plainDamage = 100000.0f - plain.agents()[dummy2].health();
+    FOSSYND_CHECK(buffedDamage > plainDamage);
 }

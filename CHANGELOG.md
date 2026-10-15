@@ -10,6 +10,18 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **Scanner and performance-drug gadgets:** the last two Milestone A gadgets
+  land in `core`, alongside the medikit/shield/recruiter. A **scanner**
+  (`Mission::activateScanner`/`scanTargets`) spends a charge to mark living
+  enemies within a radius for a few seconds; the reveal is presentation-only, so
+  it changes no combat outcome and the sim never reads it. **Performance drugs**
+  (`Mission::useDrugs`/`drugsTimer`) spend a dose for a timed buff that raises
+  movement speed and hit chance, then wears off exactly. Both keep their state on
+  the `Mission` (no `Agent` change), are no-ops for a civilian/dead agent/already
+  active, and are deterministic (no RNG). The loadout vocabulary gains
+  `"scanner"`/`"drugs"`, so a bought gadget deploys through the same path as the
+  medkit/shield (ADR-0028). Issue #314.
+
 - **Squad loadout at mission load (deployment, R1):** a mission can now take a
   `core::PlayerLoadout` — per player slot, a weapon id and/or a gadget id — so a
   bought squad reaches the deployed agents instead of the mission's authored

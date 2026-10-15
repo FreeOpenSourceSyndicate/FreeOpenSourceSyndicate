@@ -1,6 +1,7 @@
 /* AI/LLM-generated file. Do not treat as human-written source documentation. */
 #include "core/sim/Mission.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include "core/world/LineOfSight.h"
@@ -62,6 +63,20 @@ constexpr float kPatrolWaypointRadius = 0.6f;
 constexpr float kMedikitRadius = 3.0f;
 constexpr float kMedikitHealAmount = 40.0f;
 
+// Scanner: the radius (tiles) a scan reveals living enemies within, and how
+// long the ping lasts. The reveal is presentation-only (the sim never uses it),
+// so it changes no combat outcome. Deterministic; no RNG.
+constexpr float kScannerRadius = 8.0f;
+constexpr float kScannerPulseSeconds = 5.0f;
+
+// Performance drugs: how long the buff lasts and what it multiplies. Speed is
+// movement only (not fire rate); accuracy is the hit chance before the range
+// falloff, clamped to 1.0. Balance lives here until a data format is fixed
+// (ADR-0003).
+constexpr float kDrugDurationSeconds = 8.0f;
+constexpr float kDrugSpeedMultiplier = 1.5f;
+constexpr float kDrugAccuracyMultiplier = 1.35f;
+
 // The opposing combatant team for a given team. Civilians have no enemy.
 Team opposingTeam(Team team)
 {
@@ -87,6 +102,10 @@ std::size_t Mission::addAgent(Agent agent)
     medikits_.push_back(0);
     shields_.push_back(0);
     shieldUp_.push_back(false);
+    scanners_.push_back(0);
+    scannerTimer_.push_back(0.0f);
+    drugs_.push_back(0);
+    drugsTimer_.push_back(0.0f);
     return agents_.size() - 1;
 }
 
@@ -415,6 +434,111 @@ bool Mission::shieldUp(std::size_t index) const
     return index < shieldUp_.size() && shieldUp_[index];
 }
 
+void Mission::setScanners(std::size_t index, int count)
+{
+    if (index >= agents_.size())
+    {
+        return;
+    }
+    scanners_[index] = count < 0 ? 0 : count;
+}
+
+int Mission::scanners(std::size_t index) const
+{
+    return index < scanners_.size() ? scanners_[index] : 0;
+}
+
+bool Mission::activateScanner(std::size_t index)
+{
+    if (index >= agents_.size() || scanners_[index] <= 0)
+    {
+        return false;
+    }
+    const Agent& user = agents_[index];
+    if (!user.isAlive() || !user.isCombatant())
+    {
+        return false;
+    }
+    if (scannerTimer_[index] > 0.0f)
+    {
+        // A scan is already running: do not burn another charge.
+        return false;
+    }
+    --scanners_[index];
+    scannerTimer_[index] = kScannerPulseSeconds;
+    return true;
+}
+
+float Mission::scannerPulse(std::size_t index) const
+{
+    return index < scannerTimer_.size() ? scannerTimer_[index] : 0.0f;
+}
+
+std::vector<std::size_t> Mission::scanTargets(std::size_t index) const
+{
+    std::vector<std::size_t> targets;
+    if (index >= agents_.size() || scannerTimer_[index] <= 0.0f)
+    {
+        return targets;
+    }
+    const Team enemyTeam = opposingTeam(agents_[index].team());
+    for (std::size_t i = 0; i < agents_.size(); ++i)
+    {
+        if (!agents_[i].isAlive() || agents_[i].team() != enemyTeam)
+        {
+            continue;
+        }
+        if (distanceBetween(index, i) <= kScannerRadius)
+        {
+            targets.push_back(i);
+        }
+    }
+    return targets;
+}
+
+void Mission::setDrugs(std::size_t index, int count)
+{
+    if (index >= agents_.size())
+    {
+        return;
+    }
+    drugs_[index] = count < 0 ? 0 : count;
+}
+
+int Mission::drugs(std::size_t index) const
+{
+    return index < drugs_.size() ? drugs_[index] : 0;
+}
+
+bool Mission::useDrugs(std::size_t index)
+{
+    if (index >= agents_.size() || drugs_[index] <= 0)
+    {
+        return false;
+    }
+    Agent& user = agents_[index];
+    if (!user.isAlive() || !user.isCombatant())
+    {
+        return false;
+    }
+    if (drugsTimer_[index] > 0.0f)
+    {
+        // Already boosted: do not burn another dose.
+        return false;
+    }
+    --drugs_[index];
+    drugsTimer_[index] = kDrugDurationSeconds;
+    // Speed is multiplied once here and restored when the buff expires (see
+    // update), so the sim's movement code stays unchanged.
+    user.setSpeed(user.speed() * kDrugSpeedMultiplier);
+    return true;
+}
+
+float Mission::drugsTimer(std::size_t index) const
+{
+    return index < drugsTimer_.size() ? drugsTimer_[index] : 0.0f;
+}
+
 float Mission::damageAgent(std::size_t index, float amount)
 {
     if (index >= agents_.size())
@@ -590,6 +714,25 @@ void Mission::update(float dt)
     for (Agent& agent : agents_)
     {
         agent.update(dt);
+    }
+
+    // Gadget timers. A drug buff multiplies speed on activation and divides it
+    // back out here on expiry, so the movement code itself is untouched. The
+    // scanner pulse is presentation-only; the sim never reads its marks.
+    for (std::size_t i = 0; i < agents_.size(); ++i)
+    {
+        if (scannerTimer_[i] > 0.0f)
+        {
+            scannerTimer_[i] = std::max(0.0f, scannerTimer_[i] - dt);
+        }
+        if (drugsTimer_[i] > 0.0f)
+        {
+            drugsTimer_[i] = std::max(0.0f, drugsTimer_[i] - dt);
+            if (drugsTimer_[i] <= 0.0f)
+            {
+                agents_[i].setSpeed(agents_[i].speed() / kDrugSpeedMultiplier);
+            }
+        }
     }
 
     elapsedSeconds_ += dt;
@@ -1098,10 +1241,14 @@ void Mission::resolveFire()
 
         attacker.beginFireCooldown();
 
-        // Accuracy falls off linearly with distance; nearer shots hit more.
+        // Accuracy falls off linearly with distance; nearer shots hit more. A
+        // performance-drug buff raises the base chance (clamped to 1.0).
         const float falloff = 1.0f - (distance / range);
+        const float baseAccuracy =
+            drugsTimer_[i] > 0.0f ? std::min(1.0f, attacker.weapon().accuracy * kDrugAccuracyMultiplier)
+                                  : attacker.weapon().accuracy;
         const float hitChance =
-            attacker.weapon().accuracy * (kAccuracyAtMaxRange + (1.0f - kAccuracyAtMaxRange) * falloff);
+            baseAccuracy * (kAccuracyAtMaxRange + (1.0f - kAccuracyAtMaxRange) * falloff);
         if (!rng_.chance(hitChance))
         {
             // A miss can still catch a bystander near the target: stray fire.

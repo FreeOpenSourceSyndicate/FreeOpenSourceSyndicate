@@ -93,8 +93,11 @@ Milestone C needs both.
 Close out the 1993 tactical feature set (the tail of the old Phase 3).
 
 - [ ] **Cybernetics** (speed, accuracy, health, perception) as agent upgrades.
-- [ ] **Gadgets**: scanner (and any remaining gadget from the DoD list).
-      _Shield landed (#213); medikit and recruiter already done._
+- [x] **Gadgets**: scanner (and any remaining gadget from the DoD list).
+      _Shield landed (#213); medikit and recruiter already done; scanner and
+      performance drugs landed (#314) — `Mission::activateScanner`/`scanTargets`
+      and `Mission::useDrugs`/`drugsTimer` (ADR-0028). The scanner's on-screen
+      ping is a `focus: render` follow-up (#218).
 - [ ] **Vehicles**: cars/trains you can hijack, drive, and fire from.
 - [ ] **Destructible environment**: breachable walls (started in #185/#217).
 - [x] **Mission objectives**: complete the set — persuade, escort/retrieve,

@@ -1433,3 +1433,70 @@ for reassignment by a coordinator.
     the surface `focus: metagame` builds against (FOCUS_AREAS §2.1).
   - Adding a gadget means adding one arm to `gadgetChargesForId` and one entry to
     the equipment catalogue — a small, local change, not a schema change.
+
+## ADR-0028 — Scanner and performance drugs: presentation-only reveal vs. a real stat buff
+
+- **Status:** Accepted (2026-10-15)
+- **Date:** 2026-10-15
+- **Context:** Milestone A's gadget list (docs/ROADMAP.md) still had two unbuilt
+  items after the medikit, shield, and recruiter: a **scanner** (reveal
+  enemies/terrain in a radius) and **performance drugs** (a temporary stat boost).
+  Both are per-agent, single-use gadgets with the same activate/consume shape as
+  the shield (`Mission::activateShield`). Two questions had to be settled:
+
+  1. **Where does the state live?** On `core::Agent` (owned by `focus: world`) or
+     on the `Mission` alongside the medikit/shield counters?
+  2. **What does each gadget actually change?** In particular, does a scanner
+     reveal information the *simulation* then uses, or is it presentation-only?
+     And how does a temporary accuracy buff reach a stat that lives on `Weapon`,
+     not `Agent`?
+
+- **Options:**
+  1. **Put charges on `Agent`.** Rejected: it would extend the frozen `Agent`
+     contract (FOCUS_AREAS §2.1) and cross into `focus: world` for a purely
+     tactical feature; the medikit and shield already keep their counters on the
+     `Mission` for exactly this reason (ADR-0023).
+  2. **Make the scanner change AI targeting (revealed enemies become targetable
+     past sight range).** Rejected for v1.0.0: it would let a presentation gadget
+     alter combat outcomes and determinism, and the original scanner is an
+     information tool, not a targeting override. The reveal is therefore
+     **presentation-only**: `scanTargets` reports the marked enemies for the view
+     to draw, and the sim never reads it.
+  3. **A drug buff that multiplies `Agent::speed` in place, and the weapon's
+     accuracy at the fire site.** Chosen: speed is the one stat that lives on
+     `Agent`, so the dose multiplies it on activation and divides it back out on
+     expiry in `Mission::update`; accuracy lives on `Weapon`, so the buff scales
+     the base hit chance inside `resolveFire` (clamped to 1.0) without mutating
+     the shared weapon.
+
+- **Decision:** **Option 3.**
+  - Both gadgets keep their state on the `Mission`, in vectors sized to `agents_`
+    and grown by `addAgent` (like `medikits_`/`shields_`):
+    `scanners_`/`scannerTimer_` and `drugs_`/`drugsTimer_`. No `Agent` change.
+  - `activateScanner(index)` spends a charge and starts a `kScannerPulseSeconds`
+    pulse; `scanTargets(index)` lists the living enemies within `kScannerRadius`
+    tiles while the pulse runs. It is **deterministic and RNG-free**, and the
+    simulation never consumes the marks.
+  - `useDrugs(index)` spends a dose and starts a `kDrugDurationSeconds` buff:
+    movement speed is multiplied by `kDrugSpeedMultiplier` (restored exactly on
+    expiry) and the base hit chance by `kDrugAccuracyMultiplier` (clamped to 1.0)
+    in `resolveFire`. Fire *rate* is unchanged, so the buff cannot multiply
+    damage-per-second by both factors.
+  - Both are no-ops for a civilian, a dead agent, or when already active (a
+    charge/dose is never wasted), mirroring the shield.
+  - Balance constants (`kScannerRadius`, `kScannerPulseSeconds`,
+    `kDrugDurationSeconds`, the two multipliers) live in `Mission.cpp` next to the
+    medikit constants, until a data format is fixed (ADR-0003), exactly as the
+    medikit does today.
+
+- **Consequences:**
+  - Milestone A's gadget list is complete in `core`; the ROADMAP item can be
+    ticked. The scanner's on-screen ping is `focus: render`'s follow-up (issue
+    #218), filed as a Rule 4 request — the core side is frozen here.
+  - The loadout vocabulary (`gadgetChargesForId`, ADR-0027) gains two arms,
+    `"scanner"` and `"drugs"`, so a bought scanner/drugs deploys through the same
+    path as the medkit/shield. The matching `kind: "gadget"` catalogue entries in
+    `assets/data/world/equipment.json` are a `focus: metagame` follow-up.
+  - A scanner does not change combat balance; a drug buff does, and is bounded to
+    a single window per dose. Both stay deterministic, so missions remain
+    replayable.
