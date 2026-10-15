@@ -10,6 +10,15 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **"Walk as close as you can" to a blocked goal.** Clicking an unreachable or
+  blocked tile used to drop the move order. The new `core::findPathToNearest`
+  returns the normal path when the goal is reachable, and otherwise a path to the
+  walkable tile reachable from the start that is nearest the goal — so the squad
+  moves as close as it can instead of ignoring the click. Deterministic
+  (Manhattan distance, ties by lowest tile index), reuses the node cap, and never
+  returns a zero-length fallback; `NoPath` only when nothing is reachable. New
+  unit tests cover the reachable, blocked-goal, sealed-off, and enclosed cases.
+  Issue #146.
 - **Interpolated rendering over a fixed-step simulation:** the view now drives
   the mission with `core::FixedTimestep` (accumulate-then-step) instead of one
   variable-`dt` update per frame, and draws every agent at

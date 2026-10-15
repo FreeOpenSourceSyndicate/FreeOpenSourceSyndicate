@@ -223,4 +223,116 @@ PathResult findPathDetailed(const TileGrid& grid, TilePos start, TilePos goal, b
     return result;
 }
 
+PathResult findPathToNearest(const TileGrid& grid, TilePos start, TilePos goal, bool allowDiagonal,
+                             int maxExpandedNodes)
+{
+    // Fast path: when the goal is genuinely reachable, this is exactly findPath.
+    const PathResult direct = findPathDetailed(grid, start, goal, allowDiagonal, maxExpandedNodes);
+    if (direct.outcome == PathOutcome::Found)
+    {
+        return direct;
+    }
+
+    // Nowhere to go: `start` must be a walkable in-bounds tile to move at all.
+    if (!grid.inBounds(start.x, start.y) || !grid.isWalkable(start.x, start.y))
+    {
+        return {};
+    }
+
+    const int w = grid.width();
+    const int count = w * grid.height();
+    const auto idx = [w](int x, int y) { return y * w + x; };
+
+    // BFS over walkable tiles, honouring the same corner rule as findPath so the
+    // set of reachable tiles matches what the returned path can actually walk.
+    constexpr int kUnvisited = -2;
+    std::vector<int> cameFrom(static_cast<std::size_t>(count), kUnvisited);
+    std::queue<int> frontier;
+    const int startIdx = idx(start.x, start.y);
+    cameFrom[static_cast<std::size_t>(startIdx)] = -1;
+    frontier.push(startIdx);
+
+    const auto manhattanToGoal = [goal](int x, int y) {
+        return std::abs(x - goal.x) + std::abs(y - goal.y);
+    };
+
+    // Best reachable tile other than `start`: nearest to the goal, ties broken by
+    // the lowest tile index so the choice is deterministic.
+    int bestIdx = -1;
+    int bestDistance = 0;
+
+    const int dirs4[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    const int dirs8[8][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
+
+    int expanded = 0;
+    while (!frontier.empty())
+    {
+        if (++expanded > maxExpandedNodes)
+        {
+            break; // best-so-far wins; the scan stays bounded (ADR-0008)
+        }
+        const int current = frontier.front();
+        frontier.pop();
+        const int cx = current % w;
+        const int cy = current / w;
+
+        const int dirCount = allowDiagonal ? 8 : 4;
+        for (int d = 0; d < dirCount; ++d)
+        {
+            const int* dir = allowDiagonal ? dirs8[d] : dirs4[d];
+            const int nx = cx + dir[0];
+            const int ny = cy + dir[1];
+
+            if (!grid.inBounds(nx, ny) || !grid.isWalkable(nx, ny))
+            {
+                continue;
+            }
+            const bool diagonal = dir[0] != 0 && dir[1] != 0;
+            if (diagonal && (!grid.isWalkable(cx + dir[0], cy) || !grid.isWalkable(cx, cy + dir[1])))
+            {
+                continue; // do not cut corners through blocked tiles
+            }
+
+            const int nIdx = idx(nx, ny);
+            if (cameFrom[static_cast<std::size_t>(nIdx)] != kUnvisited)
+            {
+                continue;
+            }
+            cameFrom[static_cast<std::size_t>(nIdx)] = current;
+            frontier.push(nIdx);
+
+            const int distance = manhattanToGoal(nx, ny);
+            if (bestIdx < 0 || distance < bestDistance ||
+                (distance == bestDistance && nIdx < bestIdx))
+            {
+                bestIdx = nIdx;
+                bestDistance = distance;
+            }
+        }
+    }
+
+    // Nothing but `start` is reachable, so there is nowhere to move.
+    if (bestIdx < 0)
+    {
+        return {};
+    }
+
+    std::vector<TilePos> path;
+    for (int at = bestIdx; at >= 0; at = cameFrom[static_cast<std::size_t>(at)])
+    {
+        path.push_back(TilePos{at % w, at / w});
+    }
+    std::reverse(path.begin(), path.end());
+
+    if (allowDiagonal)
+    {
+        path = simplifyPath(grid, path);
+    }
+
+    PathResult result;
+    result.outcome = PathOutcome::Found;
+    result.path = std::move(path);
+    return result;
+}
+
 } // namespace fossynd::core
