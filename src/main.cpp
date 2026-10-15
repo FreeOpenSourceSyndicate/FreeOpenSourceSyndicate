@@ -36,10 +36,12 @@ void printUsage()
         "  -h, --help                 Show this help and exit.\n"
         "  -V, --version              Show the version and exit.\n"
         "      --mission <path>       Load the given mission file.\n"
+        "      --campaign <path>      Load the given campaign file (world map).\n"
         "      --config <path>        Load the given config file.\n"
         "      --lang <locale>        Set the UI language (e.g. en, de).\n"
         "      --demo                 Attract mode: the AI plays the mission.\n"
         "      --title                Show the title card.\n"
+        "      --map                  Start on the campaign management screen.\n"
         "      --low-spec             Small window, software renderer (old hardware).\n"
         "      --window <W>x<H>       Set the window size in pixels (e.g. 1280x800).\n"
         "      --fullscreen           Start in fullscreen (F11 toggles it).\n"
@@ -61,6 +63,7 @@ void printUsage()
         "      --check-fullscreen     Validate the fullscreen toggle.\n"
         "      --check-pause          Validate pause/resume.\n"
         "      --check-rubble         Validate breached-tile rubble rendering.\n"
+        "      --check-campaign       Validate the campaign management loop.\n"
         "      --check-lang [locale]  Validate the UI string table.\n"
         "      --check-content [dir]  Validate mission/catalogue references.\n",
         FOSSYND_VERSION);
@@ -174,6 +177,8 @@ int main(int argc, char** argv)
     bool checkFullscreen = false;
     bool checkPause = false;
     bool checkRubble = false;
+    bool checkCampaign = false;
+    bool showMap = false;                 // --map
     const char* checkLangLocale = nullptr; // --check-lang [<locale>]
     const char* checkContent = nullptr;   // --check-content [<dataDir>]
     const char* screenshot = nullptr;
@@ -184,6 +189,7 @@ int main(int argc, char** argv)
     int zoomLevel = 1;        // --zoom <n>
     std::string cliMission;   // --mission <path>
     std::string cliConfig;    // --config <path>
+    std::string cliCampaign;  // --campaign <path>
     std::string cliLang;      // --lang <locale>
 
     for (int i = 1; i < argc; ++i)
@@ -291,6 +297,14 @@ int main(int argc, char** argv)
         {
             checkRubble = true;
         }
+        else if (std::strcmp(argv[i], "--check-campaign") == 0)
+        {
+            checkCampaign = true;
+        }
+        else if (std::strcmp(argv[i], "--map") == 0)
+        {
+            showMap = true;
+        }
         else if (std::strcmp(argv[i], "--check-lang") == 0)
         {
             // Optional locale argument; defaults to English.
@@ -317,6 +331,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--mission") == 0 && i + 1 < argc)
         {
             cliMission = argv[++i];
+        }
+        else if (std::strcmp(argv[i], "--campaign") == 0 && i + 1 < argc)
+        {
+            cliCampaign = argv[++i];
         }
         else if (std::strcmp(argv[i], "--config") == 0 && i + 1 < argc)
         {
@@ -440,6 +458,16 @@ int main(int argc, char** argv)
         std::printf("mission: %s\n", missionPath.c_str());
     }
 
+    // An explicit `--campaign <path>` naming a missing file fails fast, matching
+    // `--mission`/`--config` (issue #259): a typo must not silently hide the map
+    // screen. An empty value keeps the default search, which skips absent
+    // candidates.
+    if (!cliCampaign.empty() && !fossynd::core::fileExists(cliCampaign))
+    {
+        std::fprintf(stderr, "campaign error (%s): file not found\n", cliCampaign.c_str());
+        return 1;
+    }
+
     // Resolve the UI language (issue #123): a `--lang` flag overrides a `lang`
     // config key; neither set means English. An unknown locale is handled by the
     // game (warn and keep English), never a failure here.
@@ -452,6 +480,8 @@ int main(int argc, char** argv)
     game.setInitialZoom(zoomLevel);
     game.setFullscreen(fullscreen);
     game.setPaused(startPaused);
+    game.setCampaignPath(cliCampaign);
+    game.setShowMap(showMap);
 
     // Show the authored title card for a real, interactive player. Automated
     // runs (headless, screenshots, attract mode) skip it and go straight to the
@@ -593,6 +623,21 @@ int main(int argc, char** argv)
         // the breach must re-bake the static map. Used by the game_rubble ctest.
         const bool ok = game.rubbleSelfTest();
         std::printf(ok ? "rubble: ok\n" : "rubble: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkCampaign)
+    {
+        // Headless guard for the campaign management loop (Milestone B): the
+        // shipped campaign must load and its tax -> research -> buy -> deploy ->
+        // win loop must hold. Used by the game_campaign ctest.
+        if (!game.campaignValid())
+        {
+            std::fprintf(stderr, "campaign: no campaign loaded (run from the repo root?)\n");
+            return 1;
+        }
+        const bool ok = game.campaignSelfTest();
+        std::printf(ok ? "campaign: ok\n" : "campaign: FAILED\n");
         return ok ? 0 : 1;
     }
 

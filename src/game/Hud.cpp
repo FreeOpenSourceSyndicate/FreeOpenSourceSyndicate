@@ -173,6 +173,22 @@ void Game::renderHud()
         y += lineH;
     }
 
+    // Campaign management screen hint (Milestone B): shown only when a campaign
+    // loaded, so `M` is discoverable from the tactical view. A plain literal, not
+    // an i18n key (localisation beyond English is out of scope, ADR-0024). Placed
+    // bottom-right, clear of the squad panel (bottom-left) and the minimap
+    // (top-right); skipped on a narrow window where the panel fills the width.
+    if (campaignValid())
+    {
+        const std::string hint = "M MAP";
+        const int hintW = font_.textWidth(hint);
+        if (screenWidth_ - margin - hintW > 320 + margin)
+        {
+            font_.draw(renderer_, screenWidth_ - margin - hintW, screenHeight_ - lineH - 2, hint,
+                       hudstyle::kHudDim);
+        }
+    }
+
     // Centre banner when the mission ends.
     if (mission_.state() != core::MissionState::Running)
     {

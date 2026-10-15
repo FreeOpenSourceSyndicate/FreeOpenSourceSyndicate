@@ -511,11 +511,26 @@ move us toward it, it is out of scope.
 
 **Where to work next.** Follow `docs/ROADMAP.md` → *The critical path*. The long
 pole is **Milestone B (the metagame)** — the world map, economy, research, and
-campaign, which is entirely unstarted and which no release can be "finished"
-without. **Claim it at issue #249** (`focus: metagame`); that issue is the
-tracking checklist and the interface contract is its first PR. Milestone A
-(finishing the tactical layer: cybernetics, scanner, vehicles, destructible
-environment, the remaining objectives) runs in parallel.
+campaign, whose **core** systems have all merged (`src/core/economy/**`:
+`WorldMap`, `Economy`, `Research`, `Equipment`, `Campaign`; 44 unit checks). The
+gap is that the game layer must **drive** them. **The map/management screen has
+landed**: `game::CampaignScreen` (`src/game/CampaignScreen.{h,cpp}`, its own
+translation unit — do not grow the shared `Game.cpp`) owns a `core::Campaign`,
+renders the world map (deterministic, view-only BFS-ring layout), and drives the
+loop: **`M`** toggles the screen, **click** a territory to select, **`-`/`+`**
+change its tax, **`D`** deploys the mission. `--campaign <path>` picks a campaign
+file and `--map` starts on the screen. While it is up, `Game::update` freezes the
+tactical sim and ticks the campaign clock instead (economy + research).
+`--check-campaign` (ctest `game_campaign`) runs the real loop on a copy of the
+shipped campaign; `--map` (ctest `game_map_flag`) exercises the render path.
+`loadFromFile` now grants `startingFunds` (it was parsed but never granted).
+What remains for Milestone B: **`Campaign::recordResult` is not yet fed by a
+finished mission** (the map does not learn the win/lose result yet), **R1**
+(mapping a bought loadout onto the mission's player agents, Tactical/Content),
+and the campaign victory screen. Claim it at issue #249 (`focus: metagame`);
+`docs/METAGAME.md` is the interface contract. Milestone A (finishing the tactical
+layer: cybernetics, scanner, vehicles, destructible environment, the remaining
+objectives) runs in parallel.
 Do not start work outside the scope fence (ADR-0024).
 
 - The game now has a **playable vertical slice** with authored pixel-art
@@ -557,6 +572,28 @@ Do not start work outside the scope fence (ADR-0024).
   logical size and the frame scales to the display, so the pixel-art look and
   mouse mapping are unchanged. A no-op on a headless run; `--headless
   --check-fullscreen` (ctest `game_fullscreen`) guards the toggle state machine.
+- **Campaign management screen (Milestone B, issue #249):** the game layer now
+  drives the metagame core. `game::CampaignScreen`
+  (`src/game/CampaignScreen.{h,cpp}` — its own file, do not grow `Game.cpp`) owns
+  a `core::Campaign`, draws the world map, and reads input; all rules stay in
+  `core/economy/**` (golden rule 1/2). Territory nodes are laid out by a
+  deterministic BFS ring from territory 0 — **view-only, never saved** (golden
+  rule 4). Keys: **`M`** toggles the screen, **click** selects a territory,
+  **`-`/`+`** change its tax (clamped), **`D`** deploys. `--campaign <path>`
+  chooses a campaign file, `--map` starts on the screen. While it is visible,
+  `Game::update` returns before the fixed-step loop and ticks
+  `CampaignScreen::update(realDt)` (economy + research) instead, so the tactical
+  sim is frozen. A missing campaign file leaves the screen **invalid** and it is
+  skipped, so the tactical game always starts. `--headless --check-campaign`
+  (ctest `game_campaign`) runs the loop (funds → tax → income → research → buy →
+  assign → deploy → win) on a **copy** of the shipped campaign;
+  `--headless --map --frames N` (ctest `game_map_flag`) exercises the render path.
+  `Campaign::loadFromFile` now grants `startingFunds` (parsed before, never
+  granted). Not wired yet: `Campaign::recordResult` (a finished mission does not
+  yet feed the map) and **R1** (bought loadout → mission player agents,
+  Tactical/Content). The screen's labels are plain literals, not i18n keys
+  (localisation beyond English is out of scope, ADR-0024) — localising it is a
+  follow-up for `focus: text`.
 - **UI text is data, not literals (issue #53):** the HUD and title card read
   their strings from `core::i18n::StringTable` (`assets/lang/en.json`, ADR-0016)
   via `Game::tr(key, fallback)` and `substitute()` for `{token}`s. Add new UI
@@ -736,6 +773,12 @@ Do not start work outside the scope fence (ADR-0024).
   instead of silently running with defaults, matching `--mission`. The
   auto-discovery loop (no `--config`) still skips absent candidates. ctest
   `game_cli_config_missing` (`WILL_FAIL`) guards it.
+- **An explicit `--campaign` must exist (issue #249):** the same rule for the
+  metagame world data: `--campaign <path>` naming a missing file fails fast
+  (`campaign error (<path>): file not found`, exit 1), so a typo cannot silently
+  hide the map screen behind the default search. An empty `--campaign` still
+  searches the default locations and skips absent candidates. ctest
+  `game_cli_campaign_missing` (`WILL_FAIL`) guards it.
 - **`--frames` must be a positive integer (issue #264):** a non-numeric, zero,
   negative, or trailing-garbage value (`abc`, `0`, `-3`, `5x`) prints
   `invalid --frames '<v>': expected a positive count` and exits 1, instead of
@@ -747,11 +790,13 @@ Do not start work outside the scope fence (ADR-0024).
   `--headless --title --frames N`, `--headless --check-sprites`,
   `--headless --check-minimap`, `--headless --check-selection`,
   `--headless --check-waypoints`, `--headless --check-waypoint-path`,
-  `--headless --check-pause`, and
+  `--headless --check-pause`, `--headless --check-campaign`,
+  `--headless --map --frames N`, and
   `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
   `game_demo`, `game_low_spec`, `game_title`, `game_sprites`, `game_minimap`,
-  `game_selection`, `game_waypoints`, `game_waypoint_path`, `game_pause`, and
-  `game_pause_flag` cover the SDL layer headlessly.
+  `game_selection`, `game_waypoints`, `game_waypoint_path`, `game_pause`,
+  `game_pause_flag`, `game_campaign`, and `game_map_flag` cover the SDL layer
+  headlessly.
 - **Queued-route overlay (issue #89):** the view draws a selected agent's
   shift-click waypoint queue (`Agent::moveQueue()`) as a yellow polyline with
   numbered dots, in `Game::renderWaypointPath()`; `Game::waypointRoute()` is the

@@ -12,6 +12,7 @@
 #include "core/math/Vec2.h"
 #include "core/sim/Mission.h"
 #include "core/world/TileGrid.h"
+#include "game/CampaignScreen.h"
 #include "game/Font.h"
 #include "game/GroundTiles.h"
 #include "game/Minimap.h"
@@ -52,6 +53,25 @@ public:
     // file, a CLI flag, or the fallback search). An empty path means "use the
     // copy embedded in the binary". Call before init().
     void setMissionPath(const std::string& path) { missionPath_ = path; }
+
+    // Sets the campaign file to load for the management screen (Milestone B). An
+    // empty path means "search the default locations". Call before init().
+    void setCampaignPath(const std::string& path) { campaignPath_ = path; }
+
+    // Starts with the campaign management screen (the world map) up instead of
+    // the tactical board. Set by `--map`; `M` toggles it at runtime. Call before
+    // init().
+    void setShowMap(bool enabled) { showMap_ = enabled; }
+
+    // True when a campaign was loaded and the management screen is available.
+    // Used by the `--check-campaign` guard.
+    bool campaignValid() const { return campaign_.valid(); }
+
+    // Headless guard for the campaign management loop (Milestone B): on a copy of
+    // the loaded campaign, exercises tax -> income -> research -> buy -> deploy ->
+    // win through the real core systems. Returns false on a broken invariant.
+    // Used by the `game_campaign` ctest.
+    bool campaignSelfTest() { return campaign_.selfTest(); }
 
     // Directory containing the executable, used to find an external language
     // file. May be empty (relative search paths are then tried). Call before
@@ -238,6 +258,9 @@ private:
     void renderHud();
     void renderMinimap();
     void renderTitleCard();
+    // Draws the campaign management screen (Milestone B) over everything. A no-op
+    // when the screen is hidden or no campaign loaded.
+    void renderCampaignScreen();
     void drawTitleDiamond(float cx, float cy, float radius, std::uint8_t r, std::uint8_t g,
                           std::uint8_t b);
 
@@ -374,6 +397,19 @@ private:
 
     // Resolved mission file, or empty to use the embedded copy (ADR-0003).
     std::string missionPath_;
+
+    // The campaign management screen (Milestone B): the world map, funds, tax,
+    // research, and deployment, driven from its own translation unit. Invalid
+    // (and therefore skipped) when no campaign data is found, so the tactical
+    // game always runs (AGENTS.md §1b).
+    CampaignScreen campaign_;
+
+    // Resolved campaign file, or empty to search the default locations. Set by
+    // `--campaign` before init().
+    std::string campaignPath_;
+
+    // Start on the management screen (`--map`). `M` toggles it at runtime.
+    bool showMap_ = false;
 
     // Directory containing the executable, used to find an external language
     // file (see loadLanguage).
