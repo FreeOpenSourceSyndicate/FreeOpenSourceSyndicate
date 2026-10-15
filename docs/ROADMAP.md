@@ -73,6 +73,8 @@ A shippable demo, deliberately original in code and art.
 - [x] Minimap (whole-board overview panel)
 - [x] Interpolated rendering over fixed-step sim
 - [x] Zoom (integer levels 1x/2x/3x, nearest-neighbour; `+`/`-` or wheel)
+- [x] Fullscreen toggle (`F11`; `--fullscreen`), logical-resolution scaling
+- [x] Pause / resume the simulation (`Space`; `--pause`) with a visible cue
 - [x] Click-to-select individual agents (click, shift-add, `1`–`4`, `A` for all)
 - [x] Focus-fire attack orders (right-click / click an enemy)
 - [x] Control-group hotkeys and per-agent waypoint queue (shift-click appends)
@@ -87,7 +89,7 @@ A shippable demo, deliberately original in code and art.
       (Compliance Beacon + medikit + shield done; scanner pending)
 - [ ] Cybernetic upgrades (speed, accuracy, health, perception)
 - [ ] Vehicles: cars/trains, hijacking, mounted weapons
-- [ ] Destructible environment
+- [x] Destructible environment (cracked walls: weapon fire opens them; enemies use cover)
 - [x] Enemy AI: engage (basic chase + fire)
 - [x] Enemy AI: take cover when under fire (steps behind walls; flank to dislodge)
 - [x] Enemy AI: patrol, retreat, call backup
@@ -108,7 +110,7 @@ A shippable demo, deliberately original in code and art.
 - [ ] Mission editor / data pipeline
 - [ ] Original art and audio (`docs/ASSETS.md`)
 - [ ] Save/load
-- [x] Localization scaffolding (string table + `assets/lang/en.json`; the HUD and title card read from it)
+- [x] Localization scaffolding (string table + `assets/lang/en.json`; the HUD, title card, and mission name/description read from it)
 - [x] German UI translation (`assets/lang/de.json`, complete; ASCII-only font)
 - [ ] Modding / scripting layer (ADR-0004)
 - [x] Packaging for Linux (`.deb` + `.tar.gz`), macOS (`.dmg`), and Windows (`.zip`)
