@@ -319,7 +319,7 @@ A claim is a **git-ref lease**, not a comment (ADR-0021). The mechanics live in
 
 - **To claim**, run:
   `scripts/coord claim --area <area> --issue <n> --agent "<model>" --branch <branch>`
-  This writes `refs/coord/leases/<area>/<issue>` on the remote via an atomic
+  This writes `refs/coord/leases/<area>` on the remote via an atomic
   `git push --force-with-lease`. If the area has a **live** lease, the claim fails
   and names the holder; pick another free area.
 - **While working**, extend the lease: `scripts/coord renew --area <a> --issue <n>

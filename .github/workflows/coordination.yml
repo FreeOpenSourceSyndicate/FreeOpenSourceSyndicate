@@ -49,11 +49,12 @@ jobs:
     if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
+      # Check out the commit under test (the PR merge commit, or the pushed
+      # commit) - it carries scripts/coord. The lease refs are not part of the
+      # checkout, so fetch them separately below.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # The lease refs live on the remote, not in the checkout; fetch them.
-          ref: main
       - name: Fetch the lease ledger
         run: git fetch --prune --force origin '+refs/coord/leases/*:refs/coord/leases/*' || true
       - name: Check for live lease collisions

@@ -35,7 +35,7 @@ assignees: ""
 
     scripts/coord claim --area <area> --issue <this-issue> --agent "<model>" --branch <branch>
 
-     It writes refs/coord/leases/<area>/<issue> atomically and expires on its own
+     It writes refs/coord/leases/<area> atomically and expires on its own
      (default 6h, max 24h) - if you stop mid-work, the area frees itself and no
      peer has to notice. `scripts/coord renew` to extend, `scripts/coord release`
      when the PR merges. See docs/COORDINATION.md / ADR-0021. The old CLAIM:

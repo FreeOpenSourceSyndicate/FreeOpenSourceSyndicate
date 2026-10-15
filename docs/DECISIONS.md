@@ -899,7 +899,7 @@ for reassignment by a coordinator.
   **1. The lease.** A claim is a lease stored as a git ref:
 
   ```
-  refs/coord/leases/<area>/<issue-number>
+  refs/coord/leases/<area>
   ```
 
   The ref target is an empty commit whose message is one JSON line:
@@ -909,8 +909,11 @@ for reassignment by a coordinator.
    "state": "claimed", "epoch": 1792050687, "ttl": 21600, "note": ""}
   ```
 
-  - **One ref per leased issue**, not per agent. A task's whole history is one
-    atomic CAS target, and a missed sweep cannot pile up duplicate refs.
+  - **One ref per leased area**, keyed by area alone — *not* by issue. The
+    ref *is* the lock, so it must be keyed by what the lock protects. If it were
+    `leases/<area>/<issue>`, two agents claiming different issues in one area
+    would CAS two different refs and both win, silently breaking the area lock.
+    Keying by area makes the single `push --force-with-lease` decide the area.
   - The **area is the lock**: a file has exactly one owning focus area
     (`docs/FOCUS_AREAS.md` §2), so two agents can collide on a file only by
     holding the same area. Locking the area is therefore sufficient and minimal.

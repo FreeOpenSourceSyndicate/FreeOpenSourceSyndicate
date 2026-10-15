@@ -85,13 +85,30 @@ class CoordTestCase(unittest.TestCase):
                               cwd=self.remote, stdout=subprocess.PIPE, text=True)
         return [l.strip() for l in proc.stdout.splitlines() if l.strip()]
 
+    def push_raw_lease_ref(self, ref, lease):
+        """Write an arbitrary lease ref out of band, as an outdated client might.
+
+        ``coord`` can no longer *produce* two live leases for one area; this is
+        how the tests simulate the one way one can still appear (a pre-fix client
+        writing the old per-issue layout).
+        """
+        empty_tree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+        commit = subprocess.run(
+            ["git", "commit-tree", empty_tree, "-m", lease.to_json()],
+            cwd=self.work, check=True, stdout=subprocess.PIPE, text=True,
+            env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@e.com",
+                 "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@e.com"},
+        ).stdout.strip()
+        subprocess.run(["git", "push", "--quiet", "--force", "origin",
+                        f"{commit}:{ref}"], cwd=self.work, check=True)
+
 
 class TestLeaseBasics(CoordTestCase):
-    def test_claim_creates_one_ref_per_issue(self):
+    def test_claim_creates_one_ref_per_area(self):
         out, _ = self.run_coord("claim", "--area", "world", "--issue", 157,
                                 "--agent", "model-a", "--branch", "feat/world-x")
         self.assertIn("claimed world / #157", out)
-        self.assertEqual(self.remote_refs(), ["refs/coord/leases/world/157"])
+        self.assertEqual(self.remote_refs(), ["refs/coord/leases/world"])
 
     def test_second_agent_cannot_claim_a_held_area(self):
         self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "model-a")
@@ -99,7 +116,7 @@ class TestLeaseBasics(CoordTestCase):
                                 "--agent", "model-b", expect=2)
         self.assertIn("held by model-a", err)
         # The failed claim must not have created a second ref.
-        self.assertEqual(self.remote_refs(), ["refs/coord/leases/world/157"])
+        self.assertEqual(self.remote_refs(), ["refs/coord/leases/world"])
 
     def test_same_agent_may_re_claim_its_own_area(self):
         self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "model-a")
@@ -137,7 +154,7 @@ class TestLeaseBasics(CoordTestCase):
         out, _ = self.run_coord("renew", "--area", "render", "--issue", 122,
                                 "--agent", "model-a")
         self.assertIn("renewed render / #122", out)
-        lease = coord.read_lease("refs/coord/leases/render/122")
+        lease = coord.read_lease("refs/coord/leases/render")
         self.assertEqual(lease.epoch, self.now)
         self.assertEqual(lease.ttl, 3600)
 
@@ -145,7 +162,7 @@ class TestLeaseBasics(CoordTestCase):
         self.run_coord("claim", "--area", "content", "--issue", 124, "--agent", "m")
         self.run_coord("renew", "--area", "content", "--issue", 124, "--agent", "m",
                        "--state", "blocked", "--note", "waiting on #120")
-        lease = coord.read_lease("refs/coord/leases/content/124")
+        lease = coord.read_lease("refs/coord/leases/content")
         self.assertEqual(lease.state, "blocked")
         self.assertEqual(lease.note, "waiting on #120")
 
@@ -158,7 +175,7 @@ class TestExpiryAndSweep(CoordTestCase):
         out, _ = self.run_coord("claim", "--area", "world", "--issue", 157,
                                 "--agent", "model-b")
         self.assertIn("claimed world / #157", out)
-        lease = coord.read_lease("refs/coord/leases/world/157")
+        lease = coord.read_lease("refs/coord/leases/world")
         self.assertEqual(lease.agent, "model-b")
 
     def test_sweep_deletes_only_expired_refs(self):
@@ -167,17 +184,17 @@ class TestExpiryAndSweep(CoordTestCase):
         self._set_now(self.now + 2 * 3600)
         out, _ = self.run_coord("sweep", "--no-board")
         self.assertIn("swept 1 expired lease(s)", out)
-        self.assertEqual(self.remote_refs(), ["refs/coord/leases/text/142"])
+        self.assertEqual(self.remote_refs(), ["refs/coord/leases/text"])
 
     def test_ttl_is_capped_at_24h(self):
         self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "a",
                        "--ttl", "99d")
-        lease = coord.read_lease("refs/coord/leases/world/157")
+        lease = coord.read_lease("refs/coord/leases/world")
         self.assertEqual(lease.ttl, coord.MAX_TTL)
 
     def test_stale_is_live_but_quiet(self):
         self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "a", "--ttl", "20h")
-        lease = coord.read_lease("refs/coord/leases/world/157")
+        lease = coord.read_lease("refs/coord/leases/world")
         self.assertFalse(lease.is_stale(self.now))
         self.assertTrue(lease.is_stale(self.now + coord.STALE_AFTER + 1))
         self.assertTrue(lease.is_live(self.now + coord.STALE_AFTER + 1))
@@ -189,22 +206,24 @@ class TestCheckGate(CoordTestCase):
         out, _ = self.run_coord("check")
         self.assertIn("check OK", out)
 
-    def test_check_fails_on_a_live_area_collision(self):
-        # Force a collision by writing two refs for the same area directly, as a
-        # racing writer might; the gate must catch it.
-        self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "a")
-        lease = coord.Lease(agent="b", area="world", issue=200, epoch=self.now,
-                            ttl=coord.DEFAULT_TTL)
-        coord._commit_lease(lease)
+    def test_check_fails_on_a_live_legacy_per_issue_ref(self):
+        # Git forbids `leases/world` and `leases/world/200` together, so a legacy
+        # ref only exists for an area that has no area ref yet.  It means a
+        # pre-fix client wrote it; the gate must flag it before the area is used.
+        self.push_raw_lease_ref(
+            "refs/coord/leases/world/200",
+            coord.Lease(agent="b", area="world", issue=200, epoch=self.now,
+                        ttl=coord.DEFAULT_TTL))
         out, err = self.run_coord("check", expect=1)
         self.assertIn("coordination conflict", err + out)
-        self.assertIn("live leases", err + out)
+        self.assertIn("legacy per-issue ref", err + out)
 
-    def test_check_ignores_expired_collisions(self):
-        self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "a", "--ttl", "1h")
-        lease = coord.Lease(agent="b", area="world", issue=200, epoch=self.now - 10_000,
-                            ttl=60)
-        coord._commit_lease(lease)
+    def test_check_ignores_expired_legacy_refs(self):
+        # An expired legacy-layout ref is not a live conflict; sweep removes it.
+        self.push_raw_lease_ref(
+            "refs/coord/leases/world/200",
+            coord.Lease(agent="b", area="world", issue=200, epoch=self.now - 10_000,
+                        ttl=60))
         out, _ = self.run_coord("check")
         self.assertIn("check OK", out)
 
@@ -240,7 +259,7 @@ class TestStatusAndBoard(CoordTestCase):
 
     def test_board_marks_stale_holders(self):
         self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "a", "--ttl", "30h")
-        lease = coord.read_lease("refs/coord/leases/world/157")
+        lease = coord.read_lease("refs/coord/leases/world")
         content = coord.render_board(at=self.now + coord.STALE_AFTER + 1)
         self.assertIn("| stale |", content)
 
@@ -305,22 +324,77 @@ class TestLegacyMigration(CoordTestCase):
 
 
 class TestConcurrency(CoordTestCase):
+    def test_area_lock_cas_blocks_a_second_issue_in_the_same_area(self):
+        """Regression: two agents claim *different* issues in one area at once.
+
+        Both pass their pre-checks believing the area is free.  Because the CAS
+        target is the *area* ref, only one can win.  (Keying the ref by issue let
+        both win - the bug this guards.)
+        """
+        self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "a")
+        with self.assertRaises(coord.CoordError):
+            coord._commit_leases(
+                [coord.Lease(agent="b", area="world", issue=200, epoch=self.now, ttl=60)],
+                expects={"refs/coord/leases/world": ""})  # "must not exist"
+        self.assertEqual(coord.read_lease("refs/coord/leases/world").agent, "a")
+
     def test_force_with_lease_rejects_a_stale_writer(self):
         """Two writers race: the second CAS with a stale expectation must lose."""
         self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "a")
-        stale_sha = coord._local_ref_sha("refs/coord/leases/world/157")
+        stale_sha = coord._local_ref_sha("refs/coord/leases/world")
 
         # Writer B wins the race first.
         winner = coord.Lease(agent="b", area="world", issue=157, epoch=self.now, ttl=60)
-        coord._commit_lease(winner)
+        coord._commit_leases([winner], expects={"refs/coord/leases/world": None})
 
         # Writer A now pushes with its stale expectation -> must be rejected.
         loser = coord.Lease(agent="a", area="world", issue=157, epoch=self.now, ttl=60)
         with self.assertRaises(coord.CoordError):
-            coord._commit_lease(loser, expect=stale_sha)
+            coord._commit_leases([loser], expects={"refs/coord/leases/world": stale_sha})
 
         # B's lease survives untouched.
-        self.assertEqual(coord.read_lease("refs/coord/leases/world/157").agent, "b")
+        self.assertEqual(coord.read_lease("refs/coord/leases/world").agent, "b")
+
+    def test_multi_area_claim_is_all_or_nothing(self):
+        """A multi-area claim either takes every area or none of them."""
+        self.run_coord("claim", "--area", "world", "--issue", 1, "--agent", "a")
+        with self.assertRaises(coord.CoordError):
+            coord._commit_leases(
+                [coord.Lease(agent="b", area="text", issue=2, epoch=self.now, ttl=60),
+                 coord.Lease(agent="b", area="world", issue=2, epoch=self.now, ttl=60)],
+                expects={"refs/coord/leases/text": "", "refs/coord/leases/world": ""})
+        # The uncontested area must not have been taken by the failed batch.
+        self.assertNotIn("refs/coord/leases/text", self.remote_refs())
+
+    def test_legacy_per_issue_ref_is_swept_and_area_unblocked(self):
+        """A pre-fix client's ref must be clearable so the area can be claimed."""
+        self.push_raw_lease_ref(
+            "refs/coord/leases/world/200",
+            coord.Lease(agent="old", area="world", issue=200, epoch=self.now - 10_000,
+                        ttl=60))
+        # The old-layout ref blocks the area ref (git file/dir conflict), so a
+        # plain claim fails with guidance rather than a raw git error...
+        _, err = self.run_coord("claim", "--area", "world", "--issue", 157,
+                                "--agent", "a", expect=2)
+        self.assertIn("legacy per-issue ref", err)
+        # ...sweep clears it (it is expired, so it goes with the expired refs)...
+        self.run_coord("sweep", "--no-board")
+        self.assertEqual(self.remote_refs(), [])
+        # ...and then the area is claimable.
+        self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "a")
+        self.assertEqual(self.remote_refs(), ["refs/coord/leases/world"])
+
+    def test_takeover_clears_a_live_legacy_ref_and_claims(self):
+        """--takeover must not dead-end on a pre-fix client's live ref."""
+        self.push_raw_lease_ref(
+            "refs/coord/leases/world/200",
+            coord.Lease(agent="old", area="world", issue=200, epoch=self.now,
+                        ttl=coord.DEFAULT_TTL))
+        out, _ = self.run_coord("claim", "--area", "world", "--issue", 157,
+                                "--agent", "a", "--takeover")
+        self.assertIn("took over world / #157", out)
+        self.assertEqual(self.remote_refs(), ["refs/coord/leases/world"])
+        self.assertEqual(coord.read_lease("refs/coord/leases/world").agent, "a")
 
     def test_two_agents_fan_out_across_areas(self):
         """The core promise: 8 agents, 8 areas, zero collisions."""

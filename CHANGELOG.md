@@ -25,7 +25,7 @@ contains no original assets, code, names, or trademarks.
   (`--headless --check-zoom`) covers the round-trip and clamping. Issue #122.
 - **Git-ref coordination leases (`scripts/coord`, ADR-0021).** Coordination
   moved out of issue comments and into a **machine-checked ledger**. A claim is a
-  git ref `refs/coord/leases/<area>/<issue>` whose target is a JSON record with a
+  git ref `refs/coord/leases/<area>` whose target is a JSON record with a
   TTL; taking one is `git push --force-with-lease`, an atomic compare-and-swap, so
   two agents racing for an area can never both win. `scripts/coord claim|renew|
   release|status|check|board|sweep|migrate` is the whole interface, and
@@ -34,10 +34,14 @@ contains no original assets, code, names, or trademarks.
   a lease that nobody renews frees its area on the clock — an agent that crashes
   or pauses mid-work strands nothing and no peer or human has to notice. This
   removes the hand-maintained workload plan (and its 22 `refresh the queue` PRs),
-  the hub check-ins, and the `status:`-label-as-truth rule. 30 unit tests in
-  `tests/test_coord.py` (wired into `ctest` as `coord_tests`). Migration from the
-  old `CLAIM:`/`LEASE:` protocol is lossless: `scripts/coord migrate` imports live
-  legacy claims, and the tool still reads the legacy lines during the transition
+  the hub check-ins, and the `status:`-label-as-truth rule. The lease ref is
+  keyed by **area** (`refs/coord/leases/<area>`), because the ref *is* the lock:
+  keying it by issue would let two agents claiming different issues in one area
+  CAS different refs and both win. 34 unit tests in `tests/test_coord.py` (wired
+  into `ctest` as `coord_tests`). Migration from the old `CLAIM:`/`LEASE:`
+  protocol is lossless: `scripts/coord migrate` imports live legacy claims, the
+  tool still reads the legacy lines during the transition, and a pre-fix client's
+  old-layout ref is cleared by `sweep` or `claim --takeover`
   (`docs/COORDINATION_MIGRATION.md`).
 - **"Walk as close as you can" to a blocked goal.** Clicking an unreachable or
   blocked tile used to drop the move order. The new `core::findPathToNearest`

@@ -3,7 +3,7 @@
 """coord - a git-native task lease ledger for a fleet of parallel AI agents.
 
 The whole coordination state lives in **git refs** on the shared remote
-(``refs/coord/leases/<area>/<issue>``).  A ref update is an atomic
+(``refs/coord/leases/<area>``).  A ref update is an atomic
 compare-and-swap, so a lease is taken without a lock server, a database, or any
 long-lived process.  Every lease carries a TTL; a lease whose TTL has passed is
 *expired* and may be taken over by anyone.  Because the fleet may pause an agent
@@ -22,21 +22,27 @@ Commands
 ``sweep``    delete expired refs, sync issue labels/claims, rebuild the board
 ``migrate``  import the legacy CLAIM:/LEASE: comments into the ledger (one-off)
 
-Ref layout (one ref per leased issue, not per agent - so a task's whole history
-is one atomic CAS target and a missed sweep cannot pile up duplicates):
+Ref layout (one ref per **area** - the lock is the area, so the CAS target must
+be the area too; see the "one lock per claim" note below):
 
-    refs/coord/leases/<area>/<issue-number>
+    refs/coord/leases/<area>
 
 The ref *target* is an empty commit whose message is a single JSON object::
 
-    {"agent": "...", "area": "...", "issue": 157, "branch": "...",
+    {"agent": "...", "area": "world", "issue": 157, "branch": "...",
      "state": "claimed", "epoch": 1792050687, "ttl": 21600, "note": ""}
 
 Design notes
 ------------
-* **Area is the lock.**  A file has exactly one owning focus area, so two agents
-  cannot collide on a file unless they hold the same area.  The area lock is
-  therefore the only mutual exclusion the fleet needs.
+* **One lock per claim, and the lock is the area.**  A file has exactly one
+  owning focus area, so two agents collide only by holding the same area.  The
+  CAS target must therefore be the *area* ref, not the issue ref: if the lock
+  were keyed by issue, two agents claiming different issues in the same area at
+  the same instant would each CAS a different ref and both win.  Keying the ref
+  by area makes the single ``push --force-with-lease`` decide the whole area.
+  Claiming several areas at once is supported by pushing all of those refs in one
+  atomic ``--atomic`` push (all-or-nothing), with the refs ordered so concurrent
+  multi-area claims cannot deadlock.
 * **TTL, not a heartbeat.**  Renewal is cheap (one ref update); a stale holder
   cannot block the fleet for more than the TTL.
 * **Expiry is mechanical.**  Nobody adjudicates.  ``sweep`` deletes expired
@@ -217,8 +223,10 @@ class Lease:
         )
 
 
-def ref_for(area: str, issue: int) -> str:
-    return f"{REF_PREFIX}/{area}/{issue}"
+def ref_for(area: str) -> str:
+    """The lease ref for an area.  The **area is the lock**, so the ref is keyed
+    by area alone - see the "one lock per claim" design note."""
+    return f"{REF_PREFIX}/{area}"
 
 
 def read_lease(ref: str, cwd: Optional[str] = None) -> Optional[Lease]:
@@ -276,42 +284,89 @@ def _local_ref_sha(ref: str, cwd: Optional[str] = None) -> Optional[str]:
     return sha or None
 
 
-def _commit_lease(lease: Lease, *, expect: Optional[str] = None, cwd: Optional[str] = None) -> None:
-    """Atomically publish ``lease`` to its ref.
-
-    ``expect`` is the remote ref value the caller last saw.  It is passed to
-    ``git push --force-with-lease``, so a concurrent writer causes the push to be
-    *rejected* rather than silently overwritten - this compare-and-swap is what
-    makes the lease safe without a lock server.  Pass ``expect=""`` to require
-    that the ref does not exist yet.
-    """
-    ref = ref_for(lease.area, lease.issue)
-    message = lease.to_json()
-    env = _git_env()
+def _empty_commit(message: str, *, cwd: Optional[str] = None, env: Optional[dict] = None) -> str:
     # An empty tree id is stable and well known; avoids depending on mktree stdin.
     empty_tree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-    commit = _run(["git", "commit-tree", empty_tree, "-m", message], cwd=cwd, env=env).stdout.strip()
+    return _run(["git", "commit-tree", empty_tree, "-m", message],
+                cwd=cwd, env=env).stdout.strip()
 
-    if expect is None:
-        push_args = ["push", "--force", "origin", f"{commit}:{ref}"]
-    else:
-        push_args = ["push", f"--force-with-lease={ref}:{expect}", "origin", f"{commit}:{ref}"]
+
+def _commit_leases(leases: list["Lease"], *, expects: dict[str, Optional[str]],
+                   cwd: Optional[str] = None) -> None:
+    """Atomically publish one or more leases, one ref per area.
+
+    ``expects`` maps each area ref to the remote value the caller last saw
+    (``None`` = "do not care", ``""`` = "must not exist yet").  A single
+    ``git push --atomic --force-with-lease`` publishes every ref or none: the
+    per-ref lease is the compare-and-swap that makes a claim safe without a lock
+    server, and ``--atomic`` makes a multi-area claim all-or-nothing.  Refs are
+    sorted so two concurrent multi-area claims cannot interleave into a deadlock
+    (git rejects a non-fast-forward atomically; the loser just retries).
+    """
+    env = _git_env()
+    refspecs = []
+    published: list[tuple[str, str]] = []
+    push_args = ["push", "--atomic"]
+    for lease in sorted(leases, key=lambda l: l.area):
+        ref = ref_for(lease.area)
+        commit = _empty_commit(lease.to_json(), cwd=cwd, env=env)
+        expect = expects.get(ref)
+        if expect is None:
+            refspecs.append(f"+{commit}:{ref}")  # per-ref force: "do not care"
+        else:
+            push_args.append(f"--force-with-lease={ref}:{expect}")
+            refspecs.append(f"{commit}:{ref}")
+        published.append((ref, commit))
+    push_args += ["origin", *refspecs]
     proc = git(*push_args, check=False, cwd=cwd, env=env)
     if proc.returncode != 0:
         raise CoordError(
-            f"could not publish the lease for {lease.area}/#{lease.issue} "
-            f"(someone else wrote it first - re-run to see the new state):\n"
+            f"could not publish lease(s) {', '.join(l.area for l in leases)} "
+            f"(someone else wrote first - re-run to see the new state):\n"
             f"{(proc.stderr or proc.stdout or '').strip()}"
         )
     # Keep the local mirror in step with the remote so the next read sees it
     # without waiting for a fetch.
-    git("update-ref", ref, commit, check=False, cwd=cwd)
+    for ref, commit in published:
+        git("update-ref", ref, commit, check=False, cwd=cwd)
 
 
-def delete_ref(area: str, issue: int, cwd: Optional[str] = None) -> None:
-    ref = ref_for(area, issue)
-    git("push", "origin", f":{ref}", check=False, cwd=cwd)
-    git("update-ref", "-d", ref, check=False, cwd=cwd)
+def refs_for_area(area: str, cwd: Optional[str] = None) -> list[str]:
+    """Every lease ref that belongs to ``area``.
+
+    Normally that is exactly ``refs/coord/leases/<area>``.  It also picks up
+    refs left in the *old* per-issue layout (``refs/coord/leases/<area>/<n>``)
+    by an agent running a pre-fix client, so ``sweep`` can clear them.
+    """
+    prefix = f"{REF_PREFIX}/{area}"
+    return [r for r in list_refs(cwd) if r == prefix or r.startswith(prefix + "/")]
+
+
+def delete_refs_for_area(area: str, cwd: Optional[str] = None) -> None:
+    for ref in refs_for_area(area, cwd) or [ref_for(area)]:
+        git("push", "origin", f":{ref}", check=False, cwd=cwd)
+        git("update-ref", "-d", ref, check=False, cwd=cwd)
+
+
+def clear_legacy_refs(area: str, cwd: Optional[str] = None) -> bool:
+    """Delete any old-layout ``<area>/<issue>`` refs, in a separate push.
+
+    Git refuses to create ``leases/world`` while ``leases/world/200`` exists
+    (file/directory conflict), and it checks that before running an atomic
+    transaction - so the delete cannot share the claim's push.  Called by
+    ``--takeover``: the human has just named the agent they are displacing, so
+    dropping its ref is announced, not silent.  Returns True if anything went.
+    """
+    ref = ref_for(area)
+    stale = [r for r in refs_for_area(area, cwd) if r != ref]
+    for r in stale:
+        git("push", "origin", f":{r}", check=False, cwd=cwd)
+        git("update-ref", "-d", r, check=False, cwd=cwd)
+    return bool(stale)
+
+
+def delete_ref(area: str, cwd: Optional[str] = None) -> None:
+    delete_refs_for_area(area, cwd)
 
 
 def area_holder(area: str, at: Optional[int] = None, cwd: Optional[str] = None) -> Optional[Lease]:
@@ -330,12 +385,29 @@ def cmd_claim(args: argparse.Namespace) -> int:
     fetch_ledger()
     at = now()
     area, issue = args.area, args.issue
-    holder = area_holder(area, at)
-    ref = ref_for(area, issue)
+    ref = ref_for(area)
     existing = read_lease(ref)
     local_sha = _local_ref_sha(ref)
 
-    if holder is not None and holder.issue != issue:
+    # A pre-fix client's ref (old per-issue layout) blocks the area ref, so the
+    # push below would fail with a raw git error.  --takeover names the agent
+    # being displaced, so clear it first; otherwise say exactly how to fix it.
+    legacy = [r for r in refs_for_area(area) if r != ref]
+    if legacy:
+        if not args.takeover:
+            raise CoordError(
+                f"area '{area}' has a legacy per-issue ref ({legacy[0]}) from an "
+                f"outdated client; it blocks the area ref. Run `scripts/coord "
+                f"sweep`, or re-run with --takeover to clear it now."
+            )
+        clear_legacy_refs(area)
+        fetch_ledger()
+        existing = read_lease(ref)
+        local_sha = _local_ref_sha(ref)
+
+    holder = area_holder(area, at)
+
+    if holder is not None and holder.issue != issue and not args.takeover:
         raise CoordError(
             f"area '{area}' is held by {holder.agent} on #{holder.issue} "
             f"until {iso(holder.expires)} ({human_delta(holder.expires - at)} left). "
@@ -355,7 +427,7 @@ def cmd_claim(args: argparse.Namespace) -> int:
     # CAS expectation: the ref value we last saw. "" means "must not exist".
     expect = local_sha if local_sha else ""
     try:
-        _commit_lease(lease, expect=expect)
+        _commit_leases([lease], expects={ref: expect})
     except CoordError as exc:
         # Someone raced us.  Re-read and report the real holder, so the caller
         # gets an actionable message instead of raw git output.
@@ -386,7 +458,8 @@ def cmd_claim(args: argparse.Namespace) -> int:
 
 def cmd_renew(args: argparse.Namespace) -> int:
     fetch_ledger()
-    lease = read_lease(ref_for(args.area, args.issue))
+    ref = ref_for(args.area)
+    lease = read_lease(ref)
     if lease is None:
         raise CoordError(f"no lease on {args.area}/#{args.issue} to renew")
     if lease.agent != args.agent and not args.force:
@@ -398,8 +471,8 @@ def cmd_renew(args: argparse.Namespace) -> int:
         lease.state = args.state
     if args.note is not None:
         lease.note = args.note
-    expect = _local_ref_sha(ref_for(lease.area, lease.issue)) or ""
-    _commit_lease(lease, expect=expect)
+    expect = _local_ref_sha(ref) or ""
+    _commit_leases([lease], expects={ref: expect})
     print(f"renewed {args.area} / #{args.issue} for {args.agent} "
           f"(expires {iso(lease.expires)}, state {lease.state})")
     return 0
@@ -407,13 +480,13 @@ def cmd_renew(args: argparse.Namespace) -> int:
 
 def cmd_release(args: argparse.Namespace) -> int:
     fetch_ledger()
-    lease = read_lease(ref_for(args.area, args.issue))
+    lease = read_lease(ref_for(args.area))
     if lease is None:
         print(f"nothing to release on {args.area}/#{args.issue}")
         return 0
     if lease.agent != args.agent and not args.force:
         raise CoordError(f"{args.area}/#{args.issue} is held by {lease.agent}, not {args.agent}")
-    delete_ref(args.area, args.issue)
+    delete_ref(args.area)
     print(f"released {args.area} / #{args.issue}")
     return 0
 
@@ -455,7 +528,8 @@ def cmd_check(args: argparse.Namespace) -> int:
     if not args.offline:
         fetch_ledger()
     at = now()
-    live = [l for l in list_leases() if l.is_live(at)]
+    leases = list_leases()
+    live = [l for l in leases if l.is_live(at)]
     problems: list[str] = []
     by_area: dict[str, list[Lease]] = {}
     by_issue: dict[int, list[Lease]] = {}
@@ -470,6 +544,16 @@ def cmd_check(args: argparse.Namespace) -> int:
         if len(group) > 1:
             who = ", ".join(f"{l.agent}@{l.area}" for l in group)
             problems.append(f"#{issue} has {len(group)} live leases: {who}")
+    # A ref in the old per-issue layout means a client predating the area-keyed
+    # ledger is still running; that is the one way a real collision can appear.
+    for ref in list_refs():
+        if len(ref[len(REF_PREFIX) + 1:].split("/")) != 2:
+            continue
+        legacy = read_lease(ref)
+        if legacy is not None and legacy.is_live(at):
+            problems.append(
+                f"legacy per-issue ref '{ref}' ({legacy.agent}) - an outdated "
+                f"client wrote it. Run `coord sweep` to clear it.")
     for p in problems:
         print(f"::error::coordination conflict: {p}")
     if problems:
@@ -566,11 +650,22 @@ def cmd_sweep(args: argparse.Namespace) -> int:
 
     removed = 0
     for l in expired:
-        delete_ref(l.area, l.issue)
+        delete_ref(l.area)
         removed += 1
         if args.gh:
             _sync_issue(l, live=False)
     print(f"swept {removed} expired lease(s); {len(leases) - removed} live remain.")
+
+    # Clear refs left in the old per-issue layout.  They can only exist for an
+    # area that has no area ref yet (git forbids `leases/x` and `leases/x/1`
+    # together), so this is what unblocks such an area for the new layout.
+    legacy = [r for r in list_refs()
+              if len(r[len(REF_PREFIX) + 1:].split("/")) == 2]
+    for ref in legacy:
+        git("push", "origin", f":{ref}", check=False)
+        git("update-ref", "-d", ref, check=False)
+    if legacy:
+        print(f"cleared {len(legacy)} legacy per-issue ref(s).")
 
     if args.gh:
         for l in leases:
@@ -730,6 +825,14 @@ def cmd_migrate(args: argparse.Namespace) -> int:
     if not commands:
         print("no live legacy claims found; nothing to migrate.")
         return 0
+    # The area is the lock, so two live legacy claims in the same area cannot
+    # both become leases; the second would lose the CAS.  Say so up front.
+    areas = [shlex.split(c)[shlex.split(c).index("--area") + 1] for c in commands]
+    dupes = {a for a in areas if areas.count(a) > 1}
+    if dupes:
+        print(f"note: multiple live legacy claims share area(s) "
+              f"{', '.join(sorted(dupes))}; only the first will take the lease - "
+              f"the others need their own area or must wait for expiry.")
     print("\nRun these to import the legacy claims as leases:\n")
     for line in commands:
         print("  " + line)
@@ -777,7 +880,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ttl", type=parse_duration, default=DEFAULT_TTL)
     p.add_argument("--note", default="")
     p.add_argument("--takeover", action="store_true",
-                   help="take an expired or someone else's lease (announced)")
+                   help="take an expired or someone else's lease (announced); "
+                        "also clears a pre-fix client's legacy ref if present")
     p.set_defaults(func=cmd_claim)
 
     p = sub.add_parser("renew", help="extend a lease you hold")

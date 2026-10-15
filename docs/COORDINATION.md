@@ -38,14 +38,16 @@ ask.
 
 A **file has exactly one owning focus area** (`docs/FOCUS_AREAS.md` §2), so two
 agents can collide on a file only by holding the **same area**. The area is
-therefore the only lock the fleet needs. A claim on an area is a **lease**: a git
-ref `refs/coord/leases/<area>/<issue>` whose target is a tiny JSON record with an
-expiry (`epoch + ttl`). Taking a lease is `git push --force-with-lease`, which is
-an **atomic compare-and-swap** — if two agents race, exactly one wins. A lease
-that reaches its expiry is **dead**, and the area is claimable again with no human
-involved. This is what makes the fleet safe when an agent **stops mid-work or
-pauses for an unreasonably long time**: it cannot renew, so its lease ages out,
-and nobody was ever waiting on it.
+therefore the only lock the fleet needs, and the lease is keyed by **area**, not
+by issue: a git ref `refs/coord/leases/<area>` whose target is a tiny JSON record
+with an expiry (`epoch + ttl`). Keying by issue would be a bug — two agents
+claiming different issues in one area would CAS different refs and both win.
+Taking a lease is `git push --force-with-lease`, which is an **atomic
+compare-and-swap** — if two agents race, exactly one wins. A lease that reaches
+its expiry is **dead**, and the area is claimable again with no human involved.
+This is what makes the fleet safe when an agent **stops mid-work or pauses for an
+unreasonably long time**: it cannot renew, so its lease ages out, and nobody was
+ever waiting on it.
 
 ## 2. Claiming, renewing, releasing
 

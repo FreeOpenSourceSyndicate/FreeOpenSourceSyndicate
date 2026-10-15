@@ -90,7 +90,7 @@ These are gone and should not be re-introduced:
 - **The tool or the workflow is broken.** The ledger is plain git refs; you can
   always read it with `git ls-remote origin 'refs/coord/*'` and delete a stuck
   lease with `scripts/coord release --force` or, in the worst case,
-  `git push origin :refs/coord/leases/<area>/<issue>`. Nothing about the game
+  `git push origin :refs/coord/leases/<area>`. Nothing about the game
   build or the tests depends on the ledger, so a coordination outage never blocks
   a merge.
 - **You want to go back.** The old protocol's documents are in git history; revert
@@ -101,6 +101,11 @@ These are gone and should not be re-introduced:
   ledger's own timestamps; a nonsensical value means the writer's clock is off.
   The default 6 h TTL and 24 h cap give hours of tolerance, so this is a
   correctness hazard only in extreme cases.
+- **A pre-fix client is still running.** An agent on the old per-issue layout
+  (`refs/coord/leases/<area>/<issue>`) writes a ref that *blocks* the area ref
+  (git cannot hold `leases/world` and `leases/world/200` at once). `coord check`
+  fails loudly on such a ref and the next `sweep` clears it, so the area frees
+  itself; `coord claim` also deletes it in the same atomic push when it can.
 
 ## 6. Timeline
 
