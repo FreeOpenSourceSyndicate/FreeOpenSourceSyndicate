@@ -59,17 +59,26 @@ harmless (the parity test keeps the two locales in lockstep) and is left in plac
 so a future HUD status readout can use it; removing it is a content decision, not
 this audit's.
 
-## The guard
+## The guards
 
 A literal is easy to re-introduce. `tests/test_i18n_keys.py` (ctest
-`i18n_key_coverage`) fails if any key-shaped literal in `src/` does not resolve
-in `assets/lang/en.json`, so a localised run cannot silently show an English
-fallback. It ignores file-name literals (`.json`, `.bmp`, …) and allow-lists
-`no.such.key` (looked up on purpose by `Game::languageSelfTest`). It is
-mutation-checked: renaming a real key makes it fail.
+`i18n_key_coverage`) fails if:
+
+1. any key-shaped literal in `src/` does not resolve in `assets/lang/en.json`
+   (so a localised run cannot silently show an English fallback); or
+2. any shipped locale does not carry **exactly** the English key set — a missing
+   key (which would show English) or an invented key (a typo rendered raw), and
+   a duplicate key (a copy-paste that shadows an earlier entry).
+
+It ignores file-name literals (`.json`, `.bmp`, …) and allow-lists `no.such.key`
+(looked up on purpose by `Game::languageSelfTest`). Both rules are
+mutation-checked: renaming a key, dropping one, or duplicating one makes it fail.
+The C++ parity gate in `tests/test_i18n.cpp`
+(`ShippedLocalesMatchTheEnglishKeySet`) covers the same key-set rule for the
+in-engine loader, so the two guards agree.
 
 ## Adding a string
 
-Add the key to `assets/lang/en.json` **and** every shipped locale (the parity
-test in `tests/test_i18n.cpp` requires an exact key match), keep it ASCII 32–126
-(`docs/LORE.md` §4), and reference it with `tr("key", "FALLBACK")`.
+Add the key to `assets/lang/en.json` **and** every shipped locale (both guards
+require an exact key match), keep it ASCII 32–126 (`docs/LORE.md` §4), and
+reference it with `tr("key", "FALLBACK")`.
