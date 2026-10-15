@@ -610,11 +610,16 @@ Do not start work outside the scope fence (ADR-0024).
   and title strings (and the `tr()` fallbacks in `Hud.cpp`/`TitleCard.cpp`) in the
   same change; `test_tr_fallbacks_match_en_json` compares the fallbacks to
   `en.json`, so a text-only change to one file fails the guard.
-- **Locale files must stay ASCII.** The embedded 5x7 bitmap font draws only
-  ASCII 32–126, so a non-ASCII glyph (e.g. an umlaut) renders blank. Write
-  translations as ASCII transliterations (`AE`/`OE`/`UE`/`SS`) and keep every
-  locale's key set and `{placeholder}` set equal to `en.json`; the gates in
-  `tests/test_i18n.cpp` enforce both (issues #95, #125).
+- **String-table values must stay ASCII — `en.json` included.** The embedded 5x7
+  bitmap font draws only ASCII 32–126, so a non-ASCII glyph (e.g. an umlaut)
+  renders blank. Write translations as ASCII transliterations (`AE`/`OE`/`UE`/`SS`)
+  and keep every locale's key set and `{placeholder}` set equal to `en.json`; the
+  gates in `tests/test_i18n.cpp` enforce both (issues #95, #125). The rule applies
+  to the English reference too: some of its values are drawn with no `tr()`
+  fallback (the window title, `mission.<id>.name`/`.desc`), so a non-ASCII English
+  string ships an invisible glyph — `test_english_values_are_renderable`
+  (`tests/test_i18n_keys.py`) and the extended C++ renderability gate fail it
+  (issue #288).
 - **The UI language is selectable (issue #123):** `--lang <code>` (CLI, wins) or
   `lang = <code>` in the config file picks a locale; `Game::loadLanguage`
   overlays `assets/lang/<code>.json` on the English table (untranslated keys stay

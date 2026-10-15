@@ -329,6 +329,15 @@ FOSSYND_TEST(I18n, ShippedLocalesKeepPlaceholdersAndAreRenderable)
     std::string entryError;
     const auto englishEntries = tableEntries(englishRoot, entryError);
 
+    // The English reference is drawn by the same 5x7 bitmap font, and some of its
+    // values have no `tr()` fallback to hide behind (the window title, and
+    // `mission.<id>.name` / `.desc`), so it must be renderable too — not just the
+    // locales (#288).
+    for (const auto& englishEntry : englishEntries)
+    {
+        FOSSYND_CHECK(isRenderableAscii(englishEntry.second));
+    }
+
     for (const std::filesystem::path& localePath : shippedLocaleFiles())
     {
         Json localeRoot;
