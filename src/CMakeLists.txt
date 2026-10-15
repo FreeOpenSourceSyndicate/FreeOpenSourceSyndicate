@@ -64,6 +64,13 @@ target_link_libraries(FOSSynd PRIVATE fossynd_core)
 # SDL2: prefer the CMake config package, fall back to pkg-config.
 find_package(SDL2 QUIET)
 if(TARGET SDL2::SDL2)
+    # Windows: link SDL2main *before* SDL2. SDL provides WinMain() and calls
+    # main() from it, so SDL2main is required; and it references SDL symbols that
+    # the SDL2 import library resolves, so MinGW's order-sensitive static link
+    # needs SDL2main first. Linux/macOS use the real main() and need nothing.
+    if(WIN32 AND TARGET SDL2::SDL2main)
+        target_link_libraries(FOSSynd PRIVATE SDL2::SDL2main)
+    endif()
     target_link_libraries(FOSSynd PRIVATE SDL2::SDL2)
 elseif(SDL2_FOUND)
     target_include_directories(FOSSynd PRIVATE ${SDL2_INCLUDE_DIRS})
@@ -89,6 +96,12 @@ set_target_properties(FOSSynd PROPERTIES
 # content it ships (issue #91).
 include(GNUInstallDirs)
 install(TARGETS FOSSynd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+# Windows: FOSSynd.exe links SDL2.dll, so ship the runtime DLL next to the
+# binary to keep the ZIP self-contained (unpack and run). Linux/macOS resolve
+# SDL2 from the system, so nothing extra is installed there. Issue #133.
+if(WIN32 AND TARGET SDL2::SDL2)
+    install(FILES "$<TARGET_FILE:SDL2::SDL2>" DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
 # Install every mission, not just `demo.json`: a mission added to the tree must
 # reach the package or an installed game silently loses it (issue #126).
 # `FILES_MATCHING` keeps stray non-mission files out.
@@ -157,6 +170,17 @@ if(BUILD_TESTS)
     # waypoint in order. Exits non-zero on a broken invariant.
     add_test(NAME game_waypoint_path
              COMMAND FOSSynd --headless --check-waypoint-path)
+    # Integer zoom (issue #122): every level keeps the screen<->tile round-trip
+    # exact and the level stays clamped, so clicks and orders stay correct when
+    # zoomed. Exits non-zero on a broken invariant.
+    add_test(NAME game_zoom
+             COMMAND FOSSynd --headless --check-zoom)
+    # `--zoom` selects the initial level and must clamp an out-of-range value
+    # rather than fail or render nothing; both runs must exit 0.
+    add_test(NAME game_zoom_flag
+             COMMAND FOSSynd --headless --zoom 2 --frames 1)
+    add_test(NAME game_zoom_clamped
+             COMMAND FOSSynd --headless --zoom 99 --frames 1)
     # Content validation (issue #81): resolve every mission's weaponId/agentId
     # against the catalogues in the shipped assets/data and exit non-zero on a
     # dangling reference. Absolute path so it works from any build directory.
@@ -172,6 +196,9 @@ if(BUILD_TESTS)
     # the English fallback, and `--lang xx` (unknown) must warn and still start
     # in English rather than fail. `--frames 1` runs one headless frame so the
     # init path (which loads the language) is exercised, not just the flag.
+    # It also covers the mission-text wiring (issue #176): `--check-lang de`
+    # asserts the loaded mission's name resolved through the German table, so
+    # removing the Game::buildMission wiring fails this test.
     # WORKING_DIRECTORY is the repo root so the `assets/lang/*.json` files are
     # found (the documented "run from the repo root" fallback); otherwise a
     # build-dir cwd would only ever see the embedded English copy.
@@ -191,4 +218,14 @@ if(BUILD_TESTS)
     add_test(NAME game_help
              COMMAND FOSSynd --help)
     set_tests_properties(game_help PROPERTIES PASS_REGULAR_EXPRESSION "Usage: FOSSynd")
+    # Window size (issue #152): a valid --window runs headless and exits 0; the
+    # parse/validation is also covered by the invalid-input cases below.
+    add_test(NAME game_window
+             COMMAND FOSSynd --headless --window 640x480 --frames 1)
+    add_test(NAME game_window_invalid
+             COMMAND FOSSynd --headless --window 0x0 --frames 1)
+    set_tests_properties(game_window_invalid PROPERTIES WILL_FAIL TRUE)
+    add_test(NAME game_window_malformed
+             COMMAND FOSSynd --headless --window 640 --frames 1)
+    set_tests_properties(game_window_malformed PROPERTIES WILL_FAIL TRUE)
 endif()

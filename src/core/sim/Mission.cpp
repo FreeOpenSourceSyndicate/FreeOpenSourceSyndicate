@@ -70,7 +70,7 @@ Team opposingTeam(Team team)
 
 } // namespace
 
-Mission::Mission(const TileGrid& grid, std::uint64_t seed)
+Mission::Mission(TileGrid& grid, std::uint64_t seed)
     : grid_(&grid)
     , rng_(seed)
 {
@@ -406,6 +406,72 @@ bool Mission::hasClearShot(std::size_t a, std::size_t b) const
         return true;
     }
     return hasLineOfSight(*grid_, agents_[a].tile(), agents_[b].tile());
+}
+
+// Walks the same supercover line `hasLineOfSight` uses and returns the first
+// blocked tile, so a wall the shot lands on can be identified. A plain
+// Bresenham walk would report a different tile at a corner crossing, so this
+// mirrors `hasLineOfSight` step for step: the tile reported is always the one
+// that actually blocks the line. Out-of-bounds neighbours are blocked (matching
+// `TileGrid::isWalkable`), so a shot can also strike the map edge.
+TilePos Mission::firstWallOnLine(TilePos from, TilePos to, bool& found) const
+{
+    found = false;
+    if (grid_ == nullptr)
+    {
+        return TilePos{0, 0};
+    }
+
+    int x = from.x;
+    int y = from.y;
+    const int dx = to.x - from.x;
+    const int dy = to.y - from.y;
+    const int nx = std::abs(dx);
+    const int ny = std::abs(dy);
+    const int signX = (dx > 0) - (dx < 0);
+    const int signY = (dy > 0) - (dy < 0);
+
+    int ix = 0;
+    int iy = 0;
+    while (ix < nx || iy < ny)
+    {
+        if ((1 + 2 * ix) * ny == (1 + 2 * iy) * nx)
+        {
+            // Diagonal corner: the segment touches both orthogonal neighbours as
+            // well as the diagonal one (same check as `hasLineOfSight`).
+            if (!grid_->isWalkable(x + signX, y))
+            {
+                found = true;
+                return TilePos{x + signX, y};
+            }
+            if (!grid_->isWalkable(x, y + signY))
+            {
+                found = true;
+                return TilePos{x, y + signY};
+            }
+            x += signX;
+            y += signY;
+            ++ix;
+            ++iy;
+        }
+        else if ((1 + 2 * ix) * ny < (1 + 2 * iy) * nx)
+        {
+            x += signX;
+            ++ix;
+        }
+        else
+        {
+            y += signY;
+            ++iy;
+        }
+
+        if (!grid_->isWalkable(x, y))
+        {
+            found = true;
+            return TilePos{x, y};
+        }
+    }
+    return TilePos{0, 0};
 }
 
 bool Mission::seesTarget(std::size_t observer, std::size_t target) const
@@ -928,16 +994,29 @@ void Mission::resolveFire()
         }
 
         const std::size_t targetIndex = static_cast<std::size_t>(target);
-        // A wall blocks fire even on an explicit order: no shooting through it.
-        if (!hasClearShot(i, targetIndex))
-        {
-            continue;
-        }
-
         const float distance = distanceBetween(i, targetIndex);
         const float range = attacker.weapon().range;
         if (distance > range)
         {
+            continue;
+        }
+
+        // A wall blocks fire even on an explicit order: no shooting through it.
+        // A shot into a wall lands on it, so a *destructible* wall is chipped
+        // while a solid one simply absorbs the round (exactly the no-op it was
+        // before). A destructible hit burns the normal fire cooldown, so wall
+        // damage is rate-limited like any other shot instead of being applied
+        // every frame.
+        if (!hasClearShot(i, targetIndex))
+        {
+            bool hitWall = false;
+            const TilePos wall =
+                firstWallOnLine(attacker.tile(), agents_[targetIndex].tile(), hitWall);
+            if (hitWall && grid_->isDestructible(wall.x, wall.y))
+            {
+                attacker.beginFireCooldown();
+                grid_->damageTile(wall.x, wall.y, static_cast<int>(attacker.weapon().damage));
+            }
             continue;
         }
 

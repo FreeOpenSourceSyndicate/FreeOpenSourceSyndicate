@@ -603,6 +603,20 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
     packaged binary headless — so packaging cannot bit-rot.
   - macOS/Windows packaging is **out of scope** here (no regular testers) and is
     a follow-up.
+- **Update (2026-10-15) — platform follow-ups, same decision.** The other two
+  platforms landed on this same CPack foundation, so they are recorded here
+  rather than as new ADRs:
+  - **macOS:** `DragNDrop` (`.dmg`) + `TGZ`, added by #118. The `Packaging
+    (macOS …)` job is **gated to `workflow_dispatch` and non-blocking**, because
+    macOS runners on this repo can queue and then be cancelled before starting,
+    which would redden `main` and deadlock merges (#136, #138).
+  - **Windows:** `ZIP` (no NSIS/WiX tooling needed), added by #133. The target
+    links `SDL2::SDL2main` (SDL supplies `WinMain` and calls `main` from it) and
+    the install rules ship `SDL2.dll` next to `FOSSynd.exe` so the archive is
+    self-contained. Its CI job uses the same **dispatch-gated, non-blocking**
+    pattern as macOS. Linux remains the only hard packaging gate.
+  - No existing generator, `FOSSYND_*` option, target name, or job name changed,
+    so other areas still rebase freely (`docs/FOCUS_AREAS.md` §4 Rule 5).
 - **Consequences:**
   - `cmake --build build --target package` yields
     `FOSSynd-<version>-Linux.tar.gz` and `fossynd_<version>_amd64.deb`.
@@ -765,10 +779,211 @@ for reassignment by a coordinator.
 
 ---
 
-## ADR-0020 — Enemies take cover when under fire
+## ADR-0020 — Mission-authored text is localised by mission id, not by file
 
-- **Status:** Accepted (2026-10-13)
-- **Date:** 2026-10-13
+- **Status:** Accepted
+- **Date:** 2026-10-15
+- **Context:** Issue #142. `core::i18n::StringTable` (ADR-0016) localises UI
+  chrome, and `--lang` (issue #123) resolves a locale at runtime, but the text a
+  mission authors — its `name` and `description` in
+  `assets/data/missions/*.json` — stays English for a German player. Three things
+  collide: mission files are **content** (`focus: tactical` owns
+  `assets/data/missions/`, `focus: content` owns the loader), the text lane must
+  not edit either; the localisation key must be **stable across a translated
+  display name** (so keying on the English name is wrong); and the game must
+  still run when a mission has no translation (self-contained binary, §1b).
+- **Options:**
+  1. **Key on the mission's English `name` string.** Rejected: editing the
+     English copy silently orphans every translation, and two missions could
+     share a name.
+  2. **Add a `name`/`description` key map inside each mission JSON.** Rejected:
+     it puts localisation into the content schema, which `focus: content` owns,
+     and duplicates the string-table schema.
+  3. **Derive a stable id from the mission content path (the file stem) and key
+     the string table on it** (`mission.<id>.name` / `mission.<id>.desc`), with
+     the text lane owning the lookup and the keys. Chosen: no content-schema
+     change is *required* (an id is derived from the path), the key is stable
+     across copy edits and languages, and a mission without keys simply shows its
+     authored text.
+- **Decision:** **Option 3.**
+  - New `core/i18n/MissionText.{h,cpp}` (engine-free, no I/O):
+    `missionIdFromPath(path)` returns the file stem (`.../demo.json` → `demo`)
+    only when it is a safe key segment (`[a-z0-9_-]+`); `missionNameKey(id)` /
+    `missionDescKey(id)` build `mission.<id>.name` / `mission.<id>.desc`, and
+    return `""` for an unsafe id so localisation is skipped rather than building
+    an ambiguous dotted key; `localizeMissionText(table, key, raw)` returns the
+    table value when the key is present and non-empty, else `raw` unchanged.
+  - The resolver is **idempotent**: it resolves from the mission's own authored
+    text, so applying it twice is safe (the second pass yields the same value).
+  - Shipped missions carry `mission.<id>.name` / `mission.<id>.desc` keys in
+    every locale; the existing #125 parity gate in `tests/test_i18n.cpp` keeps
+    `en`/`de` in lockstep, so a new key cannot ship untranslated.
+  - An **optional** mission `"id"` field (parsed into `MissionData::id`) is
+    proposed as an additive content-schema change (Rule 4 request, `focus:
+    content`); until it lands, the id is derived from the content path, so this
+    decision needs no content edit to be useful.
+- **Consequences:**
+  - A mission gains a translation by adding two JSON keys — no C++, no content
+    edit, no rebuild of the mission schema.
+  - Localisation is opt-in and fail-safe: no id, no keys, or an empty value all
+    leave the authored copy intact (never blank, never a raw key).
+  - Wiring `MissionData`'s localised text into the game (`Game::buildMission`)
+    and any on-screen display is an **engine-layer** change owned by
+    `focus: input-ui` / `focus: render`; filed as a Rule 4 request rather than
+    edited here (`Game.cpp` had a live PR).
+  - Covered by `tests/test_i18n.cpp` (key derivation, id-from-path, fallback,
+    idempotency, empty-value safety, and shipped-locale parity for every
+    mission).
+
+
+## ADR-0021 — Git-ref leases: machine-checked, self-expiring coordination
+
+- **Status:** Accepted (2026-10-15)
+- **Date:** 2026-10-15
+- **Supersedes:** the *claim mechanics* of ADR-0019. ADR-0019's central decision
+  — **flat, no coordinator** — stands and is reinforced here; what changes is
+  *how* a claim is recorded and expired.
+
+- **Context:** ADR-0019 removed the coordinator and made the eight focus areas
+  the coordination mechanism. That was the right call, but the *claim protocol*
+  it introduced is prose that a human must police:
+
+  1. **A claim is a comment.** `CLAIM:` / `LEASE:` / `TAKEOVER:` lines live in
+     issue comments and PR descriptions. Whether a claim is live is decided by
+     reading timestamps by eye — the fleet has no authoritative, machine-readable
+     ledger. Two agents can both believe they hold an area.
+  2. **The 24 h timeout is per *branch*, not per *area*.** It is computed from
+     "the latest `CLAIM`/`LEASE` timestamp for a branch", so a lease is tied to a
+     git branch name that may never be pushed. An agent that aborts before its
+     first push strands a claim that is invisible to any mechanical check.
+  3. **The workload plan (§8) is hand-maintained.** It is a large Markdown table
+     that an agent must edit after every merge; the project has already paid for
+     this — the git history contains **22 `docs(coord): refresh the queue`
+     commits**, each a full PR that changes one table. The plan is a *derived*
+     view, but it is stored as an *authored* document, so it drifts.
+  4. **It is unverifiable.** No CI job can answer "are two agents on one area?"
+     A comment-based claim cannot be a hard gate.
+  5. **It adds ceremony that buys nothing.** Mandatory start/end check-ins on a
+     hub issue, helper announcements, "adopt an orphaned PR" hand-wringing — all
+     prose an agent must remember, none of it enforced.
+
+  Meanwhile the *shape of the fleet* is: **1–10 agents**, each a stateless LLM
+  session that may **stop mid-work or pause for an unbounded time** (a crash, a
+  dropped connection, a run that never resumes), and human interaction must stay
+  minimal. The system has to assume its agents are unreliable and must never
+  block on one of them.
+
+- **Options:**
+
+  1. **Keep the comment protocol, tighten the prose.** Rejected: prose is exactly
+     what fails when the reader is an unreliable agent, and it still cannot be a
+     CI gate. It also keeps the hand-maintained §8 table and its churn.
+  2. **A lock server / database / coordination service.** Rejected: it is a new
+     single point of failure and a new dependency, and a dead agent could still
+     hold a lock unless the service itself reaps it — reintroducing a "who owns
+     the queue" role in operational form. The project's low-spec, no-heavy-deps
+     stance (`AGENTS.md` §1c) also argues against it.
+  3. **One coordinator agent that hands out work.** Rejected — this is precisely
+     what ADR-0019 removed, and it fails the moment that agent pauses.
+  4. **Trust git itself as the ledger: one ref per claim, updated by an atomic
+     compare-and-swap, expiring on a TTL.** Chosen. Git already gives us the one
+     primitive a lock needs — an atomic ref update that fails if the ref moved —
+     and the remote is already the shared, always-on state the fleet agrees on.
+     No new service, no new dependency, and expiry is a pure function of the
+     clock, so a dead agent cannot hold anything.
+
+- **Decision:** **Option 4.** Coordination state moves out of prose and into
+  **git refs** on the shared remote, with a tiny CLI (`scripts/coord`) as the
+  only interface.
+
+  **1. The lease.** A claim is a lease stored as a git ref:
+
+  ```
+  refs/coord/leases/<area>
+  ```
+
+  The ref target is an empty commit whose message is one JSON line:
+
+  ```json
+  {"agent": "...", "area": "world", "issue": 157, "branch": "feat/world-x",
+   "state": "claimed", "epoch": 1792050687, "ttl": 21600, "note": ""}
+  ```
+
+  - **One ref per leased area**, keyed by area alone — *not* by issue. The
+    ref *is* the lock, so it must be keyed by what the lock protects. If it were
+    `leases/<area>/<issue>`, two agents claiming different issues in one area
+    would CAS two different refs and both win, silently breaking the area lock.
+    Keying by area makes the single `push --force-with-lease` decide the area.
+  - The **area is the lock**: a file has exactly one owning focus area
+    (`docs/FOCUS_AREAS.md` §2), so two agents can collide on a file only by
+    holding the same area. Locking the area is therefore sufficient and minimal.
+  - **Claiming is `git push --force-with-lease`.** If two agents race, exactly one
+    push wins; the loser is rejected and re-reads the ledger. This is a real
+    compare-and-swap — the fleet needs no lock server to be correct.
+
+  **2. The TTL.** Every lease carries `epoch + ttl`. Default TTL is **6 h**,
+  capped at **24 h**. A lease past its expiry is **dead** and any agent may claim
+  the area. Renewal (`coord renew`) is one ref update, so a healthy agent extends
+  its lease cheaply; a **paused or dead agent cannot renew**, so its lease ages
+  out and the area frees itself. **The fleet never waits on a missing agent** —
+  this is the whole answer to "agents may stop mid-work or pause unreasonably
+  long". A lease live but quiet for **> 12 h** is shown as **stale** on the board
+  (the holder may still be working, but a `--takeover` is fair game).
+
+  **3. The board is generated, not authored.** `docs/COORDINATION_BOARD.md` is
+  rendered from the ledger by `scripts/coord board` and rewritten on every sweep.
+  It is a **view**; it cannot drift, and it deletes the hand-maintained §8 table
+  and its 22-refresh churn. Workload is the open-issue count, which GitHub already
+  tracks — not a number a human has to keep current.
+
+  **4. The sweep is the reaper.** A scheduled workflow
+  (`.github/workflows/coordination.yml`, every 30 min) runs `coord sweep`: it
+  deletes expired refs, syncs the `status:` labels and a convenience claim comment
+  on GitHub, and regenerates the board. This is the mechanical replacement for
+  "the coordinator reassigns work" and for every hand-written queue-refresh PR.
+
+  **5. It is a hard gate.** `coord check` fails if two live leases collide on an
+  area or an issue, and runs on every relevant PR/push plus in `ctest`. The
+  protocol is now *verifiable*, which the comment protocol never was.
+
+  **6. The ceremony is deleted.** No mandatory start/end check-ins, no hub
+  bulletin board, no availability announcements. The lease *is* the check-in: a
+  claim is visible to everyone the instant it is pushed, and its expiry is visible
+  as a countdown. Human interaction is needed only for the genuinely human
+  questions (product, licensing, a rule change), exactly as before.
+
+- **Consequences:**
+  - **A paused agent strands nothing.** Its lease expires on the clock; no human,
+    and no peer, has to notice. This is the property the old protocol lacked.
+  - **The protocol is machine-checkable**, so coordination regressions fail CI
+    instead of relying on an agent reading timestamps correctly.
+  - **Coordination overhead drops to three commands** (`claim`, `renew`,
+    `release`) plus one read-only `status`/board view. The prose rulebook shrinks
+    from a multi-document apparatus to one page plus the CLI.
+  - **No new runtime dependency**: Python 3 (stdlib only) and `git`. CI already
+    has both. Nothing heavy is added to the low-spec project (`AGENTS.md` §1c).
+  - **A lease ref is global state on the remote.** It is cheap (one tiny commit
+    per claim/renew) and invisible to a normal `git fetch`; clients that do not
+    care never see it. Anyone can audit it with plain git:
+    `git ls-remote origin 'refs/coord/*'`.
+  - **Clock skew is the residual risk.** TTLs are hours and the tolerance is
+    hours, so ordinary skew is harmless; a badly wrong clock is caught by
+    `coord status` showing a nonsensical remaining time. Agents are told to
+    trust the ledger's timestamps, not their own.
+  - **The eight focus areas are unchanged.** The area is the lock, so the file
+    map, overlap rules, and review policy in `docs/FOCUS_AREAS.md` §2/§4 all still
+    apply verbatim; only §5.3 (claims and leases) is rewritten.
+  - **Migration is lossless.** In-flight agents are imported from their existing
+    `CLAIM:` comments by `scripts/coord migrate` (see
+    `docs/COORDINATION_MIGRATION.md`); the legacy regexes stay in the tool so a
+    claim posted by a not-yet-updated agent is still honoured.
+
+---
+
+## ADR-0022 — Enemies take cover when under fire
+
+- **Status:** Accepted (2026-10-15)
+- **Date:** 2026-10-15
 - **Context:** Issue #120: enemies stand in the open and trade shots, so combat
   is a pure damage race. With line of sight now blocking fire (issue #62/#63),
   the pieces exist for a defensive move — a combatant under fire steps behind

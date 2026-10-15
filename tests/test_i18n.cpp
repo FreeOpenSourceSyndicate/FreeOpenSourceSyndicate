@@ -1,6 +1,7 @@
 /* AI/LLM-generated file. Do not treat as human-written source documentation. */
 #include "TestHarness.h"
 #include "core/data/Json.h"
+#include "core/i18n/MissionText.h"
 #include "core/i18n/StringTable.h"
 
 #include <algorithm>
@@ -331,4 +332,98 @@ FOSSYND_TEST(I18n, LocaleOverlayWinsOverFallbackPerKey)
     // Keys the locale omits survive from the fallback.
     FOSSYND_CHECK_EQ(table.get("a"), std::string("EN-A"));
     FOSSYND_CHECK_EQ(table.get("b"), std::string("EN-B"));
+}
+
+FOSSYND_TEST(I18n, MissionTextKeyDerivation)
+{
+    using fossynd::core::i18n::missionDescKey;
+    using fossynd::core::i18n::missionIdFromPath;
+    using fossynd::core::i18n::missionNameKey;
+
+    FOSSYND_CHECK_EQ(missionNameKey("demo"), std::string("mission.demo.name"));
+    FOSSYND_CHECK_EQ(missionDescKey("demo"), std::string("mission.demo.desc"));
+
+    // An id that is not a safe key segment yields no key (so localisation is
+    // skipped) rather than an ambiguous dotted key.
+    FOSSYND_CHECK_EQ(missionNameKey(""), std::string(""));
+    FOSSYND_CHECK_EQ(missionNameKey("a.b"), std::string(""));
+    FOSSYND_CHECK_EQ(missionNameKey("Demo"), std::string(""));
+    FOSSYND_CHECK_EQ(missionDescKey("has space"), std::string(""));
+
+    // A mission id is the file stem, so a content path maps to a stable id.
+    FOSSYND_CHECK_EQ(missionIdFromPath("assets/data/missions/demo.json"), std::string("demo"));
+    FOSSYND_CHECK_EQ(missionIdFromPath("/usr/share/fossynd/missions/escort.json"),
+                     std::string("escort"));
+    FOSSYND_CHECK_EQ(missionIdFromPath("demo"), std::string("demo"));
+    FOSSYND_CHECK_EQ(missionIdFromPath(""), std::string(""));
+}
+
+FOSSYND_TEST(I18n, MissionTextFallsBackToAuthoredTextAndIsIdempotent)
+{
+    using fossynd::core::i18n::localizeMissionText;
+    using fossynd::core::i18n::missionNameKey;
+
+    std::string error;
+    const Json root = Json::parse(R"({ "mission.demo.name": "Downtown Sweep" })", error);
+    StringTable table;
+    FOSSYND_CHECK(table.loadFromJson(root, error));
+
+    // A present key resolves to the table value.
+    FOSSYND_CHECK_EQ(localizeMissionText(table, missionNameKey("demo"), "Raw Authored Name"),
+                     std::string("Downtown Sweep"));
+    // A missing key leaves the mission's own text untouched.
+    FOSSYND_CHECK_EQ(localizeMissionText(table, missionNameKey("absent"), "Raw Authored Name"),
+                     std::string("Raw Authored Name"));
+    // No key at all (unsafe id) also leaves the authored text.
+    FOSSYND_CHECK_EQ(localizeMissionText(table, "", "Raw Authored Name"),
+                     std::string("Raw Authored Name"));
+
+    // Applying the resolver to its own result is safe: the second pass still
+    // resolves from the table, so the value is stable (idempotent).
+    const std::string once = localizeMissionText(table, missionNameKey("demo"), "Raw Authored Name");
+    FOSSYND_CHECK_EQ(localizeMissionText(table, missionNameKey("demo"), once), once);
+
+    // An empty table value is treated as "not translated", never blanking copy.
+    const Json blank = Json::parse(R"({ "mission.demo.name": "" })", error);
+    StringTable blankTable;
+    FOSSYND_CHECK(blankTable.loadFromJson(blank, error));
+    FOSSYND_CHECK_EQ(localizeMissionText(blankTable, missionNameKey("demo"), "Raw Authored Name"),
+                     std::string("Raw Authored Name"));
+}
+
+FOSSYND_TEST(I18n, ShippedMissionsHaveLocalisedTextInEveryLocale)
+{
+    using fossynd::core::i18n::localizeMissionText;
+    using fossynd::core::i18n::missionDescKey;
+    using fossynd::core::i18n::missionNameKey;
+
+    // The shipped missions are identified by their file stem (demo, escort).
+    const std::vector<std::string> missionIds = {"demo", "escort"};
+
+    const std::string srcDir = FOSSYND_SOURCE_DIR;
+    StringTable english;
+    std::string error;
+    FOSSYND_CHECK(english.loadFromFile(srcDir + "/assets/lang/en.json", error));
+
+    for (const std::string& id : missionIds)
+    {
+        // English is the reference: the authored copy is present verbatim.
+        FOSSYND_CHECK(english.has(missionNameKey(id)));
+        FOSSYND_CHECK(english.has(missionDescKey(id)));
+
+        // Every shipped locale must localise both fields; a missing key would
+        // silently show English to a non-English player.
+        for (const std::filesystem::path& localePath : shippedLocaleFiles())
+        {
+            StringTable locale;
+            FOSSYND_CHECK(locale.loadForLocale(localePath.stem().string(), srcDir, english, error));
+            FOSSYND_CHECK(locale.has(missionNameKey(id)));
+            FOSSYND_CHECK(locale.has(missionDescKey(id)));
+            // Resolution yields a non-empty, renderable string in that locale.
+            const std::string name =
+                localizeMissionText(locale, missionNameKey(id), std::string());
+            FOSSYND_CHECK(!name.empty());
+            FOSSYND_CHECK(isRenderableAscii(name));
+        }
+    }
 }

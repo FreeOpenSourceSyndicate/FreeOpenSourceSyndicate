@@ -31,6 +31,7 @@ A mission file describes one mission. Example:
 ```jsonc
 {
   "name": "Downtown Sweep",   // optional, defaults to "Mission"
+  "id": "demo",                // optional: stable key for localised mission text
   "width": 24,                 // required, > 0
   "height": 24,                // required, > 0
 
@@ -72,6 +73,12 @@ A mission file describes one mission. Example:
 
 ### Field notes
 
+- **`id`** is optional. It is a stable, language-independent identifier for the
+  mission, used to key localised mission text: a mission with `"id": "demo"`
+  looks up `mission.demo.name` / `mission.demo.desc` in the string table (see
+  `core/i18n/MissionText.h`). Omit it and the mission falls back to an id derived
+  from its file name, so `id` is only needed when you want the key to survive a
+  rename. A present-but-non-string `id` is a readable error.
 - **`buildings`** are rectangular footprints; **only the perimeter blocks
   movement**, so the interior stays walkable. `width`/`height` are in tiles and
   must be positive.
@@ -119,7 +126,10 @@ referenced by id instead of copied into every mission (ADR-0003):
     { "id": "pistol", "name": "Pistol", "damage": 10, "range": 6, "fireRate": 2.5, "accuracy": 0.72 },
     { "id": "rifle",  "name": "Rifle",  "damage": 8,  "range": 9, "fireRate": 4,   "accuracy": 0.65 },
     { "id": "launcher", "name": "Launcher", "damage": 45, "range": 10, "fireRate": 0.8,
-      "accuracy": 0.85, "areaRadius": 2.0 }
+      "accuracy": 0.85, "areaRadius": 2.0 },
+    { "id": "minigun", "name": "Minigun", "damage": 4, "range": 6, "fireRate": 16, "accuracy": 0.5 },
+    { "id": "flamethrower", "name": "Flamethrower", "damage": 7, "range": 4, "fireRate": 8, "accuracy": 0.6 },
+    { "id": "laser", "name": "Laser", "damage": 22, "range": 12, "fireRate": 1, "accuracy": 0.9 }
   ]
 }
 ```

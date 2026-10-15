@@ -14,6 +14,7 @@ they describe the version even if you are reading `main` and not the tag.
 
 | Version | Title | File | Tag |
 |---------|-------|------|-----|
+| 0.6.0 | Firestorm | [`v0.6.0-firestorm.md`](v0.6.0-firestorm.md) | `v0.6.0` |
 | 0.5.0 | Recruitment | [`v0.5.0-recruitment.md`](v0.5.0-recruitment.md) | `v0.5.0` |
 | 0.4.0 | Smart Enemies | [`v0.4.0-smart-enemies.md`](v0.4.0-smart-enemies.md) | `v0.4.0` |
 | 0.3.0 | Bystanders | [`v0.3.0-bystanders.md`](v0.3.0-bystanders.md) | `v0.3.0` |

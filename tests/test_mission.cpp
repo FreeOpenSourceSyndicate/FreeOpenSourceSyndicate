@@ -2,6 +2,7 @@
 #include "TestHarness.h"
 #include "core/sim/Mission.h"
 #include "core/world/LineOfSight.h"
+#include "core/world/Pathfinding.h"
 
 using namespace fossynd::core;
 
@@ -991,3 +992,96 @@ FOSSYND_TEST(Mission, EnemyWithoutCoverEngagesAsBefore)
     FOSSYND_CHECK(mission.agents()[1].tile().x < 10);
 }
 
+
+// --- destructible walls (issue #163) ---------------------------------------
+//
+// `TileGrid::damageTile` (#157) lets weapon fire open a blocked tile. These
+// tests pin the tactical half: a shot that lands on a destructible wall chips
+// it, a breach opens the route for a later path search, and a solid wall is
+// unchanged. The firing weapon has accuracy 0, so it never hits an agent and
+// every shot is an "impact" that lands on the wall in the line of fire — the
+// scenario is fully deterministic with no RNG.
+
+FOSSYND_TEST(Mission, FireChipsDestructibleWallUntilBreached)
+{
+    TileGrid grid(20, 20);
+    grid.setWalkable(5, 2, false);
+    grid.setDestructible(5, 2, true, 100); // 100 HP, weapon chips 10 per shot
+    Mission mission(grid, 43u);
+    const std::size_t hero = mission.addAgent(
+        makeAgent(2.0f, 2.0f, Team::Player, 100.0f, Weapon{"Test", 10.0f, 10.0f, 2.0f, 0.0f}));
+    mission.addAgent(makeAgent(8.0f, 2.0f, Team::Enemy, 100.0f,
+                               Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+
+    mission.orderAttack(hero, 1);
+
+    // A short burst chips the wall but does not breach it.
+    for (int i = 0; i < 15; ++i)
+    {
+        mission.update(0.05f);
+    }
+    const int chipped = grid.tileHitPoints(5, 2);
+    FOSSYND_CHECK(chipped < 100);
+    FOSSYND_CHECK(chipped > 0);
+    FOSSYND_CHECK(!grid.isWalkable(5, 2));
+    FOSSYND_CHECK_NEAR(mission.agents()[1].health(), 100.0f); // never shot through
+
+    // Sustained fire breaches it: walkable, no longer destructible.
+    for (int i = 0; i < 300; ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK(grid.isWalkable(5, 2));
+    FOSSYND_CHECK(!grid.isDestructible(5, 2));
+    FOSSYND_CHECK_NEAR(mission.agents()[1].health(), 100.0f);
+}
+
+FOSSYND_TEST(Mission, BreachedWallOpensTheRouteForPathfinding)
+{
+    TileGrid grid(8, 5);
+    grid.setWalkable(4, 0, false);
+    grid.setWalkable(4, 1, false);
+    grid.setWalkable(4, 2, false);
+    grid.setWalkable(4, 3, false);
+    grid.setWalkable(4, 4, false); // full-height wall splits the board
+    grid.setDestructible(4, 2, true, 5);
+
+    // The sealed wall leaves no route across.
+    FOSSYND_CHECK(findPath(grid, TilePos{1, 2}, TilePos{6, 2}).empty());
+
+    Mission mission(grid, 44u);
+    const std::size_t hero = mission.addAgent(
+        makeAgent(1.0f, 2.0f, Team::Player, 100.0f, Weapon{"Test", 10.0f, 10.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(6.0f, 2.0f, Team::Enemy, 100.0f,
+                               Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+    mission.orderAttack(hero, 1);
+
+    // One shot at (4,2) does 10 damage against 5 HP: the wall opens.
+    for (int i = 0; i < 25; ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK(grid.isWalkable(4, 2));
+    FOSSYND_CHECK(!findPath(grid, TilePos{1, 2}, TilePos{6, 2}).empty());
+}
+
+FOSSYND_TEST(Mission, FireLeavesANonDestructibleWallIntact)
+{
+    TileGrid grid(20, 20);
+    grid.setWalkable(5, 2, false); // solid wall: never marked destructible
+    Mission mission(grid, 45u);
+    const std::size_t hero = mission.addAgent(
+        makeAgent(2.0f, 2.0f, Team::Player, 100.0f, Weapon{"Test", 10.0f, 10.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(8.0f, 2.0f, Team::Enemy, 100.0f,
+                               Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+
+    mission.orderAttack(hero, 1);
+    for (int i = 0; i < 60; ++i) // 3 seconds of sustained fire
+    {
+        mission.update(0.05f);
+    }
+
+    FOSSYND_CHECK(!grid.isWalkable(5, 2)); // unchanged
+    FOSSYND_CHECK(!grid.isDestructible(5, 2));
+    FOSSYND_CHECK_NEAR(mission.agents()[1].health(), 100.0f);
+}

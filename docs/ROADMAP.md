@@ -72,7 +72,7 @@ A shippable demo, deliberately original in code and art.
 - [x] Depth-sorted sprite pass and animation (authored agent + prop sprites, walk cycle)
 - [x] Minimap (whole-board overview panel)
 - [x] Interpolated rendering over fixed-step sim
-- [ ] Zoom
+- [x] Zoom (integer levels 1x/2x/3x, nearest-neighbour; `+`/`-` or wheel)
 - [x] Click-to-select individual agents (click, shift-add, `1`–`4`, `A` for all)
 - [x] Focus-fire attack orders (right-click / click an enemy)
 - [x] Control-group hotkeys and per-agent waypoint queue (shift-click appends)
@@ -81,9 +81,10 @@ A shippable demo, deliberately original in code and art.
 
 ## Phase 3 — Game systems
 
-- [ ] Weapons: pistol, uzi, minigun, flamethrower, rocket launcher, laser
-      (started: pistol, rifle, uzi)
-- [ ] Gadgets: Compliance Beacon, shield, medikit, scanner (started: Compliance Beacon)
+- [x] Weapons: pistol, uzi, minigun, flamethrower, rocket launcher, laser
+      (catalogue is data-driven; the launcher does area damage)
+- [ ] Gadgets: Compliance Beacon, shield, medikit, scanner
+      (Compliance Beacon + medikit done; shield and scanner pending)
 - [ ] Cybernetic upgrades (speed, accuracy, health, perception)
 - [ ] Vehicles: cars/trains, hijacking, mounted weapons
 - [ ] Destructible environment
@@ -108,8 +109,9 @@ A shippable demo, deliberately original in code and art.
 - [ ] Original art and audio (`docs/ASSETS.md`)
 - [ ] Save/load
 - [x] Localization scaffolding (string table + `assets/lang/en.json`; the HUD and title card read from it)
+- [x] German UI translation (`assets/lang/de.json`, complete; ASCII-only font)
 - [ ] Modding / scripting layer (ADR-0004)
-- [ ] Packaging for Linux/macOS/Windows
+- [x] Packaging for Linux (`.deb` + `.tar.gz`), macOS (`.dmg`), and Windows (`.zip`)
 - [x] Low-spec / old-hardware profile (ADR-0008)
 
 ## Cross-cutting (every phase)

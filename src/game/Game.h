@@ -112,6 +112,20 @@ public:
     // key must fall back to its literal. Used by --check-lang.
     bool languageSelfTest() const;
 
+    // Headless self-check for integer zoom (issue #122): every level keeps the
+    // screen<->tile round-trip exact, the level stays clamped, and the on-screen
+    // distance between two tiles scales with the level. Used by --check-zoom.
+    bool zoomSelfTest();
+
+    // Current integer magnification (1 = authored scale). Exposed for the
+    // self-check and the HUD.
+    int zoomLevel() const { return zoom_; }
+
+    // Sets the initial integer zoom level (issue #122), clamped to
+    // [kZoomMin, kZoomMax]. Used by `--zoom` for headless captures. Must be set
+    // before init() so the initial camera clamp uses the right level.
+    void setInitialZoom(int level);
+
     // True when a non-English locale file was found and overlaid over the
     // English fallback (issue #123). Used by --check-lang to prove a requested
     // locale actually resolved, so a missing locale file fails the gate instead
@@ -123,6 +137,18 @@ public:
     {
         return lang_.has(key) && !lang_.get(key, "").empty();
     }
+
+    // The current mission's display name, resolved through the active string
+    // table (issue #142/#176). Falls back to the mission's authored name when the
+    // table has no `mission.<id>.name` key, so it is never blank. The view reads
+    // it to label the mission; it is populated by buildMission().
+    const std::string& missionName() const { return missionName_; }
+
+    // True when the mission name was actually overlaid from the active locale
+    // (the table carries a non-empty `mission.<id>.name` different from the
+    // authored text). Used by --check-lang to prove the mission text resolves
+    // for the requested locale, not just that a locale file loaded.
+    bool missionNameLocalized() const { return missionNameLocalized_; }
 
 private:
     // Looks up a localised UI string, falling back to the literal when the table
@@ -137,6 +163,9 @@ private:
     void buildSprites();
     void buildMinimap();
     void loadLanguage();
+    // Reflects the localised mission name in the OS window title (issue #176).
+    // No-op when there is no window (e.g. a headless check path).
+    void updateWindowTitle();
     void restart();
     void handleEvents(bool& running);
     void update(float dt);
@@ -191,6 +220,16 @@ private:
     void centerOn(const core::Vec2& tile);
     void clampCamera();
 
+    // Zoom (issue #122). The camera and map offset live in unzoomed surface
+    // pixels; `zoom_` is applied only at the screen boundary, so all the picking
+    // and order code that goes through tileToScreen/screenToTile keeps working
+    // unchanged. `tileToSurface`/`screenToSurface` are those boundaries;
+    // `applyZoom`/`clampZoom` step and clamp the level.
+    core::Vec2 tileToSurface(const core::Vec2& tile) const;
+    core::Vec2 screenToSurface(int screenX, int screenY) const;
+    void applyZoom(int delta);
+    void clampZoom();
+
     // Screen-space route the queued-route overlay draws for `agentIndex`: the
     // agent's tile followed by each queued waypoint, in order. Empty when the
     // agent is not alive or has no queued moves. Exposed so the headless
@@ -220,6 +259,12 @@ private:
     // agents read as people on a 64px tile and stay cheap to blit (AGENTS.md 1b).
     static constexpr int kSpriteScale = 3;
 
+    // Integer zoom levels (issue #122): the whole world pass is magnified by
+    // `zoom_`, nearest-neighbour so the pixel-art look holds (AGENTS.md §1).
+    // 1 = authored scale; the level is clamped to this small set.
+    static constexpr int kZoomMin = 1;
+    static constexpr int kZoomMax = 3;
+
     // Roughly how fast the walk cycle alternates, in steps per second. A view
     // detail only: it never feeds back into the simulation.
     static constexpr float kWalkCadence = 2.4f;
@@ -235,6 +280,10 @@ private:
     // Camera position, in pixels: the map texture is drawn at (-cameraX_, -cameraY_).
     float cameraX_ = 0.0f;
     float cameraY_ = 0.0f;
+
+    // Integer zoom (issue #122), applied at the screen boundary only. 1 is the
+    // authored scale; stepping is clamped to [kZoomMin, kZoomMax].
+    int zoom_ = 1;
 
     core::TileGrid grid_{kMapWidth, kMapHeight};
     core::Mission mission_{grid_};
@@ -265,6 +314,15 @@ private:
     // Localised UI strings (ADR-0016). Loaded once; empty means "no
     // localisation", in which case every lookup falls back to the literal.
     core::i18n::StringTable lang_;
+
+    // The current mission's display name, resolved through `lang_` in
+    // buildMission() (issue #142/#176). Never blank: falls back to the mission's
+    // authored name.
+    std::string missionName_;
+
+    // True when `missionName_` came from the active locale rather than the
+    // mission's authored text. See missionNameLocalized().
+    bool missionNameLocalized_ = false;
 
     BitmapFont font_;
 

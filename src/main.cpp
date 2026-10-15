@@ -41,6 +41,8 @@ void printUsage()
         "      --demo                 Attract mode: the AI plays the mission.\n"
         "      --title                Show the title card.\n"
         "      --low-spec             Small window, software renderer (old hardware).\n"
+        "      --window <W>x<H>       Set the window size in pixels (e.g. 1280x800).\n"
+        "      --zoom <n>             Set the integer zoom level (1-3).\n"
         "      --headless             Run without a display.\n"
         "      --frames <n>           Run n frames, then exit.\n"
         "      --screenshot <file>    Render a frame to <file> (BMP) and exit.\n"
@@ -52,9 +54,45 @@ void printUsage()
         "      --check-waypoints      Validate the shift-click waypoint queue.\n"
         "      --check-box-select     Validate box-select.\n"
         "      --check-waypoint-path  Validate the queued-route overlay.\n"
+        "      --check-zoom           Validate integer zoom levels.\n"
         "      --check-lang [locale]  Validate the UI string table.\n"
         "      --check-content [dir]  Validate mission/catalogue references.\n",
         FOSSYND_VERSION);
+}
+
+// Parse a "<W>x<H>" window size (e.g. "1280x800") into width/height. Returns
+// false (leaving the outputs unchanged) on malformed input, zero, negative, or
+// an absurdly large value, so a bad --window is rejected rather than silently
+// ignored (issue #152).
+bool parseWindowSize(const char* spec, int& width, int& height)
+{
+    if (spec == nullptr)
+    {
+        return false;
+    }
+    char* end = nullptr;
+    const long w = std::strtol(spec, &end, 10);
+    if (end == spec || (*end != 'x' && *end != 'X'))
+    {
+        return false;
+    }
+    const char* heightStart = end + 1;
+    end = nullptr;
+    const long h = std::strtol(heightStart, &end, 10);
+    if (end == heightStart || *end != '\0')
+    {
+        return false;
+    }
+    // Reject zero, negative, and absurdly large sizes; the upper bound keeps the
+    // window within what the software renderer and old hardware can handle.
+    const long kMaxDimension = 16384;
+    if (w <= 0 || h <= 0 || w > kMaxDimension || h > kMaxDimension)
+    {
+        return false;
+    }
+    width = static_cast<int>(w);
+    height = static_cast<int>(h);
+    return true;
 }
 
 // Directory containing the running executable, or "" if it cannot be found.
@@ -104,11 +142,14 @@ int main(int argc, char** argv)
     bool checkBoxSelect = false;
     bool checkWaypointPath = false;
     bool checkLang = false;
+    bool checkZoom = false;
     const char* checkLangLocale = nullptr; // --check-lang [<locale>]
     const char* checkContent = nullptr;   // --check-content [<dataDir>]
     const char* screenshot = nullptr;
+    const char* windowSpec = nullptr;     // --window <W>x<H>
     bool showHelp = false;
     bool showVersion = false;
+    int zoomLevel = 1;        // --zoom <n>
     std::string cliMission;   // --mission <path>
     std::string cliConfig;    // --config <path>
     std::string cliLang;      // --lang <locale>
@@ -135,6 +176,10 @@ int main(int argc, char** argv)
         {
             screenshot = argv[++i];
         }
+        else if (std::strcmp(argv[i], "--window") == 0 && i + 1 < argc)
+        {
+            windowSpec = argv[++i];
+        }
         else if (std::strcmp(argv[i], "--demo") == 0)
         {
             demo = true;
@@ -142,6 +187,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--low-spec") == 0)
         {
             lowSpec = true;
+        }
+        else if (std::strcmp(argv[i], "--zoom") == 0 && i + 1 < argc)
+        {
+            zoomLevel = std::atoi(argv[++i]);
         }
         else if (std::strcmp(argv[i], "--title") == 0)
         {
@@ -170,6 +219,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-waypoint-path") == 0)
         {
             checkWaypointPath = true;
+        }
+        else if (std::strcmp(argv[i], "--check-zoom") == 0)
+        {
+            checkZoom = true;
         }
         else if (std::strcmp(argv[i], "--check-lang") == 0)
         {
@@ -221,6 +274,17 @@ int main(int argc, char** argv)
     {
         std::printf("FOSSynd %s\n", FOSSYND_VERSION);
         return 0;
+    }
+
+    // Validate --window up front so a bad value fails fast (before any config
+    // lookup or content load), not just before init (issue #152).
+    int width = lowSpec ? 320 : 960;
+    int height = lowSpec ? 200 : 600;
+    if (windowSpec != nullptr && !parseWindowSize(windowSpec, width, height))
+    {
+        std::fprintf(stderr, "invalid --window '%s': expected <W>x<H> with 1..16384 (e.g. 1280x800)\n",
+                     windowSpec);
+        return 1;
     }
 
     // Resolve which mission to load: config file first, then a CLI --mission
@@ -292,14 +356,11 @@ int main(int argc, char** argv)
     // game (warn and keep English), never a failure here.
     const std::string lang = !cliLang.empty() ? cliLang : config.lang;
 
-    // Default window size; the low-spec profile shrinks it (ADR-0008).
-    int width = lowSpec ? 320 : 960;
-    int height = lowSpec ? 200 : 600;
-
     fossynd::game::Game game;
     game.setMissionPath(missionPath);
     game.setExeDir(exeDir);
     game.setLang(lang);
+    game.setInitialZoom(zoomLevel);
 
     // Show the authored title card for a real, interactive player. Automated
     // runs (headless, screenshots, attract mode) skip it and go straight to the
@@ -383,6 +444,10 @@ int main(int argc, char** argv)
             // The requested locale must have actually resolved — not silently
             // fallen back to English — and must translate a known key.
             ok = game.langOverlayLoaded() && game.langHasKey("hud.squad");
+            // The loaded mission's name must resolve through that locale too
+            // (issue #176): a locale that carries `mission.<id>.name` must show
+            // it, proving the mission-text wiring works, not just the UI chrome.
+            ok = ok && game.missionNameLocalized();
             if (!ok)
             {
                 std::fprintf(stderr, "language self-test: locale '%s' did not resolve\n",
@@ -390,6 +455,16 @@ int main(int argc, char** argv)
             }
         }
         std::printf(ok ? "language: ok\n" : "language: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkZoom)
+    {
+        // Headless guard for integer zoom (issue #122): the screen<->tile
+        // round-trip and the clamping must hold at every level. Used by the
+        // game_zoom ctest.
+        const bool ok = game.zoomSelfTest();
+        std::printf(ok ? "zoom: ok\n" : "zoom: FAILED\n");
         return ok ? 0 : 1;
     }
 

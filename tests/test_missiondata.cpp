@@ -73,6 +73,37 @@ FOSSYND_TEST(MissionData, ParsesAgentsAndWeapons)
     FOSSYND_CHECK(data.agents[2].team == Team::Civilian);
 }
 
+FOSSYND_TEST(MissionData, ParsesOptionalId)
+{
+    std::string error;
+
+    // Present: parsed verbatim.
+    Json root = Json::parse(R"({"id": "demo", "width": 4, "height": 4,
+                               "agents": [{"name":"X","team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(error.empty());
+    MissionData data;
+    FOSSYND_CHECK(MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_EQ(data.id, std::string("demo"));
+
+    // Absent: empty, and the rest of the mission is unaffected.
+    error.clear();
+    root = Json::parse(R"({"width": 4, "height": 4,
+                           "agents": [{"name":"X","team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(data.id.empty());
+    FOSSYND_CHECK_EQ(data.agents.size(), static_cast<std::size_t>(1));
+
+    // Present but not a string: a readable error, not a silent empty id.
+    error.clear();
+    root = Json::parse(R"({"id": 7, "width": 4, "height": 4,
+                           "agents": [{"name":"X","team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(error.find("id") != std::string::npos);
+}
+
 FOSSYND_TEST(MissionData, PopulatesAMissionFromData)
 {
     std::string error;
@@ -80,7 +111,7 @@ FOSSYND_TEST(MissionData, PopulatesAMissionFromData)
     MissionData data;
     FOSSYND_CHECK(MissionData::fromJson(root, data, error));
 
-    const TileGrid grid = buildGrid(data);
+    TileGrid grid = buildGrid(data);
     Mission mission(grid);
     populateMission(data, mission);
 
@@ -134,6 +165,7 @@ FOSSYND_TEST(MissionData, LoadsTheDemoMissionFromDisk)
     FOSSYND_CHECK_EQ(data.agents.size(), static_cast<std::size_t>(15));
     FOSSYND_CHECK_EQ(data.width, 24);
     FOSSYND_CHECK_EQ(data.height, 24);
+    FOSSYND_CHECK_EQ(data.id, std::string("demo"));
 }
 
 // --- Objective parsing (issue #30) ----------------------------------------
@@ -231,7 +263,7 @@ FOSSYND_TEST(MissionData, PopulateMissionCarriesTheObjective)
     MissionData data;
     FOSSYND_CHECK(MissionData::fromJson(root, data, error));
 
-    const TileGrid grid = buildGrid(data);
+    TileGrid grid = buildGrid(data);
     Mission mission(grid, 1u);
     populateMission(data, mission);
     FOSSYND_CHECK(mission.objective().kind == ObjectiveSpec::Kind::Survive);
@@ -249,6 +281,7 @@ FOSSYND_TEST(MissionData, LoadsTheEscortMissionFromDisk)
     FOSSYND_CHECK_EQ(data.objective.tileX, 18);
     FOSSYND_CHECK_EQ(data.objective.tileY, 18);
     FOSSYND_CHECK_EQ(data.agents.size(), static_cast<std::size_t>(9));
+    FOSSYND_CHECK_EQ(data.id, std::string("escort"));
 }
 
 // --- Shared weapon/agent catalogues (issue #34) ---------------------------
@@ -512,6 +545,31 @@ FOSSYND_TEST(Catalogues, LoadsTheShippedCataloguesFromDisk)
     FOSSYND_CHECK(agents.find("gunner") != nullptr);
     FOSSYND_CHECK_EQ(agents.find("gunner")->spec.weapon.name, std::string("Launcher"));
     FOSSYND_CHECK(agents.find("gunner")->spec.weapon.areaRadius > 0.0f);
+
+    // The Phase 3 weapon tiers (#124) are carried by templates (#160), so the
+    // tiers are referenceable from a mission rather than inert. Each template's
+    // `weaponId` must resolve; a dangling id would have failed the load above.
+    struct Carrier
+    {
+        const char* agentId;
+        const char* weaponId;
+        const char* weaponName;
+    };
+    const Carrier carriers[] = {
+        {"suppressor", "minigun", "Minigun"},
+        {"pyro", "flamethrower", "Flamethrower"},
+        {"marksman", "laser", "Laser"},
+    };
+    for (const Carrier& carrier : carriers)
+    {
+        const AgentEntry* agent = agents.find(carrier.agentId);
+        FOSSYND_CHECK(agent != nullptr);
+        FOSSYND_CHECK(weapons.find(carrier.weaponId) != nullptr);
+        if (agent != nullptr)
+        {
+            FOSSYND_CHECK_EQ(agent->spec.weapon.name, std::string(carrier.weaponName));
+        }
+    }
 
     // A mission loaded from disk picks up the catalogues sitting beside it.
     MissionData data;

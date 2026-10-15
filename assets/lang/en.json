@@ -3,7 +3,7 @@
 
   "app.title": "FOSSYND",
   "app.version": "v{version}",
-  "app.tagline": "RECRUITMENT",
+  "app.tagline": "FIRESTORM",
 
   "hud.objective.eliminate": "OBJECTIVE: ELIMINATE ALL {count} ENEMY AGENTS",
   "hud.objective.reach": "OBJECTIVE: REACH TILE ({x},{y})",
@@ -25,5 +25,10 @@
   "title.controls.attack": "RIGHT-CLICK  FOCUS FIRE",
   "title.controls.select": "1-4 RECALL  CTRL+1-4 SET  A  ALL",
   "title.controls.misc": "ARROWS  SCROLL   R  RESTART   ESC  QUIT",
-  "title.footer": "FOSSYND v{version}  -  FREE OPEN SOURCE SYNDICATE"
+  "title.footer": "FOSSYND v{version}  -  FREE OPEN SOURCE SYNDICATE",
+
+  "mission.demo.name": "Downtown Sweep",
+  "mission.demo.desc": "Sweep the downtown block: eliminate every enemy agent while keeping civilian casualties down.",
+  "mission.escort.name": "Rooftop Exfil",
+  "mission.escort.desc": "Cross the rooftops and get a living agent onto the exfil tile."
 }

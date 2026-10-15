@@ -18,6 +18,10 @@ third_party/
 CMakeLists.txt.user
 *.pro.user
 *.xcodeproj/
+
+# Python bytecode (scripts/coord and its tests)
+__pycache__/
+*.pyc
 *.sln
 *.vcxproj
 *.vcxproj.filters

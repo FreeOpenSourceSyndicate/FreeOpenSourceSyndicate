@@ -84,6 +84,26 @@ UI text lives in `assets/lang/<lang>.json` and is read through
   give it real text instead.
 - Add the same key to every language file you ship, or the fallback will show
   the key in that language.
+- **ASCII only (32–126).** The embedded bitmap font (`src/game/Font.cpp`) has no
+  accented glyphs, so transliterate rather than emit a character the renderer
+  cannot draw (German ä/ö/ü → `AE`/`OE`/`UE`, ß → `SS`; see
+  `assets/lang/de.json`). `tests/test_i18n.cpp` fails on a non-renderable value,
+  so an unrenderable glyph cannot ship.
+
+### 4a. Mission text keys
+
+Mission-authored copy (a mission's `name` / `description` in
+`assets/data/missions/*.json`) is localised through the same table (ADR-0020),
+keyed by a **stable mission id** rather than the English display name:
+
+- **Id** = the mission file stem (`assets/data/missions/demo.json` → `demo`), or
+  an explicit `id` field once the content schema carries one.
+- **Keys** = `mission.<id>.name` and `mission.<id>.desc`, resolved by
+  `core::i18n::localizeMissionText`. The value is the mission's display copy in
+  that language; the English value mirrors the mission file's own text.
+- A mission with no keys, no id, or an empty value shows its authored text — so
+  localisation is opt-in and never blanks a mission's copy.
+- Sentence case is fine here (§2): these are briefings, not HUD chrome.
 
 ## 5. Known naming concerns
 

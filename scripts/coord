@@ -1,0 +1,945 @@
+#!/usr/bin/env python3
+# AI/LLM-generated file. Do not treat as human-written source documentation.
+"""coord - a git-native task lease ledger for a fleet of parallel AI agents.
+
+The whole coordination state lives in **git refs** on the shared remote
+(``refs/coord/leases/<area>``).  A ref update is an atomic
+compare-and-swap, so a lease is taken without a lock server, a database, or any
+long-lived process.  Every lease carries a TTL; a lease whose TTL has passed is
+*expired* and may be taken over by anyone.  Because the fleet may pause an agent
+for an unbounded time (crash, dropped connection, a run that never resumes), the
+system never waits on a lease holder: it either works on something else or
+reclaims the lease after the TTL.
+
+Commands
+--------
+``claim``    take a lease (fails if a live one exists, unless ``--takeover``)
+``renew``    extend a lease you hold
+``release``  give a lease up early
+``status``   print the whole ledger
+``check``    assert no two live leases collide; used as a CI gate
+``board``    render the generated coordination board (docs/COORDINATION_BOARD.md)
+``sweep``    delete expired refs, sync issue labels/claims, rebuild the board
+``migrate``  import the legacy CLAIM:/LEASE: comments into the ledger (one-off)
+
+Ref layout (one ref per **area** - the lock is the area, so the CAS target must
+be the area too; see the "one lock per claim" note below):
+
+    refs/coord/leases/<area>
+
+The ref *target* is an empty commit whose message is a single JSON object::
+
+    {"agent": "...", "area": "world", "issue": 157, "branch": "...",
+     "state": "claimed", "epoch": 1792050687, "ttl": 21600, "note": ""}
+
+Design notes
+------------
+* **One lock per claim, and the lock is the area.**  A file has exactly one
+  owning focus area, so two agents collide only by holding the same area.  The
+  CAS target must therefore be the *area* ref, not the issue ref: if the lock
+  were keyed by issue, two agents claiming different issues in the same area at
+  the same instant would each CAS a different ref and both win.  Keying the ref
+  by area makes the single ``push --force-with-lease`` decide the whole area.
+  Claiming several areas at once is supported by pushing all of those refs in one
+  atomic ``--atomic`` push (all-or-nothing), with the refs ordered so concurrent
+  multi-area claims cannot deadlock.
+* **TTL, not a heartbeat.**  Renewal is cheap (one ref update); a stale holder
+  cannot block the fleet for more than the TTL.
+* **Expiry is mechanical.**  Nobody adjudicates.  ``sweep`` deletes expired
+  refs; the next ``claim`` simply succeeds.
+* **The board is generated.**  It is a *view*; it can never drift from the
+  ledger and never needs a hand-written "refresh the queue" PR.
+
+Only the Python standard library and a ``git`` binary are required.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shlex
+import subprocess
+import sys
+import time
+from dataclasses import dataclass, field
+from typing import Iterable, Optional
+
+# --------------------------------------------------------------------------- #
+# Configuration
+# --------------------------------------------------------------------------- #
+
+DEFAULT_TTL = 6 * 60 * 60          # 6 h: a normal work cycle.
+MAX_TTL = 24 * 60 * 60             # never hold an area longer than a day.
+STALE_AFTER = 12 * 60 * 60         # live but quiet this long -> flag on the board
+REF_PREFIX = "refs/coord/leases"
+
+# The eight focus areas (docs/FOCUS_AREAS.md).  The area is the lock: a file has
+# exactly one owning area, so two agents collide only by holding the same area.
+AREAS = (
+    "tactical",
+    "world",
+    "render",
+    "input-ui",
+    "content",
+    "text",
+    "platform",
+    "release",
+)
+
+BOARD_PATH = "docs/COORDINATION_BOARD.md"
+BOARD_MARKER = "<!-- coord:board -->"
+
+# The legacy protocol, still accepted on read so a claim posted by an old agent
+# mid-migration is honoured.  See docs/COORDINATION_MIGRATION.md.
+LEGACY_CLAIM_RE = re.compile(r"^\s*CLAIM:\s*(?P<agent>[^|]+)\|\s*(?P<area>[^|]+)\|", re.M)
+LEGACY_LEASE_RE = re.compile(r"^\s*LEASE:\s*(?P<agent>[^|]+)\|\s*(?P<branch>[^|]+?)\s*\|", re.M)
+LEGACY_TAKEOVER_RE = re.compile(r"^\s*TAKEOVER:\s*(?P<agent>[^|]+)\|\s*(?P<area>[^|]+)", re.M)
+
+
+# --------------------------------------------------------------------------- #
+# Small helpers
+# --------------------------------------------------------------------------- #
+
+class CoordError(RuntimeError):
+    """A recoverable, user-facing coordination error."""
+
+
+def now() -> int:
+    """Current POSIX time.  Patchable in tests via ``COORD_NOW``."""
+    override = os.environ.get("COORD_NOW")
+    if override:
+        return int(override)
+    return int(time.time())
+
+
+def iso(epoch: int) -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(epoch))
+
+
+def human_delta(seconds: int) -> str:
+    seconds = int(seconds)
+    sign = "-" if seconds < 0 else ""
+    seconds = abs(seconds)
+    for unit, size in (("d", 86400), ("h", 3600), ("m", 60)):
+        if seconds >= size:
+            return f"{sign}{seconds // size}{unit}"
+    return f"{sign}{seconds}s"
+
+
+def parse_duration(text: str) -> int:
+    """Parse ``90``, ``90m``, ``6h``, ``2d`` (or ``30s``) into seconds."""
+    text = str(text).strip()
+    m = re.fullmatch(r"(\d+)\s*([smhd]?)", text)
+    if not m:
+        raise CoordError(f"cannot parse duration: {text!r}")
+    value, unit = int(m.group(1)), m.group(2)
+    return value * {"": 60, "s": 1, "m": 60, "h": 3600, "d": 86400}[unit]
+
+
+def _run(args: list[str], *, check: bool = True, capture: bool = True,
+         cwd: Optional[str] = None, env: Optional[dict] = None) -> subprocess.CompletedProcess:
+    proc = subprocess.run(
+        args,
+        cwd=cwd,
+        env=env,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE if capture else None,
+        stderr=subprocess.PIPE if capture else None,
+    )
+    if check and proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "").strip()
+        raise CoordError(f"command failed ({' '.join(args)}): {detail}")
+    return proc
+
+
+def git(*args: str, check: bool = True, cwd: Optional[str] = None,
+        env: Optional[dict] = None) -> subprocess.CompletedProcess:
+    return _run(["git", *args], check=check, cwd=cwd, env=env)
+
+
+def gh(*args: str, check: bool = True) -> subprocess.CompletedProcess:
+    return _run(["gh", *args], check=check)
+
+
+# --------------------------------------------------------------------------- #
+# The ledger
+# --------------------------------------------------------------------------- #
+
+@dataclass
+class Lease:
+    agent: str
+    area: str
+    issue: int
+    branch: str = ""
+    state: str = "claimed"          # claimed | blocked | needs-review
+    epoch: int = 0
+    ttl: int = DEFAULT_TTL
+    note: str = ""
+
+    @property
+    def expires(self) -> int:
+        return self.epoch + self.ttl
+
+    def is_live(self, at: Optional[int] = None) -> bool:
+        return (at if at is not None else now()) < self.expires
+
+    def is_stale(self, at: Optional[int] = None) -> bool:
+        at = at if at is not None else now()
+        return self.is_live(at) and at - self.epoch > STALE_AFTER
+
+    def age(self, at: Optional[int] = None) -> int:
+        return (at if at is not None else now()) - self.epoch
+
+    def to_json(self) -> str:
+        return json.dumps(
+            {
+                "agent": self.agent,
+                "area": self.area,
+                "issue": self.issue,
+                "branch": self.branch,
+                "state": self.state,
+                "epoch": self.epoch,
+                "ttl": self.ttl,
+                "note": self.note,
+            },
+            sort_keys=True,
+        )
+
+    @classmethod
+    def from_message(cls, message: str) -> "Lease":
+        data = json.loads(message)
+        return cls(
+            agent=data["agent"],
+            area=data["area"],
+            issue=int(data["issue"]),
+            branch=data.get("branch", ""),
+            state=data.get("state", "claimed"),
+            epoch=int(data.get("epoch", 0)),
+            ttl=int(data.get("ttl", DEFAULT_TTL)),
+            note=data.get("note", ""),
+        )
+
+
+def ref_for(area: str) -> str:
+    """The lease ref for an area.  The **area is the lock**, so the ref is keyed
+    by area alone - see the "one lock per claim" design note."""
+    return f"{REF_PREFIX}/{area}"
+
+
+def read_lease(ref: str, cwd: Optional[str] = None) -> Optional[Lease]:
+    """Return the lease at ``ref``, or None if it is missing/undecodable."""
+    proc = git("log", "-1", "--format=%B", ref, check=False, cwd=cwd)
+    if proc.returncode != 0:
+        return None
+    body = (proc.stdout or "").strip()
+    if not body:
+        return None
+    try:
+        return Lease.from_message(body)
+    except (ValueError, KeyError, json.JSONDecodeError):
+        return None
+
+
+def list_refs(cwd: Optional[str] = None) -> list[str]:
+    proc = git("for-each-ref", "--format=%(refname)", f"{REF_PREFIX}/", check=False, cwd=cwd)
+    if proc.returncode != 0:
+        return []
+    return [line.strip() for line in (proc.stdout or "").splitlines() if line.strip()]
+
+
+def list_leases(cwd: Optional[str] = None) -> list[Lease]:
+    leases = []
+    for ref in list_refs(cwd):
+        lease = read_lease(ref, cwd)
+        if lease is not None:
+            leases.append(lease)
+    return leases
+
+
+def fetch_ledger(cwd: Optional[str] = None) -> None:
+    """Best-effort refresh of the remote lease refs into the local namespace.
+
+    Missing refs are normal (a fresh ledger), so failures are ignored.
+    """
+    git("fetch", "--prune", "--force", "origin",
+        f"+{REF_PREFIX}/*:{REF_PREFIX}/*", check=False, cwd=cwd)
+
+
+def _git_env() -> dict:
+    """Identity for the throwaway ledger commits (never touches user config)."""
+    env = dict(os.environ)
+    env.setdefault("GIT_AUTHOR_NAME", "coord-ledger")
+    env.setdefault("GIT_AUTHOR_EMAIL", "coord@localhost")
+    env.setdefault("GIT_COMMITTER_NAME", "coord-ledger")
+    env.setdefault("GIT_COMMITTER_EMAIL", "coord@localhost")
+    return env
+
+
+def _local_ref_sha(ref: str, cwd: Optional[str] = None) -> Optional[str]:
+    proc = git("rev-parse", "--verify", "--quiet", ref, check=False, cwd=cwd)
+    sha = (proc.stdout or "").strip()
+    return sha or None
+
+
+def _empty_commit(message: str, *, cwd: Optional[str] = None, env: Optional[dict] = None) -> str:
+    # An empty tree id is stable and well known; avoids depending on mktree stdin.
+    empty_tree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+    return _run(["git", "commit-tree", empty_tree, "-m", message],
+                cwd=cwd, env=env).stdout.strip()
+
+
+def _commit_leases(leases: list["Lease"], *, expects: dict[str, Optional[str]],
+                   cwd: Optional[str] = None) -> None:
+    """Atomically publish one or more leases, one ref per area.
+
+    ``expects`` maps each area ref to the remote value the caller last saw
+    (``None`` = "do not care", ``""`` = "must not exist yet").  A single
+    ``git push --atomic --force-with-lease`` publishes every ref or none: the
+    per-ref lease is the compare-and-swap that makes a claim safe without a lock
+    server, and ``--atomic`` makes a multi-area claim all-or-nothing.  Refs are
+    sorted so two concurrent multi-area claims cannot interleave into a deadlock
+    (git rejects a non-fast-forward atomically; the loser just retries).
+    """
+    env = _git_env()
+    refspecs = []
+    published: list[tuple[str, str]] = []
+    push_args = ["push", "--atomic"]
+    for lease in sorted(leases, key=lambda l: l.area):
+        ref = ref_for(lease.area)
+        commit = _empty_commit(lease.to_json(), cwd=cwd, env=env)
+        expect = expects.get(ref)
+        if expect is None:
+            refspecs.append(f"+{commit}:{ref}")  # per-ref force: "do not care"
+        else:
+            push_args.append(f"--force-with-lease={ref}:{expect}")
+            refspecs.append(f"{commit}:{ref}")
+        published.append((ref, commit))
+    push_args += ["origin", *refspecs]
+    proc = git(*push_args, check=False, cwd=cwd, env=env)
+    if proc.returncode != 0:
+        raise CoordError(
+            f"could not publish lease(s) {', '.join(l.area for l in leases)} "
+            f"(someone else wrote first - re-run to see the new state):\n"
+            f"{(proc.stderr or proc.stdout or '').strip()}"
+        )
+    # Keep the local mirror in step with the remote so the next read sees it
+    # without waiting for a fetch.
+    for ref, commit in published:
+        git("update-ref", ref, commit, check=False, cwd=cwd)
+
+
+def refs_for_area(area: str, cwd: Optional[str] = None) -> list[str]:
+    """Every lease ref that belongs to ``area``.
+
+    Normally that is exactly ``refs/coord/leases/<area>``.  It also picks up
+    refs left in the *old* per-issue layout (``refs/coord/leases/<area>/<n>``)
+    by an agent running a pre-fix client, so ``sweep`` can clear them.
+    """
+    prefix = f"{REF_PREFIX}/{area}"
+    return [r for r in list_refs(cwd) if r == prefix or r.startswith(prefix + "/")]
+
+
+def delete_refs_for_area(area: str, cwd: Optional[str] = None) -> None:
+    for ref in refs_for_area(area, cwd) or [ref_for(area)]:
+        git("push", "origin", f":{ref}", check=False, cwd=cwd)
+        git("update-ref", "-d", ref, check=False, cwd=cwd)
+
+
+def clear_legacy_refs(area: str, cwd: Optional[str] = None) -> bool:
+    """Delete any old-layout ``<area>/<issue>`` refs, in a separate push.
+
+    Git refuses to create ``leases/world`` while ``leases/world/200`` exists
+    (file/directory conflict), and it checks that before running an atomic
+    transaction - so the delete cannot share the claim's push.  Called by
+    ``--takeover``: the human has just named the agent they are displacing, so
+    dropping its ref is announced, not silent.  Returns True if anything went.
+    """
+    ref = ref_for(area)
+    stale = [r for r in refs_for_area(area, cwd) if r != ref]
+    for r in stale:
+        git("push", "origin", f":{r}", check=False, cwd=cwd)
+        git("update-ref", "-d", r, check=False, cwd=cwd)
+    return bool(stale)
+
+
+def delete_ref(area: str, cwd: Optional[str] = None) -> None:
+    delete_refs_for_area(area, cwd)
+
+
+def area_holder(area: str, at: Optional[int] = None, cwd: Optional[str] = None) -> Optional[Lease]:
+    """The live lease holding ``area`` right now, if any."""
+    live = [l for l in list_leases(cwd) if l.area == area and l.is_live(at)]
+    if not live:
+        return None
+    return max(live, key=lambda l: l.epoch)
+
+
+# --------------------------------------------------------------------------- #
+# Commands
+# --------------------------------------------------------------------------- #
+
+def cmd_claim(args: argparse.Namespace) -> int:
+    fetch_ledger()
+    at = now()
+    area, issue = args.area, args.issue
+    ref = ref_for(area)
+    existing = read_lease(ref)
+    local_sha = _local_ref_sha(ref)
+
+    # A pre-fix client's ref (old per-issue layout) blocks the area ref, so the
+    # push below would fail with a raw git error.  --takeover names the agent
+    # being displaced, so clear it first; otherwise say exactly how to fix it.
+    legacy = [r for r in refs_for_area(area) if r != ref]
+    if legacy:
+        if not args.takeover:
+            raise CoordError(
+                f"area '{area}' has a legacy per-issue ref ({legacy[0]}) from an "
+                f"outdated client; it blocks the area ref. Run `scripts/coord "
+                f"sweep`, or re-run with --takeover to clear it now."
+            )
+        clear_legacy_refs(area)
+        fetch_ledger()
+        existing = read_lease(ref)
+        local_sha = _local_ref_sha(ref)
+
+    holder = area_holder(area, at)
+
+    if holder is not None and holder.issue != issue and not args.takeover:
+        raise CoordError(
+            f"area '{area}' is held by {holder.agent} on #{holder.issue} "
+            f"until {iso(holder.expires)} ({human_delta(holder.expires - at)} left). "
+            f"Pick another area, or wait for expiry."
+        )
+    if existing is not None and existing.is_live(at) and existing.agent != args.agent and not args.takeover:
+        raise CoordError(
+            f"#{issue} is already claimed by {existing.agent} until "
+            f"{iso(existing.expires)}. Use --takeover to take it (announced, not silent)."
+        )
+
+    ttl = min(args.ttl, MAX_TTL)
+    lease = Lease(
+        agent=args.agent, area=area, issue=issue, branch=args.branch or "",
+        state="claimed", epoch=at, ttl=ttl, note=args.note or "",
+    )
+    # CAS expectation: the ref value we last saw. "" means "must not exist".
+    expect = local_sha if local_sha else ""
+    try:
+        _commit_leases([lease], expects={ref: expect})
+    except CoordError as exc:
+        # Someone raced us.  Re-read and report the real holder, so the caller
+        # gets an actionable message instead of raw git output.
+        fetch_ledger()
+        holder = area_holder(area, at)
+        if holder is not None and holder.issue != issue:
+            raise CoordError(
+                f"lost the race for area '{area}': now held by {holder.agent} "
+                f"on #{holder.issue} until {iso(holder.expires)}"
+            )
+        if holder is not None:
+            raise CoordError(
+                f"lost the race for #{issue} in '{area}': now held by {holder.agent} "
+                f"until {iso(holder.expires)}. Use --takeover to take it."
+            )
+        raise CoordError(
+            f"could not publish the lease for {area}/#{issue}; the ledger moved "
+            f"under us. Re-run `scripts/coord status` and try again."
+        ) from exc
+
+    verb = "took over" if args.takeover else "claimed"
+    print(f"{verb} {area} / #{issue} for {args.agent} "
+          f"(expires {iso(lease.expires)}, ttl {human_delta(ttl)})")
+    if args.branch:
+        print(f"branch: {args.branch}")
+    return 0
+
+
+def cmd_renew(args: argparse.Namespace) -> int:
+    fetch_ledger()
+    ref = ref_for(args.area)
+    lease = read_lease(ref)
+    if lease is None:
+        raise CoordError(f"no lease on {args.area}/#{args.issue} to renew")
+    if lease.agent != args.agent and not args.force:
+        raise CoordError(f"{args.area}/#{args.issue} is held by {lease.agent}, not {args.agent}")
+    lease.epoch = now()
+    if args.ttl:
+        lease.ttl = min(args.ttl, MAX_TTL)
+    if args.state:
+        lease.state = args.state
+    if args.note is not None:
+        lease.note = args.note
+    expect = _local_ref_sha(ref) or ""
+    _commit_leases([lease], expects={ref: expect})
+    print(f"renewed {args.area} / #{args.issue} for {args.agent} "
+          f"(expires {iso(lease.expires)}, state {lease.state})")
+    return 0
+
+
+def cmd_release(args: argparse.Namespace) -> int:
+    fetch_ledger()
+    lease = read_lease(ref_for(args.area))
+    if lease is None:
+        print(f"nothing to release on {args.area}/#{args.issue}")
+        return 0
+    if lease.agent != args.agent and not args.force:
+        raise CoordError(f"{args.area}/#{args.issue} is held by {lease.agent}, not {args.agent}")
+    delete_ref(args.area)
+    print(f"released {args.area} / #{args.issue}")
+    return 0
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    if not args.offline:
+        fetch_ledger()
+    at = now()
+    leases = sorted(list_leases(), key=lambda l: (l.area, l.issue))
+    if args.json:
+        print(json.dumps([
+            {**json.loads(l.to_json()),
+             "expires": l.expires, "live": l.is_live(at), "stale": l.is_stale(at)}
+            for l in leases
+        ], indent=2))
+        return 0
+
+    live = [l for l in leases if l.is_live(at)]
+    expired = [l for l in leases if not l.is_live(at)]
+    print(f"live leases: {len(live)}   expired (awaiting sweep): {len(expired)}")
+    for l in live:
+        flag = "STALE " if l.is_stale(at) else "      "
+        state = "" if l.state == "claimed" else f"[{l.state}] "
+        print(f"  {flag}{l.area:<9} #{l.issue:<5} {state}{l.agent}  "
+              f"expires {iso(l.expires)} ({human_delta(l.expires - at)} left)"
+              + (f"  branch={l.branch}" if l.branch else ""))
+    if expired:
+        print("expired (a `sweep` will delete these):")
+        for l in expired:
+            print(f"         {l.area:<9} #{l.issue:<5} {l.agent}  "
+                  f"expired {iso(l.expires)} ({human_delta(at - l.expires)} ago)")
+    free = [a for a in AREAS if area_holder(a, at) is None]
+    print(f"free areas: {', '.join(free) if free else '(none)'}")
+    return 0
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    """CI gate: two live leases must never collide on an area or an issue."""
+    if not args.offline:
+        fetch_ledger()
+    at = now()
+    leases = list_leases()
+    live = [l for l in leases if l.is_live(at)]
+    problems: list[str] = []
+    by_area: dict[str, list[Lease]] = {}
+    by_issue: dict[int, list[Lease]] = {}
+    for l in live:
+        by_area.setdefault(l.area, []).append(l)
+        by_issue.setdefault(l.issue, []).append(l)
+    for area, group in by_area.items():
+        if len(group) > 1:
+            who = ", ".join(f"{l.agent}#{l.issue}" for l in group)
+            problems.append(f"area '{area}' has {len(group)} live leases: {who}")
+    for issue, group in by_issue.items():
+        if len(group) > 1:
+            who = ", ".join(f"{l.agent}@{l.area}" for l in group)
+            problems.append(f"#{issue} has {len(group)} live leases: {who}")
+    # A ref in the old per-issue layout means a client predating the area-keyed
+    # ledger is still running; that is the one way a real collision can appear.
+    for ref in list_refs():
+        if len(ref[len(REF_PREFIX) + 1:].split("/")) != 2:
+            continue
+        legacy = read_lease(ref)
+        if legacy is not None and legacy.is_live(at):
+            problems.append(
+                f"legacy per-issue ref '{ref}' ({legacy.agent}) - an outdated "
+                f"client wrote it. Run `coord sweep` to clear it.")
+    for p in problems:
+        print(f"::error::coordination conflict: {p}")
+    if problems:
+        print(f"\n{len(problems)} live coordination conflict(s). "
+              f"Release one lease (`coord release`) or let it expire, then re-run.")
+        return 1
+    print(f"coordination check OK: {len(live)} live lease(s), no collisions.")
+    return 0
+
+
+def _board_rows(at: int) -> list[tuple[str, str, str, str]]:
+    """(area, holder, state, remaining) for each of the eight areas."""
+    leases = list_leases()
+    rows = []
+    for area in AREAS:
+        group = [l for l in leases if l.area == area]
+        live = [l for l in group if l.is_live(at)]
+        if live:
+            l = max(live, key=lambda x: x.epoch)
+            state = l.state if l.state != "claimed" else ("stale" if l.is_stale(at) else "claimed")
+            rows.append((area, f"{l.agent} · #{l.issue}", state, human_delta(l.expires - at)))
+        else:
+            rows.append((area, "—", "free", "—"))
+    return rows
+
+
+def render_board(at: Optional[int] = None) -> str:
+    at = at if at is not None else now()
+    rows = _board_rows(at)
+    lines = [
+        BOARD_MARKER,
+        "<!-- AI/LLM-generated file. Do not treat as human-written source documentation. -->",
+        "<!-- Generated by `scripts/coord board`. Do NOT edit by hand: the next",
+        "     sweep overwrites it. Edit the leases (`coord claim/renew/release`)",
+        "     or the issues; this board follows. -->",
+        "",
+        "# Coordination board (generated)",
+        "",
+        "A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a",
+        "generated *view*; the ledger is the source of truth. Regenerated on every",
+        "sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).",
+        "",
+        f"_As of {iso(at)}._",
+        "",
+        "| Area | Holder | State | TTL left |",
+        "|------|--------|-------|----------|",
+    ]
+    for area, holder, state, remaining in rows:
+        lines.append(f"| `{area}` | {holder} | {state} | {remaining} |")
+    lines += [
+        "",
+        "Legend: **free** = claimable now · **claimed** = live lease · **stale** = live",
+        "but quiet for > 12 h — the holder may still be working, but a `coord claim",
+        "--takeover` (or letting the TTL run out) is fair game · **blocked** /",
+        "**needs-review** = the holder set the state. Pending workload per area is the",
+        "open-issue count on GitHub.",
+        "",
+        "## How to take an area",
+        "",
+        "```bash",
+        "scripts/coord claim --area world --issue 157 --agent \"<model>\" --branch feat/world-xyz",
+        "# ... work ... then either:",
+        "scripts/coord renew  --area world --issue 157 --agent \"<model>\"",
+        "scripts/coord release --area world --issue 157 --agent \"<model>\"",
+        "```",
+        "",
+        "See `docs/COORDINATION.md` for the full protocol.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def cmd_board(args: argparse.Namespace) -> int:
+    if not args.offline:
+        fetch_ledger()
+    content = render_board()
+    if args.stdout:
+        print(content, end="")
+        return 0
+    path = args.path or BOARD_PATH
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(content)
+    print(f"wrote {path}")
+    return 0
+
+
+def cmd_sweep(args: argparse.Namespace) -> int:
+    """Delete expired refs, sync issue labels/claims, rebuild the board."""
+    fetch_ledger()
+    at = now()
+    leases = list_leases()
+    expired = [l for l in leases if not l.is_live(at)]
+
+    removed = 0
+    for l in expired:
+        delete_ref(l.area)
+        removed += 1
+        if args.gh:
+            _sync_issue(l, live=False)
+    print(f"swept {removed} expired lease(s); {len(leases) - removed} live remain.")
+
+    # Clear refs left in the old per-issue layout.  They can only exist for an
+    # area that has no area ref yet (git forbids `leases/x` and `leases/x/1`
+    # together), so this is what unblocks such an area for the new layout.
+    legacy = [r for r in list_refs()
+              if len(r[len(REF_PREFIX) + 1:].split("/")) == 2]
+    for ref in legacy:
+        git("push", "origin", f":{ref}", check=False)
+        git("update-ref", "-d", ref, check=False)
+    if legacy:
+        print(f"cleared {len(legacy)} legacy per-issue ref(s).")
+
+    if args.gh:
+        for l in leases:
+            if l.is_live(at):
+                _sync_issue(l, live=True)
+
+    if not args.no_board:
+        cmd_board(argparse.Namespace(offline=True, stdout=False, path=args.board_path))
+
+    if args.commit_board:
+        _commit_board(args.board_path or BOARD_PATH)
+    return 0
+
+
+LEASE_COMMENT_MARKER = "<!-- coord-lease -->"
+
+
+def _lease_comment_body(lease: Lease) -> str:
+    return (
+        f"{LEASE_COMMENT_MARKER}\n"
+        f"**Live lease** — epoch `{lease.epoch}` (`docs/COORDINATION.md`)\n\n"
+        f"- holder: `{lease.agent}`\n"
+        f"- branch: `{lease.branch or '—'}`\n"
+        f"- expires: `{iso(lease.expires)}`\n\n"
+        f"_The lease ledger (`refs/coord/leases/*`) is authoritative; this comment "
+        f"is a convenience copy for readers of the issue. It is not a claim, and "
+        f"editing it does nothing._"
+    )
+
+
+def _sync_issue(lease: Lease, *, live: bool) -> None:
+    """Best-effort label + claim-comment sync.  Failures never abort a sweep.
+
+    The comment is posted **once per lease epoch** (not on every sweep), so a
+    long-running lease does not generate 30-minute comment spam.
+    """
+    try:
+        if live:
+            if lease.state == "claimed":
+                gh("issue", "edit", str(lease.issue), "--add-label", "status: claimed")
+            elif lease.state == "blocked":
+                gh("issue", "edit", str(lease.issue),
+                   "--remove-label", "status: claimed", "--add-label", "status: blocked")
+            elif lease.state == "needs-review":
+                gh("issue", "edit", str(lease.issue),
+                   "--remove-label", "status: claimed", "--add-label", "status: needs-review")
+            if not _comment_already_posted(lease):
+                gh("issue", "comment", str(lease.issue),
+                   "--body", _lease_comment_body(lease))
+        else:
+            gh("issue", "edit", str(lease.issue),
+               "--remove-label", "status: claimed", "--remove-label", "status: blocked",
+               "--remove-label", "status: needs-review")
+    except CoordError as exc:  # pragma: no cover - network path
+        print(f"warning: label sync for #{lease.issue} skipped: {exc}", file=sys.stderr)
+
+
+def _comment_already_posted(lease: Lease) -> bool:
+    """True if this lease's epoch already has a claim comment on the issue."""
+    proc = gh("issue", "view", str(lease.issue), "--json", "comments", check=False)
+    if proc.returncode != 0:
+        return False
+    try:
+        comments = json.loads(proc.stdout).get("comments", [])
+    except json.JSONDecodeError:
+        return False
+    needle = f"epoch `{lease.epoch}`"
+    return any(LEASE_COMMENT_MARKER in c.get("body", "") and needle in c.get("body", "")
+               for c in comments)
+
+
+def _commit_board(path: str) -> None:
+    """Commit + push the regenerated board (used by the scheduled workflow)."""
+    if not os.path.exists(path):
+        return
+    git("add", path, check=False)
+    diff = git("diff", "--cached", "--quiet", check=False)
+    if diff.returncode == 0:
+        print("board unchanged; nothing to commit")
+        return
+    git("commit", "-m", "chore(coord): regenerate the coordination board [skip ci]", check=False)
+    git("push", "origin", "HEAD:refs/heads/main", check=False)
+    print("board committed and pushed")
+
+
+# --------------------------------------------------------------------------- #
+# Migration from the legacy comment protocol
+# --------------------------------------------------------------------------- #
+
+def cmd_migrate(args: argparse.Namespace) -> int:
+    """One-off import of legacy CLAIM:/LEASE: comments into the ledger.
+
+    Reads the legacy hub issue (and any issues listed) via ``gh``, parses the
+    last claim per issue, and prints the ``coord claim`` invocations that
+    reproduce that state as leases.  ``--apply`` performs them.  Closed issues and
+    claims already older than the TTL are skipped: only *live* legacy claims need
+    migrating.  See docs/COORDINATION_MIGRATION.md.
+    """
+    if not args.issues:
+        raise CoordError("migrate needs at least one issue number (e.g. the hub, 38)")
+    fetch_ledger()
+    at = now()
+    commands: list[str] = []
+    for issue in args.issues:
+        proc = gh("issue", "view", str(issue), "--json",
+                  "comments,state,number,title", check=False)
+        if proc.returncode != 0:
+            print(f"warning: cannot read #{issue}; skipping", file=sys.stderr)
+            continue
+        try:
+            data = json.loads(proc.stdout)
+        except json.JSONDecodeError:
+            continue
+        if data.get("state") != "OPEN":
+            print(f"#{issue}: closed - nothing to migrate")
+            continue
+        comments = data.get("comments", [])
+        latest: Optional[dict] = None
+        for c in comments:
+            body = c.get("body", "")
+            m = LEGACY_CLAIM_RE.search(body) or LEGACY_TAKEOVER_RE.search(body)
+            if m:
+                latest = {
+                    "agent": m.group("agent").strip(),
+                    "area": m.group("area").strip().replace("focus:", "").strip(),
+                    "branch": "",
+                    "ts": c.get("createdAt", ""),
+                }
+            lm = LEGACY_LEASE_RE.search(body)
+            if lm and latest is not None:
+                latest["branch"] = lm.group("branch").strip()
+        if not latest:
+            print(f"#{issue}: no legacy claim")
+            continue
+        if latest["area"] not in AREAS:
+            print(f"#{issue}: legacy claim has unknown area '{latest['area']}' - skipped")
+            continue
+        # Only a *live* legacy claim needs a lease; an expired one is already
+        # reclaimable, so importing it would just recreate a dead claim.
+        age = _comment_age_seconds(latest["ts"], at)
+        if age is not None and age > MAX_TTL:
+            print(f"#{issue}: legacy claim by {latest['agent']} is expired "
+                  f"({human_delta(age)} old) - left free")
+            continue
+        cmds = [
+            "scripts/coord", "claim",
+            "--area", latest["area"], "--issue", str(issue),
+            "--agent", latest["agent"],
+            "--branch", latest["branch"] or f"migrated/{latest['area']}-{issue}",
+            "--note", f"migrated from legacy CLAIM comment ({latest['ts']})",
+            "--takeover",
+        ]
+        line = " ".join(shlex.quote(c) for c in cmds)
+        commands.append(line)
+        print(f"#{issue}: live legacy claim by {latest['agent']} in '{latest['area']}'")
+
+    if not commands:
+        print("no live legacy claims found; nothing to migrate.")
+        return 0
+    # The area is the lock, so two live legacy claims in the same area cannot
+    # both become leases; the second would lose the CAS.  Say so up front.
+    areas = [shlex.split(c)[shlex.split(c).index("--area") + 1] for c in commands]
+    dupes = {a for a in areas if areas.count(a) > 1}
+    if dupes:
+        print(f"note: multiple live legacy claims share area(s) "
+              f"{', '.join(sorted(dupes))}; only the first will take the lease - "
+              f"the others need their own area or must wait for expiry.")
+    print("\nRun these to import the legacy claims as leases:\n")
+    for line in commands:
+        print("  " + line)
+    if args.apply:
+        print("\n--apply: executing...")
+        for line in commands:
+            parts = shlex.split(line)
+            rc = main(parts[1:])
+            if rc != 0:
+                print(f"  (failed: {line})", file=sys.stderr)
+    return 0
+
+
+def _comment_age_seconds(ts: str, at: int) -> Optional[int]:
+    """Age in seconds of an ISO-8601 ``...Z`` timestamp, or None if unparseable."""
+    if not ts:
+        return None
+    try:
+        parsed = time.strptime(ts, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return None
+    return at - int(time.mktime(parsed) + time.timezone)
+
+
+# --------------------------------------------------------------------------- #
+# CLI
+# --------------------------------------------------------------------------- #
+
+def _add_common(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--agent", required=True, help="your model / agent name, e.g. 'Claude Sonnet 4.5'")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="coord",
+        description="git-native task lease ledger for a fleet of parallel agents.",
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p = sub.add_parser("claim", help="take a lease on an area/issue")
+    _add_common(p)
+    p.add_argument("--area", required=True, choices=AREAS)
+    p.add_argument("--issue", required=True, type=int)
+    p.add_argument("--branch", default="")
+    p.add_argument("--ttl", type=parse_duration, default=DEFAULT_TTL)
+    p.add_argument("--note", default="")
+    p.add_argument("--takeover", action="store_true",
+                   help="take an expired or someone else's lease (announced); "
+                        "also clears a pre-fix client's legacy ref if present")
+    p.set_defaults(func=cmd_claim)
+
+    p = sub.add_parser("renew", help="extend a lease you hold")
+    _add_common(p)
+    p.add_argument("--area", required=True, choices=AREAS)
+    p.add_argument("--issue", required=True, type=int)
+    p.add_argument("--ttl", type=parse_duration, default=None)
+    p.add_argument("--state", choices=("claimed", "blocked", "needs-review"), default=None)
+    p.add_argument("--note", default=None)
+    p.add_argument("--force", action="store_true")
+    p.set_defaults(func=cmd_renew)
+
+    p = sub.add_parser("release", help="give up a lease early")
+    _add_common(p)
+    p.add_argument("--area", required=True, choices=AREAS)
+    p.add_argument("--issue", required=True, type=int)
+    p.add_argument("--force", action="store_true")
+    p.set_defaults(func=cmd_release)
+
+    p = sub.add_parser("status", help="print the ledger")
+    p.add_argument("--json", action="store_true")
+    p.add_argument("--offline", action="store_true", help="do not fetch from origin")
+    p.set_defaults(func=cmd_status)
+
+    p = sub.add_parser("check", help="assert no live lease collisions (CI gate)")
+    p.add_argument("--offline", action="store_true")
+    p.set_defaults(func=cmd_check)
+
+    p = sub.add_parser("board", help="render the generated coordination board")
+    p.add_argument("--path", default=None)
+    p.add_argument("--stdout", action="store_true")
+    p.add_argument("--offline", action="store_true")
+    p.set_defaults(func=cmd_board)
+
+    p = sub.add_parser("sweep", help="delete expired refs, sync labels, rebuild board")
+    p.add_argument("--gh", action="store_true", help="also sync issue labels/comments (needs gh)")
+    p.add_argument("--no-board", action="store_true")
+    p.add_argument("--board-path", default=None)
+    p.add_argument("--commit-board", action="store_true")
+    p.set_defaults(func=cmd_sweep)
+
+    p = sub.add_parser("migrate", help="import legacy CLAIM:/LEASE: comments (one-off)")
+    p.add_argument("--issues", nargs="+", type=int)
+    p.add_argument("--apply", action="store_true")
+    p.set_defaults(func=cmd_migrate)
+
+    return parser
+
+
+def main(argv: Optional[Iterable[str]] = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    try:
+        return args.func(args)
+    except CoordError as exc:
+        print(f"coord: {exc}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

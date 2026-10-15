@@ -41,6 +41,17 @@ set_target_properties(run_tests PROPERTIES
 
 add_test(NAME core_unit_tests COMMAND run_tests)
 
+# The coordination ledger tool (scripts/coord) is Python, so it gets its own
+# ctest entry rather than joining the C++ harness. It is a hard gate: a
+# coordination regression must not merge (docs/COORDINATION.md, ADR-0020).
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME coord_tests
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_coord.py)
+else()
+    message(STATUS "Python3 not found: skipping coord_tests")
+endif()
+
 # Under the sanitizer profile (FOSSYND_SANITIZE, ADR-0015) make the run strict:
 # the first error aborts, leak detection is on, and UBSan prints a stack trace.
 if(FOSSYND_SANITIZE)
