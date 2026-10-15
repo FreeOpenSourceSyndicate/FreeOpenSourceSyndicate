@@ -10,6 +10,7 @@
 #include "core/data/ContentPaths.h"
 #include "core/data/Json.h"
 #include "core/data/MissionData.h"
+#include "core/i18n/MissionText.h"
 #include "core/math/Isometric.h"
 #include "game/EmbeddedLang.h"
 #include "game/EmbeddedMission.h"
@@ -118,6 +119,7 @@ bool Game::init(int width, int height, bool headless, bool lowSpec)
 
     loadLanguage();
     buildMission();
+    updateWindowTitle();
     buildMapTexture();
     buildSprites();
     buildMinimap();
@@ -222,6 +224,21 @@ void Game::buildMission()
     mission_ = core::Mission(grid_, seed_);
     core::populateMission(data, mission_);
 
+    // Localise the mission's authored name through the active string table
+    // (issue #142/#176): a mission gains a translation by adding
+    // `mission.<id>.name` to its locale file, with no C++ or schema change. The
+    // id comes from the content path, or "demo" for the embedded copy. When the
+    // table has no key the authored name is kept, so the field is never blank.
+    std::string missionId = core::i18n::missionIdFromPath(missionPath_);
+    if (missionId.empty())
+    {
+        missionId = "demo"; // the embedded copy has no path of its own
+    }
+    const std::string localizedName =
+        core::i18n::localizeMissionText(lang_, core::i18n::missionNameKey(missionId), data.name);
+    missionName_ = localizedName;
+    missionNameLocalized_ = !localizedName.empty() && localizedName != data.name;
+
     selected_.clear();
     for (std::size_t i = 0; i < mission_.agents().size(); ++i)
     {
@@ -233,6 +250,18 @@ void Game::buildMission()
 
     // Fresh view-only animation state per mission build.
     views_.assign(mission_.agents().size(), AgentView{});
+}
+
+void Game::updateWindowTitle()
+{
+    // Show the localised mission name in the OS window title (issue #176). The
+    // window is absent on a headless run, so guard against a null handle.
+    if (window_ == nullptr || missionName_.empty())
+    {
+        return;
+    }
+    const std::string title = "FOSSynd v" FOSSYND_VERSION " - " + missionName_;
+    SDL_SetWindowTitle(window_, title.c_str());
 }
 
 void Game::buildSprites()
@@ -264,6 +293,7 @@ void Game::restart()
 {
     seed_ = seed_ * 6364136223846793005ull + 1442695040888963407ull;
     buildMission();
+    updateWindowTitle();
     // Drop any banked time so the new mission starts on a clean step boundary.
     clock_.reset();
     centerOn(mission_.agents().front().position());
