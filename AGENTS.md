@@ -755,8 +755,9 @@ Do not start work outside the scope fence (ADR-0024).
   screen-space geometry, shared with the `--check-waypoint-path` self-test. It
   reads the core queue and never writes it (golden rule 4).
 - Engine-layer changes are covered by the CI `core + game` job (ADR-0005). The
-  CI `low-spec` job builds the old-hardware profile (ADR-0008), the CI
-  `sanitizers` job runs the core tests under ASan + UBSan (ADR-0015), the CI
+  CI `low-spec` job builds the old-hardware profile (ADR-0008) and enforces its
+  binary-size budget via `scripts/check-size.sh` (issue #222, AGENTS.md §1b), the
+  CI `sanitizers` job runs the core tests under ASan + UBSan (ADR-0015), the CI
   `werror` job builds core + game with `-DFOSSYND_WERROR=ON` so a warning cannot
   land on `main` (issue #192), and the CI
   `packaging` job builds the Linux `.tar.gz` + `.deb` via CPack (ADR-0017).

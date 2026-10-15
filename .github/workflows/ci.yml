@@ -119,6 +119,14 @@ jobs:
       - name: Report binary size
         run: ls -l build/src/FOSSynd
 
+      # Binary-size budget (issue #222, AGENTS.md 1b, ADR-0008): the low-spec
+      # profile exists to stay small on old hardware, so a regression fails CI
+      # rather than silently shipping a bigger binary. The cap's human-readable
+      # home is docs/BUILD.md (release lane; see #271). Raise it there, with
+      # justification, if it must change.
+      - name: Check the low-spec binary size budget
+        run: ./scripts/check-size.sh build/src/FOSSynd
+
   # Sanitizer lane (ADR-0015): builds the engine-agnostic core + tests with
   # AddressSanitizer and UndefinedBehaviorSanitizer and runs ctest. Core-only, so
   # it needs no graphics dependencies and stays fast. A red lane means a real
