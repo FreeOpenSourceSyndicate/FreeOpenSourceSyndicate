@@ -12,6 +12,8 @@ TileGrid::TileGrid(int width, int height)
     types_.assign(count, 0);
     walkable_.assign(count, 1);
     decor_.assign(count, 0);
+    destructible_.assign(count, 0);
+    hitPoints_.assign(count, 0);
 }
 
 std::size_t TileGrid::index(int x, int y) const
@@ -76,6 +78,60 @@ void TileGrid::setDecor(int x, int y, Decor decor)
         return;
     }
     decor_[index(x, y)] = static_cast<std::uint8_t>(decor);
+}
+
+bool TileGrid::isDestructible(int x, int y) const
+{
+    if (!inBounds(x, y))
+    {
+        return false;
+    }
+    return destructible_[index(x, y)] != 0;
+}
+
+void TileGrid::setDestructible(int x, int y, bool destructible, int hitPoints)
+{
+    // A walkable tile has no wall to open, so it can never be destructible.
+    if (!inBounds(x, y) || isWalkable(x, y))
+    {
+        return;
+    }
+    const std::size_t i = index(x, y);
+    destructible_[i] = destructible ? 1 : 0;
+    // A non-destructible tile carries no hit points; a destructible one gets at
+    // least one, so it cannot be born already-open.
+    hitPoints_[i] = destructible ? (hitPoints > 0 ? hitPoints : 1) : 0;
+}
+
+int TileGrid::tileHitPoints(int x, int y) const
+{
+    if (!inBounds(x, y))
+    {
+        return 0;
+    }
+    return hitPoints_[index(x, y)];
+}
+
+bool TileGrid::damageTile(int x, int y, int amount)
+{
+    // Only a destructible *blocked* tile can be opened; a walkable one has no
+    // wall left to breach even if it still carries the destructible flag.
+    if (!inBounds(x, y) || amount <= 0 || !isDestructible(x, y) || isWalkable(x, y))
+    {
+        return false;
+    }
+    const std::size_t i = index(x, y);
+    hitPoints_[i] -= amount;
+    if (hitPoints_[i] > 0)
+    {
+        return false;
+    }
+    // The wall is breached: open the tile and clear anything drawn on it.
+    hitPoints_[i] = 0;
+    destructible_[i] = 0;
+    walkable_[i] = 1;
+    decor_[i] = static_cast<std::uint8_t>(Decor::None);
+    return true;
 }
 
 } // namespace fossynd::core

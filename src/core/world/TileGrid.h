@@ -40,6 +40,25 @@ public:
     Decor decor(int x, int y) const;
     void setDecor(int x, int y, Decor decor);
 
+    // The hit points a destructible tile gets when none is given.
+    static constexpr int kDefaultTileHitPoints = 20;
+
+    // Destructible tiles (roadmap: "Destructible environment"). A blocked tile
+    // may be flagged destructible and given hit points; damage reduces them and,
+    // at zero, flips the tile walkable (and clears its decor), so a later path
+    // search routes through the opening. Default: not destructible, so existing
+    // grids are unchanged. Only blocked tiles can be destructible — a walkable
+    // tile has nothing to open, so `setDestructible` on one is a no-op.
+    bool isDestructible(int x, int y) const;
+    void setDestructible(int x, int y, bool destructible, int hitPoints = kDefaultTileHitPoints);
+    int tileHitPoints(int x, int y) const;
+
+    // Applies `amount` damage to a destructible tile. Non-destructible,
+    // walkable, and out-of-bounds tiles are safe no-ops. Non-positive `amount`
+    // does nothing. When hit points reach zero the tile becomes walkable and its
+    // decor is cleared. Returns true if this call opened the tile.
+    bool damageTile(int x, int y, int amount);
+
 private:
     std::size_t index(int x, int y) const;
 
@@ -48,6 +67,8 @@ private:
     std::vector<int> types_;
     std::vector<std::uint8_t> walkable_;
     std::vector<std::uint8_t> decor_;
+    std::vector<std::uint8_t> destructible_;
+    std::vector<int> hitPoints_;
 };
 
 } // namespace fossynd::core
