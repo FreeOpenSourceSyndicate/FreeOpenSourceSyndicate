@@ -1,6 +1,7 @@
 /* AI/LLM-generated file. Do not treat as human-written source documentation. */
 #include "TestHarness.h"
 #include "core/sim/Mission.h"
+#include "core/world/LineOfSight.h"
 #include "core/world/Pathfinding.h"
 
 using namespace fossynd::core;
@@ -898,6 +899,97 @@ FOSSYND_TEST(Mission, MedikitDoesNotCrossTeams)
     FOSSYND_CHECK_NEAR(mission.useMedikit(user), 0.0f);
     FOSSYND_CHECK_NEAR(mission.agents()[1].health(), 40.0f); // enemy untouched
     FOSSYND_CHECK_EQ(mission.medikits(user), 1);
+}
+
+// --- Enemies take cover under fire (issue #120) ----------------------------
+
+namespace
+{
+
+// A harmless, always-hitting weapon: low damage so nobody dies during the test,
+// long range so the player can fire at the enemy from the start.
+Weapon makeChipGun()
+{
+    return Weapon{"Test", 5.0f, 20.0f, 5.0f, 1.0f};
+}
+
+constexpr float kTough = 100000.0f;
+
+bool agentIsHidden(const TileGrid& grid, const Mission& mission, std::size_t index)
+{
+    return !hasLineOfSight(grid, mission.agents()[0].tile(), mission.agents()[index].tile());
+}
+
+} // namespace
+
+FOSSYND_TEST(Mission, EnemyStepsIntoCoverWhenHit)
+{
+    // Player (2,2) can see the enemy (5,2) along the open row y = 2. A wall at
+    // (4,3) shadows the enemy's neighbours (5,3) and (6,3) without blocking the
+    // player's line to (5,2), so cover is available one step away.
+    TileGrid grid(20, 20);
+    grid.setWalkable(4, 3, false);
+    Mission mission(grid, 30u);
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, kTough, makeChipGun()));
+    mission.addAgent(makeAgent(5.0f, 2.0f, Team::Enemy, kTough));
+
+    // Before the first shot the enemy stands in the open, on the player's line.
+    FOSSYND_CHECK(hasLineOfSight(grid, TilePos{2, 2}, TilePos{5, 2}));
+    FOSSYND_CHECK(mission.agents()[1].tile() == (TilePos{5, 2}));
+
+    for (int i = 0; i < 40; ++i) // 2 seconds
+    {
+        mission.update(0.05f);
+    }
+
+    // Hit with cover next door: the enemy has left the open tile and is no
+    // longer visible to the player.
+    FOSSYND_CHECK(mission.agents()[1].tile() != (TilePos{5, 2}));
+    FOSSYND_CHECK(agentIsHidden(grid, mission, 1));
+}
+
+FOSSYND_TEST(Mission, EnemyHoldsCoverWhileStillUnderFire)
+{
+    TileGrid grid(20, 20);
+    grid.setWalkable(4, 3, false);
+    Mission mission(grid, 31u);
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, kTough, makeChipGun()));
+    mission.addAgent(makeAgent(5.0f, 2.0f, Team::Enemy, kTough));
+
+    for (int i = 0; i < 40; ++i)
+    {
+        mission.update(0.05f);
+    }
+    const TilePos inCover = mission.agents()[1].tile();
+    FOSSYND_CHECK(agentIsHidden(grid, mission, 1));
+
+    // Keep the shooter firing (the enemy is now hidden, so simulate the
+    // sustained fire): the enemy must stay put in cover, not walk back out.
+    for (int i = 0; i < 40; ++i)
+    {
+        mission.agents()[0].beginFireCooldown();
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK(mission.agents()[1].tile() == inCover);
+    FOSSYND_CHECK(agentIsHidden(grid, mission, 1));
+}
+
+FOSSYND_TEST(Mission, EnemyWithoutCoverEngagesAsBefore)
+{
+    // Open ground: no cover anywhere, so the enemy behaves exactly as before
+    // (closes to weapon range and fires).
+    TileGrid grid(20, 20);
+    Mission mission(grid, 32u);
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, kTough, makeChipGun()));
+    mission.addAgent(makeAgent(10.0f, 2.0f, Team::Enemy, kTough));
+
+    for (int i = 0; i < 40; ++i)
+    {
+        mission.update(0.05f);
+    }
+    // No cover exists, so the enemy stays engaged and closes the distance.
+    FOSSYND_CHECK_EQ(mission.agents()[1].aiState(), AiState::Engage);
+    FOSSYND_CHECK(mission.agents()[1].tile().x < 10);
 }
 
 

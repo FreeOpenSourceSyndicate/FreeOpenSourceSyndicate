@@ -10,6 +10,14 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **Enemies take cover under fire:** a combatant that is being shot at now
+  breaks for the nearest cover instead of trading shots in the open. While
+  engaged and under fire (just hit, or the shooter is still firing), an enemy
+  steps to a walkable neighbouring tile the shooter cannot see through
+  (`hasLineOfSight` false) and holds there; it re-engages when the shooter loses
+  the line, and slides to another covered neighbour when it can. An enemy in the
+  open is unchanged, so existing missions play as before. Deterministic, no RNG
+  (`Mission::findCoverTile`). Covered by `tests/test_mission.cpp`; see ADR-0022.
 - **Windows packaging lane (CPack `ZIP`):** a `WIN32`-guarded generator built
   from the existing `install()` rules ships `FOSSynd-<version>-Windows.zip`
   (with `SDL2.dll` beside `FOSSynd.exe`), and a `workflow_dispatch`-gated,

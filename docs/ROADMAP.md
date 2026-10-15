@@ -89,6 +89,7 @@ A shippable demo, deliberately original in code and art.
 - [ ] Vehicles: cars/trains, hijacking, mounted weapons
 - [ ] Destructible environment
 - [x] Enemy AI: engage (basic chase + fire)
+- [x] Enemy AI: take cover when under fire (steps behind walls; flank to dislodge)
 - [x] Enemy AI: patrol, retreat, call backup
 - [x] Civilians: flee from gunfire, killed as collateral damage
 - [x] Civilian/persuasion behaviour (Compliance Beacon recruitment)
