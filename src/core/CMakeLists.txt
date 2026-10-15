@@ -13,6 +13,7 @@ set(FOSSYND_CORE_SOURCES
     economy/WorldMap.cpp
     economy/Economy.cpp
     economy/Research.cpp
+    economy/Equipment.cpp
     data/Json.cpp
     data/MissionData.cpp
     data/Config.cpp

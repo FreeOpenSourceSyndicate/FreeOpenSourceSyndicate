@@ -1,0 +1,16 @@
+{
+  "items": [
+    { "id": "pistol", "kind": "weapon", "name": "Pistol", "cost": 0 },
+    { "id": "minigun", "kind": "weapon", "name": "Minigun", "cost": 500,
+      "requiresResearch": "minigun" },
+    { "id": "gauss", "kind": "weapon", "name": "Gauss Rifle", "cost": 900,
+      "requiresResearch": "gauss" },
+    { "id": "longshot", "kind": "weapon", "name": "Longshot Rifle", "cost": 700,
+      "requiresResearch": "longshot" },
+    { "id": "railgun", "kind": "weapon", "name": "Railgun", "cost": 1600,
+      "requiresResearch": "railgun" },
+    { "id": "shield", "kind": "gadget", "name": "Riot Shield", "cost": 300 },
+    { "id": "medkit", "kind": "gadget", "name": "Medkit", "cost": 200 },
+    { "id": "targeting-implant", "kind": "cybernetic", "name": "Targeting Implant", "cost": 800 }
+  ]
+}
