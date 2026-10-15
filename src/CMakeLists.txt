@@ -170,6 +170,17 @@ if(BUILD_TESTS)
     # waypoint in order. Exits non-zero on a broken invariant.
     add_test(NAME game_waypoint_path
              COMMAND FOSSynd --headless --check-waypoint-path)
+    # Integer zoom (issue #122): every level keeps the screen<->tile round-trip
+    # exact and the level stays clamped, so clicks and orders stay correct when
+    # zoomed. Exits non-zero on a broken invariant.
+    add_test(NAME game_zoom
+             COMMAND FOSSynd --headless --check-zoom)
+    # `--zoom` selects the initial level and must clamp an out-of-range value
+    # rather than fail or render nothing; both runs must exit 0.
+    add_test(NAME game_zoom_flag
+             COMMAND FOSSynd --headless --zoom 2 --frames 1)
+    add_test(NAME game_zoom_clamped
+             COMMAND FOSSynd --headless --zoom 99 --frames 1)
     # Content validation (issue #81): resolve every mission's weaponId/agentId
     # against the catalogues in the shipped assets/data and exit non-zero on a
     # dangling reference. Absolute path so it works from any build directory.

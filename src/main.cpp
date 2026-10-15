@@ -42,6 +42,7 @@ void printUsage()
         "      --title                Show the title card.\n"
         "      --low-spec             Small window, software renderer (old hardware).\n"
         "      --window <W>x<H>       Set the window size in pixels (e.g. 1280x800).\n"
+        "      --zoom <n>             Set the integer zoom level (1-3).\n"
         "      --headless             Run without a display.\n"
         "      --frames <n>           Run n frames, then exit.\n"
         "      --screenshot <file>    Render a frame to <file> (BMP) and exit.\n"
@@ -53,6 +54,7 @@ void printUsage()
         "      --check-waypoints      Validate the shift-click waypoint queue.\n"
         "      --check-box-select     Validate box-select.\n"
         "      --check-waypoint-path  Validate the queued-route overlay.\n"
+        "      --check-zoom           Validate integer zoom levels.\n"
         "      --check-lang [locale]  Validate the UI string table.\n"
         "      --check-content [dir]  Validate mission/catalogue references.\n",
         FOSSYND_VERSION);
@@ -140,12 +142,14 @@ int main(int argc, char** argv)
     bool checkBoxSelect = false;
     bool checkWaypointPath = false;
     bool checkLang = false;
+    bool checkZoom = false;
     const char* checkLangLocale = nullptr; // --check-lang [<locale>]
     const char* checkContent = nullptr;   // --check-content [<dataDir>]
     const char* screenshot = nullptr;
     const char* windowSpec = nullptr;     // --window <W>x<H>
     bool showHelp = false;
     bool showVersion = false;
+    int zoomLevel = 1;        // --zoom <n>
     std::string cliMission;   // --mission <path>
     std::string cliConfig;    // --config <path>
     std::string cliLang;      // --lang <locale>
@@ -184,6 +188,10 @@ int main(int argc, char** argv)
         {
             lowSpec = true;
         }
+        else if (std::strcmp(argv[i], "--zoom") == 0 && i + 1 < argc)
+        {
+            zoomLevel = std::atoi(argv[++i]);
+        }
         else if (std::strcmp(argv[i], "--title") == 0)
         {
             title = true;
@@ -211,6 +219,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-waypoint-path") == 0)
         {
             checkWaypointPath = true;
+        }
+        else if (std::strcmp(argv[i], "--check-zoom") == 0)
+        {
+            checkZoom = true;
         }
         else if (std::strcmp(argv[i], "--check-lang") == 0)
         {
@@ -348,6 +360,7 @@ int main(int argc, char** argv)
     game.setMissionPath(missionPath);
     game.setExeDir(exeDir);
     game.setLang(lang);
+    game.setInitialZoom(zoomLevel);
 
     // Show the authored title card for a real, interactive player. Automated
     // runs (headless, screenshots, attract mode) skip it and go straight to the
@@ -438,6 +451,16 @@ int main(int argc, char** argv)
             }
         }
         std::printf(ok ? "language: ok\n" : "language: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkZoom)
+    {
+        // Headless guard for integer zoom (issue #122): the screen<->tile
+        // round-trip and the clamping must hold at every level. Used by the
+        // game_zoom ctest.
+        const bool ok = game.zoomSelfTest();
+        std::printf(ok ? "zoom: ok\n" : "zoom: FAILED\n");
         return ok ? 0 : 1;
     }
 

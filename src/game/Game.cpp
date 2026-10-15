@@ -338,33 +338,84 @@ void Game::buildMapTexture()
     SDL_FreeSurface(surface);
 }
 
-core::Vec2 Game::tileToScreen(const core::Vec2& tile) const
+core::Vec2 Game::tileToSurface(const core::Vec2& tile) const
 {
     const core::Vec2 world = core::tileToWorld(tile.x, tile.y, kTileWidth, kTileHeight);
     return core::Vec2{world.x + mapOffsetX_ - cameraX_, world.y + mapOffsetY_ - cameraY_};
 }
 
+core::Vec2 Game::screenToSurface(int screenX, int screenY) const
+{
+    return core::Vec2{static_cast<float>(screenX) / static_cast<float>(zoom_),
+                      static_cast<float>(screenY) / static_cast<float>(zoom_)};
+}
+
+core::Vec2 Game::tileToScreen(const core::Vec2& tile) const
+{
+    const core::Vec2 surface = tileToSurface(tile);
+    return core::Vec2{surface.x * static_cast<float>(zoom_),
+                      surface.y * static_cast<float>(zoom_)};
+}
+
 core::TilePos Game::screenToTile(int screenX, int screenY) const
 {
-    const float worldX = static_cast<float>(screenX) + cameraX_ - mapOffsetX_;
-    const float worldY = static_cast<float>(screenY) + cameraY_ - mapOffsetY_;
+    const core::Vec2 surface = screenToSurface(screenX, screenY);
+    const float worldX = surface.x + cameraX_ - mapOffsetX_;
+    const float worldY = surface.y + cameraY_ - mapOffsetY_;
     const core::Vec2 tile = core::worldToTile(worldX, worldY, kTileWidth, kTileHeight);
     return core::TilePos{static_cast<int>(std::floor(tile.x + 0.5f)),
                          static_cast<int>(std::floor(tile.y + 0.5f))};
 }
 
+void Game::clampZoom()
+{
+    zoom_ = std::max(kZoomMin, std::min(zoom_, kZoomMax));
+}
+
+void Game::setInitialZoom(int level)
+{
+    zoom_ = level;
+    clampZoom();
+}
+
+void Game::applyZoom(int delta)
+{
+    const int previous = zoom_;
+    zoom_ += delta;
+    clampZoom();
+    if (zoom_ == previous)
+    {
+        return;
+    }
+    // Keep the point at the centre of the view fixed across the change so zoom
+    // feels anchored rather than jumping. The centre maps to the same surface
+    // point, so the camera moves by the surface delta scaled by the new level.
+    const float cx = static_cast<float>(screenWidth_) * 0.5f;
+    const float cy = static_cast<float>(screenHeight_) * 0.5f;
+    const core::Vec2 surface = screenToSurface(static_cast<int>(cx), static_cast<int>(cy));
+    const float newSurfaceX = surface.x * static_cast<float>(previous) / static_cast<float>(zoom_);
+    const float newSurfaceY = surface.y * static_cast<float>(previous) / static_cast<float>(zoom_);
+    cameraX_ += surface.x - newSurfaceX;
+    cameraY_ += surface.y - newSurfaceY;
+    clampCamera();
+}
+
 void Game::centerOn(const core::Vec2& tile)
 {
     const core::Vec2 screen = tileToScreen(tile);
-    cameraX_ += screen.x - static_cast<float>(screenWidth_) * 0.5f;
-    cameraY_ += screen.y - static_cast<float>(screenHeight_) * 0.5f;
+    cameraX_ += (screen.x - static_cast<float>(screenWidth_) * 0.5f) / static_cast<float>(zoom_);
+    cameraY_ += (screen.y - static_cast<float>(screenHeight_) * 0.5f) / static_cast<float>(zoom_);
     clampCamera();
 }
 
 void Game::clampCamera()
 {
-    const float maxX = std::max(0.0f, static_cast<float>(mapSurfaceWidth_ - screenWidth_));
-    const float maxY = std::max(0.0f, static_cast<float>(mapSurfaceHeight_ - screenHeight_));
+    // The visible surface region is the window divided by the zoom level, so a
+    // higher zoom shows less of the surface and the camera can pan further.
+    const float viewW = static_cast<float>(screenWidth_) / static_cast<float>(zoom_);
+    const float viewH = static_cast<float>(screenHeight_) / static_cast<float>(zoom_);
+    const float maxX = std::max(0.0f, static_cast<float>(mapSurfaceWidth_) - viewW);
+    const float maxY = std::max(0.0f, static_cast<float>(mapSurfaceHeight_) - viewH);
     cameraX_ = std::max(0.0f, std::min(cameraX_, maxX));
     cameraY_ = std::max(0.0f, std::min(cameraY_, maxY));
 }
@@ -528,6 +579,71 @@ void Game::recallControlGroup(int slot)
         // than leaving the player with nothing selected.
         selectAllPlayers();
     }
+}
+
+bool Game::zoomSelfTest()
+{
+    // Every level must round-trip a tile through the screen boundary exactly, and
+    // the on-screen spacing between two tiles must grow with the level. This is
+    // the picking/order path, so a break here would misplace clicks at zoom.
+    const core::Vec2 a{3.0f, 4.0f};
+    const core::Vec2 b{7.0f, 9.0f};
+
+    // Start from a known level and clamp low.
+    zoom_ = kZoomMin;
+    clampZoom();
+    if (zoom_ != kZoomMin)
+    {
+        std::fprintf(stderr, "zoom self-test: low clamp failed\n");
+        return false;
+    }
+
+    float previousSpan = -1.0f;
+    for (int level = kZoomMin; level <= kZoomMax; ++level)
+    {
+        zoom_ = level;
+
+        // Round-trip: a tile projected to the screen and mapped back must land on
+        // the same tile at every zoom level.
+        const core::Vec2 screenA = tileToScreen(a);
+        const core::TilePos backA =
+            screenToTile(static_cast<int>(std::lround(screenA.x)), static_cast<int>(std::lround(screenA.y)));
+        if (backA.x != static_cast<int>(a.x) || backA.y != static_cast<int>(a.y))
+        {
+            std::fprintf(stderr, "zoom self-test: round-trip failed at level %d\n", level);
+            return false;
+        }
+
+        // The screen distance between two fixed tiles scales with the level.
+        const core::Vec2 screenB = tileToScreen(b);
+        const float dx = screenB.x - screenA.x;
+        const float dy = screenB.y - screenA.y;
+        const float span = std::sqrt(dx * dx + dy * dy);
+        if (!(span > previousSpan))
+        {
+            std::fprintf(stderr, "zoom self-test: spacing did not grow at level %d\n", level);
+            return false;
+        }
+        previousSpan = span;
+    }
+
+    // The level must clamp high, not run away.
+    zoom_ = kZoomMax;
+    applyZoom(5);
+    if (zoom_ != kZoomMax)
+    {
+        std::fprintf(stderr, "zoom self-test: high clamp failed\n");
+        return false;
+    }
+    applyZoom(-100);
+    if (zoom_ != kZoomMin)
+    {
+        std::fprintf(stderr, "zoom self-test: low clamp after over-zoom failed\n");
+        return false;
+    }
+
+    zoom_ = kZoomMin;
+    return true;
 }
 
 bool Game::languageSelfTest() const
@@ -1125,10 +1241,13 @@ void Game::fillDiamondWorld(const core::Vec2& worldCenter, float radius, std::ui
                             std::uint8_t g, std::uint8_t b)
 {
     // A small isometric diamond footprint, drawn as a few horizontal spans.
-    const float halfW = radius * (kTileWidth * 0.5f);
-    const float halfH = radius * (kTileHeight * 0.5f);
-    const core::Vec2 screen = core::Vec2{worldCenter.x + mapOffsetX_ - cameraX_,
-                                         worldCenter.y + mapOffsetY_ - cameraY_};
+    // `worldCenter` is already in world pixels (tileToWorld output), so apply the
+    // zoom here directly rather than going back through tileToScreen.
+    const float z = static_cast<float>(zoom_);
+    const float halfW = radius * (kTileWidth * 0.5f) * z;
+    const float halfH = radius * (kTileHeight * 0.5f) * z;
+    const core::Vec2 screen = core::Vec2{(worldCenter.x + mapOffsetX_ - cameraX_) * z,
+                                         (worldCenter.y + mapOffsetY_ - cameraY_) * z};
     SDL_SetRenderDrawColor(renderer_, r, g, b, 255);
     const int minY = static_cast<int>(screen.y - halfH);
     const int maxY = static_cast<int>(screen.y + halfH);
@@ -1229,24 +1348,37 @@ void Game::handleEvents(bool& running)
                 break;
             }
             case SDLK_LEFT:
-                cameraX_ -= kTileWidth;
+                cameraX_ -= kTileWidth / static_cast<float>(zoom_);
                 clampCamera();
                 break;
             case SDLK_RIGHT:
-                cameraX_ += kTileWidth;
+                cameraX_ += kTileWidth / static_cast<float>(zoom_);
                 clampCamera();
                 break;
             case SDLK_UP:
-                cameraY_ -= kTileHeight;
+                cameraY_ -= kTileHeight / static_cast<float>(zoom_);
                 clampCamera();
                 break;
             case SDLK_DOWN:
-                cameraY_ += kTileHeight;
+                cameraY_ += kTileHeight / static_cast<float>(zoom_);
                 clampCamera();
+                break;
+            case SDLK_PLUS:
+            case SDLK_EQUALS:
+            case SDLK_KP_PLUS:
+                applyZoom(1);
+                break;
+            case SDLK_MINUS:
+            case SDLK_KP_MINUS:
+                applyZoom(-1);
                 break;
             default:
                 break;
             }
+            break;
+        case SDL_MOUSEWHEEL:
+            // Wheel up zooms in, wheel down zooms out (issue #122).
+            applyZoom(event.wheel.y > 0 ? 1 : (event.wheel.y < 0 ? -1 : 0));
             break;
         case SDL_MOUSEBUTTONDOWN:
             if (event.button.button == SDL_BUTTON_LEFT || event.button.button == SDL_BUTTON_RIGHT)
@@ -1503,8 +1635,11 @@ void Game::followSquad(float dt)
     centroid = centroid * (1.0f / static_cast<float>(count));
 
     const core::Vec2 wantScreen = tileToScreen(centroid);
-    const float wantX = cameraX_ + wantScreen.x - static_cast<float>(screenWidth_) * 0.5f;
-    const float wantY = cameraY_ + wantScreen.y - static_cast<float>(screenHeight_) * 0.5f;
+    // Screen offsets are magnified by the zoom, so divide back out to get the
+    // camera move in surface pixels.
+    const float z = static_cast<float>(zoom_);
+    const float wantX = cameraX_ + (wantScreen.x - static_cast<float>(screenWidth_) * 0.5f) / z;
+    const float wantY = cameraY_ + (wantScreen.y - static_cast<float>(screenHeight_) * 0.5f) / z;
 
     const float t = std::min(1.0f, dt * 4.0f);
     cameraX_ += (wantX - cameraX_) * t;
@@ -1520,11 +1655,14 @@ void Game::drawSpriteFrame(const SpriteSheet& sheet, int frameIndex, int screenA
         return;
     }
     const SDL_Rect src = sheet.frameRect(frameIndex);
+    // The authored cell is magnified by kSpriteScale, and the whole world pass by
+    // zoom_ (issue #122). Integer factors keep the pixels crisp.
+    const int scale = kSpriteScale * zoom_;
     SDL_Rect dst;
-    dst.w = src.w * kSpriteScale;
-    dst.h = src.h * kSpriteScale;
-    dst.x = screenAnchorX - sheet.anchorX(frameIndex) * kSpriteScale;
-    dst.y = screenAnchorY - sheet.anchorY(frameIndex) * kSpriteScale;
+    dst.w = src.w * scale;
+    dst.h = src.h * scale;
+    dst.x = screenAnchorX - sheet.anchorX(frameIndex) * scale;
+    dst.y = screenAnchorY - sheet.anchorY(frameIndex) * scale;
     SDL_RenderCopy(renderer_, sheet.texture(), &src, &dst);
 
     if (flash > 0)
@@ -1619,8 +1757,8 @@ void Game::renderAgents()
         // A soft drop shadow grounds every sprite on its tile.
         SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 80);
-        const int shadowW = 22;
-        const int shadowH = 9;
+        const int shadowW = 22 * zoom_;
+        const int shadowH = 9 * zoom_;
         SDL_Rect shadow{sx - shadowW / 2, sy - shadowH / 2 + 1, shadowW, shadowH};
         SDL_RenderFillRect(renderer_, &shadow);
 
@@ -1693,10 +1831,11 @@ void Game::renderAgents()
 
         // Health bar above the agent (players and enemies alike). Kept in screen
         // space (not sorted), so it always reads clearly on top of the sprite.
-        const int barW = 20;
-        const int barH = 3;
+        // Scaled with the zoom so it stays proportional to the sprite.
+        const int barW = 20 * zoom_;
+        const int barH = 3 * zoom_;
         const int barX = sx - barW / 2;
-        const int barY = sy - 52;
+        const int barY = sy - 52 * zoom_;
 
         SDL_SetRenderDrawColor(renderer_, 20, 20, 20, 255);
         SDL_Rect backRect{barX - 1, barY - 1, barW + 2, barH + 2};
@@ -1903,11 +2042,14 @@ void Game::render()
 
     if (mapTexture_ != nullptr)
     {
+        // Zoom (issue #122): scale the whole surface by `zoom_`. Integer
+        // destination offsets keep the pixel grid crisp; SDL's default
+        // nearest-neighbour sampling preserves the pixel-art look (AGENTS.md §1).
         SDL_Rect dst;
-        dst.x = static_cast<int>(-cameraX_);
-        dst.y = static_cast<int>(-cameraY_);
-        dst.w = mapSurfaceWidth_;
-        dst.h = mapSurfaceHeight_;
+        dst.x = -static_cast<int>(cameraX_ * static_cast<float>(zoom_));
+        dst.y = -static_cast<int>(cameraY_ * static_cast<float>(zoom_));
+        dst.w = mapSurfaceWidth_ * zoom_;
+        dst.h = mapSurfaceHeight_ * zoom_;
         SDL_RenderCopy(renderer_, mapTexture_, nullptr, &dst);
     }
 
