@@ -84,6 +84,11 @@ UI text lives in `assets/lang/<lang>.json` and is read through
   give it real text instead.
 - Add the same key to every language file you ship, or the fallback will show
   the key in that language.
+- **ASCII only (32–126).** The embedded bitmap font (`src/game/Font.cpp`) has no
+  accented glyphs, so transliterate rather than emit a character the renderer
+  cannot draw (German ä/ö/ü → `AE`/`OE`/`UE`, ß → `SS`; see
+  `assets/lang/de.json`). `tests/test_i18n.cpp` fails on a non-renderable value,
+  so an unrenderable glyph cannot ship.
 
 ### 4a. Mission text keys
 
