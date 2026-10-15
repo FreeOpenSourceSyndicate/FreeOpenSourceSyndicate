@@ -1,0 +1,113 @@
+/* AI/LLM-generated file. Do not treat as human-written source documentation. */
+#pragma once
+
+#include <string>
+#include <vector>
+
+#include "core/data/Json.h"
+#include "core/economy/Economy.h"
+#include "core/economy/Equipment.h"
+#include "core/economy/Research.h"
+#include "core/economy/WorldMap.h"
+#include "core/util/Rng.h"
+
+namespace fossynd::core
+{
+
+enum class CampaignState
+{
+    Running,
+    Won,
+    Lost,
+};
+
+// The top-level metagame object: it owns the world map, economy, research, and
+// equipment, and is what the game layer drives (Milestone B, docs/METAGAME.md).
+// Engine-free (ADR-0002); the systems are composed, not coupled.
+class Campaign
+{
+public:
+    // The player is syndicate 0; the map's other indices are rivals.
+    static constexpr int kPlayerSyndicate = 0;
+
+    // Parses a campaign object: the economy fields (read by Economy::fromJson),
+    // the syndicate name, starting funds, the sibling file names, the mission
+    // list, and the win condition. Does not load the sibling files; loadFromFile
+    // does. Returns false and sets `error` on a schema error.
+    static bool fromJson(const Json& root, Campaign& out, std::string& error);
+
+    // Parses `campaign.json` and then loads its sibling world/research/equipment
+    // files, resolved relative to the campaign file. A sibling named in the file
+    // that is missing on disk is not an error (the system starts empty, matching
+    // the mission/catalogue tolerance, AGENTS.md §1b); a sibling that exists but
+    // is invalid is an error.
+    static bool loadFromFile(const std::string& path, Campaign& out, std::string& error);
+
+    WorldMap& map() { return map_; }
+    Economy& economy() { return economy_; }
+    Research& research() { return research_; }
+    Equipment& equipment() { return equipment_; }
+    const WorldMap& map() const { return map_; }
+    const Economy& economy() const { return economy_; }
+    const Research& research() const { return research_; }
+    const Equipment& equipment() const { return equipment_; }
+
+    // The loaded research tree and equipment catalogue. The systems above need
+    // them to start research and buy items, so the campaign exposes them.
+    const ResearchTree& researchTree() const { return researchTree_; }
+    const EquipmentCatalogue& catalogue() const { return catalogue_; }
+
+    const std::string& syndicateName() const { return syndicateName_; }
+    float startingFunds() const { return startingFunds_; }
+    const std::vector<std::string>& missions() const { return missions_; }
+    const std::string& winCondition() const { return winCondition_; }
+
+    // --- selection & deployment ---
+
+    // Selects the mission deployed from `territory` and the agent slots to send
+    // (at most Equipment::kSquadSlots). Returns false if the territory is not
+    // player-owned, has no mission, or the slot list is too large.
+    bool selectMission(TerritoryId territory, const std::vector<int>& agentSlots);
+
+    TerritoryId selectedTerritory() const { return selectedTerritory_; } // -1 if none
+    const std::string& selectedMissionId() const { return selectedMissionId_; } // empty if none
+    const std::vector<int>& selectedSlots() const { return selectedSlots_; }
+
+    // --- progression ---
+
+    // Records the result of the selected mission. A win claims the territory for
+    // `syndicate`; a loss leaves ownership unchanged. Then updates the end state.
+    void recordResult(bool won, int syndicate);
+
+    CampaignState state() const { return state_; }
+
+    // Advances the economy and research by `dt` in-game seconds (the campaign
+    // clock, not the tactical timestep).
+    void tick(float dt, Rng& rng);
+
+private:
+    void evaluateEndState();
+
+    WorldMap map_;
+    Economy economy_;
+    Research research_;
+    Equipment equipment_;
+    ResearchTree researchTree_;
+    EquipmentCatalogue catalogue_;
+
+    std::string syndicateName_;
+    float startingFunds_ = 0.0f;
+    std::vector<std::string> missions_;
+    std::string winCondition_;
+
+    std::string worldFile_;
+    std::string researchFile_;
+    std::string equipmentFile_;
+
+    TerritoryId selectedTerritory_ = -1;
+    std::string selectedMissionId_;
+    std::vector<int> selectedSlots_;
+    CampaignState state_ = CampaignState::Running;
+};
+
+} // namespace fossynd::core
