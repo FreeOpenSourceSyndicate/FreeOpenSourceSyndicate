@@ -2,6 +2,8 @@
 #include "TestHarness.h"
 #include "core/world/LineOfSight.h"
 #include "core/world/Pathfinding.h"
+#include <algorithm>
+
 
 using namespace fossynd::core;
 
@@ -498,3 +500,128 @@ FOSSYND_TEST(Pathfinding, DestroyingATileOpensTheRoute)
     FOSSYND_CHECK(after.path.back() == (TilePos{4, 2}));
 }
 
+FOSSYND_TEST(Reachability, OpenGridReachesEveryTile)
+{
+    TileGrid grid(4, 3);
+    const std::vector<TilePos> tiles = reachableTiles(grid, TilePos{0, 0});
+    FOSSYND_CHECK_EQ(static_cast<int>(tiles.size()), 12);
+    // Row-major, start included, and every tile is the one it says it is.
+    FOSSYND_CHECK(tiles.front() == (TilePos{0, 0}));
+    FOSSYND_CHECK(tiles.back() == (TilePos{3, 2}));
+    for (const TilePos& t : tiles)
+    {
+        FOSSYND_CHECK(grid.isWalkable(t.x, t.y));
+    }
+}
+
+FOSSYND_TEST(Reachability, WallSealsOffARegion)
+{
+    TileGrid grid(5, 5);
+    blockColumn(grid, 2, 0, 4); // a full wall: the right side is sealed off
+
+    const std::vector<TilePos> tiles = reachableTiles(grid, TilePos{0, 0});
+    // Only the 2 columns left of the wall (2x5) are reachable.
+    FOSSYND_CHECK_EQ(static_cast<int>(tiles.size()), 10);
+    for (const TilePos& t : tiles)
+    {
+        FOSSYND_CHECK(t.x < 2);
+    }
+
+    FOSSYND_CHECK(areConnected(grid, TilePos{0, 0}, TilePos{1, 4}));
+    FOSSYND_CHECK(!areConnected(grid, TilePos{0, 0}, TilePos{4, 4}));
+}
+
+FOSSYND_TEST(Reachability, SealedObjectiveIsNotConnected)
+{
+    // A room walled off except for one tile that is itself blocked: the objective
+    // inside cannot be reached, which is what mission validation must detect.
+    TileGrid grid(5, 5);
+    blockColumn(grid, 2, 0, 4);
+    grid.setWalkable(2, 2, true); // doorway...
+    grid.setWalkable(3, 2, false); // ...but the tile just past it is blocked
+
+    FOSSYND_CHECK(!areConnected(grid, TilePos{0, 2}, TilePos{4, 2}));
+    FOSSYND_CHECK(!areConnected(grid, TilePos{0, 2}, TilePos{3, 2}));
+
+    // Reopening the blocked tile connects them, proving the query tracks the grid.
+    grid.setWalkable(3, 2, true);
+    FOSSYND_CHECK(areConnected(grid, TilePos{0, 2}, TilePos{4, 2}));
+}
+
+FOSSYND_TEST(Reachability, DiagonalCannotCutACorner)
+{
+    // Two blocked tiles meeting at a corner: a diagonal squeeze between them must
+    // not count as connected, matching findPath's corner rule.
+    TileGrid grid(3, 3);
+    grid.setWalkable(1, 0, false);
+    grid.setWalkable(0, 1, false);
+
+    FOSSYND_CHECK(!areConnected(grid, TilePos{0, 0}, TilePos{1, 1}, /*allowDiagonal=*/true));
+
+    // With the corner open, the diagonal move is allowed.
+    grid.setWalkable(1, 0, true);
+    FOSSYND_CHECK(areConnected(grid, TilePos{0, 0}, TilePos{1, 1}, /*allowDiagonal=*/true));
+}
+
+FOSSYND_TEST(Reachability, NodeCapBoundsTheScan)
+{
+    // A 1-tile-wide corridor: the flood must walk it one tile per expansion, so a
+    // small budget reaches only the near tiles and a full budget reaches the end.
+    TileGrid grid(10, 1);
+    const int small = static_cast<int>(reachableTiles(grid, TilePos{0, 0}, false, 3).size());
+    const int full = static_cast<int>(reachableTiles(grid, TilePos{0, 0}, false, 100).size());
+    FOSSYND_CHECK(small < full);
+    FOSSYND_CHECK_EQ(full, 10);
+    // The budget only ever shrinks the set; it never invents tiles.
+    FOSSYND_CHECK(small >= 1);
+}
+
+FOSSYND_TEST(Reachability, StartNotWalkableIsEmpty)
+{
+    TileGrid grid(5, 5);
+    grid.setWalkable(2, 2, false);
+
+    FOSSYND_CHECK(reachableTiles(grid, TilePos{2, 2}).empty());
+    FOSSYND_CHECK(reachableTiles(grid, TilePos{-1, 0}).empty());
+    FOSSYND_CHECK(reachableTiles(grid, TilePos{99, 99}).empty());
+
+    FOSSYND_CHECK(!areConnected(grid, TilePos{2, 2}, TilePos{0, 0}));
+    FOSSYND_CHECK(!areConnected(grid, TilePos{0, 0}, TilePos{2, 2}));
+    FOSSYND_CHECK(!areConnected(grid, TilePos{-1, 0}, TilePos{0, 0}));
+}
+
+FOSSYND_TEST(Reachability, MatchesFindPath)
+{
+    // The reachable set must be exactly the tiles findPath can produce a route to:
+    // a tile is reachable iff a path to it is Found.
+    TileGrid grid(8, 6);
+    blockColumn(grid, 4, 0, 3); // wall with a gap at y=4 and y=5
+    grid.setWalkable(2, 2, false); // a lone obstacle inside the left region
+
+    const std::vector<TilePos> tiles = reachableTiles(grid, TilePos{0, 0});
+    for (int y = 0; y < 6; ++y)
+    {
+        for (int x = 0; x < 8; ++x)
+        {
+            const bool inSet = std::find(tiles.begin(), tiles.end(), (TilePos{x, y})) != tiles.end();
+            const bool pathFound =
+                findPathDetailed(grid, TilePos{0, 0}, TilePos{x, y}, false).outcome ==
+                PathOutcome::Found;
+            FOSSYND_CHECK_EQ(inSet, pathFound);
+        }
+    }
+}
+
+FOSSYND_TEST(Reachability, IsDeterministic)
+{
+    TileGrid grid(12, 12);
+    for (int y = 0; y < 12; ++y)
+    {
+        grid.setWalkable(6, y, false);
+    }
+    grid.setWalkable(6, 7, true); // one gap
+
+    const std::vector<TilePos> first = reachableTiles(grid, TilePos{0, 0});
+    const std::vector<TilePos> second = reachableTiles(grid, TilePos{0, 0});
+    FOSSYND_CHECK(first == second);
+}
