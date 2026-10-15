@@ -762,3 +762,62 @@ is older than **24 h** and the branch has had no new push in that window, the
 claim is **expired**: any agent may comment `TAKEOVER: <model> | <focus: label>`
 and proceed. Takeover is announced, never silent. This is the whole replacement
 for reassignment by a coordinator.
+
+---
+
+## ADR-0020 — Mission-authored text is localised by mission id, not by file
+
+- **Status:** Accepted
+- **Date:** 2026-10-15
+- **Context:** Issue #142. `core::i18n::StringTable` (ADR-0016) localises UI
+  chrome, and `--lang` (issue #123) resolves a locale at runtime, but the text a
+  mission authors — its `name` and `description` in
+  `assets/data/missions/*.json` — stays English for a German player. Three things
+  collide: mission files are **content** (`focus: tactical` owns
+  `assets/data/missions/`, `focus: content` owns the loader), the text lane must
+  not edit either; the localisation key must be **stable across a translated
+  display name** (so keying on the English name is wrong); and the game must
+  still run when a mission has no translation (self-contained binary, §1b).
+- **Options:**
+  1. **Key on the mission's English `name` string.** Rejected: editing the
+     English copy silently orphans every translation, and two missions could
+     share a name.
+  2. **Add a `name`/`description` key map inside each mission JSON.** Rejected:
+     it puts localisation into the content schema, which `focus: content` owns,
+     and duplicates the string-table schema.
+  3. **Derive a stable id from the mission content path (the file stem) and key
+     the string table on it** (`mission.<id>.name` / `mission.<id>.desc`), with
+     the text lane owning the lookup and the keys. Chosen: no content-schema
+     change is *required* (an id is derived from the path), the key is stable
+     across copy edits and languages, and a mission without keys simply shows its
+     authored text.
+- **Decision:** **Option 3.**
+  - New `core/i18n/MissionText.{h,cpp}` (engine-free, no I/O):
+    `missionIdFromPath(path)` returns the file stem (`.../demo.json` → `demo`)
+    only when it is a safe key segment (`[a-z0-9_-]+`); `missionNameKey(id)` /
+    `missionDescKey(id)` build `mission.<id>.name` / `mission.<id>.desc`, and
+    return `""` for an unsafe id so localisation is skipped rather than building
+    an ambiguous dotted key; `localizeMissionText(table, key, raw)` returns the
+    table value when the key is present and non-empty, else `raw` unchanged.
+  - The resolver is **idempotent**: it resolves from the mission's own authored
+    text, so applying it twice is safe (the second pass yields the same value).
+  - Shipped missions carry `mission.<id>.name` / `mission.<id>.desc` keys in
+    every locale; the existing #125 parity gate in `tests/test_i18n.cpp` keeps
+    `en`/`de` in lockstep, so a new key cannot ship untranslated.
+  - An **optional** mission `"id"` field (parsed into `MissionData::id`) is
+    proposed as an additive content-schema change (Rule 4 request, `focus:
+    content`); until it lands, the id is derived from the content path, so this
+    decision needs no content edit to be useful.
+- **Consequences:**
+  - A mission gains a translation by adding two JSON keys — no C++, no content
+    edit, no rebuild of the mission schema.
+  - Localisation is opt-in and fail-safe: no id, no keys, or an empty value all
+    leave the authored copy intact (never blank, never a raw key).
+  - Wiring `MissionData`'s localised text into the game (`Game::buildMission`)
+    and any on-screen display is an **engine-layer** change owned by
+    `focus: input-ui` / `focus: render`; filed as a Rule 4 request rather than
+    edited here (`Game.cpp` had a live PR).
+  - Covered by `tests/test_i18n.cpp` (key derivation, id-from-path, fallback,
+    idempotency, empty-value safety, and shipped-locale parity for every
+    mission).
+
