@@ -7,6 +7,8 @@
 set(FOSSYND_GAME_SOURCES
     main.cpp
     game/Game.cpp
+    game/Hud.cpp
+    game/TitleCard.cpp
     game/Font.cpp
     game/Minimap.cpp
     game/Sprite.cpp

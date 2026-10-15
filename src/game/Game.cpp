@@ -4,9 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
-#include <initializer_list>
 #include <string>
-#include <utility>
 
 #include "core/data/ContentPaths.h"
 #include "core/data/Json.h"
@@ -15,6 +13,7 @@
 #include "game/EmbeddedLang.h"
 #include "game/EmbeddedMission.h"
 #include "game/EmbeddedSprites.h"
+#include "game/Text.h"
 
 // The build sets this from the project() version (src/CMakeLists.txt); the
 // fallback keeps a plain compile (no CMake definitions) working.
@@ -26,12 +25,6 @@ namespace fossynd::game
 {
 namespace
 {
-
-// The on-screen codename for the current release, shown on the title card.
-// Bumped each cut in one place (like FOSSYND_VERSION); the English value is
-// mirrored in assets/lang/en.json `app.tagline`, which can override it for
-// translation (issue #48).
-constexpr const char* kReleaseCodename = "RECRUITMENT";
 
 constexpr std::uint32_t rgba(int r, int g, int b, int a = 255)
 {
@@ -54,17 +47,6 @@ constexpr std::uint8_t kEnemyBodyFlash[3] = {255, 210, 90};
 constexpr std::uint8_t kCivilianBody[3] = {205, 200, 180};
 constexpr std::uint8_t kFollowerBody[3] = {90, 205, 230};
 
-constexpr SDL_Color kHudText{225, 235, 225, 255};
-constexpr SDL_Color kHudGood{120, 230, 140, 255};
-constexpr SDL_Color kHudBad{235, 110, 90, 255};
-constexpr SDL_Color kHudDim{150, 160, 150, 255};
-
-// The objective label is tinted "urgent" near the end of the objective — a
-// survive timer within this many seconds, or this few enemies left to kill.
-// This highlights the endgame (the outcome is about to be decided).
-constexpr int kUrgentSurviveSeconds = 5;
-constexpr int kUrgentEnemiesLeft = 1;
-
 void setPixel(SDL_Surface* surface, int x, int y, std::uint32_t color)
 {
     if (x < 0 || y < 0 || x >= surface->w || y >= surface->h)
@@ -75,45 +57,6 @@ void setPixel(SDL_Surface* surface, int x, int y, std::uint32_t color)
     pixels[y * (surface->pitch / 4) + x] = color;
 }
 
-
-// Replaces every `{name}` token in `text` with the matching argument, in one
-// left-to-right pass so a substituted value is never rescanned. Keeps the
-// localised format strings plain data (ADR-0016).
-std::string substitute(std::string text,
-                       std::initializer_list<std::pair<const char*, std::string>> values)
-{
-    std::size_t pos = 0;
-    while (pos < text.size())
-    {
-        const std::size_t open = text.find('{', pos);
-        if (open == std::string::npos)
-        {
-            break;
-        }
-        const std::size_t close = text.find('}', open + 1);
-        if (close == std::string::npos)
-        {
-            break;
-        }
-        const std::string key = text.substr(open + 1, close - open - 1);
-        bool replaced = false;
-        for (const auto& value : values)
-        {
-            if (key == value.first)
-            {
-                text.replace(open, close - open + 1, value.second);
-                pos = open + value.second.size();
-                replaced = true;
-                break;
-            }
-        }
-        if (!replaced)
-        {
-            pos = close + 1;
-        }
-    }
-    return text;
-}
 
 } // namespace
 
@@ -1337,194 +1280,6 @@ void Game::renderAgents()
     }
 }
 
-void Game::renderHud()
-{
-    const int margin = 8;
-    const int lineH = font_.lineHeight();
-
-    // Semi-transparent top bar.
-    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 170);
-    SDL_Rect topBar{0, 0, screenWidth_, lineH + margin};
-    SDL_RenderFillRect(renderer_, &topBar);
-
-    font_.draw(renderer_, margin, margin / 2,
-               tr("app.title", "FOSSYND") + " " +
-                   substitute(tr("app.version", "v{version}"), {{"version", FOSSYND_VERSION}}),
-               kHudText);
-    std::string objective;
-    bool urgent = false;
-    switch (mission_.objective().kind)
-    {
-    case core::ObjectiveSpec::Kind::ReachTile:
-        objective = substitute(tr("hud.objective.reach", "OBJECTIVE: REACH TILE ({x},{y})"),
-                               {{"x", std::to_string(mission_.objective().tileX)},
-                                {"y", std::to_string(mission_.objective().tileY)}});
-        break;
-    case core::ObjectiveSpec::Kind::Survive:
-    {
-        const int remaining =
-            static_cast<int>(mission_.objective().seconds - mission_.elapsedSeconds() + 0.999f);
-        urgent = remaining <= kUrgentSurviveSeconds;
-        objective =
-            substitute(tr("hud.objective.survive", "OBJECTIVE: SURVIVE {seconds}s"),
-                       {{"seconds", std::to_string(remaining > 0 ? remaining : 0)}});
-        break;
-    }
-    case core::ObjectiveSpec::Kind::EliminateAll:
-    default:
-    {
-        const int left = static_cast<int>(mission_.aliveCount(core::Team::Enemy));
-        urgent = left <= kUrgentEnemiesLeft;
-        objective = substitute(tr("hud.objective.eliminate",
-                                  "OBJECTIVE: ELIMINATE ALL {count} ENEMY AGENTS"),
-                               {{"count", std::to_string(left)}});
-        break;
-    }
-    }
-    std::size_t followers = 0;
-    for (std::size_t i = 0; i < mission_.agents().size(); ++i)
-    {
-        followers += mission_.followerCount(i);
-    }
-    // Followers/collateral are status prefixes; the controls hint is static
-    // chrome. Both stay dim so only the objective label carries the urgency
-    // tint.
-    std::string prefix;
-    if (followers > 0)
-    {
-        prefix = substitute(tr("hud.followers", "FOLLOWERS: {count}"),
-                            {{"count", std::to_string(followers)}}) +
-                 "   ";
-    }
-    if (mission_.civilianKills() > 0)
-    {
-        prefix = substitute(tr("hud.collateral", "COLLATERAL: {count}"),
-                            {{"count", std::to_string(mission_.civilianKills())}}) +
-                 "   " + prefix;
-    }
-    const std::string controls = tr("hud.controls",
-                                    "[L] MOVE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   "
-                                    "[P] PERSUADE   [F] FREE   [R] RESTART");
-    // The objective label is tinted by state; the static controls hint stays dim.
-    // Together they used to overflow the default width, which right-aligned the
-    // line and pushed the objective (its leftmost part) off-screen, so show the
-    // hint only when it fits and never draw past the left margin.
-    const SDL_Color objectiveColor = urgent ? kHudBad : kHudDim;
-    const std::string label = prefix + objective;
-    const bool showControls =
-        font_.textWidth(label + "   " + controls) <= screenWidth_ - 2 * margin;
-    const std::string tail = showControls ? "   " + controls : std::string();
-    int x = std::max(margin, screenWidth_ - margin - font_.textWidth(label + tail));
-    font_.draw(renderer_, x, margin / 2, label, objectiveColor);
-    if (showControls)
-    {
-        font_.draw(renderer_, x + font_.textWidth(label), margin / 2, tail, kHudDim);
-    }
-
-    // Squad panel (bottom-left).
-    const auto& agents = mission_.agents();
-    int panelLines = 1;
-    for (const core::Agent& agent : agents)
-    {
-        if (agent.team() == core::Team::Player)
-        {
-            ++panelLines;
-        }
-    }
-    const int panelH = lineH * panelLines + margin;
-    const int panelY = screenHeight_ - panelH;
-
-    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 170);
-    SDL_Rect panel{0, panelY, 320, panelH};
-    SDL_RenderFillRect(renderer_, &panel);
-
-    int y = panelY + margin / 2;
-    font_.draw(renderer_, margin, y, tr("hud.squad", "SQUAD"), kHudText);
-    y += lineH;
-    for (std::size_t i = 0; i < agents.size(); ++i)
-    {
-        const core::Agent& agent = agents[i];
-        if (agent.team() != core::Team::Player)
-        {
-            continue;
-        }
-        const bool isSelected =
-            std::find(selected_.begin(), selected_.end(), i) != selected_.end();
-        const int hp = static_cast<int>(std::ceil(agent.healthFraction() * 100.0f));
-        const std::string marker = isSelected ? "> " : "  ";
-        // Show which control group(s) the agent belongs to (issue #33), so the
-        // assignment is visible without recalling the group.
-        std::string groupTag;
-        for (int slot = 0; slot < kControlGroups; ++slot)
-        {
-            if (std::find(controlGroups_[slot].begin(), controlGroups_[slot].end(), i) !=
-                controlGroups_[slot].end())
-            {
-                groupTag += " [" + std::to_string(slot + 1) + "]";
-            }
-        }
-        std::string row =
-            substitute(tr("hud.agentRow", "{marker}{name}  {weapon}  HP {hp}"),
-                       {{"marker", marker},
-                        {"name", agent.name()},
-                        {"weapon", agent.weapon().name},
-                        {"hp", std::to_string(hp)}}) +
-            groupTag;
-        const SDL_Color color = agent.isAlive() ? (isSelected ? kHudText : kHudDim) : kHudDim;
-        font_.draw(renderer_, margin, y, row, color);
-        y += lineH;
-    }
-
-    // Centre banner when the mission ends.
-    if (mission_.state() != core::MissionState::Running)
-    {
-        const bool won = mission_.state() == core::MissionState::Won;
-        const std::string message = tr(won ? "state.won" : "state.lost", mission_.stateName());
-        const std::string sub = won ? tr("hud.winSub", "PRESS R TO RUN IT AGAIN")
-                                    : tr("hud.loseSub", "PRESS R TO RETRY");
-        const int cx = screenWidth_ / 2;
-
-        SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 190);
-        SDL_Rect banner{0, screenHeight_ / 2 - lineH * 2, screenWidth_, lineH * 4};
-        SDL_RenderFillRect(renderer_, &banner);
-
-        const SDL_Color color = won ? kHudGood : kHudBad;
-        font_.draw(renderer_, cx - font_.textWidth(message) / 2, screenHeight_ / 2 - lineH * 3 / 2,
-                   message, color);
-        font_.draw(renderer_, cx - font_.textWidth(sub) / 2, screenHeight_ / 2 + lineH / 2, sub,
-                   kHudText);
-    }
-}
-
-void Game::drawTitleDiamond(float cx, float cy, float radius, std::uint8_t r, std::uint8_t g,
-                            std::uint8_t b)
-{
-    // A flat isometric diamond drawn straight into the renderer. `radius` is in
-    // the same 0..1 world units as fillDiamondWorld, so the title card reuses the
-    // in-game marker shape and reads as the same art.
-    const float halfW = radius * (kTileWidth * 0.5f);
-    const float halfH = radius * (kTileHeight * 0.5f);
-    SDL_SetRenderDrawColor(renderer_, r, g, b, 255);
-    const int minY = static_cast<int>(cy - halfH);
-    const int maxY = static_cast<int>(cy + halfH);
-    for (int py = minY; py <= maxY; ++py)
-    {
-        const float dy = (static_cast<float>(py) - cy) / halfH;
-        const float span = 1.0f - std::fabs(dy);
-        if (span <= 0.0f)
-        {
-            continue;
-        }
-        SDL_Rect line;
-        line.x = static_cast<int>(cx - halfW * span);
-        line.w = static_cast<int>(2.0f * halfW * span) + 1;
-        line.y = py;
-        line.h = 1;
-        SDL_RenderFillRect(renderer_, &line);
-    }
-}
-
 bool Game::checkMinimap()
 {
     if (!minimap_.valid())
@@ -1547,77 +1302,6 @@ void Game::renderMinimap()
     const int y = font_.lineHeight() + margin + margin / 2;
     minimap_.updateBlips(mission_, selected_);
     minimap_.render(renderer_, x, y);
-}
-
-void Game::renderTitleCard()
-{
-    const int w = screenWidth_;
-    const int h = screenHeight_;
-    const int lineH = font_.lineHeight();
-
-    // Dark, slightly translucent backdrop so the map stays faintly visible.
-    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(renderer_, 6, 7, 9, 232);
-    SDL_Rect full{0, 0, w, h};
-    SDL_RenderFillRect(renderer_, &full);
-
-    // A row of squad diamonds (the in-game player marker) as the badge.
-    const float cx = static_cast<float>(w) * 0.5f;
-    const float badgeY = static_cast<float>(h) * 0.24f;
-    const float spacing = static_cast<float>(w) * 0.05f;
-    drawTitleDiamond(cx - spacing * 1.5f, badgeY, 0.42f, kPlayerBody[0], kPlayerBody[1],
-                     kPlayerBody[2]);
-    drawTitleDiamond(cx - spacing * 0.5f, badgeY - lineH, 0.42f, kPlayerBodySelected[0],
-                     kPlayerBodySelected[1], kPlayerBodySelected[2]);
-    drawTitleDiamond(cx + spacing * 0.5f, badgeY, 0.42f, kPlayerBody[0], kPlayerBody[1],
-                     kPlayerBody[2]);
-    drawTitleDiamond(cx + spacing * 1.5f, badgeY - lineH, 0.42f, kPlayerBodySelected[0],
-                     kPlayerBodySelected[1], kPlayerBodySelected[2]);
-
-    // Title and version, centred.
-    const std::string title = tr("app.title", "FOSSYND");
-    const std::string version =
-        substitute(tr("app.version", "v{version}"), {{"version", FOSSYND_VERSION}});
-    const std::string subtitle = tr("app.tagline", kReleaseCodename);
-
-    int y = static_cast<int>(static_cast<float>(h) * 0.40f);
-    font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(title) / 2, y, title, kHudText);
-    y += lineH + 2;
-    font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(subtitle) / 2, y, subtitle,
-               kHudGood);
-    y += lineH + 2;
-    font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(version) / 2, y, version, kHudDim);
-
-    // A blinking prompt (driven by the elapsed time, no RNG).
-    const bool blinkOn = std::fmod(titleCardTime_, 1.0f) < 0.6f;
-    if (blinkOn)
-    {
-        const std::string prompt = tr("title.prompt", "PRESS ANY KEY");
-        y += lineH * 2;
-        font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(prompt) / 2, y, prompt,
-                   kHudText);
-    }
-
-    // Controls, centred lower down.
-    const std::string controls[] = {
-        tr("title.controls.move", "CLICK / L  MOVE THE SQUAD"),
-        tr("title.controls.attack", "RIGHT-CLICK  FOCUS FIRE"),
-        tr("title.controls.select", "1-4 RECALL  CTRL+1-4 SET  A  ALL"),
-        tr("title.controls.misc", "ARROWS  SCROLL   R  RESTART   ESC  QUIT"),
-    };
-    int cy = static_cast<int>(static_cast<float>(h) * 0.68f);
-    for (const std::string& line : controls)
-    {
-        font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(line) / 2, cy, line, kHudDim);
-        cy += lineH;
-    }
-
-    // Small footer tag, so a screenshot self-identifies the build.
-    const std::string footer = substitute(
-        tr("title.footer", "FOSSYND v{version}  -  FREE OPEN SOURCE SYNDICATE"),
-        {{"version", FOSSYND_VERSION}});
-    font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(footer) / 2, h - lineH - 6, footer,
-               kHudDim);
 }
 
 void Game::render()
