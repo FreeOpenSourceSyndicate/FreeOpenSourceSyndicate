@@ -357,6 +357,14 @@ int main(int argc, char** argv)
             std::fprintf(stderr, "config error (%s): %s\n", cliConfig.c_str(), configError.c_str());
             return 1;
         }
+        // An explicit --config that names a missing file is a user error, not a
+        // skip: fail fast rather than silently run with defaults (issue #259).
+        // Auto-discovery below still treats an absent candidate as a skip.
+        if (!found)
+        {
+            std::fprintf(stderr, "config error (%s): file not found\n", cliConfig.c_str());
+            return 1;
+        }
     }
     else
     {
