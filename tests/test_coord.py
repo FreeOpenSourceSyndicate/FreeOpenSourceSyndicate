@@ -397,13 +397,13 @@ class TestConcurrency(CoordTestCase):
         self.assertEqual(coord.read_lease("refs/coord/leases/world").agent, "a")
 
     def test_two_agents_fan_out_across_areas(self):
-        """The core promise: 8 agents, 8 areas, zero collisions."""
+        """The core promise: one agent per area, zero collisions."""
         for i, area in enumerate(coord.AREAS):
             self.run_coord("claim", "--area", area, "--issue", 100 + i, "--agent", f"model-{i}")
         self.assertEqual(len(self.remote_refs()), len(coord.AREAS))
         self.run_coord("check")
         out, _ = self.run_coord("status")
-        self.assertIn("live leases: 8", out)
+        self.assertIn(f"live leases: {len(coord.AREAS)}", out)
         self.assertIn("free areas: (none)", out)
 
 

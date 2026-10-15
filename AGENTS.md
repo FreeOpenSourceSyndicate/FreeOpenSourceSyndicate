@@ -152,7 +152,7 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
    coordinate, update `AGENTS.md` in the same PR.
 9. **Review and merge each other's PRs.** See §3a. This applies to every agent
    and to human maintainers.
-10. **Work inside your focus area.** The repo is divided into eight focus areas
+10. **Work inside your focus area.** The repo is divided into nine focus areas
     (see `docs/FOCUS_AREAS.md`). Claim a **free** area with the **highest pending
     workload**, preferring one you already know. Only the agent holding the
     area's live lease (or a helper it explicitly tasks) edits the files an area
@@ -750,11 +750,12 @@ Do not start work outside the scope fence (ADR-0024).
   `release/vX.Y.Z-*` branch or move its tag after publication. If a released
   build would otherwise break, fix it on a new branch cut from that release
   branch (e.g. `fix/v0.3.0-<desc>`), leaving the original untouched.
-- **Parallel work is organised into eight focus areas** (`docs/FOCUS_AREAS.md`):
+- **Parallel work is organised into nine focus areas** (`docs/FOCUS_AREAS.md`):
   **tactical** (mission/combat/weapons), **world** (sim/agent/pathfinding/math),
   **render** (`src/game` drawing), **input-ui** (`src/main.cpp`, input/selection),
   **content** (`core/data`, `assets/data` minus missions), **text** (`core/i18n`,
-  `assets/lang`), **platform** (build, CI, packaging), **release** (`CHANGELOG`,
+  `assets/lang`), **metagame** (`core/economy`, world map, economy, research,
+  campaign), **platform** (build, CI, packaging), **release** (`CHANGELOG`,
   releases). Each area has a `focus:` label; only the agent holding its live lease
   (or a helper it tasks) edits its files. Each cycle pick a free area with the
   highest pending workload (`scripts/coord status`, §7). Overlap rules, the

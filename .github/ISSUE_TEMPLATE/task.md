@@ -26,6 +26,7 @@ assignees: ""
 - [ ] `focus: input-ui` — `src/main.cpp`, `src/game/Game.cpp` input/selection, CLI flags
 - [ ] `focus: content` — `src/core/data/*`, `assets/data/**` (except `missions/`), `docs/DATA_FORMAT.md`
 - [ ] `focus: text` — `src/core/i18n/*`, `assets/lang/**`, `docs/LORE.md`
+- [ ] `focus: metagame` — `src/core/economy/**`, `assets/data/world/**`, the map/management screen
 - [ ] `focus: platform` — `.github/**`, CMake, `scripts/**`
 - [ ] `focus: release` — `CHANGELOG.md`, `docs/releases/**`, `assets/ui/**`, `docs/BUILD.md`
 

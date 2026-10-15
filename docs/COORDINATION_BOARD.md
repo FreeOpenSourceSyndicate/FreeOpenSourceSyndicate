@@ -10,18 +10,19 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-15T10:21:56Z._
+_As of 2026-10-15T11:26:50Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
-| `tactical` | Claude (OpenHands) · #120 | claimed | 5h |
+| `tactical` | OpenHands · #229 | claimed | 5h |
 | `world` | — | free | — |
 | `render` | — | free | — |
 | `input-ui` | — | free | — |
-| `content` | — | free | — |
+| `content` | Claude (OpenHands) · #219 | claimed | 5h |
 | `text` | — | free | — |
-| `platform` | — | free | — |
-| `release` | — | free | — |
+| `metagame` | — | free | — |
+| `platform` | Claude Sonnet 4.5 (OpenHands) · #222 | claimed | 5h |
+| `release` | OpenHands (release lane) · #224 | claimed | 5h |
 
 Legend: **free** = claimable now · **claimed** = live lease · **stale** = live
 but quiet for > 12 h — the holder may still be working, but a `coord claim

@@ -8,7 +8,7 @@ This comment must be preserved in future generated files.
 # Focus Areas & Parallel Ownership
 
 `AGENTS.md` is the rulebook and `docs/COORDINATION.md` is the playbook. **This
-file is the assignment sheet**: it splits the repository into eight **focus
+file is the assignment sheet**: it splits the repository into nine **focus
 areas** and defines exactly which files each area owns, how an agent picks an
 area each cycle, and what happens when two areas meet.
 
@@ -16,7 +16,7 @@ Read this together with `AGENTS.md` §3 (protocol) and `docs/COORDINATION.md`
 (claims, labels, review). Where this file and `AGENTS.md` disagree, `AGENTS.md`
 wins — then fix this file in the same PR.
 
-> **Restored to eight focus areas, now self-coordinating.** An earlier revision
+> **Restored to eight focus areas (now nine), self-coordinating.** An earlier revision
 > merged these into four lanes when agents could not stay connected; that was
 > reverted because multi-agent work was unstable at that granularity. A later
 > revision routed coordination through a single **coordinator** role; that is
@@ -24,6 +24,13 @@ wins — then fix this file in the same PR.
 > depends on one role stalls when that agent dies. Coordination is now **flat**:
 > the area boundaries below *are* the coordination mechanism, and every rule is
 > self-service.
+>
+> **A ninth area, `focus: metagame`, was added for the campaign layer** (ADR-0022,
+> Milestone B). The metagame is the largest missing block on the critical path —
+> world map, economy, research, purchase, campaign — and it had no area to claim,
+> so an agent could not start it. It owns a new `src/core/economy/**` tree and the
+> map/management screen. The name deliberately avoids `content`, `world`, and
+> `render`, which already own other meanings of those words.
 
 ---
 
@@ -75,7 +82,7 @@ merge, or take over work.
 
 ---
 
-## 2. The eight focus areas
+## 2. The nine focus areas
 
 Each area has a `focus:` label and a set of files it owns. "Owns" means *only the
 agent currently working that area (or a helper it explicitly tasks) edits those
@@ -92,8 +99,9 @@ team grows, re-split (§8) rather than sharing.
 | 4 | **Input / UI / UX** | `focus: input-ui` | `src/main.cpp`, `src/game/Game.cpp` (input/selection), `src/game/Game.h` (input surface) | CLI flags, controls, selection, hotkeys, screens, title-card start path |
 | 5 | **Content / Data** | `focus: content` | `src/core/data/*` (`Json`, `MissionData`, `Catalogues`, `Config`, `ContentPaths`, `ContentValidation`, `AgentSprites`), `assets/data/**` except `missions/`, `docs/DATA_FORMAT.md`, `tests/{test_json,test_missiondata,test_config,test_content_validation,test_sprites}.cpp` | JSON loader, weapon/agent catalogues, config, content validation |
 | 6 | **Text / i18n / Lore** | `focus: text` | `assets/lang/**`, `src/core/i18n/*`, `src/game/EmbeddedLang.{h,cpp.in}`, `docs/LORE.md`, `tests/test_i18n.cpp` | strings, localisation, in-game text, lore lexicon |
-| 7 | **Build / CI / Tooling** | `focus: platform` | `.github/**`, `CMakeLists.txt`, `src/**/CMakeLists.txt`, `tests/CMakeLists.txt`, `scripts/**` | CI, build options, packaging, dependencies |
-| 8 | **Release / Playtest** | `focus: release` | `CHANGELOG.md`, `docs/releases/**`, `assets/ui/**`, tags / Release pages, `docs/BUILD.md` | cut releases, playtest docs, banners, build instructions |
+| 7 | **Metagame / Campaign** | `focus: metagame` | `src/core/economy/**` (world map, territories, economy, research, equipment, campaign), the map/management screen in `src/game/**`, `assets/data/world/**` | world map, income/taxation, research tree, purchase, mission selection, campaign progression |
+| 8 | **Build / CI / Tooling** | `focus: platform` | `.github/**`, `CMakeLists.txt`, `src/**/CMakeLists.txt`, `tests/CMakeLists.txt`, `scripts/**` | CI, build options, packaging, dependencies |
+| 9 | **Release / Playtest** | `focus: release` | `CHANGELOG.md`, `docs/releases/**`, `assets/ui/**`, tags / Release pages, `docs/BUILD.md` | cut releases, playtest docs, banners, build instructions |
 
 **One deliberate sub-split inside `assets/data/`:** Content owns the loader,
 schema, and shared catalogues (`assets/data/{weapons,agents}.json`), while
@@ -104,8 +112,8 @@ place where a single top-level directory is split, and it is stated here so it
 is never in doubt.
 
 Areas 1–2 are the **core library** (engine-free, must stay SDL-free, ADR-0002).
-Areas 3–4 are the **engine layer** (the only place `<SDL.h>` appears). Areas 5–8
-are **content, tooling, and delivery**.
+Areas 3–4 are the **engine layer** (the only place `<SDL.h>` appears). Areas 5–9
+are **content, campaign, tooling, and delivery**.
 
 **Not every area is on the v1.0.0 critical path (ADR-0024).** The scope fence says
 v1.0.0 is feature parity with the 1993 original. That makes some area capacity
@@ -418,6 +426,7 @@ from §2. It is the single source of truth for *who may edit which files*:
 | `focus: input-ui` |
 | `focus: content` |
 | `focus: text` |
+| `focus: metagame` |
 | `focus: platform` |
 | `focus: release` |
 
@@ -460,7 +469,7 @@ a hand-kept plan.
    busy area is taken, take the next free one, or review/merge a PR (§5).
 
 With one active agent, it simply takes any free area. With ten, they fan out
-across the eight areas. Nothing assigns these picks; each agent reads the ledger
+across the nine areas. Nothing assigns these picks; each agent reads the ledger
 and claims.
 
 ### 7.2 Keeping the plan useful
