@@ -219,7 +219,7 @@ player agent is ignored:
 fossynd::core::PlayerLoadout loadout;
 loadout.slots.resize(2);
 loadout.slots[0].weaponId = "rifle";   // resolved against weapons.json
-loadout.slots[1].gadgetId = "medkit";  // "medkit" | "shield"
+loadout.slots[1].gadgetId = "medkit";  // "medkit" | "shield" | "scanner" | "drugs"
 
 fossynd::core::WeaponCatalogue weapons;
 bool found = false;
@@ -235,8 +235,9 @@ if (!fossynd::core::applyLoadout(loadout, mission, weapons, error))
 An empty `weaponId`/`gadgetId` (or a missing slot) keeps the mission's authored
 default, so a mission with no loadout is byte-for-byte unchanged. An id that is
 not in its catalogue is a **content error** (`applyLoadout` returns false), not a
-silent fallback. The gadget vocabulary is `medkit` (one heal) and `shield` (one
-absorbed hit), matching the `kind: "gadget"` items in
+silent fallback. The gadget vocabulary is `medkit` (one heal), `shield` (one
+absorbed hit), `scanner` (one timed reveal of nearby enemies), and `drugs` (one
+timed speed/accuracy buff), matching the `kind: "gadget"` items in
 `assets/data/world/equipment.json`.
 
 ## Choosing which mission to load

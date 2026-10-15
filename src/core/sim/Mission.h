@@ -127,6 +127,55 @@ public:
     // True when the agent at `index` currently has a shield raised.
     bool shieldUp(std::size_t index) const;
 
+    // --- Scanner -------------------------------------------------------------
+
+    // Sets how many scanner charges the agent at `index` carries (clamped to
+    // >= 0). Used by mission setup and tests. No-op for an invalid index.
+    void setScanners(std::size_t index, int count);
+
+    // Number of scanner charges the agent at `index` carries (0 if the index is
+    // invalid).
+    int scanners(std::size_t index) const;
+
+    // Spends one scanner charge on the agent at `index` to ping the surrounding
+    // area: living enemies within `kScannerRadius` tiles are marked for
+    // `kScannerPulseSeconds`. Returns true when a scan started, or false if
+    // there is no charge, the index is invalid, the user is not a living
+    // combatant, or a scan is already running (a charge is never wasted on a
+    // re-scan). Deterministic; no RNG.
+    bool activateScanner(std::size_t index);
+
+    // Remaining seconds of the agent's active scan pulse (0 when none). The
+    // render lane draws the ping from this and `scanTargets`.
+    float scannerPulse(std::size_t index) const;
+
+    // Living enemy agents currently marked by the agent's active scan, in
+    // ascending index order. Empty when no scan is running. The sim never uses
+    // the marks (enemies are not made visible to AI); this is the reveal the
+    // view draws. Deterministic; no RNG.
+    std::vector<std::size_t> scanTargets(std::size_t index) const;
+
+    // --- Performance drugs ---------------------------------------------------
+
+    // Sets how many drug doses the agent at `index` carries (clamped to >= 0).
+    // Used by mission setup and tests. No-op for an invalid index.
+    void setDrugs(std::size_t index, int count);
+
+    // Number of drug doses the agent at `index` carries (0 if the index is
+    // invalid).
+    int drugs(std::size_t index) const;
+
+    // Spends one dose on the agent at `index` to raise a temporary buff for
+    // `kDrugDurationSeconds`: movement speed is multiplied by
+    // `kDrugSpeedMultiplier` and hit chance by `kDrugAccuracyMultiplier`.
+    // Returns true when the buff started, or false if there is no dose, the
+    // index is invalid, the user is not a living combatant, or a buff is
+    // already active (a dose is never wasted re-dosing).
+    bool useDrugs(std::size_t index);
+
+    // Remaining seconds of the agent's active drug buff (0 when none).
+    float drugsTimer(std::size_t index) const;
+
     // Index of the nearest living agent on `enemyTeam` to (x, y) in tile space,
     // or -1 if none. Used by the view to pick a target under the cursor.
     int nearestEnemyTo(float tileX, float tileY, Team enemyTeam) const;
@@ -243,6 +292,10 @@ private:
     std::vector<int> medikits_;
     std::vector<int> shields_;   // charges carried, sized to agents_
     std::vector<bool> shieldUp_; // raised shield per agent, sized to agents_
+    std::vector<int> scanners_;      // charges carried, sized to agents_
+    std::vector<float> scannerTimer_;// active scan pulse, sized to agents_
+    std::vector<int> drugs_;         // doses carried, sized to agents_
+    std::vector<float> drugsTimer_;  // active drug buff, sized to agents_
     Rng rng_;
     ObjectiveSpec objective_;
     float elapsedSeconds_ = 0.0f;

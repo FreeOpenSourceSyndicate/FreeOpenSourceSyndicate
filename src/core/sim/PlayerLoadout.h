@@ -25,14 +25,15 @@ struct LoadoutSlot
     std::string weaponId;
 
     // Gadget id, from the same closed vocabulary the equipment catalogue uses
-    // (`assets/data/world/equipment.json`): "medkit" or "shield". Empty keeps
-    // the slot's authored (zero) gadget count.
+    // (`assets/data/world/equipment.json`): "medkit", "shield", "scanner" or
+    // "drugs". Empty keeps the slot's authored (zero) gadget count.
     std::string gadgetId;
 };
 
 // How many charges of a gadget a slot carries when it is equipped. Gadgets are
 // single-use in the tactical layer (a medikit heals once, a shield absorbs one
-// hit), so a bought gadget ships one charge.
+// hit, a scanner pulse or a drug dose lasts one activation), so a bought gadget
+// ships one charge.
 inline constexpr int kGadgetCharges = 1;
 
 // `gadgetChargesForId` returns this for an id that is not a known gadget.
@@ -45,7 +46,7 @@ inline constexpr int kUnknownGadget = -1;
 // and rejects a typo instead of silently deploying nothing.
 inline int gadgetChargesForId(const std::string& id)
 {
-    if (id == "medkit" || id == "shield")
+    if (id == "medkit" || id == "shield" || id == "scanner" || id == "drugs")
     {
         return kGadgetCharges;
     }

@@ -489,16 +489,24 @@ bool applyLoadout(const PlayerLoadout& loadout, Mission& mission, const WeaponCa
             if (charges == kUnknownGadget)
             {
                 error = "loadout slot " + std::to_string(slot - 1) + ": unknown gadgetId '" +
-                        item.gadgetId + "' (expected 'medkit' or 'shield')";
+                        item.gadgetId + "' (expected 'medkit', 'shield', 'scanner' or 'drugs')";
                 return false;
             }
             if (item.gadgetId == "medkit")
             {
                 mission.setMedikits(i, charges);
             }
-            else
+            else if (item.gadgetId == "shield")
             {
                 mission.setShields(i, charges);
+            }
+            else if (item.gadgetId == "scanner")
+            {
+                mission.setScanners(i, charges);
+            }
+            else
+            {
+                mission.setDrugs(i, charges);
             }
         }
     }
