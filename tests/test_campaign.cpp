@@ -81,6 +81,23 @@ FOSSYND_TEST(Campaign, LoadsShippedCampaignAndSiblings)
     FOSSYND_CHECK_NEAR(campaign.economy().config().tickSeconds, 30.0f);
 }
 
+FOSSYND_TEST(Campaign, StartingFundsAreGrantedToThePlayerOnLoad)
+{
+    // A loaded campaign must start the corporation with `startingFunds`, so the
+    // "tax -> research -> buy" loop has money from the first frame. fromJson
+    // (parsing only) must NOT move any money; only loadFromFile seeds the ledger.
+    Campaign campaign = loadedCampaign();
+    FOSSYND_CHECK_NEAR(campaign.economy().funds(Campaign::kPlayerSyndicate),
+                       campaign.startingFunds());
+
+    std::string error;
+    const Json root = Json::parse(R"({ "startingFunds": 2500 })", error);
+    FOSSYND_CHECK(error.empty());
+    Campaign parsed;
+    FOSSYND_CHECK(Campaign::fromJson(root, parsed, error));
+    FOSSYND_CHECK_NEAR(parsed.economy().funds(Campaign::kPlayerSyndicate), 0.0f);
+}
+
 FOSSYND_TEST(Campaign, MissingSiblingIsTolerated)
 {
     const std::string path = writeTemp(R"({

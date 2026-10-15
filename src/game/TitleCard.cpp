@@ -108,6 +108,16 @@ void Game::renderTitleCard()
         font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(line) / 2, cy, line, hudstyle::kHudDim);
         cy += lineH;
     }
+    // The campaign management screen has its own controls (Milestone B); advertise
+    // the way in only when a campaign actually loaded. A plain literal, not an
+    // i18n key (localisation beyond English is out of scope, ADR-0024).
+    if (campaignValid())
+    {
+        const std::string mapLine = "M  WORLD MAP   -/+  TAX   D  DEPLOY";
+        font_.draw(renderer_, static_cast<int>(cx) - font_.textWidth(mapLine) / 2, cy, mapLine,
+                   hudstyle::kHudDim);
+        cy += lineH;
+    }
 
     // Small footer tag, so a screenshot self-identifies the build.
     const std::string footer = hudstyle::substitute(

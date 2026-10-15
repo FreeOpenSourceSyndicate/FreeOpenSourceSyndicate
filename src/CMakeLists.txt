@@ -13,6 +13,7 @@ set(FOSSYND_GAME_SOURCES
     game/Minimap.cpp
     game/Sprite.cpp
     game/GroundTiles.cpp
+    game/CampaignScreen.cpp
 )
 
 # Embed the demo mission JSON into the binary so the game stays a single,
@@ -233,6 +234,19 @@ if(BUILD_TESTS)
     # dangling reference. Absolute path so it works from any build directory.
     add_test(NAME game_content
              COMMAND FOSSynd --headless --check-content ${CMAKE_SOURCE_DIR}/assets/data)
+    # Campaign management loop (Milestone B): on a copy of the shipped campaign,
+    # exercises tax -> income -> research -> buy -> deploy -> win through the real
+    # core systems and exits non-zero on a broken invariant. WORKING_DIRECTORY is
+    # the repo root so `assets/data/world/campaign.json` is found by the default
+    # search (the documented "run from the repo root" fallback).
+    add_test(NAME game_campaign
+             COMMAND FOSSynd --headless --check-campaign)
+    set_tests_properties(game_campaign PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    # `--map` starts on the management screen; it must render and exit cleanly
+    # headlessly, so the world-map path is exercised, not just the flag.
+    add_test(NAME game_map_flag
+             COMMAND FOSSynd --headless --map --frames 2)
+    set_tests_properties(game_map_flag PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     # UI strings (issue #53): the string table loads (external file or embedded
     # copy) and resolves every key the HUD/title card reads. Exits non-zero if a
     # key is missing, so a broken assets/lang/en.json cannot hide behind the
@@ -290,6 +304,12 @@ if(BUILD_TESTS)
     add_test(NAME game_cli_config_missing
              COMMAND FOSSynd --headless --config /nonexistent/fossynd.conf --frames 1)
     set_tests_properties(game_cli_config_missing PROPERTIES WILL_FAIL TRUE)
+    # An explicit --campaign naming a missing file is a user error, not a silent
+    # skip: fail fast, like --config/--mission (issue #259). The valid-campaign
+    # path is covered by game_campaign/game_map_flag.
+    add_test(NAME game_cli_campaign_missing
+             COMMAND FOSSynd --headless --campaign /nonexistent/campaign.json --frames 1)
+    set_tests_properties(game_cli_campaign_missing PROPERTIES WILL_FAIL TRUE)
     # --frames must be a positive integer: `abc`/`0`/`-3` used to mean "no limit"
     # (the game never exited) and `5x` was accepted as 5 (issue #264).
     add_test(NAME game_cli_frames_nonnumeric

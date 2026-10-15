@@ -143,6 +143,15 @@ bool Campaign::loadFromFile(const std::string& path, Campaign& out, std::string&
         }
     }
 
+    // Start the corporation: the player begins with the campaign's
+    // `startingFunds`, so the loop "tax -> research -> buy" has money from the
+    // first frame. Granted here rather than in fromJson so that parsing a config
+    // never mutates a ledger, and once per load (a caller passes a fresh `out`).
+    if (out.startingFunds_ > 0.0f)
+    {
+        out.economy_.addFunds(kPlayerSyndicate, out.startingFunds_);
+    }
+
     return true;
 }
 

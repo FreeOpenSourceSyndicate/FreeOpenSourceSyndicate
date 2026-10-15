@@ -305,6 +305,60 @@ public:
 };
 ```
 
+**Starting funds (settled).** `loadFromFile` grants the campaign's
+`startingFunds` to the player syndicate in the funds ledger, so a loaded
+campaign begins the "tax → research → buy" loop with money. `fromJson` (parsing
+only) never moves money, so parsing a config cannot mutate a ledger. `tick` owns
+no clock of its own: the caller supplies `dt` and an `Rng`, and the game layer
+drives it on the campaign clock (§4.6).
+
+### 4.6 Game-layer wiring — the management screen (slice 5, landed)
+
+The core systems are only useful once the game layer drives them. That driver is
+`game::CampaignScreen` (`src/game/CampaignScreen.{h,cpp}`), a single
+translation unit kept out of the shared `Game.cpp` (`docs/FOCUS_AREAS.md` §4,
+Rule 2). It **owns** a `core::Campaign`, loads it from `--campaign <path>` or the
+default search, and is presentation and input only: every rule stays in
+`core/economy/**` (ADR-0002), and the screen never reimplements one.
+
+```cpp
+class CampaignScreen
+{
+public:
+    bool init(const std::string& path, const std::string& exeDir);
+    bool valid() const;                 // false => the caller skips the screen
+    void toggle();  bool visible() const;  void setVisible(bool);
+
+    void update(float dt);              // advances the campaign clock
+    bool handleClick(int x, int y, int w, int h);  // selects a territory
+    void adjustTax(int delta);          // clamped to [0, maxTaxLevel]
+    bool deploySelected();              // selects the mission + full squad
+
+    void render(SDL_Renderer*, const BitmapFont&, int w, int h) const;
+    bool selfTest();                    // headless loop check (on a copy)
+};
+```
+
+- **Layout is view-only and deterministic.** Territory nodes are placed by a
+  breadth-first ring from territory 0 and never saved, so the map has a stable
+  layout with no RNG. A missing campaign file leaves the screen invalid and it is
+  simply skipped — the tactical game always starts (`AGENTS.md` §1b).
+- **The clock is the campaign clock, not the tactical step.** While the screen is
+  visible, `Game::update` freezes the tactical simulation (the player is on the
+  map, not the board) and calls `CampaignScreen::update(realDt)`, which ticks
+  economy + research. `M` toggles the screen; `-`/`+` change the selected
+  territory's tax; `D` deploys.
+- **Headless guard.** `--check-campaign` (ctest `game_campaign`) runs
+  `CampaignScreen::selfTest`, which on a *copy* of the shipped campaign exercises
+  starting funds → tax → income → research → buy → assign → deploy → win through
+  the real core systems. `--map` (ctest `game_map_flag`) starts on the screen so
+  the render path is exercised headlessly.
+
+Deployment currently records the selection (`Campaign::selectMission` with the
+four fixed slots). Mapping the bought loadout onto the mission's player agents is
+still **R1** (§7) — the screen calls the contract, and the mission-side override
+is Tactical/Content's follow-up.
+
 ## 5. Data schema (`assets/data/world/**`)
 
 Parsed by the existing hand-rolled reader (`core/data/Json.*`, ADR-0003). Real
@@ -423,7 +477,9 @@ Smallest useful first, so each PR is small and reviewable:
 3. **Research** — `ResearchTree`/`Research` + `tests/test_research.cpp`.
 4. **Equipment** — catalogue + buy/assign + `tests/test_equipment.cpp` (needs R2).
 5. **Mission selection & deployment** — `Campaign` + the map screen skeleton
-   (needs R1); the first slice that touches `src/game/**`.
+   (needs R1); the first slice that touches `src/game/**`. *(landed:
+   `game::CampaignScreen` + `--map`/`--check-campaign`; the mission-side loadout
+   override R1 is still open)*
 6. **Campaign progression** — unlock on win, end state, victory screen.
 
 Each lands as its own PR under the `focus: metagame` lease (`AGENTS.md` §3,

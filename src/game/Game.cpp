@@ -142,6 +142,12 @@ bool Game::init(int width, int height, bool headless, bool lowSpec)
     buildSprites();
     buildMinimap();
 
+    // Load the campaign management screen (Milestone B). A missing campaign is
+    // not fatal: the screen stays invalid and is simply skipped, so the tactical
+    // game always starts (AGENTS.md §1b).
+    campaign_.init(campaignPath_, exeDir_);
+    campaign_.setVisible(showMap_ && campaign_.valid());
+
     // Center the view on the squad.
     const auto& agents = mission_.agents();
     if (!agents.empty())
@@ -1626,6 +1632,21 @@ void Game::handleEvents(bool& running)
                 // Toggle fullscreen/windowed at runtime (issue #194).
                 toggleFullscreen();
                 break;
+            case SDLK_m:
+                // Toggle the campaign management screen (Milestone B). Only when a
+                // campaign actually loaded, so `M` is inert without campaign data.
+                if (campaign_.valid())
+                {
+                    campaign_.toggle();
+                }
+                break;
+            case SDLK_d:
+                // Deploy the selected territory's mission from the map.
+                if (campaign_.visible())
+                {
+                    campaign_.deploySelected();
+                }
+                break;
             case SDLK_SPACE:
                 // Pause/resume the simulation (issue #210).
                 togglePause();
@@ -1690,11 +1711,29 @@ void Game::handleEvents(bool& running)
             case SDLK_PLUS:
             case SDLK_EQUALS:
             case SDLK_KP_PLUS:
-                applyZoom(1);
+                // On the management screen `+` raises the selected territory's
+                // tax; in the tactical view it zooms in (issue #122).
+                if (campaign_.visible())
+                {
+                    campaign_.adjustTax(1);
+                }
+                else
+                {
+                    applyZoom(1);
+                }
                 break;
             case SDLK_MINUS:
             case SDLK_KP_MINUS:
-                applyZoom(-1);
+                // On the management screen `-` lowers the selected territory's
+                // tax; in the tactical view it zooms out (issue #122).
+                if (campaign_.visible())
+                {
+                    campaign_.adjustTax(-1);
+                }
+                else
+                {
+                    applyZoom(-1);
+                }
                 break;
             default:
                 break;
@@ -1707,6 +1746,18 @@ void Game::handleEvents(bool& running)
         case SDL_MOUSEBUTTONDOWN:
             if (event.button.button == SDL_BUTTON_LEFT || event.button.button == SDL_BUTTON_RIGHT)
             {
+                // On the management screen a left click selects a territory node;
+                // the tactical order path below is skipped entirely.
+                if (campaign_.visible())
+                {
+                    if (event.button.button == SDL_BUTTON_LEFT)
+                    {
+                        campaign_.handleClick(event.button.x, event.button.y, screenWidth_,
+                                               screenHeight_);
+                    }
+                    break;
+                }
+
                 const bool right = event.button.button == SDL_BUTTON_RIGHT;
                 const bool shift = (SDL_GetModState() & KMOD_SHIFT) != 0;
 
@@ -1807,6 +1858,16 @@ void Game::update(float frameSeconds)
     // The view still runs, so a paused frame redraws (e.g. a selection box).
     if (paused_)
     {
+        return;
+    }
+
+    // Campaign management screen (Milestone B): while it is up the tactical
+    // simulation is frozen (the player is on the map, not the board) and the
+    // campaign clock advances instead. The economy and research tick on real
+    // elapsed time, not the tactical fixed step.
+    if (campaign_.visible())
+    {
+        campaign_.update(frameSeconds);
         return;
     }
 
@@ -2374,6 +2435,15 @@ void Game::renderMinimap()
     minimap_.render(renderer_, x, y);
 }
 
+void Game::renderCampaignScreen()
+{
+    if (!campaign_.visible())
+    {
+        return;
+    }
+    campaign_.render(renderer_, font_, screenWidth_, screenHeight_);
+}
+
 void Game::render()
 {
     SDL_SetRenderDrawColor(renderer_, 12, 13, 12, 255);
@@ -2404,6 +2474,9 @@ void Game::render()
         renderHud();
         renderMinimap();
     }
+    // The campaign management screen draws over everything when it is up
+    // (Milestone B). A no-op when hidden or no campaign loaded.
+    renderCampaignScreen();
 
     SDL_RenderPresent(renderer_);
 }
