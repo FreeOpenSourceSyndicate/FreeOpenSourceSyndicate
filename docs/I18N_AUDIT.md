@@ -23,9 +23,13 @@ grep -rn 'draw(renderer_[^;]*"' src/game/*.cpp
 grep -rnoE '"[A-Z][A-Z0-9 :.,/()+-]{2,}"' src/game/*.cpp src/game/*.h
 ```
 
-## Result — none found
+## Result — none found (as of the #191 audit)
 
-Every user-facing literal in the engine layer already goes through the table:
+At the time of the #191 audit, every user-facing literal in the engine layer went
+through the table. That is **no longer true tree-wide** — the Milestone B campaign
+screen draws plain literals by decision (see "Deliberate exception" below) — so
+read the table that follows as the state the audit found, not as a current
+invariant:
 
 | Site | File:line | Key |
 |------|-----------|-----|
@@ -49,6 +53,28 @@ broken). The on-screen reticle (`src/game/Game.cpp:1904`) is drawn geometry, not
 text.
 
 No literal was moved into the table: there was nothing to move.
+
+## Deliberate exception: the Milestone B campaign screen draws plain literals
+
+The campaign management screen landed after this audit (metagame, #289) and draws
+user-facing text as plain literals **on purpose**, with the rationale in the code:
+
+| Site | File | Owning area |
+|------|------|-------------|
+| `"WORLD MAP"`, `"FUNDS: "`, `"TERRITORIES: "`, `"SELECTED: "`, `"OWNER: "`, `"MISSION: "`, `"TAX: "`, `"RESEARCH: IDLE"`, `"RESEARCH DONE: "`, `"CAMPAIGN WON"`/`"CAMPAIGN LOST"`, `"NEUTRAL"`/`"RIVAL"`, `"SYNDICATE"` | `src/game/CampaignScreen.cpp` | `focus: metagame` |
+| `"M MAP"` (campaign hint) | `src/game/Hud.cpp` | `focus: render` |
+| `"M  WORLD MAP   -/+  TAX   D  DEPLOY"` | `src/game/TitleCard.cpp` | `focus: render` |
+
+The two render-owned sites carry the comment *"A plain literal, not an i18n key
+(localisation beyond English is out of scope, ADR-0024)"*. This is consistent with
+ADR-0024 (localisation beyond English is out of v1.0.0 scope), so it is **not** a
+bypass to fix — the text lane does not ask these areas to key the strings.
+
+The consequence for the guard: rule 1 below checks that **key-shaped** literals
+resolve in `en.json`. It does not — and is not meant to — flag a literal that was
+never given a key, so a future plain literal is caught by nobody. Under ADR-0024
+that is acceptable, but it is written down here so the guard's coverage is not
+overstated.
 
 ## One finding, left as-is
 
