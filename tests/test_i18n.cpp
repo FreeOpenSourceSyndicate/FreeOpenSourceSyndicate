@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <iterator>
 #include <set>
 #include <string>
 #include <vector>
@@ -65,6 +66,21 @@ std::vector<std::pair<std::string, std::string>> tableEntries(const Json& root, 
         entries.emplace_back(entry.first, entry.second.asString());
     }
     return entries;
+}
+
+// A comma-separated key list for a readable parity-failure message.
+std::string joinKeys(const std::vector<std::string>& keys)
+{
+    std::string out;
+    for (std::size_t i = 0; i < keys.size(); ++i)
+    {
+        if (i != 0)
+        {
+            out += ", ";
+        }
+        out += keys[i];
+    }
+    return out;
 }
 
 // Every shipped locale file (assets/lang/*.json except the English reference),
@@ -224,6 +240,12 @@ FOSSYND_TEST(I18n, ShippedLocalesMatchTheEnglishKeySet)
     FOSSYND_CHECK(entryError.empty());
     FOSSYND_CHECK(!englishEntries.empty());
 
+    std::set<std::string> englishKeys;
+    for (const auto& entry : englishEntries)
+    {
+        englishKeys.insert(entry.first);
+    }
+
     const auto locales = shippedLocaleFiles();
     FOSSYND_CHECK(!locales.empty());
     for (const std::filesystem::path& localePath : locales)
@@ -236,7 +258,36 @@ FOSSYND_TEST(I18n, ShippedLocalesMatchTheEnglishKeySet)
         std::string localeEntryError;
         const auto localeEntries = tableEntries(localeRoot, localeEntryError);
         FOSSYND_CHECK(localeEntryError.empty());
-        FOSSYND_CHECK_EQ(localeEntries.size(), englishEntries.size());
+
+        std::set<std::string> localeKeys;
+        for (const auto& entry : localeEntries)
+        {
+            localeKeys.insert(entry.first);
+        }
+
+        // Compare the actual key sets, not just the counts: a locale that drops
+        // one English key and invents another has the right size but is broken,
+        // and would silently show a raw key or an English fallback.
+        std::vector<std::string> missing;
+        std::set_difference(englishKeys.begin(), englishKeys.end(), localeKeys.begin(),
+                            localeKeys.end(), std::back_inserter(missing));
+        std::vector<std::string> extra;
+        std::set_difference(localeKeys.begin(), localeKeys.end(), englishKeys.begin(),
+                            englishKeys.end(), std::back_inserter(extra));
+
+        if (!missing.empty() || !extra.empty())
+        {
+            std::string message = localePath.filename().string() + ": key set mismatch";
+            if (!missing.empty())
+            {
+                message += " | missing: " + joinKeys(missing);
+            }
+            if (!extra.empty())
+            {
+                message += " | extra: " + joinKeys(extra);
+            }
+            ::fossynd::test::reportFailure(__FILE__, __LINE__, message);
+        }
     }
 }
 
