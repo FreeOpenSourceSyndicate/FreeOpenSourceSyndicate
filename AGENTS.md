@@ -63,19 +63,6 @@ fork. Before starting work, check it against the fence; if a task is out of scop
 do not build it. Out-of-scope work needs a **human decision**, not an agent's
 enthusiasm: open an issue with `question` and propose it.
 
-## 1d. Keep the fleet small (resource policy)
-
-**Capacity is not a goal** (ADR-0024). The coordination scheme supports 1–10
-agents, but running more agents than the work needs wastes resources. The normal
-target is **1–4 agents**. Start (or request) an additional agent only when there
-is **critical-path work** for it in `docs/ROADMAP.md` that genuinely parallelises
-with what is already running — for example, Milestones A and B are independent.
-"There is an open issue" is **not** by itself a reason to start an agent, and an
-out-of-scope item never is. When in doubt, fewer agents.
-
-This is a *resource* policy, not a coordination rule: it changes **how many**
-agents run, never **how** they coordinate (still flat, ADR-0019/0021).
-
 ## 1a. AI attribution (mandatory)
 
 Every file generated or substantially edited by an LLM must be **marked as
@@ -119,6 +106,19 @@ For every tool, library, and dependency, **prefer open source**. Choose a
 permissively licensed (MIT/BSD/zlib/CC0) option compatible with our MIT license
 (`docs/LEGAL.md`). Avoid proprietary toolchains where an open one works. If you
 must add a dependency, record why in the PR and, if architectural, in an ADR.
+
+## 1d. Keep the fleet small (resource policy)
+
+**Capacity is not a goal** (ADR-0024). The coordination scheme supports 1–10
+agents, but running more agents than the work needs wastes resources. The normal
+target is **1–4 agents**. Start (or request) an additional agent only when there
+is **critical-path work** for it in `docs/ROADMAP.md` that genuinely parallelises
+with what is already running — for example, Milestones A and B are independent.
+"There is an open issue" is **not** by itself a reason to start an agent, and an
+out-of-scope item never is. When in doubt, fewer agents.
+
+This is a *resource* policy, not a coordination rule: it changes **how many**
+agents run, never **how** they coordinate (still flat, ADR-0019/0021).
 
 ## 2. The one rule that matters most
 
