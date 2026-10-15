@@ -6,13 +6,131 @@ This comment must be preserved in future generated files.
 -->
 # Roadmap
 
-Goal: a playable, open-source tactical game that captures the *feel* of
-Syndicate (1993) and Syndicate Wars — four cyborg agents, isometric city
-missions, weapons and cybernetics, a corporation-management metagame — built
-entirely from original code and assets.
+Goal: a playable, open-source recreation of the **gameplay of Syndicate (1993)** —
+four cyborg agents, isometric city missions, weapons and cybernetics, and the
+corporation-management metagame — built entirely from original code and assets.
+See `docs/LEGAL.md` for the line we never cross.
 
-Phases are ordered so that **logic is built and tested headless before it is
-rendered**. That keeps the project parallelizable across many agents.
+This roadmap is **ordered toward one end state**: v1.0.0, defined below. Its job
+is to tell an agent what to do **next** so we finish fastest, and to fence out
+work that is not part of the clone. The scope rules are ADR-0024; this file is the
+plan that follows from them.
+
+---
+
+## Definition of Done — v1.0.0
+
+v1.0.0 is **feature parity with the 1993 original**. It ships when a player can,
+in one run, do all of the following **without touching a config file or a debug
+flag**:
+
+1. **Start a corporation** and see a world map of territories.
+2. **Earn income** by taxing owned territories, with over-taxation risking revolt.
+3. **Research** new weapons and cybernetic upgrades over time.
+4. **Buy** weapons, gadgets, and cybernetic upgrades for agents.
+5. **Select a mission** from the map and **deploy** a squad of up to four agents.
+6. **Play the mission** with the full tactical system (below), and **win or lose**.
+7. **Progress** through the mission set and reach an **end state** (the original's
+   final confrontation), then a victory screen.
+
+The **tactical system** is "complete" when all of these are in:
+
+- Four-agent squad with orders: move, attack/focus-fire, and per-agent control.
+- Isometric city missions with a destructible environment (breachable walls).
+- Weapon families: pistol, uzi, shotgun, minigun, flamethrower, sniper, laser,
+  gauss, time bomb.
+- Gadgets: medikit, scanner, shield, recruiter ("persuade") device, performance
+  drugs.
+- Cybernetic upgrades: legs, arms, chest, eyes.
+- Enemies: police, rival-syndicate agents; civilians with collateral behaviour.
+- Hijackable vehicles (cars, trains) with mounted fire.
+- Mission objectives: assassinate, eliminate, persuade, escort/retrieve, destroy.
+
+When the list above is true and the game is **stable, original, and playable end
+to end**, v1.0.0 is done. Nothing else is required.
+
+## Not in v1.0.0 (the scope fence)
+
+These are **not part of the clone**. They are deferred to a v2.x.x line or a fork
+(ADR-0024). Do **not** start an agent for them; do **not** let them take v1.0.0
+capacity:
+
+- **Localisation beyond English.** The original shipped English only. One
+  language for v1.0.0. The string-table mechanism stays; new locales and
+  translation-coverage work do not happen.
+- **Modding / scripting layer** (ADR-0004): deferred.
+- **Modern quality-of-life** the original lacked: extra control schemes,
+  save-anywhere, difficulty menus beyond the original's, UI modernisation.
+- **Extra platforms beyond Linux.** Linux is the target (ADR-0017); Windows and
+  macOS stay best-effort with no new v1.0.0 work.
+- **Multiplayer, level editors, and new game modes** the original did not have.
+
+If you believe one of these should change, that is a **human decision**: open an
+issue with `question`, propose it, and let the maintainer decide. Do not implement
+it speculatively.
+
+---
+
+## The critical path
+
+Work is ordered by **dependency**, not by how fun it is to build. The long pole is
+the **metagame** (Milestone B): it is the largest missing block, it is entirely
+unstarted, and the campaign cannot finish without it. Start it **in parallel**
+with the tactical finish, not after it.
+
+```
+  Milestone A  (finish the tactical layer)  ─┐
+                                             ├─►  Milestone C  (content + finish)  ─►  v1.0.0
+  Milestone B  (the metagame)               ─┘
+```
+
+Milestones A and B are largely independent (A is `core/sim` + `game`; B is new
+`core/economy` + a map screen), so with a small fleet they can run side by side.
+Milestone C needs both.
+
+### Milestone A — Finish the tactical layer
+
+Close out the 1993 tactical feature set (the tail of the old Phase 3).
+
+- [ ] **Cybernetics** (speed, accuracy, health, perception) as agent upgrades.
+- [ ] **Gadgets**: scanner (and any remaining gadget from the DoD list).
+      _Shield landed (#213); medikit and recruiter already done._
+- [ ] **Vehicles**: cars/trains you can hijack, drive, and fire from.
+- [ ] **Destructible environment**: breachable walls (started in #185/#217).
+- [ ] **Mission objectives**: complete the set — persuade, escort/retrieve,
+      destroy (eliminate and reach are done).
+
+### Milestone B — The metagame (the long pole; start now)
+
+The management half of the original, and the biggest gap. New, engine-free
+`src/core/` systems plus one map screen in `game/`.
+
+- [ ] **World map with territories** (a graph of regions; which are owned).
+- [ ] **Economy**: income from owned territories; tax level per region;
+      over-taxation risks revolt.
+- [ ] **Research & development**: a tree of weapons/cybernetics, cost and time.
+- [ ] **Equipment purchase**: spend money on weapons, gadgets, cybernetics.
+- [ ] **Mission selection & deployment**: pick a mission from the map, choose
+      which agents (up to four) to send.
+- [ ] **Campaign progression**: missions unlock regions; an end state and a
+      victory screen.
+
+### Milestone C — Content and finish
+
+Turn the systems into a game.
+
+- [ ] **Mission set**: enough missions to form a campaign (data-driven).
+- [ ] **Original art and audio** (`docs/ASSETS.md`); pixel art per ADR-0009.
+- [ ] **Save/load** between sessions (the original saved progress).
+- [ ] **Balance pass** on weapons, economy, and research pacing.
+- [ ] **v1.0.0 release**: tag, GitHub Release, `docs/releases/`, CHANGELOG.
+
+---
+
+## Done — the record
+
+Phases kept for history. Each was ordered so **logic is built and tested headless
+before it is rendered**, which keeps the project parallelisable.
 
 ## Phase 0 — Foundation (mostly done)
 
@@ -81,44 +199,55 @@ A shippable demo, deliberately original in code and art.
 
 **Deliverable:** the Phase 1 scenario playable with mouse/keyboard.
 
-## Phase 3 — Game systems
+## Phase 3 — Game systems (in progress → **Milestone A**)
 
 - [x] Weapons: pistol, uzi, minigun, flamethrower, rocket launcher, laser
       (catalogue is data-driven; the launcher does area damage)
-- [ ] Gadgets: Compliance Beacon, shield, medikit, scanner
-      (Compliance Beacon + medikit + shield done; scanner pending)
-- [ ] Cybernetic upgrades (speed, accuracy, health, perception)
-- [ ] Vehicles: cars/trains, hijacking, mounted weapons
+- [ ] Gadgets: Compliance Beacon ✅, medikit ✅, shield ✅; scanner pending →
+      Milestone A
+- [ ] Cybernetic upgrades (speed, accuracy, health, perception) → Milestone A
+- [ ] Vehicles: cars/trains, hijacking, mounted weapons → Milestone A
 - [x] Destructible environment (cracked walls: weapon fire opens them; enemies use cover)
 - [x] Enemy AI: engage (basic chase + fire)
 - [x] Enemy AI: take cover when under fire (steps behind walls; flank to dislodge)
 - [x] Enemy AI: patrol, retreat, call backup
 - [x] Civilians: flee from gunfire, killed as collateral damage
-- [x] Civilian/persuasion behaviour (Compliance Beacon recruitment)
+- [x] Civilian/persuasion behaviour (recruiter recruitment)
 - [x] Mission objectives + win/lose (data-driven: eliminate all enemies, reach a tile, survive)
 
-## Phase 4 — Metagame
+## Phase 4 — Metagame (0% → **Milestone B**)
 
-- [ ] World map with territories
-- [ ] Research tree and R&D time
-- [ ] Economy: income from territories, agent/equipment costs
-- [ ] Mission selection and deployment
-- [ ] Campaign progression
+- [ ] World map with territories → Milestone B
+- [ ] Research tree and R&D time → Milestone B
+- [ ] Economy: income from territories, agent/equipment costs → Milestone B
+- [ ] Mission selection and deployment → Milestone B
+- [ ] Campaign progression → Milestone B
 
-## Phase 5 — Content, polish, tooling
+## Phase 5 — Content, polish, tooling (partial → **Milestone C**)
 
-- [ ] Mission editor / data pipeline
-- [ ] Original art and audio (`docs/ASSETS.md`)
-- [ ] Save/load
-- [x] Localization scaffolding (string table + `assets/lang/en.json`; the HUD, title card, and mission name/description read from it)
-- [x] German UI translation (`assets/lang/de.json`, complete; ASCII-only font)
-- [ ] Modding / scripting layer (ADR-0004)
-- [x] Packaging for Linux (`.deb` + `.tar.gz`), macOS (`.dmg`), and Windows (`.zip`)
+- [ ] Mission editor / data pipeline (optional; not required by the DoD)
+- [ ] Original art and audio (`docs/ASSETS.md`) → Milestone C
+- [ ] Save/load → Milestone C
+- [x] Packaging for Linux (`.deb` + `.tar.gz`) (macOS/Windows best-effort, not a gate)
 - [x] Low-spec / old-hardware profile (ADR-0008)
+- ~~Localisation scaffolding, German translation, modding layer~~ — **out of
+  scope for v1.0.0** (ADR-0024); the existing string-table mechanism stays, but
+  no new locale work is done.
 
-## Cross-cutting (every phase)
+---
+
+## Keeping the fleet small
+
+Capacity is **not** a goal (ADR-0024). The coordination scheme supports 1–10
+agents (ADR-0019/0021), but the normal target is **1–4**. Start an agent only for
+work on the critical path above; "there is an open issue" is not by itself a
+reason to start one. Milestones A and B parallelise (different areas); the rest of
+the time a small fleet is enough and uses far fewer resources.
+
+## Cross-cutting (every milestone)
 
 - Tests for all `core` logic
 - No new build warnings
 - ADRs for architectural decisions
 - Legal hygiene: original assets only
+- **Stay inside the scope fence** (ADR-0024)

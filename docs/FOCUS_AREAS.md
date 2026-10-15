@@ -107,6 +107,22 @@ Areas 1–2 are the **core library** (engine-free, must stay SDL-free, ADR-0002)
 Areas 3–4 are the **engine layer** (the only place `<SDL.h>` appears). Areas 5–8
 are **content, tooling, and delivery**.
 
+**Not every area is on the v1.0.0 critical path (ADR-0024).** The scope fence says
+v1.0.0 is feature parity with the 1993 original. That makes some area capacity
+**lower priority** than others, and an idle agent should prefer the critical path:
+
+- **`focus: text` is not on the critical path.** Localisation beyond English is
+  out of scope (the original shipped English only). The string-table *mechanism*
+  stays and must keep working, but **no new locale, translation, or coverage
+  work** is v1.0.0 work. Prefer `tactical` / `world` / `render` / `content` work
+  instead; only take `text` work that keeps existing strings correct.
+- **`focus: release` / `focus: platform`** do delivery, not features — valuable,
+  but they do not add clone content, so do not let them absorb agent capacity
+  that could be building Milestone A or B.
+- **The critical path is Milestones A and B** in `docs/ROADMAP.md`: the tactical
+  finish (`tactical`, `world`, `render`, `input-ui`) and the metagame (new
+  `core/` systems). Point agents there.
+
 ### 2.1 Interface surfaces an area must not silently change
 
 Each area exposes a surface other areas compile against. Change it only through
@@ -250,10 +266,11 @@ already free; if it is live but stale, claim it with `--takeover`.
 A few changes affect every area and must never be in flight twice. These are
 serialised by **ownership + the two-review rule**, not by a coordinator:
 
-- `AGENTS.md`, `docs/COORDINATION.md`, `docs/FOCUS_AREAS.md`, `docs/DECISIONS.md`
-  (the rules themselves) — **shared maintainers**: any agent may PR a change,
-  but it needs **two peer reviews** (or, under the sole-account rule, an explicit
-  self-review against the §6 checklist) and must not collide with an active claim.
+- `AGENTS.md`, `docs/COORDINATION.md`, `docs/FOCUS_AREAS.md`, `docs/DECISIONS.md`,
+  `docs/ROADMAP.md` (the rules and the plan) — **shared maintainers**: any agent
+  may PR a change, but it needs **two peer reviews** (or, under the sole-account
+  rule, an explicit self-review against the §6 checklist) and must not collide
+  with an active claim.
 - A new top-level dependency or build option — **Platform**, announced before it
   lands so other areas can rebase.
 - A rename or format change to shared data (JSON schema, config keys) — requires

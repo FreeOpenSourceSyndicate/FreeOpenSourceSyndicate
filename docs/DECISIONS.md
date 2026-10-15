@@ -1080,3 +1080,126 @@ for reassignment by a coordinator.
     field, mirroring the medikit at the time of its ADR. A `focus: input-ui`
     binding and a `focus: content` `shields` field are follow-ups (Rule 4).
 
+---
+
+## ADR-0024 — v1.0.0 scope: finish the 1993 clone first; defer everything else
+
+- **Status:** Accepted (2026-10-15)
+- **Date:** 2026-10-15
+- **Directive:** a human maintainer asked (2026-10-15) that the project keep the
+  agent fleet **small** to limit resource use, that a credible roadmap lead to a
+  **finished clone** rather than accumulating "nice to have" features that are
+  not in the original, and that the structure get us to a finished clone as fast
+  as possible within legal bounds. This ADR records that directive as a rule. It
+  supersedes the *implicit* scope of ADR-0009 (which fenced only the **visual**
+  style); ADR-0009's pixel-art decision stands.
+
+- **Context:** the project recreates the **gameplay of Syndicate (1993)**. It has
+  made fast, high-quality progress (Phases 0–2 done, Phase 3 roughly half done,
+  six playtest releases shipped). But there is **no written definition of
+  "finished"** and **no feature fence**, so work drifts toward things the
+  original did not have. Evidence from the repo:
+
+  1. **No project-level Definition of Done.** `AGENTS.md` §9 defines "done" for a
+     *pull request*, not for *v1.0.0*. Nothing states the end state, so no one
+     can tell whether a proposed feature moves us toward it.
+  2. **No scope fence.** The only fence (ADR-0009) is about **graphics**. Nothing
+     says which *features* are out, so every "wouldn't it be nice" is a legal
+     issue and the fleet's eight areas each pull toward their own backlog.
+  3. **Measurable drift.** `focus: text` is an entire area (~310 lines of
+     `core/i18n`, two ADRs — 0016 and 0020 — a German translation and ongoing
+     coverage work) for **localisation**, which the 1993 original did not have.
+     ADR-0004 proposes a **modding/scripting layer**, also not in the original.
+     Modern quality-of-life (control groups, pause, zoom levels, fullscreen) and
+     extra packaging lanes (Windows/macOS) consume capacity too. Each is
+     defensible alone; together they are capacity **not** going to the clone.
+  4. **The largest gap is unstarted and buried.** The **metagame** — the world
+     map, taxation/income, research & development, equipment purchase, mission
+     selection, and campaign progression — is *half of the original game's
+     systems* and is **0% started** (no economy/research/world-map code exists).
+     It sits at roadmap "Phase 4", behind more single-mission polish. A player
+     cannot "finish" our game until the campaign exists.
+
+  The failure mode this ADR prevents: a fleet of agents producing an excellent
+  single-mission tactical demo **forever**, while the actual clone never lands,
+  because nothing fenced the scope or ordered the work toward an end state.
+
+- **Options:**
+
+  1. **Leave scope open; let each area pursue its backlog.** Rejected: it is the
+     status quo that produced the drift in point 3, and it makes "finished"
+     unfalsifiable.
+  2. **Freeze features and only polish what exists.** Rejected: the clone is
+     missing its whole metagame half; polishing a demo is not finishing a clone.
+  3. **Adopt an explicit, written scope fence for v1.0.0 = the original 1993
+     feature set, a project-level Definition of Done, and an ordered roadmap that
+     front-loads the missing systems.** Chosen: the only option that both bounds
+     the work and aims it at the end state.
+
+- **Decision:** **Option 3.**
+
+  **1. v1.0.0 is defined as feature parity with the 1993 original.** v1.0.0 ships
+  when a player can start a new corporation, run the full mission set against a
+  world map with research, income and equipment, and reach an end state — using
+  the original's **mechanics and systems**, original code and art, and nothing
+  that was not in that game. The Definition of Done is written out in
+  `docs/ROADMAP.md` and is the single answer to "are we done?".
+
+  **2. The 1993 feature set is the scope.** In scope for v1.0.0 (each traced to
+  the original): the four-agent squad and its orders; isometric city missions;
+  the weapon families (pistol, uzi, shotgun, minigun, flamethrower, sniper,
+  laser, gauss, time bomb) and **gadgets** (medikit, scanner, shield,
+  recruiter/"persuade" device, performance drugs); **cybernetic upgrades**
+  (legs/arms/chest/eyes); police and rival-syndicate enemies; civilians and
+  collateral behaviour; **hijackable vehicles** (cars, trains) with mounted fire;
+  a **destructible environment**; the mission objective set (assassinate,
+  eliminate, persuade, escort/retrieve, destroy); and the **metagame** (world map
+  with territories, taxation/income, research & development, equipment purchase,
+  mission selection, campaign progression).
+
+  **3. Explicitly out of scope for v1.0.0 — deferred to v2.x.x or a fork.** These
+  are not forbidden forever; they are simply **not part of the clone** and must
+  not consume v1.0.0 capacity:
+
+  - **Localisation beyond English.** The original was English-only. v1.0.0 ships
+    one language. The string-table *mechanism* may stay (it is already built and
+    cheap), but **no new translation work** (more locales, translation coverage
+    guards) is v1.0.0 work.
+  - **Modding / scripting layer** (ADR-0004): defer. Data-driven content stays;
+    an embedded language does not land for v1.0.0.
+  - **Modern quality-of-life** not in the original (extra control schemes,
+    save-anywhere, difficulty options beyond the original's, UI modernisation).
+    Keep only what the original had.
+  - **Extra platforms beyond Linux.** Linux is the v1.0.0 target (ADR-0017);
+    Windows/macOS remain best effort and get no new v1.0.0 work.
+  - **Multiplayer**, level editors, and any new game mode the original lacked.
+
+  **4. The fleet stays small by default.** The coordination scheme supports 1–10
+  agents (ADR-0019/0021), but **capacity is not a goal**. Start an agent only for
+  work on the critical path to the Definition of Done; work on an out-of-scope
+  item is **not** a reason to start an agent. A small fleet (roughly 1–4) is the
+  normal target; fan out only when a phase genuinely parallelises. This is a
+  resource policy, not a coordination rule: it changes *how many* agents run, not
+  *how* they coordinate.
+
+  **5. The roadmap is ordered by dependency toward the end state.** The metagame
+  is promoted ahead of further single-mission polish, because it is the largest
+  missing block and other systems (research, purchase, campaign) depend on it.
+
+- **Consequences:**
+
+  - `docs/ROADMAP.md` is rewritten: a **Definition of Done**, an explicit **"Not
+    in v1.0.0"** fence, and phases reordered so the metagame is the next major
+    milestone rather than the last.
+  - `AGENTS.md` §1 points at the fence; §9 gains the **project-level** Definition
+    of Done; a **fleet-size policy** is added (§1d).
+  - `docs/FOCUS_AREAS.md` records that localisation is not on the v1.0.0 critical
+    path, so `focus: text` capacity is not spent on new locales.
+  - Open issues that are out of scope (further i18n coverage, modding) are
+    labelled as deferred; new out-of-scope issues get a defer label rather than a
+    `focus:` claim.
+  - **Legal position is unchanged** (`docs/LEGAL.md`): recreating the original's
+    *mechanics and systems* with original code, art, and names is the whole
+    project; the fence narrows *what we build*, it does not license copying.
+  - A v2.x.x/fork line may pursue the deferred items — this ADR only says they
+    are not v1.0.0.
