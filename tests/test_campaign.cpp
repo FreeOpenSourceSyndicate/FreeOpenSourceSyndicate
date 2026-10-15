@@ -168,6 +168,49 @@ FOSSYND_TEST(Campaign, SelectMissionGatesOnDeployabilityAndSlots)
     FOSSYND_CHECK(!campaign.selectMission(99, {}));
 }
 
+FOSSYND_TEST(Campaign, SelectedLoadoutMapsBoughtEquipmentToSlots)
+{
+    Campaign campaign = loadedCampaign();
+    const int player = Campaign::kPlayerSyndicate;
+
+    // Buy nothing yet: the loadout is still one (empty) slot per sent agent, so
+    // the mission keeps its authored squad.
+    FOSSYND_CHECK(campaign.selectMission(0, {0, 1, 2, 3}));
+    PlayerLoadout empty = campaign.selectedLoadout();
+    FOSSYND_CHECK_EQ(empty.slots.size(), std::size_t{4});
+    for (const LoadoutSlot& slot : empty.slots)
+    {
+        FOSSYND_CHECK(slot.weaponId.empty());
+        FOSSYND_CHECK(slot.gadgetId.empty());
+    }
+
+    // Assign a weapon and a gadget to squad slot 0, a cybernetic to slot 1, and
+    // an id that is not in the catalogue to slot 2.
+    campaign.equipment().assign(player, 0, "minigun");
+    campaign.equipment().assign(player, 0, "medkit");
+    campaign.equipment().assign(player, 1, "targeting-implant");
+    campaign.equipment().assign(player, 2, "not-in-the-catalogue");
+
+    FOSSYND_CHECK(campaign.selectMission(0, {0, 1, 2, 3}));
+    const PlayerLoadout loadout = campaign.selectedLoadout();
+    FOSSYND_CHECK_EQ(loadout.slots.size(), std::size_t{4});
+    FOSSYND_CHECK_EQ(loadout.slots[0].weaponId, std::string("minigun"));
+    FOSSYND_CHECK_EQ(loadout.slots[0].gadgetId, std::string("medkit"));
+    // A cybernetic is a passive upgrade, not a loadout item.
+    FOSSYND_CHECK(loadout.slots[1].weaponId.empty());
+    FOSSYND_CHECK(loadout.slots[1].gadgetId.empty());
+    // An unknown id deploys nothing rather than a broken weapon.
+    FOSSYND_CHECK(loadout.slots[2].weaponId.empty());
+    FOSSYND_CHECK(loadout.slots[3].weaponId.empty());
+
+    // The loadout follows the *selected* slots, not the squad index: sending
+    // only slot 2 yields one loadout entry carrying slot 2's equipment.
+    FOSSYND_CHECK(campaign.selectMission(0, {2}));
+    const PlayerLoadout one = campaign.selectedLoadout();
+    FOSSYND_CHECK_EQ(one.slots.size(), std::size_t{1});
+    FOSSYND_CHECK(one.slots[0].weaponId.empty());
+}
+
 FOSSYND_TEST(Campaign, ShippedCampaignCanBeWonByClaimingTheFrontier)
 {
     // The Definition of Done requires the loop to reach an end state. That is only

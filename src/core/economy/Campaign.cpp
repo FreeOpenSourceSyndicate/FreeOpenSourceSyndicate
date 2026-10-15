@@ -2,6 +2,7 @@
 #include "core/economy/Campaign.h"
 
 #include <algorithm>
+#include <utility>
 
 #include "core/data/ContentPaths.h"
 
@@ -201,6 +202,36 @@ bool Campaign::selectMission(TerritoryId territory, const std::vector<int>& agen
     selectedMissionId_ = map_.find(territory)->missionId;
     selectedSlots_ = agentSlots;
     return true;
+}
+
+PlayerLoadout Campaign::selectedLoadout() const
+{
+    PlayerLoadout loadout;
+    for (const int slot : selectedSlots_)
+    {
+        LoadoutSlot entry;
+        for (const std::string& itemId : equipment_.loadout(kPlayerSyndicate, slot))
+        {
+            const EquipmentItem* item = catalogue_.find(itemId);
+            if (item == nullptr)
+            {
+                continue; // assigned but not in the catalogue: nothing to deploy
+            }
+            if (item->kind == EquipmentKind::Weapon && entry.weaponId.empty())
+            {
+                entry.weaponId = item->id;
+            }
+            else if (item->kind == EquipmentKind::Gadget && entry.gadgetId.empty())
+            {
+                entry.gadgetId = item->id;
+            }
+            // A cybernetic is a passive upgrade, not a loadout item; anything
+            // already set (a second weapon/gadget in a slot) is ignored, because
+            // R1's LoadoutSlot carries at most one of each.
+        }
+        loadout.slots.push_back(std::move(entry));
+    }
+    return loadout;
 }
 
 void Campaign::recordResult(bool won, int syndicate)

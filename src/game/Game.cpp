@@ -8,6 +8,7 @@
 #include <set>
 #include <string>
 
+#include "core/data/Catalogues.h"
 #include "core/data/ContentPaths.h"
 #include "core/data/Json.h"
 #include "core/data/MissionData.h"
@@ -249,6 +250,34 @@ void Game::buildMission()
     mission_ = core::Mission(grid_, seed_);
     core::populateMission(data, mission_);
 
+    // Apply a deployed squad's loadout (Milestone B, issue #312): the bought
+    // weapons/gadgets replace the mission's authored defaults for the player
+    // agents. An empty loadout leaves the authored squad untouched, so a normal
+    // start is unchanged. The weapon ids resolve against the shared weapon
+    // catalogue beside the mission file; a bad id is a content error, reported
+    // rather than deploying a broken weapon.
+    if (!activeLoadout_.slots.empty())
+    {
+        core::WeaponCatalogue loadoutWeapons;
+        const std::string weaponsPath =
+            core::cataloguePathForMission(missionPath_, core::kWeaponsFileName);
+        if (!weaponsPath.empty())
+        {
+            bool found = false;
+            std::string catalogueError;
+            if (!loadoutWeapons.loadFromFile(weaponsPath, found, catalogueError))
+            {
+                std::fprintf(stderr, "weapon catalogue error (%s): %s\n", weaponsPath.c_str(),
+                             catalogueError.c_str());
+            }
+        }
+        std::string loadoutError;
+        if (!core::applyLoadout(activeLoadout_, mission_, loadoutWeapons, loadoutError))
+        {
+            std::fprintf(stderr, "loadout error: %s\n", loadoutError.c_str());
+        }
+    }
+
     // Localise the mission's authored name through the active string table
     // (issue #142/#176): a mission gains a translation by adding
     // `mission.<id>.name` to its locale file, with no C++ or schema change. The
@@ -350,6 +379,31 @@ void Game::buildMinimap()
         // Not fatal: the HUD simply omits the panel.
         std::fprintf(stderr, "minimap init failed: %s\n", SDL_GetError());
     }
+}
+
+void Game::startDeployedMission(const std::string& missionPath, const core::PlayerLoadout& loadout)
+{
+    // A deployment replaces the current mission with the campaign's target
+    // (issue #312). The path is a resolved file, never the embedded fallback, so
+    // the mission played is the one the territory named. The loadout is kept so
+    // `restart()` replays the same squad after a loss.
+    missionPath_ = missionPath;
+    activeLoadout_ = loadout;
+    deployedTerritory_ = campaign_.selectedTerritory();
+    restart();
+    campaign_.setVisible(false);
+}
+
+void Game::finishDeployment()
+{
+    if (deployedTerritory_ < 0)
+    {
+        return;
+    }
+    const bool won = mission_.state() == core::MissionState::Won;
+    campaign_.recordDeployResult(won);
+    deployedTerritory_ = -1;
+    campaign_.setVisible(campaign_.valid());
 }
 
 void Game::restart()
@@ -1022,6 +1076,112 @@ bool Game::objectiveSelfTest()
     }
 
     mission_.setObjective(saved);
+    return ok;
+}
+
+bool Game::deploySelfTest()
+{
+    // Deploying from the map must (a) resolve the territory's mission to a file,
+    // (b) start that mission on the tactical board with the chosen loadout applied
+    // to the player agents, and (c) feed the mission result back to the campaign
+    // and return to the map. Drives the real CampaignScreen + Game path; restores
+    // the live state before returning (issue #312).
+    if (!campaign_.valid())
+    {
+        std::fprintf(stderr, "deploy self-test: no campaign loaded\n");
+        return false;
+    }
+
+    const std::string savedPath = missionPath_;
+    const core::PlayerLoadout savedLoadout = activeLoadout_;
+    const core::TerritoryId savedDeployed = deployedTerritory_;
+    const bool savedVisible = campaign_.visible();
+
+    bool ok = true;
+
+    // (a) The screen resolves the selected territory's mission to a file and
+    // records a pending deployment whose loadout has one entry per squad slot —
+    // the exact pair the `D` key uses. (The bought-weapon mapping itself is
+    // unit-tested in tests/test_campaign.cpp; this guards the engine wiring.)
+    campaign_.setVisible(true);
+    if (!campaign_.deploySelected())
+    {
+        std::fprintf(stderr, "deploy self-test: could not deploy the selected territory\n");
+        return false;
+    }
+    const std::string missionFile = campaign_.deployedMissionPath();
+    if (missionFile.empty())
+    {
+        std::fprintf(stderr, "deploy self-test: the deployed mission has no file\n");
+        return false;
+    }
+    const core::TerritoryId territory = campaign_.selectedTerritory();
+    if (campaign_.deployedLoadout().slots.size() !=
+        static_cast<std::size_t>(core::Equipment::kSquadSlots))
+    {
+        std::fprintf(stderr, "deploy self-test: the pending loadout has the wrong slot count\n");
+        return false;
+    }
+
+    // (b) Starting it must apply the loadout to the squad. A hand-built loadout
+    // stands in for a bought one: the shared "minigun" is distinctive and the
+    // demo squad does not carry it, so the weapon on the first player agent
+    // proves applyLoadout ran.
+    core::PlayerLoadout loadout;
+    loadout.slots.push_back(core::LoadoutSlot{"minigun", ""});
+    startDeployedMission(missionFile, loadout);
+    if (campaign_.visible())
+    {
+        std::fprintf(stderr, "deploy self-test: the map was not hidden on deploy\n");
+        ok = false;
+    }
+    if (deployedTerritory_ != territory)
+    {
+        std::fprintf(stderr, "deploy self-test: the deployment did not record the territory\n");
+        ok = false;
+    }
+    bool sawBoughtWeapon = false;
+    for (const core::Agent& agent : mission_.agents())
+    {
+        if (agent.team() == core::Team::Player)
+        {
+            sawBoughtWeapon = agent.weapon().name == "Minigun";
+            break; // slot 0 is the first player agent
+        }
+    }
+    if (!sawBoughtWeapon)
+    {
+        std::fprintf(stderr, "deploy self-test: the loadout was not applied to the squad\n");
+        ok = false;
+    }
+
+    // (c) Ending the mission must record the result and show the map again. Kill
+    // the squad and let update() observe the lost state.
+    for (core::Agent& agent : mission_.agents())
+    {
+        if (agent.team() == core::Team::Player)
+        {
+            agent.applyDamage(100000.0f);
+        }
+    }
+    update(0.5f);    // guarantees whole steps so the sim observes the dead squad
+    update(0.016f);  // the next frame feeds the result back and shows the map
+    if (deployedTerritory_ >= 0)
+    {
+        std::fprintf(stderr, "deploy self-test: the result was not fed back to the campaign\n");
+        ok = false;
+    }
+    if (!campaign_.visible())
+    {
+        std::fprintf(stderr, "deploy self-test: the map did not reappear after the mission\n");
+        ok = false;
+    }
+
+    // Restore the live state.
+    missionPath_ = savedPath;
+    activeLoadout_ = savedLoadout;
+    deployedTerritory_ = savedDeployed;
+    campaign_.setVisible(savedVisible);
     return ok;
 }
 
@@ -1704,10 +1864,15 @@ void Game::handleEvents(bool& running)
                 }
                 break;
             case SDLK_d:
-                // Deploy the selected territory's mission from the map.
-                if (campaign_.visible())
+                // Deploy the selected territory's mission from the map: start it
+                // on the tactical board with the bought squad (issue #312). Ignore
+                // the key while a deployment is already in progress, so peeking at
+                // the map mid-mission cannot abandon the live mission.
+                if (campaign_.visible() && deployedTerritory_ < 0 &&
+                    campaign_.deploySelected() && campaign_.hasDeployed())
                 {
-                    campaign_.deploySelected();
+                    startDeployedMission(campaign_.deployedMissionPath(),
+                                         campaign_.deployedLoadout());
                 }
                 break;
             case SDLK_SPACE:
@@ -1921,6 +2086,17 @@ void Game::update(float frameSeconds)
     // The view still runs, so a paused frame redraws (e.g. a selection box).
     if (paused_)
     {
+        return;
+    }
+
+    // A deployed campaign mission that has ended: record the win/lose on the
+    // campaign, then show the map again so the loop closes (issue #312). Done
+    // once — `deployedTerritory_` is cleared — so `R`/restart or a later frame
+    // does not record the same result twice. Auto-play (attract mode) never
+    // deploys, so this cannot fire there.
+    if (deployedTerritory_ >= 0 && mission_.state() != core::MissionState::Running)
+    {
+        finishDeployment();
         return;
     }
 
