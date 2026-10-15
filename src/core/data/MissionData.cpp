@@ -10,8 +10,8 @@ namespace fossynd::core
 namespace
 {
 
-bool parseAgent(const Json& node, const AgentCatalogue& agents, const WeaponCatalogue& weapons,
-                AgentSpec& out, std::string& error)
+bool parseAgent(const Json& node, int mapWidth, int mapHeight, const AgentCatalogue& agents,
+                const WeaponCatalogue& weapons, AgentSpec& out, std::string& error)
 {
     if (!node.isObject())
     {
@@ -42,6 +42,15 @@ bool parseAgent(const Json& node, const AgentCatalogue& agents, const WeaponCata
     }
     out.x = node["x"].asFloat(out.x);
     out.y = node["y"].asFloat(out.y);
+    // An agent outside the map is never drawn and never reachable, so a
+    // misplaced one silently breaks the mission (issue #212).
+    if (!(out.x >= 0.0f && out.x < static_cast<float>(mapWidth) && out.y >= 0.0f &&
+          out.y < static_cast<float>(mapHeight)))
+    {
+        error = "agent position ('x', 'y') must be inside the " + std::to_string(mapWidth) + "x" +
+                std::to_string(mapHeight) + " map";
+        return false;
+    }
 
     if (!detail::applyAgentCommon(node, out, error))
     {
@@ -55,7 +64,8 @@ bool parseAgent(const Json& node, const AgentCatalogue& agents, const WeaponCata
     return true;
 }
 
-bool parseBuildings(const Json& array, std::vector<BuildingSpec>& out, std::string& error)
+bool parseBuildings(const Json& array, int mapWidth, int mapHeight, std::vector<BuildingSpec>& out,
+                    std::string& error)
 {
     for (std::size_t i = 0; i < array.size(); ++i)
     {
@@ -75,12 +85,24 @@ bool parseBuildings(const Json& array, std::vector<BuildingSpec>& out, std::stri
             error = "building 'width' and 'height' must be positive";
             return false;
         }
+        // A building that runs off the map is clipped by buildGrid, so only the
+        // part inside the grid is ever blocked. Reject it instead (issue #212).
+        if (building.x < 0 || building.y < 0 || building.x + building.width > mapWidth ||
+            building.y + building.height > mapHeight)
+        {
+            error = "building at (" + std::to_string(building.x) + ", " +
+                    std::to_string(building.y) + ") size " + std::to_string(building.width) + "x" +
+                    std::to_string(building.height) + " is not inside the " +
+                    std::to_string(mapWidth) + "x" + std::to_string(mapHeight) + " map";
+            return false;
+        }
         out.push_back(building);
     }
     return true;
 }
 
-bool parseBlocked(const Json& array, std::vector<TileSpec>& out, std::string& error)
+bool parseBlocked(const Json& array, int mapWidth, int mapHeight, std::vector<TileSpec>& out,
+                  std::string& error)
 {
     for (std::size_t i = 0; i < array.size(); ++i)
     {
@@ -93,6 +115,14 @@ bool parseBlocked(const Json& array, std::vector<TileSpec>& out, std::string& er
         TileSpec tile;
         tile.x = node["x"].asInt();
         tile.y = node["y"].asInt();
+        // An off-map blocked tile is silently dropped by buildGrid (issue #212).
+        if (tile.x < 0 || tile.y < 0 || tile.x >= mapWidth || tile.y >= mapHeight)
+        {
+            error = "blocked tile (" + std::to_string(tile.x) + ", " + std::to_string(tile.y) +
+                    ") is outside the " + std::to_string(mapWidth) + "x" + std::to_string(mapHeight) +
+                    " map";
+            return false;
+        }
         out.push_back(tile);
     }
     return true;
@@ -100,7 +130,8 @@ bool parseBlocked(const Json& array, std::vector<TileSpec>& out, std::string& er
 
 } // namespace
 
-bool MissionData::parseObjectiveJson(const Json& node, ObjectiveSpec& out, std::string& error)
+bool MissionData::parseObjectiveJson(const Json& node, int mapWidth, int mapHeight,
+                                     ObjectiveSpec& out, std::string& error)
 {
     out = ObjectiveSpec{};
     if (!node.isObject())
@@ -124,6 +155,15 @@ bool MissionData::parseObjectiveJson(const Json& node, ObjectiveSpec& out, std::
         }
         out.tileX = node["tileX"].asInt();
         out.tileY = node["tileY"].asInt();
+        // A reach target off the map can never be reached, so the mission would
+        // be silently unwinnable (issue #212).
+        if (out.tileX < 0 || out.tileY < 0 || out.tileX >= mapWidth || out.tileY >= mapHeight)
+        {
+            error = "a 'reach' objective tile (" + std::to_string(out.tileX) + ", " +
+                    std::to_string(out.tileY) + ") is outside the " + std::to_string(mapWidth) + "x" +
+                    std::to_string(mapHeight) + " map";
+            return false;
+        }
     }
     else if (kind == "survive")
     {
@@ -179,17 +219,20 @@ bool MissionData::fromJson(const Json& root, MissionData& out, const WeaponCatal
         return false;
     }
 
-    if (root.has("buildings") && !parseBuildings(root["buildings"], out.buildings, error))
+    if (root.has("buildings") &&
+        !parseBuildings(root["buildings"], out.width, out.height, out.buildings, error))
     {
         return false;
     }
-    if (root.has("blocked") && !parseBlocked(root["blocked"], out.blocked, error))
+    if (root.has("blocked") &&
+        !parseBlocked(root["blocked"], out.width, out.height, out.blocked, error))
     {
         return false;
     }
 
     if (root.has("objective") &&
-        !MissionData::parseObjectiveJson(root["objective"], out.objective, error))
+        !MissionData::parseObjectiveJson(root["objective"], out.width, out.height, out.objective,
+                                         error))
     {
         return false;
     }
@@ -202,7 +245,7 @@ bool MissionData::fromJson(const Json& root, MissionData& out, const WeaponCatal
     for (std::size_t i = 0; i < root["agents"].size(); ++i)
     {
         AgentSpec spec;
-        if (!parseAgent(root["agents"][i], agents, weapons, spec, error))
+        if (!parseAgent(root["agents"][i], out.width, out.height, agents, weapons, spec, error))
         {
             return false;
         }

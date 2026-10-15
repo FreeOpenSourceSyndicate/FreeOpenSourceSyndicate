@@ -39,8 +39,11 @@ struct MissionData
     ObjectiveSpec objective;
 
     // Parses an `objective` JSON object into `out` (missing fields keep their
-    // defaults). Returns false and sets `error` on a schema error.
-    static bool parseObjectiveJson(const Json& node, ObjectiveSpec& out, std::string& error);
+    // defaults). `mapWidth`/`mapHeight` bound a `reach` target, so a tile off
+    // the map is a readable error rather than a silently unwinnable mission.
+    // Returns false and sets `error` on a schema error.
+    static bool parseObjectiveJson(const Json& node, int mapWidth, int mapHeight, ObjectiveSpec& out,
+                                   std::string& error);
 
     // Loads a mission from a JSON file. Returns false and sets `error` on
     // failure (including a readable parse or schema error).

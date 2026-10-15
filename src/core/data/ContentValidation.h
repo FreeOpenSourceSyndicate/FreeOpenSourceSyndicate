@@ -15,9 +15,10 @@
 #include "core/data/MissionData.h"
 
 // Dependency-free content validation (ADR-0003): resolve every mission's
-// `weaponId`/`agentId` references against the shared catalogues, so bad content
-// is caught in CI instead of at play time. Engine-agnostic and header-only
-// (like Catalogues.h), so adding it needs no new translation unit.
+// `weaponId`/`agentId` references against the shared catalogues and reject
+// geometry that does not fit the map, so bad content is caught in CI instead of
+// at play time. Engine-agnostic and header-only (like Catalogues.h), so adding
+// it needs no new translation unit.
 namespace fossynd::core::content
 {
 
