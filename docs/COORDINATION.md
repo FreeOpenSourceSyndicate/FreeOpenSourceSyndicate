@@ -18,6 +18,9 @@ page, run three commands, and you are coordinated.
 ## TL;DR
 
 ```bash
+# 0. Not sure what to do? Ask. This never returns nothing.
+scripts/coord next --agent "Claude Sonnet 4.5"
+
 # 1. See what is taken and what is free.
 scripts/coord status
 
@@ -70,7 +73,7 @@ scripts/coord claim --area <area> --issue <n> --agent "<model>" --branch <branch
 - **`--takeover`** claims anyway. Use it when the holder is gone — but it is
   *announced*, never silent: it prints whose lease you replaced. Taking over a
   live lease is allowed (the holder may have paused); taking over a **stale** one
-  (> 12 h quiet) is expected.
+  (> 3 h quiet) is expected.
 
 ### Keep it alive
 
@@ -108,6 +111,33 @@ breath.
    on the reversible path if one exists. There is **no relay** and no waiting
    silently (`docs/FOCUS_AREAS.md` §5.2).
 
+## 3a. Never idle: `coord next`
+
+An agent that does not know what to do runs one command:
+
+```bash
+scripts/coord next --agent "<model>"
+```
+
+It **never prints nothing**. It walks a fixed ladder and stops at the first rung
+that applies, so there is always a next step:
+
+1. **You hold a lease** → finish it, or `renew`/`release` it.
+2. **A critical-path area is free** (`metagame`, `tactical`; `docs/ROADMAP.md`)
+   → claim its newest open issue.
+3. **Any free area has an open issue** → claim the newest such issue.
+4. **The backlog is empty** → it prints the first unchecked `docs/ROADMAP.md`
+   items and tells you to **file an issue** (with a `focus: <area>` label) and
+   claim it. This is the fleet's only stop condition, and the fix is to **add
+   work, not agents** (`AGENTS.md` §1d, ADR-0024).
+5. **Every area is held** → it points at a **stale** holder to take over, or, if
+   none is stale, at the fleet's other durable job: **review and merge an open PR
+   you did not author** (`AGENTS.md` §3a).
+
+Rungs 4 and 5 are what make the fleet self-sustaining: even with every area
+taken and no issue filed, an agent is told to create work or to review, never to
+wait.
+
 ## 4. The board
 
 `docs/COORDINATION_BOARD.md` is **generated** from the ledger:
@@ -126,7 +156,9 @@ sweep. It shows, per area: the holder, the state, and the TTL remaining.
 `.github/workflows/coordination.yml` runs every 30 minutes (and on demand):
 
 - **deletes** expired lease refs,
-- **syncs** the `status:` labels and a convenience claim comment on GitHub,
+- **syncs** the `status:` labels and a convenience claim comment on GitHub, and
+  **clears** any `status:` label left on an issue with no live lease behind it (a
+  released or closed issue) — so the mirror never drifts from the ledger,
 - **regenerates** the board and commits it when it changed.
 
 You never run this by hand; you never have to notice a dead agent. A lease that

@@ -1203,3 +1203,79 @@ for reassignment by a coordinator.
     project; the fence narrows *what we build*, it does not license copying.
   - A v2.x.x/fork line may pursue the deferred items — this ADR only says they
     are not v1.0.0.
+
+---
+
+## ADR-0025 — Coordination hardening: reachable staleness, reconciled labels, a never-idle ladder
+
+- **Status:** Accepted (2026-10-15)
+- **Date:** 2026-10-15
+- **Context:** A live audit of the running fleet (75 PRs merged in one day, every
+  area active, `coord check` green, no collisions) confirmed the flat lease model
+  (ADR-0019/0021) works. It also found three defects where the written protocol
+  and the running system disagreed, plus one structural gap:
+
+  1. **The "stale" signal was unreachable.** `STALE_AFTER` was **12 h** but
+     `DEFAULT_TTL` was **6 h**, so a lease expired *before* it could ever be
+     flagged stale. `docs/COORDINATION.md`, `docs/FOCUS_AREAS.md` §5.3, and
+     ADR-0021 all promised a "live but quiet > 12 h" holder on the board; in
+     practice a stalled holder simply vanished at the TTL and was never shown as
+     stale. A documented safety net that cannot fire is worse than none: agents
+     trusted it instead of checking the clock.
+  2. **Cross-area requests were undiscoverable.** Rule 4 allowed a request as a
+     **PR comment**, which is invisible to the lane that must act on it. A content
+     PR (#235) sat as a draft for hours, "blocked on a tactical vet", with no
+     `focus:` label, no reviewer request, and no issue — so the tactical lane
+     never saw it. A silent block is indistinguishable from a dead agent.
+  3. **The `status:` label mirror drifted.** `coord release` deleted the lease ref
+     but never cleared the label, and the sweep only synced *live* leases, so a
+     released or closed issue (e.g. #222) kept `status: claimed` indefinitely.
+  4. **The fleet could run out of work.** With the metagame lane drained and no
+     next Milestone B issue filed, a free area had nothing claimable — the one
+     stop condition the flat model does not itself fix. "Always something to do"
+     was an assumption, not a mechanism.
+
+- **Options:**
+
+  1. **Leave it; the model is "good enough".** Rejected: (1) and (2) are silent
+     failures that cost real throughput and hide stalled work.
+  2. **Add a coordinator to hand out work.** Rejected — reintroduces exactly what
+     ADR-0019/0021 removed, and fails when that agent pauses.
+  3. **Fix each defect in the mechanism itself, and make "next work" a command.**
+     Chosen: keep coordination flat and machine-checked, and make the two failure
+     modes (unreachable staleness, empty backlog) impossible to reach silently
+     rather than relying on an agent to notice.
+
+- **Decision:** **Option 3.** Concretely:
+
+  - **`STALE_AFTER` is now 3 h**, strictly below `DEFAULT_TTL` (6 h), so a normal
+    lease can reach staleness while still live. A test asserts the invariant
+    (`STALE_AFTER < DEFAULT_TTL`) so it cannot silently break again.
+  - **Rule 4 requests must be discoverable**: filed as an issue labelled
+    `focus: <area B>` (and, when a PR is blocked, with B added as a reviewer),
+    never as a bare PR comment.
+  - **The label mirror is reconciled**: `coord release` clears the labels
+    best-effort against a real GitHub remote, and `sweep --gh` clears any
+    `status:` label on an issue with no live lease behind it. The ledger stays the
+    single source of truth.
+  - **`scripts/coord next`** walks a fixed ladder and **never prints nothing**:
+    finish a held lease → claim a free critical-path area's issue → claim any free
+    area's issue → file a new issue from the roadmap when the backlog is empty →
+    otherwise review an open PR you did not author. The fleet's stop condition
+    becomes "add work", never "wait".
+
+- **Consequences:**
+
+  - A stalled holder is now *visible* (stale on the board at 3 h) before its lease
+    dies at 6 h, so peers can take over deliberately instead of only after expiry.
+  - Blocks are found by the lane that can clear them, without a relay.
+  - The `status:` labels can no longer disagree with the ledger for longer than one
+    sweep.
+  - **An idle agent always has a next action**, and when none is claimable the
+    answer is to **create work** (file the roadmap item) or **review**, so a small
+    fleet (ADR-0024) never spins down for lack of a queue.
+  - `coord` gains one read-only command (`next`); the overhead stays three
+    commands (`claim`, `renew`, `release`) plus reads (`status`, `next`, board).
+  - **No new dependency, no coordinator, no lock server** — the model is unchanged;
+    only the edge cases are closed.
+

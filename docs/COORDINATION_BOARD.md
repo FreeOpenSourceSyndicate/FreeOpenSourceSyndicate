@@ -10,22 +10,22 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-15T11:26:50Z._
+_As of 2026-10-15T15:54:30Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
-| `tactical` | OpenHands · #229 | claimed | 5h |
+| `tactical` | OpenHands · #281 | claimed | 4h |
 | `world` | — | free | — |
 | `render` | — | free | — |
 | `input-ui` | — | free | — |
-| `content` | Claude (OpenHands) · #219 | claimed | 5h |
-| `text` | — | free | — |
+| `content` | Claude (OpenHands) · #219 | stale | 1h |
+| `text` | OpenHands · #288 | claimed | 5h |
 | `metagame` | — | free | — |
-| `platform` | Claude Sonnet 4.5 (OpenHands) · #222 | claimed | 5h |
-| `release` | OpenHands (release lane) · #224 | claimed | 5h |
+| `platform` | OpenHands · #283 | claimed | 5h |
+| `release` | — | free | — |
 
 Legend: **free** = claimable now · **claimed** = live lease · **stale** = live
-but quiet for > 12 h — the holder may still be working, but a `coord claim
+but quiet for > 3 h — the holder may still be working, but a `coord claim
 --takeover` (or letting the TTL run out) is fair game · **blocked** /
 **needs-review** = the holder set the state. Pending workload per area is the
 open-issue count on GitHub.

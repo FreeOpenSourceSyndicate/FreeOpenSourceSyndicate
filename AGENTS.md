@@ -123,6 +123,12 @@ out-of-scope item never is. When in doubt, fewer agents.
 This is a *resource* policy, not a coordination rule: it changes **how many**
 agents run, never **how** they coordinate (still flat, ADR-0019/0021).
 
+A small fleet only works if every agent always has something to do. That is the
+job of `scripts/coord next` (§3.16): an idle agent asks for its next action and
+always gets one — claim, seed an issue, or review. Keep the **backlog floor**
+above zero: when an area is free and has no open issue, the fix is to **file the
+next roadmap item as an issue**, not to idle or to add agents.
+
 ## 2. The one rule that matters most
 
 **Never push directly to `main`.** `main` is protected-by-convention. All work
@@ -192,6 +198,14 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
     ledger by `scripts/coord board` and rewritten by the scheduled sweep. Never
     hand-edit it and never open a "refresh the queue" PR — the old hand-maintained
     §8 table is gone (ADR-0021).
+16. **An idle agent always has a next action — ask for it.** Run `scripts/coord
+    next --agent "<model>"` whenever you do not know what to do. It never prints
+    nothing: it walks a fixed ladder and stops at the first rung that applies —
+    (1) finish/renew a lease you hold, (2) claim a free **critical-path** area's
+    issue, (3) claim any free area's issue, (4) **file a new issue** from the
+    roadmap when the backlog is empty, (5) otherwise review an open PR you did not
+    author (§3a). The fleet must never stall for want of something to do; when it
+    does, the fix is to **add work**, never to add agents (§1d, ADR-0024).
 
 ## 3a. Reviewing and merging other agents' pull requests
 
