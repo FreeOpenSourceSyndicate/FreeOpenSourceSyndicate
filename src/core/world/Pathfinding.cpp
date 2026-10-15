@@ -39,7 +39,19 @@ float distanceBetween(TilePos a, TilePos b)
 // collapse while an already-straight run — including a pure diagonal — is left
 // untouched. Endpoints are never removed, so the route still ends on the goal,
 // and every retained segment is clear (checked with `hasLineOfSight`).
-std::vector<TilePos> simplifyPath(const TileGrid& grid, const std::vector<TilePos>& path)
+//
+// Work is bounded by `maxProbes` `hasLineOfSight` calls — the same budget the A*
+// search ran under. The rescan is otherwise unbounded by the node cap: it can
+// re-test the whole tail for every anchor, so its work grows with the square of
+// the waypoint count (on a 60x60 serpentine, ~1829 waypoints cost ~1.6M probes
+// and ~54 ms — far more than the search that produced the path), which would
+// stall a frame on the target hardware (ADR-0008). When the budget runs out the
+// rest of the path is kept verbatim, so the route is the raw A* path: always
+// walkable, just less smoothed. A fixed probe count, never a time budget, so the
+// result stays deterministic. A realistic order spends far fewer probes than the
+// budget, so its smoothing is unchanged.
+std::vector<TilePos> simplifyPath(const TileGrid& grid, const std::vector<TilePos>& path,
+                                  int maxProbes)
 {
     if (path.size() < 3)
     {
@@ -57,14 +69,31 @@ std::vector<TilePos> simplifyPath(const TileGrid& grid, const std::vector<TilePo
     simplified.reserve(path.size());
     simplified.push_back(path.front());
 
+    int probes = 0;
     std::size_t anchor = 0;
     while (anchor + 1 < path.size())
     {
+        if (probes >= maxProbes)
+        {
+            // Budget spent: append the raw A* tail so the route still ends on the
+            // goal, and stop scanning.
+            for (std::size_t i = anchor + 1; i < path.size(); ++i)
+            {
+                simplified.push_back(path[i]);
+            }
+            break;
+        }
+
         // Reach as far ahead as the anchor can still see, then keep that tile as
         // the next anchor. anchor+1 always qualifies, so this makes progress.
         std::size_t next = anchor + 1;
         for (std::size_t candidate = path.size() - 1; candidate > anchor; --candidate)
         {
+            if (probes >= maxProbes)
+            {
+                break;
+            }
+            ++probes;
             if (!hasLineOfSight(grid, path[anchor], path[candidate]))
             {
                 continue;
@@ -287,7 +316,7 @@ PathResult findPathDetailed(const TileGrid& grid, TilePos start, TilePos goal, b
     // so only the diagonal case (which produces staircases) is smoothed.
     if (allowDiagonal)
     {
-        path = simplifyPath(grid, path);
+        path = simplifyPath(grid, path, maxExpandedNodes);
     }
 
     PathResult result;
@@ -357,7 +386,7 @@ PathResult findPathToNearest(const TileGrid& grid, TilePos start, TilePos goal, 
 
     if (allowDiagonal)
     {
-        path = simplifyPath(grid, path);
+        path = simplifyPath(grid, path, maxExpandedNodes);
     }
 
     PathResult result;
