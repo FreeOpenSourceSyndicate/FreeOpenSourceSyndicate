@@ -432,9 +432,9 @@ what is taken without reading every issue.
 | Area | `focus:` | Live claim | Pending workload | Seeded / open tasks |
 |------|----------|------------|------------------|---------------------|
 | Tactical | `focus: tactical` | — | 1 | #120 enemies take cover under fire |
-| World | `focus: world` | — | 0 | — (primitives complete; tactical owns the #164 follow-up) |
+| World | `focus: world` | — | 0 | — (primitives complete; tactical owns #163) |
 | Render | `focus: render` | — | 1 | #122 integer zoom levels (Phase 2's last item) |
-| Input/UI | `focus: input-ui` | — | 1 | #152 add `--window WxH` |
+| Input/UI | `focus: input-ui` | — | 0 | — (#152 `--window WxH` merged #168) |
 | Content | `focus: content` | — | 1 | #124 minigun / flamethrower / laser |
 | Text | `focus: text` | — | 1 | #142 localise mission name/description |
 | Platform | `focus: platform` | — | 1 | #133 Windows packaging lane (macOS lane gated to manual dispatch ✅ #138) |
@@ -490,6 +490,7 @@ Content rather than Text.
 | CLI `--version` / `--help` | input-ui | #147 | ✅ merged (#150) |
 | `Agent::moveTo` uses `findPathToNearest` (walk as close as possible) | world | #149 | ✅ merged (#156) |
 | Destructible blocked tiles in `core::TileGrid` | world | #157 | ✅ merged (#162) |
+| CLI `--window WxH` | input-ui | #152 | ✅ merged (#168) |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 
