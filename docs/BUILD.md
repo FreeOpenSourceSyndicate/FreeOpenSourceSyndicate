@@ -15,6 +15,7 @@ and Windows are supported and documented, not tested regularly.
 | **Core + game** (default) | `-DFOSSYND_BUILD_GAME=ON` | Yes | Running and developing the game |
 | **Core only** | `-DFOSSYND_BUILD_GAME=OFF` | No | Unit tests, CI, logic-only work |
 | **Sanitizers** | `-DFOSSYND_SANITIZE=ON` | No | Catching memory/logic bugs in `core` (developer/CI) |
+| **Warnings-as-errors** | `-DFOSSYND_WERROR=ON` | Either | Keeping the tree warning-clean (developer/CI) |
 
 Game logic lives in `src/core/` and builds without SDL2 (ADR-0002), so you can
 work on gameplay with just a compiler.
@@ -57,6 +58,22 @@ ctest --test-dir build-san --output-on-failure
 The option is **OFF** by default, so normal and low-spec builds are unchanged and
 pay no runtime cost. The sanitizer profile is core-only (no SDL2 needed) and CI
 runs it on every change (the `Sanitizers (ASan + UBSan, core)` job).
+
+## Treating warnings as errors
+
+The build already uses `-Wall -Wextra -Wpedantic` and treats warnings as errors
+"in spirit" (AGENTS.md golden rule 9). `FOSSYND_WERROR=ON` makes that literal by
+adding `-Werror`, so a new warning fails the build instead of scrolling past:
+
+```bash
+cmake -S . -B build -DFOSSYND_BUILD_GAME=ON -DFOSSYND_WERROR=ON
+cmake --build build -j
+```
+
+It is **OFF** by default (a warning still lets a normal build succeed) and works
+with any other mode, so you can combine it with the low-spec or sanitizer
+profiles. CI runs it in the `Warnings-as-errors (core + game)` lane (issue #192),
+so a warning cannot land on `main`.
 
 ## Packaging a release artifact
 
