@@ -305,7 +305,7 @@ class TestNextAction(CoordTestCase):
         self.assertIn("renew", out)
 
     def test_next_prefers_the_critical_path(self):
-        self._stub_issues({"metagame": [249], "world": [157]})
+        self._stub_issues({"metagame": [(249, False)], "world": [(157, False)]})
         out, _ = self.run_coord("next", "--agent", "a")
         self.assertIn("metagame / #249", out)
         self.assertIn("critical path", out)
@@ -313,9 +313,17 @@ class TestNextAction(CoordTestCase):
     def test_next_falls_back_to_any_free_area_with_work(self):
         # metagame held, so the critical-path rung is skipped.
         self.run_coord("claim", "--area", "metagame", "--issue", 249, "--agent", "x")
-        self._stub_issues({"metagame": [249], "world": [157]})
+        self._stub_issues({"metagame": [(249, False)], "world": [(157, False)]})
         out, _ = self.run_coord("next", "--agent", "a")
         self.assertIn("world / #157", out)
+
+    def test_next_prefers_a_waiting_blocker_over_plain_critical_work(self):
+        # metagame (first critical-path area) has only plain work; tactical has a
+        # Rule 4 request another lane is blocked on.  Clearing the blocker wins.
+        self._stub_issues({"metagame": [(249, False)], "tactical": [(311, True)]})
+        out, _ = self.run_coord("next", "--agent", "a")
+        self.assertIn("tactical / #311", out)
+        self.assertNotIn("#249", out)
 
     def test_next_seeds_from_the_roadmap_when_the_backlog_is_empty(self):
         self._stub_issues({})  # no open issues at all
@@ -345,7 +353,7 @@ class TestNextAction(CoordTestCase):
 
     def test_next_never_prints_nothing(self):
         """The whole point: whatever the state, there is a line of output."""
-        for mapping in ({}, {"world": [1]}, {"metagame": [249]}):
+        for mapping in ({}, {"world": [(1, False)]}, {"metagame": [(249, False)]}):
             self._stub_issues(mapping)
             out, _ = self.run_coord("next", "--agent", "a")
             self.assertTrue(out.strip(), f"empty output for {mapping}")
@@ -390,7 +398,8 @@ class TestClaimableIssueRouting(CoordTestCase):
              "labels": [{"name": "focus: tactical"},
                         {"name": "status: needs-review"}]},
         ])
-        self.assertEqual(coord._open_issues_by_area()["tactical"], [9, 10])
+        self.assertEqual(coord._open_issues_by_area()["tactical"],
+                         [(9, True), (10, False)])
 
     def test_newest_first_within_equal_rank(self):
         self._stub_gh([
@@ -399,7 +408,8 @@ class TestClaimableIssueRouting(CoordTestCase):
             {"number": 11, "createdAt": "2026-01-11T00:00:00Z",
              "labels": [{"name": "focus: world"}]},
         ])
-        self.assertEqual(coord._open_issues_by_area()["world"], [11, 10])
+        self.assertEqual(coord._open_issues_by_area()["world"],
+                         [(11, False), (10, False)])
 
     def test_gh_failure_yields_an_empty_map(self):
         def failing(*a, **k):

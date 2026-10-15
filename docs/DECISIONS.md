@@ -1353,16 +1353,20 @@ for reassignment by a coordinator.
 - **Decision:** **Option 3.** `_open_issues_by_area` (the source `next` reads):
   - **skips** any issue labelled `status: blocked`, `question`, or `deferred: v2`
     (a new `NOT_CLAIMABLE_LABELS` set);
-  - **orders** a `status: needs-review` issue ahead of plain work within its area,
-    newest first within each rank.
+  - **marks** a `status: needs-review` issue a *blocker* and orders it ahead of
+    plain work within its area, newest first within each rank.
 
+  `next` then offers a waiting blocker in **any** free critical-path area before
+  plain work in the first one: clearing a blocker unblocks a peer, so it outranks
+  starting fresh work even when the fresh work sits earlier on the critical path.
   No new command, no new label, no schema change: it narrows what an existing
   read offers.
 
 - **Consequences:**
   - An idle agent is never steered to work it cannot start, and never past a
-    blocker a peer is waiting on.
-  - The `focus:` label stays the sole routing key; claimability is read from the
-    labels already in use (`AGENTS.md` §3), so there is nothing new to maintain.
+    blocker a peer is waiting on — including across areas.
+  - The `focus:` label stays the sole routing key; claimability and blocker status
+    are read from the labels already in use (`AGENTS.md` §3), so there is nothing
+    new to maintain.
   - A blocked issue is still *visible* on the board and in the ledger; it is only
     excluded from the *claim* suggestion.
