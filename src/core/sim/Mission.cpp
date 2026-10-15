@@ -127,17 +127,32 @@ void Mission::orderAttack(std::size_t index, std::size_t targetIndex)
     // An attack order supersedes any queued route.
     agent.clearMoveQueue();
 
-    // Close to within weapon range if not already there.
+    // Close to within weapon range if not already there. An agent that is in
+    // range by distance must also be able to *do* something from where it
+    // stands: it may hold position only with a clear shot, or when the only
+    // thing between it and the target is a destructible wall it can chip
+    // through (matching `resolveFire`). Otherwise it keeps moving, so the path
+    // routes around the obstacle. Stopping with neither would freeze the agent
+    // (it cannot shoot through a solid wall) and deadlock the mission (#229).
     if (grid_ != nullptr)
     {
         const float distance = distanceBetween(index, targetIndex);
-        if (distance > agent.weapon().range * 0.9f)
+        const bool inRange = distance <= agent.weapon().range * 0.9f;
+        const bool clearShot = hasClearShot(index, targetIndex);
+        bool canBreach = false;
+        if (!clearShot)
         {
-            agent.moveTo(*grid_, target.tile());
+            bool hitWall = false;
+            const TilePos wall = firstWallOnLine(agent.tile(), target.tile(), hitWall);
+            canBreach = hitWall && grid_->isDestructible(wall.x, wall.y);
+        }
+        if (inRange && (clearShot || canBreach))
+        {
+            agent.stop();
         }
         else
         {
-            agent.stop();
+            agent.moveTo(*grid_, target.tile());
         }
     }
 }
