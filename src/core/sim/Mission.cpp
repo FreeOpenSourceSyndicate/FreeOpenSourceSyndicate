@@ -1221,6 +1221,34 @@ void Mission::evaluateOutcome()
             return;
         }
         break;
+    case ObjectiveSpec::Kind::Escort:
+        // Losing the escorted unit is an unconditional defeat, whether it was
+        // killed or simply never reached the exit.
+        if (escortUnitLost())
+        {
+            state_ = MissionState::Lost;
+            return;
+        }
+        if (escortedAgentOnTile())
+        {
+            state_ = MissionState::Won;
+            return;
+        }
+        break;
+    case ObjectiveSpec::Kind::Destroy:
+        if (targetTileBreached())
+        {
+            state_ = MissionState::Won;
+            return;
+        }
+        break;
+    case ObjectiveSpec::Kind::Persuade:
+        if (followerTargetMet())
+        {
+            state_ = MissionState::Won;
+            return;
+        }
+        break;
     }
 
     if (aliveCount(Team::Player) == 0)
@@ -1240,6 +1268,53 @@ bool Mission::anyPlayerOnTile() const
         }
     }
     return false;
+}
+
+bool Mission::escortedAgentOnTile() const
+{
+    const int index = objective_.agentIndex;
+    if (index < 0 || static_cast<std::size_t>(index) >= agents_.size())
+    {
+        return false;
+    }
+    const Agent& agent = agents_[static_cast<std::size_t>(index)];
+    const TilePos goal{objective_.tileX, objective_.tileY};
+    return agent.isAlive() && agent.tile() == goal;
+}
+
+bool Mission::escortUnitLost() const
+{
+    const int index = objective_.agentIndex;
+    if (index < 0 || static_cast<std::size_t>(index) >= agents_.size())
+    {
+        // A missing escorted unit can never be delivered; the loader rejects
+        // this, so it only guards a hand-built spec.
+        return true;
+    }
+    return !agents_[static_cast<std::size_t>(index)].isAlive();
+}
+
+bool Mission::targetTileBreached() const
+{
+    if (grid_ == nullptr)
+    {
+        return false;
+    }
+    return grid_->isRubble(objective_.tileX, objective_.tileY);
+}
+
+bool Mission::followerTargetMet() const
+{
+    const int target = objective_.targetCount < 1 ? 1 : objective_.targetCount;
+    std::size_t total = 0;
+    for (std::size_t i = 0; i < agents_.size(); ++i)
+    {
+        if (agents_[i].team() == Team::Player)
+        {
+            total += followerCount(i);
+        }
+    }
+    return total >= static_cast<std::size_t>(target);
 }
 
 const char* Mission::stateName() const

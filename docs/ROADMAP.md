@@ -97,8 +97,12 @@ Close out the 1993 tactical feature set (the tail of the old Phase 3).
       _Shield landed (#213); medikit and recruiter already done._
 - [ ] **Vehicles**: cars/trains you can hijack, drive, and fire from.
 - [ ] **Destructible environment**: breachable walls (started in #185/#217).
-- [ ] **Mission objectives**: complete the set — persuade, escort/retrieve,
-      destroy (eliminate and reach are done).
+- [x] **Mission objectives**: complete the set — persuade, escort/retrieve,
+      destroy (eliminate and reach are done). _Done in #281: `ObjectiveSpec`
+      gained `Escort`, `Destroy`, and `Persuade`, parsed from mission JSON and
+      evaluated in `Mission::evaluateOutcome`; `assets/data/missions/escort.json`
+      is now the first escort mission. Assassinate/retrieve remain as a thin
+      variant of eliminate/escort._
 
 ### Milestone B — The metagame (the long pole; start now)
 

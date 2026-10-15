@@ -63,6 +63,7 @@ void printUsage()
         "      --check-fullscreen     Validate the fullscreen toggle.\n"
         "      --check-pause          Validate pause/resume.\n"
         "      --check-rubble         Validate breached-tile rubble rendering.\n"
+        "      --check-objectives     Validate the objective banner for every kind.\n"
         "      --check-campaign       Validate the campaign management loop.\n"
         "      --check-lang [locale]  Validate the UI string table.\n"
         "      --check-content [dir]  Validate mission/catalogue references.\n",
@@ -177,6 +178,7 @@ int main(int argc, char** argv)
     bool checkFullscreen = false;
     bool checkPause = false;
     bool checkRubble = false;
+    bool checkObjectives = false;
     bool checkCampaign = false;
     bool showMap = false;                 // --map
     const char* checkLangLocale = nullptr; // --check-lang [<locale>]
@@ -296,6 +298,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-rubble") == 0)
         {
             checkRubble = true;
+        }
+        else if (std::strcmp(argv[i], "--check-objectives") == 0)
+        {
+            checkObjectives = true;
         }
         else if (std::strcmp(argv[i], "--check-campaign") == 0)
         {
@@ -623,6 +629,16 @@ int main(int argc, char** argv)
         // the breach must re-bake the static map. Used by the game_rubble ctest.
         const bool ok = game.rubbleSelfTest();
         std::printf(ok ? "rubble: ok\n" : "rubble: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkObjectives)
+    {
+        // Headless guard for the objective banner (issue #281): every objective
+        // kind must render a non-empty, distinct, fully substituted localised
+        // string. Used by the game_objectives ctest.
+        const bool ok = game.objectiveSelfTest();
+        std::printf(ok ? "objectives: ok\n" : "objectives: FAILED\n");
         return ok ? 0 : 1;
     }
 

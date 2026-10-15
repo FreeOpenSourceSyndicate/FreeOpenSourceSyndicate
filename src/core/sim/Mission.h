@@ -29,8 +29,11 @@ enum class MissionState
 // makes it testable and replayable.
 //
 // Win condition: data-driven (`ObjectiveSpec`) — eliminate all enemies (default),
-// reach a target tile, or survive for a set time. See `core/sim/Objective.h`.
-// Lose condition: every player agent is dead.
+// reach a target tile, survive for a set time, escort a named agent to a tile,
+// breach a target tile, or recruit a number of followers. See
+// `core/sim/Objective.h`.
+// Lose condition: every player agent is dead (and, for an escort, the escorted
+// unit dying).
 class Mission
 {
 public:
@@ -202,6 +205,22 @@ private:
 
     // True if any living player agent stands on the reach objective's tile.
     bool anyPlayerOnTile() const;
+
+    // Escort: true when the designated agent (`objective_.agentIndex`) is alive
+    // and standing on the target tile.
+    bool escortedAgentOnTile() const;
+
+    // Escort: true when the designated agent exists and is dead, i.e. the unit
+    // the mission was to protect has been lost (an unconditional loss).
+    bool escortUnitLost() const;
+
+    // Destroy: true when the target tile has been breached (destructible rubble,
+    // issue #217).
+    bool targetTileBreached() const;
+
+    // Persuade: true when the player's agents have recruited at least
+    // `objective_.targetCount` living followers in total.
+    bool followerTargetMet() const;
 
     // Index of the nearest living agent on `enemyTeam`, or -1.
     int nearestEnemy(std::size_t self, Team enemyTeam) const;

@@ -238,6 +238,15 @@ if(BUILD_TESTS)
     # screenshot headlessly, so a rubble capture is a real artefact (issue #218).
     add_test(NAME game_rubble_screenshot
              COMMAND FOSSynd --headless --breach --screenshot rubble.bmp --frames 2)
+    # Objective banner (issue #281): every objective kind must render a non-empty,
+    # distinct, fully substituted localised string. Exits non-zero on a broken
+    # invariant (a kind that fell through to the default or left a placeholder).
+    add_test(NAME game_objectives
+             COMMAND FOSSynd --headless --check-objectives)
+    # The shipped escort mission must load, run, and render headlessly (issue
+    # #281), so a data-only objective kind cannot ship broken.
+    add_test(NAME game_escort_mission
+             COMMAND FOSSynd --headless --mission ${CMAKE_SOURCE_DIR}/assets/data/missions/escort.json --frames 30)
     # Content validation (issue #81): resolve every mission's weaponId/agentId
     # against the catalogues in the shipped assets/data and exit non-zero on a
     # dangling reference. Absolute path so it works from any build directory.

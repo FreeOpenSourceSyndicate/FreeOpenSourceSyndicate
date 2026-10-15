@@ -35,13 +35,15 @@ struct MissionData
     std::vector<AgentSpec> agents;
 
     // Win condition. Defaults to EliminateAll, so missions that omit it behave
-    // exactly as before.
+    // exactly as before. See `ObjectiveSpec` for the supported kinds.
     ObjectiveSpec objective;
 
     // Parses an `objective` JSON object into `out` (missing fields keep their
-    // defaults). `mapWidth`/`mapHeight` bound a `reach` target, so a tile off
-    // the map is a readable error rather than a silently unwinnable mission.
-    // Returns false and sets `error` on a schema error.
+    // defaults). `mapWidth`/`mapHeight` bound a target tile (`reach`, `escort`,
+    // `destroy`), so a tile off the map is a readable error rather than a
+    // silently unwinnable mission. Returns false and sets `error` on a schema
+    // error. The escort `agentIndex` is bounds-checked by `fromJson`, once the
+    // agents are parsed.
     static bool parseObjectiveJson(const Json& node, int mapWidth, int mapHeight, ObjectiveSpec& out,
                                    std::string& error);
 

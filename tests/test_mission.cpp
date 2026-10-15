@@ -754,6 +754,230 @@ FOSSYND_TEST(Mission, ElapsedSecondsIsFrozenAfterTheMissionEnds)
     FOSSYND_CHECK_NEAR(mission.elapsedSeconds(), wonAt);
 }
 
+// --- Escort / destroy / persuade objectives (issue #281) -------------------
+//
+// Each new kind wins on its own condition, not by eliminating the enemy, and
+// never on the wrong condition. The lose condition stays universal (squad dead)
+// plus, for an escort, the escorted unit dying.
+
+FOSSYND_TEST(Mission, EscortWinsWhenTheNamedAgentReachesTheTileAlive)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 31u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::Escort;
+    objective.tileX = 6;
+    objective.tileY = 2;
+    objective.agentIndex = 1; // the VIP is deliberately not index 0
+    mission.setObjective(objective);
+
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(3.0f, 2.0f, Team::Player, 100.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    // A harmless enemy far away so the mission does not end by elimination.
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+
+    mission.orderMove(1, TilePos{6, 2});
+    runUntilDone(mission, 10.0f);
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK_EQ(mission.agents()[1].tile(), (TilePos{6, 2}));
+    FOSSYND_CHECK_EQ(mission.aliveCount(Team::Enemy), static_cast<std::size_t>(1));
+}
+
+FOSSYND_TEST(Mission, EscortDoesNotWinWhenAnotherAgentReachesTheTile)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 32u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::Escort;
+    objective.tileX = 6;
+    objective.tileY = 2;
+    objective.agentIndex = 1; // the VIP
+    mission.setObjective(objective);
+
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(3.0f, 2.0f, Team::Player, 100.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+
+    // A different squad member walks onto the tile; the VIP stays put. Reaching
+    // the tile with the wrong unit must not win.
+    mission.orderMove(0, TilePos{6, 2});
+    runUntilDone(mission, 8.0f);
+
+    FOSSYND_CHECK(mission.state() == MissionState::Running);
+    FOSSYND_CHECK_EQ(mission.agents()[0].tile(), (TilePos{6, 2}));
+    FOSSYND_CHECK_EQ(mission.agents()[1].tile(), (TilePos{3, 2}));
+}
+
+FOSSYND_TEST(Mission, EscortLosesWhenTheNamedAgentDies)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 33u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::Escort;
+    objective.tileX = 18;
+    objective.tileY = 2;
+    objective.agentIndex = 1; // the VIP
+    mission.setObjective(objective);
+
+    // A second player far from the fight survives, so the loss is the VIP's
+    // death and not the universal "squad wiped" rule.
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 500.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(10.0f, 2.0f, Team::Player, 10.0f)); // fragile VIP
+    // A lethal guard adjacent to the VIP but out of range of the far survivor.
+    mission.addAgent(makeAgent(11.0f, 2.0f, Team::Enemy, 100.0f, Weapon{"Test", 1000.0f, 3.0f, 10.0f, 1.0f}));
+
+    runUntilDone(mission, 5.0f);
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Lost);
+    // The squad is not wiped: it is the lost VIP that ended the mission.
+    FOSSYND_CHECK(mission.aliveCount(Team::Player) >= static_cast<std::size_t>(1));
+}
+
+FOSSYND_TEST(Mission, DestroyWinsWhenTheTargetTileIsBreached)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 34u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::Destroy;
+    objective.tileX = 5;
+    objective.tileY = 2;
+    mission.setObjective(objective);
+
+    // The structure is a one-hit-point destructible wall.
+    grid.setWalkable(5, 2, false);
+    grid.setDestructible(5, 2, true, 1);
+
+    // A decoy enemy sits *behind* the wall: the explicit attack order makes the
+    // shot land on the wall (a wall blocks fire), chipping it. A successful hit
+    // on the wall is what breaches it, not killing the defender.
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                               Weapon{"Breach", 50.0f, 9.0f, 10.0f, 1.0f}));
+    mission.addAgent(makeAgent(8.0f, 2.0f, Team::Enemy, 100.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    mission.orderAttack(0, 1);
+
+    FOSSYND_CHECK(!grid.isRubble(5, 2));
+    runUntilDone(mission, 5.0f);
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK(grid.isRubble(5, 2));
+    // The win is the breach, not a kill: the enemy behind the wall is alive.
+    FOSSYND_CHECK_EQ(mission.aliveCount(Team::Enemy), static_cast<std::size_t>(1));
+}
+
+FOSSYND_TEST(Mission, DestroyDoesNotWinBeforeTheTileIsBreached)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 35u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::Destroy;
+    objective.tileX = 5;
+    objective.tileY = 2;
+    mission.setObjective(objective);
+
+    // A tough wall: a few hits chip it but do not breach it in the window below.
+    grid.setWalkable(5, 2, false);
+    grid.setDestructible(5, 2, true, 1000);
+
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                               Weapon{"Breach", 50.0f, 9.0f, 10.0f, 1.0f}));
+    mission.addAgent(makeAgent(8.0f, 2.0f, Team::Enemy, 100.0f, Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    mission.orderAttack(0, 1);
+
+    for (int i = 0; i < 6; ++i) // 0.3s: several shots, not enough to breach
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK(mission.state() == MissionState::Running);
+    FOSSYND_CHECK(!grid.isRubble(5, 2));
+    FOSSYND_CHECK(grid.tileHitPoints(5, 2) < 1000); // it was hit, just not breached
+}
+
+FOSSYND_TEST(Mission, PersuadeWinsWhenEnoughCiviliansAreRecruited)
+{
+    TileGrid grid(30, 30);
+    Mission mission(grid, 36u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::Persuade;
+    objective.targetCount = 2;
+    mission.setObjective(objective);
+
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player));    // 0
+    mission.addAgent(makeAgent(3.0f, 2.0f, Team::Civilian));  // 1, nearest
+    mission.addAgent(makeAgent(3.0f, 3.0f, Team::Civilian));  // 2
+    // A far, harmless enemy keeps the mission running between beacon uses.
+    mission.addAgent(makeAgent(28.0f, 28.0f, Team::Enemy, 100000.0f,
+                               Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+
+    FOSSYND_CHECK_EQ(mission.persuade(0), 1);
+    mission.update(0.05f);
+    // One follower is below the target of two.
+    FOSSYND_CHECK(mission.state() == MissionState::Running);
+
+    for (int i = 0; i < 30; ++i) // wait out the beacon cooldown (1.0s)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK_EQ(mission.persuade(0), 2);
+    mission.update(0.05f);
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK(mission.followerCount(0) >= static_cast<std::size_t>(2));
+}
+
+FOSSYND_TEST(Mission, PersuadeDoesNotWinBelowTheTarget)
+{
+    TileGrid grid(30, 30);
+    Mission mission(grid, 37u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::Persuade;
+    objective.targetCount = 3; // more than the two civilians that exist
+    mission.setObjective(objective);
+
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player));
+    mission.addAgent(makeAgent(3.0f, 2.0f, Team::Civilian));
+    mission.addAgent(makeAgent(3.0f, 3.0f, Team::Civilian));
+    mission.addAgent(makeAgent(28.0f, 28.0f, Team::Enemy, 100000.0f,
+                               Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+
+    FOSSYND_CHECK_EQ(mission.persuade(0), 1);
+    for (int i = 0; i < 30; ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK_EQ(mission.persuade(0), 2);
+
+    runUntilDone(mission, 3.0f);
+    FOSSYND_CHECK(mission.state() == MissionState::Running);
+}
+
+FOSSYND_TEST(Mission, DestroyObjectiveIsDeterministic)
+{
+    auto runScenario = [](std::uint64_t seed) {
+        TileGrid grid(20, 20);
+        Mission mission(grid, seed);
+        ObjectiveSpec objective;
+        objective.kind = ObjectiveSpec::Kind::Destroy;
+        objective.tileX = 5;
+        objective.tileY = 2;
+        mission.setObjective(objective);
+        grid.setWalkable(5, 2, false);
+        grid.setDestructible(5, 2, true, 1);
+        mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                                   Weapon{"Breach", 50.0f, 9.0f, 10.0f, 1.0f}));
+        mission.addAgent(makeAgent(8.0f, 2.0f, Team::Enemy, 100.0f,
+                                   Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+        mission.orderAttack(0, 1);
+        runUntilDone(mission, 5.0f);
+        return std::make_pair(mission.state(), grid.breachEpoch());
+    };
+
+    const auto a = runScenario(909u);
+    const auto b = runScenario(909u);
+    FOSSYND_CHECK_EQ(a.first, b.first);
+    FOSSYND_CHECK_EQ(a.second, b.second);
+    FOSSYND_CHECK_EQ(a.first, MissionState::Won);
+}
+
 // --- Area-of-effect weapons (issue #79) ------------------------------------
 // Layout shared by the explosive tests: a player with an always-hitting weapon
 // at (2,2) shoots the nearest enemy at (5,2); one enemy stands inside the blast

@@ -8,6 +8,19 @@ contains no original assets, code, names, or trademarks.
 
 ## [Unreleased]
 
+### Added
+
+- **Complete mission objective set:** `ObjectiveSpec` now supports the full 1993
+  set beyond eliminate/reach/survive — **escort** (a named agent must reach a
+  tile alive; losing it loses the mission), **destroy** (breach a destructible
+  tile — the win is the breach, not the defenders), and **persuade** (recruit a
+  target number of ComplianceBeacon followers). All three are declared in mission
+  JSON (`docs/DATA_FORMAT.md`) and evaluated in `core`
+  (`Mission::evaluateOutcome`); the existing kinds and every existing mission are
+  unchanged. `assets/data/missions/escort.json` is now the first escort mission
+  (escort DELTA to the exfil tile alive), and the HUD banner reads a per-kind
+  string. Issue #281.
+
 ## [0.7.0] — 2026-10-15 — "Demolition"
 
 The battlefield is now destructible and legible. Weapon fire opens cracked walls
