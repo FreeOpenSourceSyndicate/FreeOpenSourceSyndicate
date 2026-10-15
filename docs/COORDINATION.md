@@ -157,8 +157,11 @@ sweep. It shows, per area: the holder, the state, and the TTL remaining.
 
 - **deletes** expired lease refs,
 - **syncs** the `status:` labels and a convenience claim comment on GitHub, and
-  **clears** any `status:` label left on an issue with no live lease behind it (a
-  released or closed issue) — so the mirror never drifts from the ledger,
+  **clears** a lease-set `status: claimed` left on an *open* issue with no live
+  lease behind it (a released lease) — so the mirror never drifts. It does **not**
+  touch `status: blocked` / `status: needs-review` (they also mark human questions
+  and Rule 4 requests, which have no lease) and does **not** rewrite closed
+  issues (history stays as-is),
 - **regenerates** the board and commits it when it changed.
 
 You never run this by hand; you never have to notice a dead agent. A lease that
