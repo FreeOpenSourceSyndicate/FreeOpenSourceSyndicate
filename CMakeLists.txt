@@ -36,6 +36,16 @@ if(FOSSYND_SANITIZE)
     message(STATUS "Sanitizer profile enabled (ASan + UBSan, no-recover)")
 endif()
 
+# Warnings-as-errors profile: the build always uses -Wall -Wextra -Wpedantic, but
+# those stay warnings, so a new one can still land on `main` (AGENTS.md 4 Rule 9
+# and the Definition of Done say it must not). Off by default so normal and
+# low-spec builds keep the warnings-only behaviour; a CI lane turns it on.
+option(FOSSYND_WERROR "Treat compiler warnings as errors" OFF)
+if(FOSSYND_WERROR)
+    add_compile_options(-Werror)
+    message(STATUS "Warnings are errors (-Werror)")
+endif()
+
 if(WIN32)
     message(STATUS "Building for Windows")
 elseif(APPLE)
