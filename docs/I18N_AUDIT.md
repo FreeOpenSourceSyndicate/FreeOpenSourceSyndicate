@@ -83,12 +83,17 @@ A literal is easy to re-introduce. `tests/test_i18n_keys.py` (ctest
    keys are derived **at runtime** from the file stem (`core::i18n::MissionText`),
    so they are not key-shaped literals in `src/` and rule 1 cannot see them; the
    C++ gate now derives the mission set from the same directory rather than a
-   hardcoded list (#246).
+   hardcoded list (#246);
+6. any value in `en.json` or a locale is **empty**. This is not "untranslated":
+   `StringTable::get` returns a present key's value verbatim, so `""` wins over
+   the `tr()` fallback and blanks the UI element. The mission path already treats
+   empty as untranslated (`localizeMissionText`), the UI path does not (#254).
 
 It ignores file-name literals (`.json`, `.bmp`, …) and allow-lists `no.such.key`
 (looked up on purpose by `Game::languageSelfTest`). The rules are mutation-checked:
-renaming a key, dropping one, duplicating one, corrupting a `tr()` fallback, or
-adding a mission without its keys each makes the guard fail. The C++ parity gate
+renaming a key, dropping one, duplicating one, corrupting a `tr()` fallback,
+adding a mission without its keys, or emptying a value each makes the guard fail.
+The C++ parity gate
 in `tests/test_i18n.cpp`
 (`ShippedLocalesMatchTheEnglishKeySet`) covers the same key-set rule for the
 in-engine loader, so the two guards agree.

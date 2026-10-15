@@ -22,6 +22,9 @@ Rules
    ``mission.<id>.name`` and ``mission.<id>.desc`` in ``en.json`` and every
    locale; these keys are derived at runtime from the file stem, so rule 1
    cannot see them (#246).
+6. No value in ``en.json`` or any locale may be empty — ``StringTable::get``
+   returns a present key verbatim, so an empty value wins over the ``tr()``
+   fallback and blanks the UI element (#254).
 
 A key-shaped literal is a double-quoted string of the form
 ``segment(.segment)+`` where each segment is ``[a-z][A-Za-z0-9_]*`` (the shape
@@ -342,6 +345,27 @@ class StringTableKeyCoverage(unittest.TestCase):
                 + "\n".join(problems)
                 + "\nAdd `mission.<id>.name` and `mission.<id>.desc` to en.json "
                 "and every locale."
+            )
+
+    def test_no_locale_value_is_empty(self):
+        # An empty value is NOT "untranslated": StringTable::get returns a
+        # present key's value verbatim, so "" wins over the tr() fallback and
+        # blanks the UI element. The mission path already treats empty as
+        # untranslated; the UI path does not, and nothing else guards this.
+        problems = []
+        for path in [EN_JSON] + shipped_locale_files():
+            with open(path, encoding="utf-8") as handle:
+                root = json.load(handle)
+            for key, value in root.items():
+                if key.startswith("_"):
+                    continue
+                if not isinstance(value, str) or value.strip() == "":
+                    problems.append(f"  {os.path.basename(path)}: {key}")
+        if problems:
+            self.fail(
+                "empty string value(s) would blank a UI element:\n"
+                + "\n".join(problems)
+                + "\nGive every key a non-empty value."
             )
 
 
