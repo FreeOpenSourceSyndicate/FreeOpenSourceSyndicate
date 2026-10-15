@@ -43,6 +43,19 @@ contains no original assets, code, names, or trademarks.
   tool still reads the legacy lines during the transition, and a pre-fix client's
   old-layout ref is cleared by `sweep` or `claim --takeover`
   (`docs/COORDINATION_MIGRATION.md`).
+
+## [0.6.0] — 2026-10-15 — "Firestorm"
+
+The battlefield now has walls that matter and weapons that hurt more than one
+agent. Sight and fire are blocked by walls, the catalogue gained an explosive
+`launcher` (area blast) plus a minigun, flamethrower, and laser, and gadgets let
+you heal allies and recruit bystanders. Squad control is smoother — drag a
+rectangle to select, shift-click to queue a route that is drawn on screen — and
+the project now ships as a real package for Linux (`.deb` / `.tar.gz`) and macOS
+(`.dmg`), with a German UI and a discoverable CLI (`--version` / `--help`).
+
+### Added
+
 - **"Walk as close as you can" to a blocked goal.** Clicking an unreachable or
   blocked tile used to drop the move order. The new `core::findPathToNearest`
   returns the normal path when the goal is reachable, and otherwise a path to the
