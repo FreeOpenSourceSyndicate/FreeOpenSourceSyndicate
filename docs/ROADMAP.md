@@ -72,7 +72,7 @@ A shippable demo, deliberately original in code and art.
 - [x] Depth-sorted sprite pass and animation (authored agent + prop sprites, walk cycle)
 - [x] Minimap (whole-board overview panel)
 - [x] Interpolated rendering over fixed-step sim
-- [ ] Zoom
+- [x] Zoom (integer levels 1x/2x/3x, nearest-neighbour; `+`/`-` or wheel)
 - [x] Click-to-select individual agents (click, shift-add, `1`–`4`, `A` for all)
 - [x] Focus-fire attack orders (right-click / click an enemy)
 - [x] Control-group hotkeys and per-agent waypoint queue (shift-click appends)

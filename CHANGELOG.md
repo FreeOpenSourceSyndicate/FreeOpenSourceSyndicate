@@ -15,6 +15,14 @@ contains no original assets, code, names, or trademarks.
   (with `SDL2.dll` beside `FOSSynd.exe`), and a `workflow_dispatch`-gated,
   non-blocking CI lane uses the MSYS2 UCRT64 toolchain. Linux stays the only hard
   gate (ADR-0017). Issue #133.
+- **Integer zoom levels.** The world view now zooms in whole steps (1x/2x/3x)
+  with **`+`**/**`-`** or the **mouse wheel** (up = in, down = out), nearest-
+  neighbour so the pixel-art look holds. The camera, picking, box-select and
+  order code stay in unzoomed surface pixels and the zoom is applied only at the
+  screen boundary, so clicks and orders map correctly at every level; the HUD and
+  minimap stay screen-fixed, and a `--zoom <n>` flag sets the initial level for
+  captures (out-of-range values clamp). New ctest `game_zoom`
+  (`--headless --check-zoom`) covers the round-trip and clamping. Issue #122.
 
 ## [0.6.0] — 2026-10-15 — "Firestorm"
 

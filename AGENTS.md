@@ -560,7 +560,8 @@ PR.
   wastes a kit on a full-health target, never crosses teams, and is deterministic
   (ties break by index). The health primitive is `Agent::heal(amount)` (World
   area) — additive and defaulted, mirroring `applyDamage`.
-- Sprites and a minimap are in (see below); zoom is still missing (Phase 2).
+- Sprites and a minimap are in (see below); integer zoom levels (1x/2x/3x, `+`/`-`
+  or wheel, `--zoom <n>`) are in too (Phase 2 complete).
 - **Agent routes are string-pulled (issue #93):** `findPath` with
   `allowDiagonal=true` post-processes the A* path with string-pulling
   (`core/world/LineOfSight.h`) so an agent walks straight between corners instead

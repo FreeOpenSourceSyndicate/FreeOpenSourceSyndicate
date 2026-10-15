@@ -112,6 +112,20 @@ public:
     // key must fall back to its literal. Used by --check-lang.
     bool languageSelfTest() const;
 
+    // Headless self-check for integer zoom (issue #122): every level keeps the
+    // screen<->tile round-trip exact, the level stays clamped, and the on-screen
+    // distance between two tiles scales with the level. Used by --check-zoom.
+    bool zoomSelfTest();
+
+    // Current integer magnification (1 = authored scale). Exposed for the
+    // self-check and the HUD.
+    int zoomLevel() const { return zoom_; }
+
+    // Sets the initial integer zoom level (issue #122), clamped to
+    // [kZoomMin, kZoomMax]. Used by `--zoom` for headless captures. Must be set
+    // before init() so the initial camera clamp uses the right level.
+    void setInitialZoom(int level);
+
     // True when a non-English locale file was found and overlaid over the
     // English fallback (issue #123). Used by --check-lang to prove a requested
     // locale actually resolved, so a missing locale file fails the gate instead
@@ -191,6 +205,16 @@ private:
     void centerOn(const core::Vec2& tile);
     void clampCamera();
 
+    // Zoom (issue #122). The camera and map offset live in unzoomed surface
+    // pixels; `zoom_` is applied only at the screen boundary, so all the picking
+    // and order code that goes through tileToScreen/screenToTile keeps working
+    // unchanged. `tileToSurface`/`screenToSurface` are those boundaries;
+    // `applyZoom`/`clampZoom` step and clamp the level.
+    core::Vec2 tileToSurface(const core::Vec2& tile) const;
+    core::Vec2 screenToSurface(int screenX, int screenY) const;
+    void applyZoom(int delta);
+    void clampZoom();
+
     // Screen-space route the queued-route overlay draws for `agentIndex`: the
     // agent's tile followed by each queued waypoint, in order. Empty when the
     // agent is not alive or has no queued moves. Exposed so the headless
@@ -220,6 +244,12 @@ private:
     // agents read as people on a 64px tile and stay cheap to blit (AGENTS.md 1b).
     static constexpr int kSpriteScale = 3;
 
+    // Integer zoom levels (issue #122): the whole world pass is magnified by
+    // `zoom_`, nearest-neighbour so the pixel-art look holds (AGENTS.md §1).
+    // 1 = authored scale; the level is clamped to this small set.
+    static constexpr int kZoomMin = 1;
+    static constexpr int kZoomMax = 3;
+
     // Roughly how fast the walk cycle alternates, in steps per second. A view
     // detail only: it never feeds back into the simulation.
     static constexpr float kWalkCadence = 2.4f;
@@ -235,6 +265,10 @@ private:
     // Camera position, in pixels: the map texture is drawn at (-cameraX_, -cameraY_).
     float cameraX_ = 0.0f;
     float cameraY_ = 0.0f;
+
+    // Integer zoom (issue #122), applied at the screen boundary only. 1 is the
+    // authored scale; stepping is clamped to [kZoomMin, kZoomMax].
+    int zoom_ = 1;
 
     core::TileGrid grid_{kMapWidth, kMapHeight};
     core::Mission mission_{grid_};
