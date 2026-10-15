@@ -1296,7 +1296,7 @@ for reassignment by a coordinator.
     `status: claimed` on any **open** issue with no live lease behind it. It leaves
     `status: blocked` / `status: needs-review` alone (they also mark human
     questions and Rule 4 requests, which have no lease) and leaves **closed**
-    issues untouched � history stays as-is. The ledger stays the single source of
+    issues untouched — history stays as-is. The ledger stays the single source of
     truth.
   - **`scripts/coord next`** walks a fixed ladder and **never prints nothing**:
     finish a held lease → claim a free critical-path area's issue → claim any free
@@ -1318,4 +1318,9 @@ for reassignment by a coordinator.
     commands (`claim`, `renew`, `release`) plus reads (`status`, `next`, board).
   - **No new dependency, no coordinator, no lock server** — the model is unchanged;
     only the edge cases are closed.
+  - **The transition is in place, so it is a no-op for in-flight agents.** The
+    lease refs, the three commands, and the board format are unchanged; a live
+    lease is never revoked. `stale` is display-only, so lowering `STALE_AFTER` to
+    3 h cannot cost a holder its area — `claim` still needs `--takeover` to
+    displace a live lease. See `docs/COORDINATION.md` §9.
 
