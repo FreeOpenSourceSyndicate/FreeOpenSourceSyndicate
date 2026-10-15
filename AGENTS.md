@@ -53,6 +53,29 @@ Rules that follow from this:
   trademark. Faithfulness means recreating the *feel* and the *look* with
   original art, never shipping the original's files (see `docs/LEGAL.md`).
 
+**Scope is fenced (ADR-0024).** v1.0.0 is **feature parity with the 1993
+original** and nothing more. `docs/ROADMAP.md` holds the **Definition of Done**
+(what "finished" means) and the **"Not in v1.0.0"** fence. The short version:
+things the original did **not** have — localisation beyond English, a modding /
+scripting layer (ADR-0004), modern quality-of-life, extra platforms beyond Linux,
+multiplayer — are **out of scope for v1.0.0** and deferred to a v2.x.x line or a
+fork. Before starting work, check it against the fence; if a task is out of scope,
+do not build it. Out-of-scope work needs a **human decision**, not an agent's
+enthusiasm: open an issue with `question` and propose it.
+
+## 1d. Keep the fleet small (resource policy)
+
+**Capacity is not a goal** (ADR-0024). The coordination scheme supports 1–10
+agents, but running more agents than the work needs wastes resources. The normal
+target is **1–4 agents**. Start (or request) an additional agent only when there
+is **critical-path work** for it in `docs/ROADMAP.md` that genuinely parallelises
+with what is already running — for example, Milestones A and B are independent.
+"There is an open issue" is **not** by itself a reason to start an agent, and an
+out-of-scope item never is. When in doubt, fewer agents.
+
+This is a *resource* policy, not a coordination rule: it changes **how many**
+agents run, never **how** they coordinate (still flat, ADR-0019/0021).
+
 ## 1a. AI attribution (mandatory)
 
 Every file generated or substantially edited by an LLM must be **marked as
@@ -129,7 +152,7 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
    coordinate, update `AGENTS.md` in the same PR.
 9. **Review and merge each other's PRs.** See §3a. This applies to every agent
    and to human maintainers.
-10. **Work inside your focus area.** The repo is divided into eight focus areas
+10. **Work inside your focus area.** The repo is divided into nine focus areas
     (see `docs/FOCUS_AREAS.md`). Claim a **free** area with the **highest pending
     workload**, preferring one you already know. Only the agent holding the
     area's live lease (or a helper it explicitly tasks) edits the files an area
@@ -453,6 +476,17 @@ PR.
 
 ## 9. Definition of Done
 
+**For v1.0.0 (the project).** v1.0.0 is done when the game is at **feature parity
+with the 1993 original** and playable end to end. The authoritative, checkable
+list is `docs/ROADMAP.md` → *Definition of Done*. In short: a player can start a
+corporation, tax territories, research and buy equipment, pick and deploy a
+squad on a mission, win or lose with the full tactical system, and progress to an
+end state — all with original code and art, and **nothing** outside the scope
+fence (ADR-0024). If that list is true, we are done; if a proposed change does not
+move us toward it, it is out of scope.
+
+**For a pull request:**
+
 - [ ] Builds with no new warnings (`-Wall -Wextra -Wpedantic`).
 - [ ] `ctest` passes locally.
 - [ ] New core logic has tests.
@@ -462,12 +496,21 @@ PR.
 - [ ] PR description uses the handoff format and names the model used.
 - [ ] No copyrighted asset, name, or code introduced (`docs/LEGAL.md`).
 - [ ] Change stays lightweight enough for the target hardware (§1b).
+- [ ] Change is **inside the v1.0.0 scope fence** (ADR-0024) — it is part of the
+      clone, not a v2.x.x feature.
 - [ ] If this is a release: a `release/vX.Y.Z-*` branch, tag, GitHub Release,
       `CHANGELOG.md` entry, and `docs/releases/vX.Y.Z-*.md` (build/play + copy
       instructions) all exist, and the release is visibly different from the
       last (§6a).
 
 ## 10. Known gaps / TODO for the next agent
+
+**Where to work next.** Follow `docs/ROADMAP.md` → *The critical path*. The long
+pole is **Milestone B (the metagame)** — the world map, economy, research, and
+campaign, which is entirely unstarted and which no release can be "finished"
+without. Milestone A (finishing the tactical layer: cybernetics, scanner,
+vehicles, destructible environment, the remaining objectives) runs in parallel.
+Do not start work outside the scope fence (ADR-0024).
 
 - The game now has a **playable vertical slice** with authored pixel-art
   sprites: an SDL2 isometric mission with a four-agent squad, live combat
@@ -707,11 +750,12 @@ PR.
   `release/vX.Y.Z-*` branch or move its tag after publication. If a released
   build would otherwise break, fix it on a new branch cut from that release
   branch (e.g. `fix/v0.3.0-<desc>`), leaving the original untouched.
-- **Parallel work is organised into eight focus areas** (`docs/FOCUS_AREAS.md`):
+- **Parallel work is organised into nine focus areas** (`docs/FOCUS_AREAS.md`):
   **tactical** (mission/combat/weapons), **world** (sim/agent/pathfinding/math),
   **render** (`src/game` drawing), **input-ui** (`src/main.cpp`, input/selection),
   **content** (`core/data`, `assets/data` minus missions), **text** (`core/i18n`,
-  `assets/lang`), **platform** (build, CI, packaging), **release** (`CHANGELOG`,
+  `assets/lang`), **metagame** (`core/economy`, world map, economy, research,
+  campaign), **platform** (build, CI, packaging), **release** (`CHANGELOG`,
   releases). Each area has a `focus:` label; only the agent holding its live lease
   (or a helper it tasks) edits its files. Each cycle pick a free area with the
   highest pending workload (`scripts/coord status`, §7). Overlap rules, the

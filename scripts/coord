@@ -75,7 +75,7 @@ MAX_TTL = 24 * 60 * 60             # never hold an area longer than a day.
 STALE_AFTER = 12 * 60 * 60         # live but quiet this long -> flag on the board
 REF_PREFIX = "refs/coord/leases"
 
-# The eight focus areas (docs/FOCUS_AREAS.md).  The area is the lock: a file has
+# The nine focus areas (docs/FOCUS_AREAS.md).  The area is the lock: a file has
 # exactly one owning area, so two agents collide only by holding the same area.
 AREAS = (
     "tactical",
@@ -84,6 +84,7 @@ AREAS = (
     "input-ui",
     "content",
     "text",
+    "metagame",
     "platform",
     "release",
 )

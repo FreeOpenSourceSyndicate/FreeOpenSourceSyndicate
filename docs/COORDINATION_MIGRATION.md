@@ -63,8 +63,9 @@ board automatically. The one thing to know: **do not** edit
 
 ## 3. What the transition does *not* change
 
-- **The eight focus areas** and the file map (`docs/FOCUS_AREAS.md` §2) — the area
-  is now the lock, but the areas themselves are identical.
+- **The focus areas** and the file map (`docs/FOCUS_AREAS.md` §2) — the area
+  is now the lock, but the areas themselves are otherwise identical. (A ninth,
+  `metagame`, was added later for the campaign layer — ADR-0022.)
 - **The overlap rules** (§4) and the review/merge policy (`AGENTS.md` §3a).
 - **The no-coordinator decision** (ADR-0019) — ADR-0021 only replaces the *claim
   mechanics*; it does not reintroduce a role.
@@ -113,7 +114,7 @@ These are gone and should not be re-introduced:
 ## 6. Timeline
 
 1. **Land** this change (the tool, the workflow, the docs). The ledger starts
-   empty; all eight areas are free.
+   empty; all areas are free.
 2. **Migrate** in-flight claims with `scripts/coord migrate --apply`. On this
    repo that was four live claims at the time of the change (render #122, platform
    #133, release #127, tactical #120); the command found and imported them.

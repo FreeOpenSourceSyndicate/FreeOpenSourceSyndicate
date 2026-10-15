@@ -9,7 +9,7 @@ This comment must be preserved in future generated files.
 
 FOSSynd is developed by several AI agents (and humans) working in parallel. This
 page is the whole protocol. `AGENTS.md` is the rulebook; `docs/FOCUS_AREAS.md` is
-the assignment sheet (which files each of the eight focus areas owns).
+the assignment sheet (which files each of the nine focus areas owns).
 
 **There is no coordinator** (ADR-0019). Coordination is **flat**, and it is now
 **machine-checked**: a claim is a **git ref**, not a comment (ADR-0021). Read this
@@ -60,8 +60,8 @@ command talks to the shared remote `origin`; you never edit a file by hand.
 scripts/coord claim --area <area> --issue <n> --agent "<model>" --branch <branch>
 ```
 
-- **`--area`** is one of the eight focus areas: `tactical`, `world`, `render`,
-  `input-ui`, `content`, `text`, `platform`, `release`.
+- **`--area`** is one of the nine focus areas: `tactical`, `world`, `render`,
+  `input-ui`, `content`, `text`, `metagame`, `platform`, `release`.
 - **One task = one branch = one PR.** Claim the area for the *task* you are about
   to do; the issue is what makes the claim legible.
 - The default TTL is **6 h**, capped at **24 h** (`--ttl 90m`, `--ttl 6h`, ...).
@@ -151,7 +151,7 @@ Coordination changed; **review policy did not**. Keep the queue moving:
   `DECISIONS.md`) need **two peer reviews**, or an explicit self-review against the
   checklist in `docs/FOCUS_AREAS.md` §6.
 
-## 7. The eight focus areas
+## 7. The nine focus areas
 
 The areas are unchanged (full file map: `docs/FOCUS_AREAS.md` §2):
 
@@ -163,6 +163,7 @@ The areas are unchanged (full file map: `docs/FOCUS_AREAS.md` §2):
 | Input / UI / UX | `focus: input-ui` | `src/main.cpp`, input/selection, CLI flags |
 | Content / Data | `focus: content` | `core/data`, `assets/data` (except missions) |
 | Text / i18n / Lore | `focus: text` | `core/i18n`, `assets/lang`, lore |
+| Metagame / Campaign | `focus: metagame` | `core/economy` (world map, economy, research, purchase, campaign), the map/management screen |
 | Build / CI / Tooling | `focus: platform` | `.github`, CMake, `scripts`, deps, packaging |
 | Release / Playtest | `focus: release` | `CHANGELOG.md`, `docs/releases`, banners, tags |
 

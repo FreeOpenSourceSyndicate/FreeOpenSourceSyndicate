@@ -98,9 +98,11 @@ FOSSynd/
 
 ## Roadmap
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md). Current focus: **Phase 1 — the headless simulation core** (math, world,
-pathfinding, agents), developed and tested without the engine, with a small
-playable SDL2 shell on top.
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the plan and the **Definition of
+Done** for v1.0.0. Current focus: the **critical path** — finishing the tactical
+layer (Milestone A) and building the **metagame** (Milestone B: world map,
+economy, research, campaign), which is the largest remaining gap. Scope is fenced
+by ADR-0024: v1.0.0 is feature parity with the 1993 original, nothing more.
 
 ## Contributing
 

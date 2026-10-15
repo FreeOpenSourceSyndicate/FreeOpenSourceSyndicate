@@ -9,8 +9,8 @@
 # comment. The authoritative, machine-readable area->file map is
 # docs/FOCUS_AREAS.md §2; keep this file in sync with it.
 #
-# The project runs eight focus areas (restored — see FOCUS_AREAS.md §2):
-# tactical, world, render, input-ui, content, text, platform, release.
+# The project runs nine focus areas (see FOCUS_AREAS.md §2):
+# tactical, world, render, input-ui, content, text, metagame, platform, release.
 # There is no coordinator: coordination is flat and self-service
 # (FOCUS_AREAS.md §1, ADR-0019). A live claim is a git-ref lease on the remote
 # (refs/coord/leases/*, ADR-0021); read it with `scripts/coord status`. These
@@ -72,7 +72,12 @@
 /assets/lang/                      @FreeOpenSourceSyndicate
 /docs/LORE.md                      @FreeOpenSourceSyndicate
 
-# --- 7. Build / CI / Tooling ---
+# --- 7. Metagame / Campaign ---
+# owner: focus: metagame
+/src/core/economy/                 @FreeOpenSourceSyndicate
+/assets/data/world/                @FreeOpenSourceSyndicate
+
+# --- 8. Build / CI / Tooling ---
 # owner: focus: platform
 /.github/workflows/                @FreeOpenSourceSyndicate
 /CMakeLists.txt                    @FreeOpenSourceSyndicate
@@ -81,7 +86,7 @@
 /tests/CMakeLists.txt              @FreeOpenSourceSyndicate
 /scripts/                          @FreeOpenSourceSyndicate
 
-# --- 8. Release / Playtest ---
+# --- 9. Release / Playtest ---
 # owner: focus: release
 /CHANGELOG.md                      @FreeOpenSourceSyndicate
 /docs/releases/                    @FreeOpenSourceSyndicate
