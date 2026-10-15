@@ -110,7 +110,7 @@ A shippable demo, deliberately original in code and art.
 - [x] Localization scaffolding (string table + `assets/lang/en.json`; the HUD and title card read from it)
 - [x] German UI translation (`assets/lang/de.json`, complete; ASCII-only font)
 - [ ] Modding / scripting layer (ADR-0004)
-- [x] Packaging for Linux (`.deb` + `.tar.gz`) and macOS (`.dmg`); Windows pending
+- [x] Packaging for Linux (`.deb` + `.tar.gz`), macOS (`.dmg`), and Windows (`.zip`)
 - [x] Low-spec / old-hardware profile (ADR-0008)
 
 ## Cross-cutting (every phase)

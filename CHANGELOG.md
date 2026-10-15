@@ -8,6 +8,14 @@ contains no original assets, code, names, or trademarks.
 
 ## [Unreleased]
 
+### Added
+
+- **Windows packaging lane (CPack `ZIP`):** a `WIN32`-guarded generator built
+  from the existing `install()` rules ships `FOSSynd-<version>-Windows.zip`
+  (with `SDL2.dll` beside `FOSSynd.exe`), and a `workflow_dispatch`-gated,
+  non-blocking CI lane uses the MSYS2 UCRT64 toolchain. Linux stays the only hard
+  gate (ADR-0017). Issue #133.
+
 ## [0.6.0] — 2026-10-15 — "Firestorm"
 
 The battlefield now has walls that matter and weapons that hurt more than one
