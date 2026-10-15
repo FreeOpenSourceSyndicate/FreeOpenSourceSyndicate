@@ -50,9 +50,12 @@ public:
 
     // --- movement ---------------------------------------------------------
 
-    // Replaces the current path with one computed by A* to `goal`. If no path
-    // exists, the agent stops and the path is cleared. Returns true if a path
-    // was found.
+    // Replaces the current path with one computed by A* to `goal`. When `goal`
+    // is unreachable (blocked, out of bounds, or abandoned by the node cap) the
+    // agent instead walks to the reachable tile nearest it, so a click on an
+    // unreachable tile still moves the squad toward it. The path is cleared only
+    // when there is genuinely nowhere to go (an enclosed or out-of-bounds start).
+    // Returns true if a path was set.
     bool moveTo(const TileGrid& grid, TilePos goal);
 
     // Clears the current path (the agent stops at its current position).
