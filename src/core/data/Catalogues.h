@@ -119,9 +119,32 @@ inline bool parseWeaponNode(const Json& node, Weapon& out, std::string& error)
     // Optional: an explosive weapon sets a blast radius; omitted keeps the
     // inherited/default value (0 = single-target).
     out.areaRadius = node["areaRadius"].asFloat(out.areaRadius);
+    // Field ranges: a bad catalogue number must fail the load, not misbehave at
+    // play time (issue #190). Callers prefix the offending entry's id, so the
+    // message names the file (validator), the entry, and the field.
     if (out.fireRate <= 0.0f)
     {
-        error = "weapon 'fireRate' must be greater than 0";
+        error = "'fireRate' must be greater than 0";
+        return false;
+    }
+    if (out.damage <= 0.0f)
+    {
+        error = "'damage' must be greater than 0";
+        return false;
+    }
+    if (out.range <= 0.0f)
+    {
+        error = "'range' must be greater than 0";
+        return false;
+    }
+    if (out.accuracy < 0.0f || out.accuracy > 1.0f)
+    {
+        error = "'accuracy' must be between 0 and 1";
+        return false;
+    }
+    if (out.areaRadius < 0.0f)
+    {
+        error = "'areaRadius' must not be negative";
         return false;
     }
     return true;
@@ -210,6 +233,7 @@ public:
             entry.weapon = makePistol();
             if (!detail::parseWeaponNode(node, entry.weapon, error))
             {
+                error = "weapon '" + entry.id + "': " + error;
                 return false;
             }
             entries_.push_back(std::move(entry));
@@ -328,6 +352,7 @@ public:
             }
             if (!applyWeaponToAgent(node, weapons, entry.spec.weapon, error))
             {
+                error = "agent '" + entry.id + "': " + error;
                 return false;
             }
             entries_.push_back(std::move(entry));

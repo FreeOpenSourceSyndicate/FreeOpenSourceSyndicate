@@ -98,7 +98,10 @@ A mission file describes one mission. Example:
 - **Agent coordinates** are fractional tile positions, matching `Agent(x, y, …)`;
   `1.5, 1.5` is the centre of tile `(1, 1)`.
 - **`weapon`** is optional per agent. Omitted fields fall back to the pistol's
-  values. `fireRate` must be greater than zero.
+  values. Every numeric field is range-checked when the content loads (issue
+  #190), so a bad number fails the load rather than misbehaving at play time:
+  `damage` > 0, `range` > 0, `fireRate` > 0, `accuracy` in `[0, 1]`, and
+  `areaRadius` ≥ 0.
 - **`areaRadius`** is optional and defaults to `0` (a single-target weapon, the
   old behaviour). When greater than `0`, a successful hit also damages every
   other living agent within that many tiles of the impact — an explosive. The
@@ -236,8 +239,11 @@ if (!report.ok())
   (missing files are fine) and checks every `*.json` in `dataDir/missions/`.
 - It collects **all** problems rather than stopping at the first, and each line
   names the file: `content: assets/data/missions/demo.json: unknown weaponId ...`.
-- It reports a missing `weaponId`/`agentId`, a duplicate catalogue `id`, a
-  malformed mission, and a missing catalogue directory.
+- It reports a missing `weaponId`/`agentId`, a duplicate catalogue `id`, an
+  out-of-range catalogue or inline weapon field (`damage`/`range`/`fireRate` ≤ 0,
+  `accuracy` outside `[0, 1]`, negative `areaRadius`), a bad `team`, a malformed
+  mission, and a missing catalogue directory. Each message names the file and the
+  offending entry/field.
 - A `dataDir` with **no** catalogue files is reported, because then no mission
   reference could ever resolve — a likely misconfiguration.
 - The shipped content is covered by `tests/test_content_validation.cpp`
