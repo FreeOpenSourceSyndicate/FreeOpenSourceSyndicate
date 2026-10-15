@@ -135,8 +135,9 @@ Open the folder, let it configure the CMake project, and build as usual.
 Controls (prototype):
 
 - **Left-click** a walkable tile — order the selected agent to move there.
-- **Tab** — select the next agent.
+- **1-8** — select an agent (or **A** for all); **Ctrl+1-4** set a control group.
 - **Arrow keys** — scroll the view.
+- **Space** — pause/resume the simulation.
 - **Esc** — quit.
 
 Headless options (used by tests and CI):

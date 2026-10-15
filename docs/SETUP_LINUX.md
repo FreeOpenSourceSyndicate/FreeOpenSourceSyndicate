@@ -34,8 +34,9 @@ cd FOSSynd
 ./build/src/FOSSynd
 ```
 
-Controls (prototype): left-click a tile to move the selected agent, **Tab** to
-select the next agent, arrow keys to scroll, **Esc** to quit.
+Controls (prototype): left-click a tile to move the selected agent, **1-8** to
+select an agent (or **A** for all), arrow keys to scroll, **Space** to pause,
+**Esc** to quit.
 
 ## 4. Test
 

@@ -83,7 +83,7 @@ FOSSynd uses a component-based entity system with modular gameplay systems. This
 - Sprite rendering and animation
 
 **InputSystem**
-- Keyboard input (arrow keys, WASD for movement, spacebar for actions)
+- Keyboard input (arrow keys scroll the view, spacebar pauses/resumes, `1`-`8`/`A` select agents)
 - Mouse input (point-to-move, click-to-select)
 - Squad command interface
 
