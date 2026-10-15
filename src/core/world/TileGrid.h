@@ -19,6 +19,9 @@ enum class Decor : std::uint8_t
     Barrel,
 };
 
+// Hit points a destructible tile gets when none is given explicitly.
+inline constexpr int kDefaultTileHitPoints = 1;
+
 // A single layer of walkable/blocking tiles. Engine-agnostic.
 class TileGrid
 {
@@ -40,6 +43,27 @@ public:
     Decor decor(int x, int y) const;
     void setDecor(int x, int y, Decor decor);
 
+    // --- destructible tiles (issue #157) ---------------------------------
+    //
+    // A destructible tile is a blocked tile that weapon fire can break. When
+    // its hit points reach zero it becomes walkable and any decor is cleared,
+    // so `findPath`/`findPathToNearest` route through the opening on the next
+    // search. Tiles are not destructible by default.
+
+    // Marks a tile destructible (or clears the mark), giving it `hitPoints`
+    // when marked. Out-of-bounds writes are ignored.
+    void setDestructible(int x, int y, bool destructible,
+                         int hitPoints = kDefaultTileHitPoints);
+    bool isDestructible(int x, int y) const;
+
+    // Remaining hit points of a destructible tile, else 0.
+    int tileHitPoints(int x, int y) const;
+
+    // Applies `amount` damage to a destructible tile. Returns true when this
+    // call destroyed it (the tile is now walkable). A no-op returning false for
+    // an out-of-bounds or non-destructible tile, or when `amount <= 0`.
+    bool damageTile(int x, int y, int amount);
+
 private:
     std::size_t index(int x, int y) const;
 
@@ -48,6 +72,8 @@ private:
     std::vector<int> types_;
     std::vector<std::uint8_t> walkable_;
     std::vector<std::uint8_t> decor_;
+    std::vector<std::uint8_t> destructible_;
+    std::vector<int> hitPoints_;
 };
 
 } // namespace fossynd::core

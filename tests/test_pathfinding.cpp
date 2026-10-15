@@ -469,3 +469,32 @@ FOSSYND_TEST(Pathfinding, NearestIsDeterministic)
     FOSSYND_CHECK(first.outcome == second.outcome);
     FOSSYND_CHECK(first.path == second.path);
 }
+
+FOSSYND_TEST(Pathfinding, DestroyingATileOpensTheRoute)
+{
+    // A full wall separates start from goal, so there is no path. Marking one
+    // wall tile destructible and breaking it must let findPath cross (#157).
+    TileGrid grid(5, 5);
+    blockColumn(grid, 2, 0, 4);
+
+    FOSSYND_CHECK(
+        findPathDetailed(grid, TilePos{0, 2}, TilePos{4, 2}, false).outcome == PathOutcome::NoPath);
+
+    grid.setDestructible(2, 2, true, 2);
+    FOSSYND_CHECK(!grid.damageTile(2, 2, 1)); // still standing after one hit
+    FOSSYND_CHECK(
+        findPathDetailed(grid, TilePos{0, 2}, TilePos{4, 2}, false).outcome == PathOutcome::NoPath);
+
+    FOSSYND_CHECK(grid.damageTile(2, 2, 1)); // broken
+    const PathResult after = findPathDetailed(grid, TilePos{0, 2}, TilePos{4, 2}, false);
+    FOSSYND_CHECK(after.outcome == PathOutcome::Found);
+    // Guard the size before indexing so a regression fails cleanly.
+    FOSSYND_CHECK(!after.path.empty());
+    if (after.path.empty())
+    {
+        return;
+    }
+    FOSSYND_CHECK(after.path.front() == (TilePos{0, 2}));
+    FOSSYND_CHECK(after.path.back() == (TilePos{4, 2}));
+}
+
