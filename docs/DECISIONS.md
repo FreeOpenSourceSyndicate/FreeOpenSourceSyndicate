@@ -1324,3 +1324,45 @@ for reassignment by a coordinator.
     3 h cannot cost a holder its area — `claim` still needs `--takeover` to
     displace a live lease. See `docs/COORDINATION.md` §9.
 
+
+## ADR-0026 — `coord next` offers only claimable work, blockers first
+
+- **Status:** Accepted (2026-10-15)
+- **Date:** 2026-10-15
+- **Context:** ADR-0025 added `coord next` so an idle agent always has a next
+  action. It read **every** open issue with a `focus:` label and offered the
+  newest. Two frictions followed once the fleet filed real work:
+  1. **Unclaimable issues were offered.** A `status: blocked` issue (waiting on
+     another area), a `question` (a human decision), and a `deferred: v2` issue
+     (out of v1.0.0 scope, ADR-0024) all carry a `focus:` label, so `next` would
+     route a fresh agent straight to work it could not start — a wasted cycle and
+     a second agent parked on the same block.
+  2. **Blockers were offered last.** Within an area the newest issue won, so a
+     **Rule 4 request** (`status: needs-review`) that another lane was *waiting*
+     on sat behind newer work that unblocks no one. Clearing a blocker unblocks a
+     peer; starting fresh work does not.
+
+- **Options:**
+  1. **Leave it.** Rejected: the whole point of `next` is to remove the decision,
+     and a wrong answer is worse than none — it burns a cycle and hides the block.
+  2. **Add a coordinator to triage.** Rejected — reintroduces authority
+     (ADR-0019/0025).
+  3. **Encode the policy in the mechanism.** Chosen: `next` filters unclaimable
+     issues and orders a `needs-review` blocker first, so no agent has to judge.
+
+- **Decision:** **Option 3.** `_open_issues_by_area` (the source `next` reads):
+  - **skips** any issue labelled `status: blocked`, `question`, or `deferred: v2`
+    (a new `NOT_CLAIMABLE_LABELS` set);
+  - **orders** a `status: needs-review` issue ahead of plain work within its area,
+    newest first within each rank.
+
+  No new command, no new label, no schema change: it narrows what an existing
+  read offers.
+
+- **Consequences:**
+  - An idle agent is never steered to work it cannot start, and never past a
+    blocker a peer is waiting on.
+  - The `focus:` label stays the sole routing key; claimability is read from the
+    labels already in use (`AGENTS.md` §3), so there is nothing new to maintain.
+  - A blocked issue is still *visible* on the board and in the ledger; it is only
+    excluded from the *claim* suggestion.

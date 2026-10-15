@@ -548,10 +548,18 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 
 def _open_issues_by_area() -> dict[str, list[int]]:
-    """Open issues bucketed by their `focus:` label, newest first.  Needs `gh`.
+    """Open issues bucketed by their `focus:` label, blockers first.  Needs `gh`.
 
-    Returns an empty map on any failure: `next` must still produce an action when
-    GitHub is unreachable, so this is never allowed to raise.
+    Issues that are not claimable work are skipped: `status: blocked` (waiting on
+    another area), `question` (a human decision), and `deferred: v2` (out of scope,
+    ADR-0024).  Routing an idle agent to one of those is a wasted cycle, so `next`
+    must not offer them.
+
+    Within an area the order is: a Rule 4 request (`status: needs-review`) first —
+    another lane is *waiting* on it (FOCUS_AREAS §4 Rule 4), so clearing it
+    unblocks more than any other item — then newest first.  Returns an empty map
+    on any failure: `next` must still produce an action when GitHub is
+    unreachable, so this is never allowed to raise.
     """
     try:
         proc = gh("issue", "list", "--state", "open", "--limit", "200",
@@ -564,14 +572,19 @@ def _open_issues_by_area() -> dict[str, list[int]]:
         rows = json.loads(proc.stdout or "[]")
     except json.JSONDecodeError:
         return {}
+    # A Rule 4 request sorts ahead of plain work; ties broken newest first.
     rows.sort(key=lambda r: r.get("createdAt", ""), reverse=True)
-    by_area: dict[str, list[int]] = {}
+    buckets: dict[str, list[tuple[int, int]]] = {}
     for row in rows:
-        for label in row.get("labels", []):
-            name = label.get("name", "")
+        names = {label.get("name", "") for label in row.get("labels", [])}
+        if names & NOT_CLAIMABLE_LABELS:
+            continue
+        rank = 0 if "status: needs-review" in names else 1
+        for name in names:
             if name.startswith("focus: "):
-                by_area.setdefault(name[len("focus: "):], []).append(int(row["number"]))
-    return by_area
+                buckets.setdefault(name[len("focus: "):], []).append((rank, int(row["number"])))
+    return {area: [num for _, num in sorted(items, key=lambda t: t[0])]
+            for area, items in buckets.items()}
 
 
 def _roadmap_gaps(limit: int = 3) -> list[str]:
@@ -600,12 +613,16 @@ def cmd_next(args: argparse.Namespace) -> int:
     empty:
 
       1. you already hold a lease        -> renew / finish / release it
-      2. a critical-path area is free    -> claim the newest issue there
-      3. any free area has an issue      -> claim the newest such issue
+      2. a critical-path area is free    -> claim its next claimable issue
+      3. any free area has an issue      -> claim its next claimable issue
       4. any area is free but has no issue, or a live lease is stale
                                          -> file the roadmap gap as a new issue
       5. nothing is claimable at all     -> review an open PR you did not author
                                             (the fleet's other durable job)
+
+    "Next claimable" skips unclaimable issues (`status: blocked`, `question`,
+    `deferred: v2`) and offers a Rule 4 request (`status: needs-review`) first,
+    since another lane is waiting on it (FOCUS_AREAS §4, ADR-0026).
     """
     if not args.offline:
         fetch_ledger()
@@ -886,6 +903,13 @@ def _sync_issue(lease: Lease, *, live: bool) -> None:
 
 
 STATUS_LABELS = ("status: claimed", "status: blocked", "status: needs-review")
+
+# Labels that mark an issue as *not* claimable work.  `next` and the board route
+# idle agents to open issues by `focus:` label, so an issue carrying any of these
+# must not be offered as a claim target: `status: blocked` waits on another area,
+# `question` needs a human decision (§5.2), and `deferred: v2` is out of v1.0.0
+# scope (ADR-0024).  An agent steered to one of them wastes a cycle.
+NOT_CLAIMABLE_LABELS = frozenset({"status: blocked", "question", "deferred: v2"})
 
 
 def _reconcile_status_labels(live_issues: set[int]) -> None:

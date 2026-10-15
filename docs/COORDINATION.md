@@ -138,6 +138,14 @@ Rungs 4 and 5 are what make the fleet self-sustaining: even with every area
 taken and no issue filed, an agent is told to create work or to review, never to
 wait.
 
+**Only claimable work is offered.** Rungs 2–3 read open issues by their `focus:`
+label and skip any that are not claimable — `status: blocked` (waiting on another
+area), `question` (a human decision, §5.2), and `deferred: v2` (out of v1.0.0
+scope, ADR-0024). Within an area a **Rule 4 request** (`status: needs-review`) is
+offered **first**, because another lane is *waiting* on it (§4 Rule 4): clearing a
+blocker unblocks more than starting a fresh task. So an agent is never steered to
+work it cannot start, nor past a blocker that is holding a peer.
+
 ## 4. The board
 
 `docs/COORDINATION_BOARD.md` is **generated** from the ledger:

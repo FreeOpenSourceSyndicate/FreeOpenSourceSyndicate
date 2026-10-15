@@ -351,6 +351,66 @@ class TestNextAction(CoordTestCase):
             self.assertTrue(out.strip(), f"empty output for {mapping}")
 
 
+class TestClaimableIssueRouting(CoordTestCase):
+    """`next` must only offer *claimable* work, and clear blockers first.
+
+    Routing an idle agent to a blocked/question/deferred issue, or past a Rule 4
+    request another lane is waiting on, is a wasted cycle (FOCUS_AREAS §4).
+    """
+
+    def _stub_gh(self, rows):
+        def fake_gh(*args, **kwargs):
+            if args[:2] == ("issue", "list"):
+                return subprocess.CompletedProcess(
+                    args, 0, stdout=json.dumps(rows), stderr="")
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+        orig = coord.gh
+        coord.gh = fake_gh
+        self.addCleanup(setattr, coord, "gh", orig)
+
+    def test_unclaimable_issues_are_not_offered(self):
+        self._stub_gh([
+            {"number": 1, "createdAt": "2026-01-01T00:00:00Z",
+             "labels": [{"name": "focus: tactical"}, {"name": "status: blocked"}]},
+            {"number": 2, "createdAt": "2026-01-02T00:00:00Z",
+             "labels": [{"name": "focus: tactical"}, {"name": "question"}]},
+            {"number": 3, "createdAt": "2026-01-03T00:00:00Z",
+             "labels": [{"name": "focus: tactical"}, {"name": "deferred: v2"}]},
+        ])
+        self.assertEqual(coord._open_issues_by_area(), {})
+
+    def test_rule4_request_sorts_ahead_of_newer_plain_work(self):
+        # #10 is newer, but #9 is a Rule 4 request another lane is waiting on, so
+        # clearing it unblocks more than starting #10 would.
+        self._stub_gh([
+            {"number": 10, "createdAt": "2026-01-10T00:00:00Z",
+             "labels": [{"name": "focus: tactical"}]},
+            {"number": 9, "createdAt": "2026-01-09T00:00:00Z",
+             "labels": [{"name": "focus: tactical"},
+                        {"name": "status: needs-review"}]},
+        ])
+        self.assertEqual(coord._open_issues_by_area()["tactical"], [9, 10])
+
+    def test_newest_first_within_equal_rank(self):
+        self._stub_gh([
+            {"number": 10, "createdAt": "2026-01-10T00:00:00Z",
+             "labels": [{"name": "focus: world"}]},
+            {"number": 11, "createdAt": "2026-01-11T00:00:00Z",
+             "labels": [{"name": "focus: world"}]},
+        ])
+        self.assertEqual(coord._open_issues_by_area()["world"], [11, 10])
+
+    def test_gh_failure_yields_an_empty_map(self):
+        def failing(*a, **k):
+            return subprocess.CompletedProcess(a, 1, stdout="", stderr="boom")
+
+        orig = coord.gh
+        coord.gh = failing
+        self.addCleanup(setattr, coord, "gh", orig)
+        self.assertEqual(coord._open_issues_by_area(), {})
+
+
 class TestStatusLabelReconcile(CoordTestCase):
     """The `status:` labels are a mirror; the reconciler clears only lease-set ones."""
 
