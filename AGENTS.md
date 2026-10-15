@@ -720,6 +720,11 @@ Do not start work outside the scope fence (ADR-0024).
   or SDL init — instead of silently starting the game with the wrong settings.
   Valid invocations are unchanged. ctests `game_cli_unknown_option` and
   `game_cli_missing_value` (`WILL_FAIL`) guard it; `--help`/`--version` still win.
+- **An explicit `--config` must exist (issue #259):** `--config <path>` naming a
+  missing file fails fast (`config error (<path>): file not found`, exit 1)
+  instead of silently running with defaults, matching `--mission`. The
+  auto-discovery loop (no `--config`) still skips absent candidates. ctest
+  `game_cli_config_missing` (`WILL_FAIL`) guards it.
 - Verification flags: `--headless --frames N`, `--headless --demo --frames N`,
   `--headless --title --frames N`, `--headless --check-sprites`,
   `--headless --check-minimap`, `--headless --check-selection`,

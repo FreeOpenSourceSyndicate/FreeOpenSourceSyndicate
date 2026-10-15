@@ -276,4 +276,10 @@ if(BUILD_TESTS)
     add_test(NAME game_cli_missing_value
              COMMAND FOSSynd --headless --frames)
     set_tests_properties(game_cli_missing_value PROPERTIES WILL_FAIL TRUE)
+    # An explicit --config naming a missing file is a user error, not a silent
+    # skip: fail fast, unlike the auto-discovery loop (issue #259). A valid
+    # --config is covered by game_content/game_smoke via the shipped config.
+    add_test(NAME game_cli_config_missing
+             COMMAND FOSSynd --headless --config /nonexistent/fossynd.conf --frames 1)
+    set_tests_properties(game_cli_config_missing PROPERTIES WILL_FAIL TRUE)
 endif()
