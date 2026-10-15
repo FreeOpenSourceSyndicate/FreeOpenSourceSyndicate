@@ -547,19 +547,19 @@ def cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
-def _open_issues_by_area() -> dict[str, list[int]]:
-    """Open issues bucketed by their `focus:` label, blockers first.  Needs `gh`.
+def _open_issues_by_area() -> dict[str, list[tuple[int, bool]]]:
+    """Open issues bucketed by their `focus:` label: ``(issue, is_blocker)``.
 
     Issues that are not claimable work are skipped: `status: blocked` (waiting on
     another area), `question` (a human decision), and `deferred: v2` (out of scope,
     ADR-0024).  Routing an idle agent to one of those is a wasted cycle, so `next`
     must not offer them.
 
-    Within an area the order is: a Rule 4 request (`status: needs-review`) first —
-    another lane is *waiting* on it (FOCUS_AREAS §4 Rule 4), so clearing it
-    unblocks more than any other item — then newest first.  Returns an empty map
-    on any failure: `next` must still produce an action when GitHub is
-    unreachable, so this is never allowed to raise.
+    ``is_blocker`` is true for a Rule 4 request (`status: needs-review`): another
+    lane is *waiting* on it (FOCUS_AREAS §4 Rule 4), so clearing it unblocks more
+    than any other item.  Each area's list is ordered blockers first, newest first
+    within each rank.  Returns an empty map on any failure: `next` must still
+    produce an action when GitHub is unreachable, so this never raises.
     """
     try:
         proc = gh("issue", "list", "--state", "open", "--limit", "200",
@@ -574,16 +574,17 @@ def _open_issues_by_area() -> dict[str, list[int]]:
         return {}
     # A Rule 4 request sorts ahead of plain work; ties broken newest first.
     rows.sort(key=lambda r: r.get("createdAt", ""), reverse=True)
-    buckets: dict[str, list[tuple[int, int]]] = {}
+    buckets: dict[str, list[tuple[int, bool]]] = {}
     for row in rows:
         names = {label.get("name", "") for label in row.get("labels", [])}
         if names & NOT_CLAIMABLE_LABELS:
             continue
-        rank = 0 if "status: needs-review" in names else 1
+        blocker = "status: needs-review" in names
         for name in names:
             if name.startswith("focus: "):
-                buckets.setdefault(name[len("focus: "):], []).append((rank, int(row["number"])))
-    return {area: [num for _, num in sorted(items, key=lambda t: t[0])]
+                buckets.setdefault(name[len("focus: "):], []).append(
+                    (int(row["number"]), blocker))
+    return {area: sorted(items, key=lambda t: not t[1])
             for area, items in buckets.items()}
 
 
@@ -621,8 +622,10 @@ def cmd_next(args: argparse.Namespace) -> int:
                                             (the fleet's other durable job)
 
     "Next claimable" skips unclaimable issues (`status: blocked`, `question`,
-    `deferred: v2`) and offers a Rule 4 request (`status: needs-review`) first,
-    since another lane is waiting on it (FOCUS_AREAS §4, ADR-0026).
+    `deferred: v2`) and treats a Rule 4 request (`status: needs-review`) as a
+    *blocker*: another lane is waiting on it (FOCUS_AREAS §4), so a blocker in any
+    free critical-path area is offered before plain work in the first one
+    (ADR-0026).
     """
     if not args.offline:
         fetch_ledger()
@@ -646,15 +649,21 @@ def cmd_next(args: argparse.Namespace) -> int:
     holders = {l.area: l for l in leases}
     free = [a for a in AREAS if a not in holders]
 
-    # 2. Critical path first.
+    # 2. Critical path first.  A waiting blocker (a Rule 4 request another lane is
+    #    blocked on) outranks plain work anywhere, because clearing it unblocks a
+    #    peer (FOCUS_AREAS §4 Rule 4, ADR-0026).  So look for a blocker in *any*
+    #    free critical-path area before a plain issue in the first one.
+    for area in CRITICAL_PATH_AREAS:
+        if area in free and by_area.get(area) and by_area[area][0][1]:
+            return _emit_claim(area, by_area[area][0][0], critical=True)
     for area in CRITICAL_PATH_AREAS:
         if area in free and by_area.get(area):
-            return _emit_claim(area, by_area[area][0], critical=True)
+            return _emit_claim(area, by_area[area][0][0], critical=True)
 
     # 3. Any free area with work.
     for area in free:
         if by_area.get(area):
-            return _emit_claim(area, by_area[area][0])
+            return _emit_claim(area, by_area[area][0][0])
 
     # 4. Free areas exist but the backlog is empty -> seed it.
     gaps = _roadmap_gaps()
