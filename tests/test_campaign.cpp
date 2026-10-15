@@ -113,7 +113,33 @@ FOSSYND_TEST(Campaign, MissingSiblingIsTolerated)
     std::remove(path.c_str());
 }
 
-FOSSYND_TEST(Campaign, SelectMissionGatesOnOwnershipAndSlots)
+FOSSYND_TEST(Campaign, DeployTargetsAreOwnedOrOnTheFrontier)
+{
+    Campaign campaign = loadedCampaign();
+
+    // Territory 0 is player-owned with a mission: deployable.
+    FOSSYND_CHECK(campaign.canDeployTo(0));
+
+    // A territory with no mission is never a deploy target, however owned.
+    for (TerritoryId id = 0; id < static_cast<TerritoryId>(campaign.map().size()); ++id)
+    {
+        if (campaign.map().find(id)->missionId.empty())
+        {
+            FOSSYND_CHECK(!campaign.canDeployTo(id));
+        }
+    }
+
+    // Territory 4 (mission-bearing) is not adjacent to anything the player holds,
+    // so it is not yet attackable; claiming a neighbour puts it on the frontier.
+    FOSSYND_CHECK(!campaign.canDeployTo(4));
+    campaign.map().setOwner(2, Campaign::kPlayerSyndicate);
+    FOSSYND_CHECK(campaign.canDeployTo(4));
+
+    // Unknown territory.
+    FOSSYND_CHECK(!campaign.canDeployTo(99));
+}
+
+FOSSYND_TEST(Campaign, SelectMissionGatesOnDeployabilityAndSlots)
 {
     Campaign campaign = loadedCampaign();
 
@@ -123,8 +149,13 @@ FOSSYND_TEST(Campaign, SelectMissionGatesOnOwnershipAndSlots)
     FOSSYND_CHECK_EQ(campaign.selectedMissionId(), std::string("demo"));
     FOSSYND_CHECK_EQ(campaign.selectedSlots().size(), std::size_t{2});
 
-    // Territory 2 is neutral: not selectable.
-    FOSSYND_CHECK(!campaign.selectMission(2, {}));
+    // Territory 2 is neutral but on the frontier (adjacent to the player's 0): a
+    // legitimate attack target.
+    FOSSYND_CHECK(campaign.selectMission(2, {}));
+    FOSSYND_CHECK_EQ(campaign.selectedTerritory(), 2);
+
+    // Territory 5 is neutral and behind other neutrals: not attackable yet.
+    FOSSYND_CHECK(!campaign.selectMission(5, {}));
 
     // Territory 1 is owned but has no mission.
     FOSSYND_CHECK(!campaign.selectMission(1, {}));
@@ -135,6 +166,42 @@ FOSSYND_TEST(Campaign, SelectMissionGatesOnOwnershipAndSlots)
 
     // Unknown territory.
     FOSSYND_CHECK(!campaign.selectMission(99, {}));
+}
+
+FOSSYND_TEST(Campaign, ShippedCampaignCanBeWonByClaimingTheFrontier)
+{
+    // The Definition of Done requires the loop to reach an end state. That is only
+    // possible if every non-player territory can actually be attacked, which in
+    // turn needs a mission on it and a player-held neighbour. Walk the real loop
+    // (deploy -> win -> claim) until the map is won, so a data file that leaves the
+    // campaign unwinnable fails here instead of in a playtest.
+    Campaign campaign = loadedCampaign();
+    const int player = Campaign::kPlayerSyndicate;
+    const std::size_t total = campaign.map().size();
+
+    for (std::size_t guard = 0;
+         guard < total * 4 && campaign.state() == CampaignState::Running; ++guard)
+    {
+        bool acted = false;
+        for (TerritoryId id = 0; id < static_cast<TerritoryId>(total); ++id)
+        {
+            if (campaign.map().owner(id) == player || !campaign.canDeployTo(id))
+            {
+                continue;
+            }
+            FOSSYND_CHECK(campaign.selectMission(id, {0, 1, 2, 3}));
+            campaign.recordResult(true, player);
+            acted = true;
+            break;
+        }
+        if (!acted)
+        {
+            break; // nothing left to attack
+        }
+    }
+
+    FOSSYND_CHECK_EQ(campaign.map().territoriesOwnedBy(player).size(), total);
+    FOSSYND_CHECK(campaign.state() == CampaignState::Won);
 }
 
 FOSSYND_TEST(Campaign, RecordResultClaimsAndEvaluatesEndState)

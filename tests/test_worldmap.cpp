@@ -154,33 +154,41 @@ FOSSYND_TEST(WorldMap, RejectsUnknownNeighbourAndSelfLoop)
     }
 }
 
-FOSSYND_TEST(WorldMap, RejectsDuplicateNameAndMissionId)
+FOSSYND_TEST(WorldMap, RejectsDuplicateName)
 {
     std::string error;
-    {
-        const Json root = Json::parse(R"({
-          "territories": [
-            { "id": 0, "name": "A", "neighbours": [] },
-            { "id": 1, "name": "A", "neighbours": [] }
-          ]
-        })",
-                                       error);
-        FOSSYND_CHECK(error.empty());
-        WorldMap map;
-        FOSSYND_CHECK(!WorldMap::fromJson(root, map, error));
-    }
-    {
-        const Json root = Json::parse(R"({
-          "territories": [
-            { "id": 0, "name": "A", "neighbours": [], "missionId": "demo" },
-            { "id": 1, "name": "B", "neighbours": [], "missionId": "demo" }
-          ]
-        })",
-                                       error);
-        FOSSYND_CHECK(error.empty());
-        WorldMap map;
-        FOSSYND_CHECK(!WorldMap::fromJson(root, map, error));
-    }
+    const Json root = Json::parse(R"({
+      "territories": [
+        { "id": 0, "name": "A", "neighbours": [] },
+        { "id": 1, "name": "A", "neighbours": [] }
+      ]
+    })",
+                                   error);
+    FOSSYND_CHECK(error.empty());
+    WorldMap map;
+    FOSSYND_CHECK(!WorldMap::fromJson(root, map, error));
+}
+
+FOSSYND_TEST(WorldMap, AllowsMissionIdSharedByTerritories)
+{
+    // A small mission set must be able to cover a larger map: several regions may
+    // be attacked through the same mission (the original reuses city maps), so a
+    // repeated missionId is valid. This is what lets the shipped campaign be won
+    // without authoring one mission per territory.
+    std::string error;
+    const Json root = Json::parse(R"({
+      "territories": [
+        { "id": 0, "name": "A", "neighbours": [1], "owner": 0, "missionId": "demo" },
+        { "id": 1, "name": "B", "neighbours": [0], "missionId": "demo" }
+      ]
+    })",
+                                   error);
+    FOSSYND_CHECK(error.empty());
+    WorldMap map;
+    FOSSYND_CHECK(WorldMap::fromJson(root, map, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_EQ(map.find(0)->missionId, std::string("demo"));
+    FOSSYND_CHECK_EQ(map.find(1)->missionId, std::string("demo"));
 }
 
 FOSSYND_TEST(WorldMap, SetOwnerUpdatesOwnershipQueries)

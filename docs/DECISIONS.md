@@ -1500,3 +1500,61 @@ for reassignment by a coordinator.
   - A scanner does not change combat balance; a drug buff does, and is bounded to
     a single window per dose. Both stay deterministic, so missions remain
     replayable.
+
+---
+
+## ADR-0029 — Campaign progression: regions are attacked from the frontier
+
+- **Status:** Accepted (2026-10-15)
+- **Date:** 2026-10-15
+- **Context:** Milestone B's Definition of Done (`docs/ROADMAP.md`) requires the
+  loop to **progress through the mission set and reach an end state**, and the
+  shipped campaign's win condition is `own-all-territories`. The contract's
+  `Campaign::selectMission` (`docs/METAGAME.md` §4.5) only accepted a
+  **player-owned** territory, and the shipped `world.json` put a `missionId` on
+  **one** territory (id 0), which was already player-owned. Every neutral region
+  therefore had no mission and no way to be selected, so no win could ever claim
+  a region: the campaign was **unwinnable**, and the "progress → end state"
+  half of the DoD was unreachable. Nothing failed at load, so the gap only showed
+  in a playtest. A second, structural obstacle: `WorldMap::validate` rejected any
+  `missionId` shared by two territories, which forced one authored mission per
+  region — and mission content belongs to `focus: tactical`, not metagame.
+
+- **Options:**
+  1. **Author a distinct mission for every region.** Rejected: mission content is
+     Tactical's area (`docs/FOCUS_AREAS.md` §2), so it is a cross-area dependency
+     for a metagame fix, and the original **reuses city maps** across regions
+     anyway — a 1:1 map-to-mission rule is less faithful, not more.
+  2. **Let any region be attacked regardless of adjacency.** Rejected: it removes
+     the map's only strategic structure (why take the Docks before the Sprawl?)
+     and is not how the original plays; ownership is supposed to spread outward.
+  3. **Attack from the frontier.** Chosen: a region is deployable when the player
+     already owns it or holds an **adjacent** region; a win claims it. Ownership
+     grows inward from the border, the map is winnable, and a repeated `missionId`
+     is allowed so a small mission set covers a larger map.
+
+- **Decision:** **Option 3.** In `core::Campaign`:
+  - a new `bool canDeployTo(TerritoryId) const` returns true iff the territory
+    has a non-empty `missionId` **and** is player-owned **or** adjacent to a
+    player-owned territory;
+  - `selectMission` gates on `canDeployTo` (it no longer requires ownership
+    directly), so a neutral frontier region is a valid attack target;
+  - `WorldMap::validate` no longer requires `missionId` to be unique — several
+    regions may share one mission.
+  The shipped `assets/data/world/world.json` gives each neutral region a
+  `missionId` (reusing the two shipped missions), so `own-all-territories` is
+  reachable. The map screen shows the selected region's `STATUS` as
+  `ATTACK READY` / `NOT REACHABLE`, and `CampaignScreen::selfTest` now **wins by
+  attacking**, so unwinnable data fails the `game_campaign` guard rather than a
+  playtest.
+
+- **Consequences:**
+  - The metagame loop reaches an end state with the data that ships; the
+    "progress" step of the DoD is no longer blocked by a content dependency.
+  - A region behind other neutrals is correctly **not** attackable until a
+    neighbour falls, which gives the map a front line for free.
+  - Real per-region mission content is still Tactical's to author (cross-area
+    request); until then, regions share missions, which the original also did.
+  - A campaign that cannot be won (a neutral region with no `missionId`, or one
+    walled off from any player territory) is now a **test failure**, not a
+    silent dead end.

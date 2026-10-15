@@ -10,6 +10,17 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **The campaign can be won (frontier attacks):** a region is now a deploy
+  target when the player owns it **or holds an adjacent region**
+  (`Campaign::canDeployTo`), and a win claims it, so ownership spreads inward
+  from the border. Before this, only the one already-owned territory had a
+  `missionId`, so `own-all-territories` was unreachable and the campaign could
+  never progress — Milestone B's "reach an end state" step was impossible.
+  A `missionId` may now be shared by several regions (the original reuses city
+  maps), and the map screen shows `ATTACK READY` / `NOT REACHABLE`; the
+  `game_campaign` guard wins by attacking, so unwinnable data fails CI instead
+  of a playtest (ADR-0029). Issue #249.
+
 - **Scanner and performance-drug gadgets:** the last two Milestone A gadgets
   land in `core`, alongside the medikit/shield/recruiter. A **scanner**
   (`Mission::activateScanner`/`scanTargets`) spends a charge to mark living

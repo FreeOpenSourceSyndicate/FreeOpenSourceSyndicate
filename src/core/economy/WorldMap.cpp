@@ -269,24 +269,6 @@ bool WorldMap::validate(std::string& error) const
         }
     }
 
-    // Two territories may not be deployed to from the same mission id.
-    for (std::size_t i = 0; i < territories_.size(); ++i)
-    {
-        if (territories_[i].missionId.empty())
-        {
-            continue;
-        }
-        for (std::size_t j = i + 1; j < territories_.size(); ++j)
-        {
-            if (territories_[i].missionId == territories_[j].missionId)
-            {
-                error = "mission id '" + territories_[i].missionId +
-                        "' is used by more than one territory";
-                return false;
-            }
-        }
-    }
-
     return true;
 }
 

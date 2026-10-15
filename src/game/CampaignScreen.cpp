@@ -415,6 +415,14 @@ void CampaignScreen::render(SDL_Renderer* renderer, const BitmapFont& font, int 
         y += lineH;
         font.draw(renderer, margin, y, "TAX: " + std::to_string(selected->taxLevel),
                   hudstyle::kHudDim);
+        y += lineH;
+        // Whether the selected region can be deployed to right now (owned, or on
+        // the frontier) — the map is attacked inward from the border, so a neutral
+        // behind other neutrals is not yet a target (ADR-0027).
+        const bool deployable = campaign_.canDeployTo(selected->id);
+        font.draw(renderer, margin, y,
+                  deployable ? "STATUS: ATTACK READY" : "STATUS: NOT REACHABLE",
+                  deployable ? hudstyle::kHudGood : hudstyle::kHudDim);
         y += lineH * 2;
     }
 
@@ -545,16 +553,50 @@ bool CampaignScreen::selfTest()
         return false;
     }
 
-    // 6. Claiming every territory and winning evaluates the end state.
-    for (core::TerritoryId id = 0; id < static_cast<core::TerritoryId>(campaign.map().size());
-         ++id)
+    // 6. Win by *playing* the loop: attack a frontier region through a real
+    // mission selection and claim it, repeating until the map is won. This is the
+    // path a player takes, so the guard fails if the shipped data makes the
+    // campaign unwinnable (e.g. a neutral region with no mission, or no
+    // player-held neighbour to attack it from).
+    const std::size_t total = campaign.map().size();
+    bool attackedFrontier = false;
+    for (std::size_t guard = 0; guard < total * 4; ++guard)
     {
-        campaign.map().setOwner(id, player);
+        core::TerritoryId target = -1;
+        for (const core::Territory& territory : campaign.map().territories())
+        {
+            if (territory.owner != player && campaign.canDeployTo(territory.id))
+            {
+                target = territory.id;
+                break;
+            }
+        }
+        if (target < 0)
+        {
+            break; // nothing left to attack
+        }
+        if (!campaign.selectMission(target, slots) || campaign.selectedMissionId().empty())
+        {
+            std::fprintf(stderr, "campaign self-test: frontier deployment failed\n");
+            return false;
+        }
+        campaign.recordResult(true, player);
+        if (campaign.map().owner(target) != player)
+        {
+            std::fprintf(stderr, "campaign self-test: winning did not claim the territory\n");
+            return false;
+        }
+        attackedFrontier = true;
     }
-    campaign.recordResult(true, player);
-    if (campaign.state() != core::CampaignState::Won)
+    if (!attackedFrontier)
     {
-        std::fprintf(stderr, "campaign self-test: owning every territory did not win\n");
+        std::fprintf(stderr, "campaign self-test: no attackable territory on the frontier\n");
+        return false;
+    }
+    if (campaign.map().territoriesOwnedBy(player).size() != total ||
+        campaign.state() != core::CampaignState::Won)
+    {
+        std::fprintf(stderr, "campaign self-test: the campaign could not be won by attacking\n");
         return false;
     }
 
