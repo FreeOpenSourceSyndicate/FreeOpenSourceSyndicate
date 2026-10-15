@@ -9,6 +9,7 @@ set(FOSSYND_TEST_SOURCES
     test_isometric.cpp
     test_tilegrid.cpp
     test_pathfinding.cpp
+    test_vehicle.cpp
     test_lineofsight.cpp
     test_agent.cpp
     test_timestep.cpp

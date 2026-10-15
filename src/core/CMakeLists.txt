@@ -8,6 +8,7 @@ set(FOSSYND_CORE_SOURCES
     math/Isometric.cpp
     world/TileGrid.cpp
     world/Pathfinding.cpp
+    world/Vehicle.cpp
     sim/Agent.cpp
     sim/Mission.cpp
     economy/WorldMap.cpp
