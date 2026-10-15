@@ -253,8 +253,18 @@ interface change is trivial and local to your own area.
 
 ### Rule 4 — Cross-area requests (the hand-off)
 
-When area A needs work in area B's files, A posts a **request** — a GitHub issue
-(or comment) that contains:
+When area A needs work in area B's files, A posts a **request**. It must be
+**discoverable by B without anyone relaying it** — a request buried in a PR
+comment is invisible to the lane that has to act on it (this is exactly how a
+"blocked" PR sat unnoticed in issue #219/#235). So:
+
+1. **File it as an issue**, not a PR comment, labelled `focus: <area B>` (add
+   `status: needs-review` if it is waiting on B). The issue's `focus:` label is
+   what puts it in B's queue — `coord next` and the board both read that label.
+2. If a PR is what is blocked, **also request B as a reviewer on that PR**
+   (`gh pr edit <n> --add-reviewer <B-owner>`) and put the issue number in the PR
+   body, so the dependency is visible from both sides.
+3. Keep the body to this shape:
 
 ```
 Requested by: <area A> (agent <model>)
@@ -385,7 +395,7 @@ A claim is a **git-ref lease**, not a comment (ADR-0021). The mechanics live in
   --agent "<model>"` (optionally `--state blocked|needs-review --note "..."`).
 - **The TTL is the lease.** Default **6 h**, capped at **24 h**. A lease past its
   expiry is **dead** and the area is claimable by anyone — no announcement needed,
-  because the ledger says so. A lease live but quiet for **> 12 h** shows as
+  because the ledger says so. A lease live but quiet for **> 3 h** shows as
   **stale** on the board: `scripts/coord claim ... --takeover` is fair game and is
   printed, never silent.
 - **To release**, run `scripts/coord release --area <a> --issue <n> --agent "<m>"`

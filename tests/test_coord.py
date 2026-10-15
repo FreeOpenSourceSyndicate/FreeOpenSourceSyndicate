@@ -199,6 +199,16 @@ class TestExpiryAndSweep(CoordTestCase):
         self.assertTrue(lease.is_stale(self.now + coord.STALE_AFTER + 1))
         self.assertTrue(lease.is_live(self.now + coord.STALE_AFTER + 1))
 
+    def test_stale_window_is_shorter_than_the_default_ttl(self):
+        """Regression: STALE_AFTER was 12 h while DEFAULT_TTL was 6 h, so a lease
+        expired before it could ever be flagged stale - the signal was dead code.
+        A default lease must be able to *reach* staleness while still live."""
+        self.assertLess(coord.STALE_AFTER, coord.DEFAULT_TTL)
+        self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "a")
+        lease = coord.read_lease("refs/coord/leases/world")
+        self.assertTrue(lease.is_stale(self.now + coord.STALE_AFTER + 1))
+        self.assertTrue(lease.is_live(self.now + coord.STALE_AFTER + 1))
+
 
 class TestCheckGate(CoordTestCase):
     def test_check_passes_on_a_clean_ledger(self):
@@ -273,6 +283,112 @@ class TestStatusAndBoard(CoordTestCase):
         self.run_coord("board")
         with open(path, encoding="utf-8") as fh:
             self.assertEqual(first, fh.read())
+
+
+class TestNextAction(CoordTestCase):
+    """`coord next` must always print an actionable next step - never nothing.
+
+    These tests stub the GitHub calls (`_open_issues_by_area`) so they run with
+    no network, which is also the real fallback path.
+    """
+
+    def _stub_issues(self, mapping):
+        self._orig = coord._open_issues_by_area
+        coord._open_issues_by_area = lambda: dict(mapping)
+        self.addCleanup(setattr, coord, "_open_issues_by_area", self._orig)
+
+    def test_next_returns_your_own_lease_first(self):
+        self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "a")
+        self._stub_issues({})
+        out, _ = self.run_coord("next", "--agent", "a")
+        self.assertIn("You hold world / #157", out)
+        self.assertIn("renew", out)
+
+    def test_next_prefers_the_critical_path(self):
+        self._stub_issues({"metagame": [249], "world": [157]})
+        out, _ = self.run_coord("next", "--agent", "a")
+        self.assertIn("metagame / #249", out)
+        self.assertIn("critical path", out)
+
+    def test_next_falls_back_to_any_free_area_with_work(self):
+        # metagame held, so the critical-path rung is skipped.
+        self.run_coord("claim", "--area", "metagame", "--issue", 249, "--agent", "x")
+        self._stub_issues({"metagame": [249], "world": [157]})
+        out, _ = self.run_coord("next", "--agent", "a")
+        self.assertIn("world / #157", out)
+
+    def test_next_seeds_from_the_roadmap_when_the_backlog_is_empty(self):
+        self._stub_issues({})  # no open issues at all
+        out, _ = self.run_coord("next", "--agent", "a")
+        # Not a claim: it must tell the agent how to create work, not stall.
+        self.assertIn("file an issue", out)
+        self.assertIn("focus:", out)
+
+    def test_next_offers_review_when_every_area_is_held(self):
+        for i, area in enumerate(coord.AREAS):
+            self.run_coord("claim", "--area", area, "--issue", 100 + i, "--agent", "x")
+        self._stub_issues({})
+        out, _ = self.run_coord("next", "--agent", "a")
+        self.assertIn("review and merge an open PR", out)
+
+    def test_next_offers_takeover_of_a_stale_holder(self):
+        self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "x")
+        for area in coord.AREAS:
+            if area != "world":
+                self.run_coord("claim", "--area", area, "--issue", 200,
+                               "--agent", "x")
+        self._set_now(self.now + coord.STALE_AFTER + 1)
+        self._stub_issues({})
+        out, _ = self.run_coord("next", "--agent", "a")
+        self.assertIn("stale", out)
+        self.assertIn("--takeover", out)
+
+    def test_next_never_prints_nothing(self):
+        """The whole point: whatever the state, there is a line of output."""
+        for mapping in ({}, {"world": [1]}, {"metagame": [249]}):
+            self._stub_issues(mapping)
+            out, _ = self.run_coord("next", "--agent", "a")
+            self.assertTrue(out.strip(), f"empty output for {mapping}")
+
+
+class TestStatusLabelReconcile(CoordTestCase):
+    """The `status:` labels are a mirror; the reconciler clears ones with no lease."""
+
+    def test_reconcile_clears_labels_for_issues_with_no_live_lease(self):
+        calls = []
+
+        def fake_gh(*args, **kwargs):
+            calls.append(args)
+            if args[:2] == ("issue", "list"):
+                return subprocess.CompletedProcess(
+                    args, 0, stdout=json.dumps([
+                        {"number": 222, "state": "CLOSED",
+                         "labels": [{"name": "status: claimed"}]},
+                        {"number": 249, "state": "OPEN",
+                         "labels": [{"name": "status: claimed"}]},
+                    ]), stderr="")
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+        orig = coord.gh
+        coord.gh = fake_gh
+        self.addCleanup(setattr, coord, "gh", orig)
+
+        # #249 has a live lease; #222 does not (its lease was released).
+        coord._reconcile_status_labels({249})
+
+        edited = [c for c in calls if c[:2] == ("issue", "edit")]
+        self.assertEqual(len(edited), 1)
+        self.assertEqual(edited[0][2], "222")
+        self.assertIn("--remove-label", edited[0])
+
+    def test_reconcile_never_raises_when_gh_is_unavailable(self):
+        def failing_gh(*args, **kwargs):
+            return subprocess.CompletedProcess(args, 1, stdout="", stderr="boom")
+
+        orig = coord.gh
+        coord.gh = failing_gh
+        self.addCleanup(setattr, coord, "gh", orig)
+        coord._reconcile_status_labels(set())  # must not raise
 
 
 class TestDurations(CoordTestCase):

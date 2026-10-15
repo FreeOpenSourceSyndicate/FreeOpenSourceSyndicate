@@ -72,7 +72,11 @@ from typing import Iterable, Optional
 
 DEFAULT_TTL = 6 * 60 * 60          # 6 h: a normal work cycle.
 MAX_TTL = 24 * 60 * 60             # never hold an area longer than a day.
-STALE_AFTER = 12 * 60 * 60         # live but quiet this long -> flag on the board
+# A live lease not renewed for this long is *stale*: the holder may still be
+# working, but a --takeover is fair game.  This must stay below DEFAULT_TTL,
+# otherwise a lease expires before it can ever be flagged stale and the signal
+# is dead code (guarded by tests/test_coord.py).
+STALE_AFTER = 3 * 60 * 60          # 3 h: half a normal work cycle
 REF_PREFIX = "refs/coord/leases"
 
 # The nine focus areas (docs/FOCUS_AREAS.md).  The area is the lock: a file has
@@ -91,6 +95,14 @@ AREAS = (
 
 BOARD_PATH = "docs/COORDINATION_BOARD.md"
 BOARD_MARKER = "<!-- coord:board -->"
+
+# Areas on the critical path (docs/ROADMAP.md).  `coord next` prefers these so an
+# idle agent is steered at the work that actually unblocks the release, not just
+# at any area that happens to be free.
+CRITICAL_PATH_AREAS = ("metagame", "tactical")
+
+# Unchecked roadmap items are the backlog seed when nothing is claimable.
+ROADMAP_PATH = "docs/ROADMAP.md"
 
 # The legacy protocol, still accepted on read so a claim posted by an old agent
 # mid-migration is honoured.  See docs/COORDINATION_MIGRATION.md.
@@ -479,6 +491,12 @@ def cmd_renew(args: argparse.Namespace) -> int:
     return 0
 
 
+def _is_github_remote() -> bool:
+    """True if 'origin' looks like a GitHub remote (so `gh` label calls make sense)."""
+    proc = git("remote", "get-url", "origin", check=False)
+    return proc.returncode == 0 and "github.com" in (proc.stdout or "")
+
+
 def cmd_release(args: argparse.Namespace) -> int:
     fetch_ledger()
     lease = read_lease(ref_for(args.area))
@@ -488,6 +506,11 @@ def cmd_release(args: argparse.Namespace) -> int:
     if lease.agent != args.agent and not args.force:
         raise CoordError(f"{args.area}/#{args.issue} is held by {lease.agent}, not {args.agent}")
     delete_ref(args.area)
+    # Drop the convenience `status:` mirror immediately rather than waiting up to
+    # a sweep interval.  Best-effort and only against a real GitHub remote, so a
+    # local test run never touches the network.  (`sweep --gh` is the backstop.)
+    if _is_github_remote():
+        _sync_issue(lease, live=False)
     print(f"released {args.area} / #{args.issue}")
     return 0
 
@@ -521,6 +544,140 @@ def cmd_status(args: argparse.Namespace) -> int:
                   f"expired {iso(l.expires)} ({human_delta(at - l.expires)} ago)")
     free = [a for a in AREAS if area_holder(a, at) is None]
     print(f"free areas: {', '.join(free) if free else '(none)'}")
+    return 0
+
+
+def _open_issues_by_area() -> dict[str, list[int]]:
+    """Open issues bucketed by their `focus:` label, newest first.  Needs `gh`.
+
+    Returns an empty map on any failure: `next` must still produce an action when
+    GitHub is unreachable, so this is never allowed to raise.
+    """
+    try:
+        proc = gh("issue", "list", "--state", "open", "--limit", "200",
+                  "--json", "number,labels,createdAt", check=False)
+    except OSError:  # gh binary absent
+        return {}
+    if proc.returncode != 0:
+        return {}
+    try:
+        rows = json.loads(proc.stdout or "[]")
+    except json.JSONDecodeError:
+        return {}
+    rows.sort(key=lambda r: r.get("createdAt", ""), reverse=True)
+    by_area: dict[str, list[int]] = {}
+    for row in rows:
+        for label in row.get("labels", []):
+            name = label.get("name", "")
+            if name.startswith("focus: "):
+                by_area.setdefault(name[len("focus: "):], []).append(int(row["number"]))
+    return by_area
+
+
+def _roadmap_gaps(limit: int = 3) -> list[str]:
+    """The first unchecked roadmap items — the seed when the backlog is empty."""
+    try:
+        with open(ROADMAP_PATH, encoding="utf-8") as fh:
+            text = fh.read()
+    except OSError:
+        return []
+    gaps = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- [ ]"):
+            gaps.append(stripped[len("- [ ]"):].strip())
+            if len(gaps) >= limit:
+                break
+    return gaps
+
+
+def cmd_next(args: argparse.Namespace) -> int:
+    """Print the single next action for an idle agent — never empty.
+
+    The fleet must never stall for want of something to do.  This walks a fixed
+    ladder and stops at the first rung that applies, so the answer is always an
+    actionable next step, even when every area is taken and the issue list is
+    empty:
+
+      1. you already hold a lease        -> renew / finish / release it
+      2. a critical-path area is free    -> claim the newest issue there
+      3. any free area has an issue      -> claim the newest such issue
+      4. any area is free but has no issue, or a live lease is stale
+                                         -> file the roadmap gap as a new issue
+      5. nothing is claimable at all     -> review an open PR you did not author
+                                            (the fleet's other durable job)
+    """
+    if not args.offline:
+        fetch_ledger()
+    at = now()
+    leases = [l for l in list_leases() if l.is_live(at)]
+    by_area = _open_issues_by_area()
+
+    # 1. Do you already hold something?  Finish or renew it before taking more.
+    mine = [l for l in leases if l.agent == args.agent]
+    if mine:
+        l = mine[0]
+        state = "" if l.state == "claimed" else f" [{l.state}]"
+        print(f"You hold {l.area} / #{l.issue}{state} "
+              f"({human_delta(l.expires - at)} left).")
+        print(f"  -> renew:   scripts/coord renew  --area {l.area} --issue {l.issue} "
+              f"--agent \"{args.agent}\"")
+        print(f"  -> release: scripts/coord release --area {l.area} --issue {l.issue} "
+              f"--agent \"{args.agent}\"")
+        return 0
+
+    holders = {l.area: l for l in leases}
+    free = [a for a in AREAS if a not in holders]
+
+    # 2. Critical path first.
+    for area in CRITICAL_PATH_AREAS:
+        if area in free and by_area.get(area):
+            return _emit_claim(area, by_area[area][0], critical=True)
+
+    # 3. Any free area with work.
+    for area in free:
+        if by_area.get(area):
+            return _emit_claim(area, by_area[area][0])
+
+    # 4. Free areas exist but the backlog is empty -> seed it.
+    gaps = _roadmap_gaps()
+    if free:
+        area = next((a for a in CRITICAL_PATH_AREAS if a in free), free[0])
+        print(f"No open issue is claimable, but area '{area}' is free.")
+        if gaps:
+            print(f"Seed it from the roadmap (docs/ROADMAP.md), e.g.:")
+            for gap in gaps:
+                print(f"  - {gap}")
+            print(f"  -> file an issue with a `focus: {area}` label, then claim it.")
+        else:
+            print(f"  -> file an issue with a `focus: {area}` label, then claim it.")
+        print("  (Every area is idle: this is the fleet's only stop condition, and it")
+        print("   is fixed by adding work, not by adding agents.)")
+        return 0
+
+    # 5. Everything is held (or stale).  Fall through to the other durable job.
+    stale = [l for l in leases if l.is_stale(at)]
+    if stale:
+        l = stale[0]
+        print(f"Every area is held; '{l.area}' (#{l.issue}, {l.agent}) is stale "
+              f"({human_delta(at - l.epoch)} quiet).")
+        print(f"  -> takeover: scripts/coord claim --area {l.area} --issue {l.issue} "
+              f"--agent \"{args.agent}\" --takeover")
+        print(f"  -> or review its PR first if one is open.")
+        return 0
+
+    print("Every area is held by a live, non-stale lease.")
+    print("  -> review and merge an open PR you did not author (AGENTS.md §3a):")
+    print("     gh pr list --state open --json number,title,headRefName")
+    print("  -> this is the fleet's second durable job; it is always available.")
+    return 0
+
+
+def _emit_claim(area: str, issue: int, critical: bool = False) -> int:
+    tag = " (critical path)" if critical else ""
+    print(f"Next: claim {area} / #{issue}{tag}")
+    print(f"  scripts/coord claim --area {area} --issue {issue} "
+          f"--agent \"<your model>\" --branch <type>/{area}-<slug>")
     return 0
 
 
@@ -607,7 +764,7 @@ def render_board(at: Optional[int] = None) -> str:
     lines += [
         "",
         "Legend: **free** = claimable now · **claimed** = live lease · **stale** = live",
-        "but quiet for > 12 h — the holder may still be working, but a `coord claim",
+        "but quiet for > 3 h — the holder may still be working, but a `coord claim",
         "--takeover` (or letting the TTL run out) is fair game · **blocked** /",
         "**needs-review** = the holder set the state. Pending workload per area is the",
         "open-issue count on GitHub.",
@@ -672,6 +829,10 @@ def cmd_sweep(args: argparse.Namespace) -> int:
         for l in leases:
             if l.is_live(at):
                 _sync_issue(l, live=True)
+        # A released or closed issue leaves no ref for the loop above to see, so
+        # sweep the GitHub side for `status:` labels with no live lease behind
+        # them.  This is what keeps the mirror from drifting (issue #222).
+        _reconcile_status_labels({l.issue for l in leases if l.is_live(at)})
 
     if not args.no_board:
         cmd_board(argparse.Namespace(offline=True, stdout=False, path=args.board_path))
@@ -720,8 +881,47 @@ def _sync_issue(lease: Lease, *, live: bool) -> None:
             gh("issue", "edit", str(lease.issue),
                "--remove-label", "status: claimed", "--remove-label", "status: blocked",
                "--remove-label", "status: needs-review")
-    except CoordError as exc:  # pragma: no cover - network path
+    except (CoordError, OSError) as exc:  # pragma: no cover - network path
         print(f"warning: label sync for #{lease.issue} skipped: {exc}", file=sys.stderr)
+
+
+STATUS_LABELS = ("status: claimed", "status: blocked", "status: needs-review")
+
+
+def _reconcile_status_labels(live_issues: set[int]) -> None:
+    """Strip `status:` labels from issues no live lease covers.
+
+    The labels are a convenience mirror of the ledger, so they must not outlive
+    the lease.  A release or a closed issue leaves no ref behind for the sweep to
+    notice, so reconcile from the GitHub side: any issue still carrying a
+    `status:` label but absent from ``live_issues`` is stale by definition.
+    Best-effort - a failure never aborts a sweep.
+    """
+    try:
+        proc = gh("issue", "list", "--state", "all", "--limit", "500",
+                  "--json", "number,state,labels", check=False)
+        if proc.returncode != 0:
+            return
+        rows = json.loads(proc.stdout or "[]")
+    except (CoordError, OSError, json.JSONDecodeError) as exc:  # pragma: no cover
+        print(f"warning: status-label reconcile skipped: {exc}", file=sys.stderr)
+        return
+    for row in rows:
+        number = int(row["number"])
+        if number in live_issues:
+            continue
+        names = {l.get("name") for l in row.get("labels", [])}
+        if not names & set(STATUS_LABELS):
+            continue
+        args = ["issue", "edit", str(number)]
+        for label in STATUS_LABELS:
+            args += ["--remove-label", label]
+        try:
+            gh(*args)
+            print(f"cleared stale status label(s) on #{number} ({row.get('state')})")
+        except (CoordError, OSError) as exc:  # pragma: no cover
+            print(f"warning: could not clear labels on #{number}: {exc}",
+                  file=sys.stderr)
 
 
 def _comment_already_posted(lease: Lease) -> bool:
@@ -910,6 +1110,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("check", help="assert no live lease collisions (CI gate)")
     p.add_argument("--offline", action="store_true")
     p.set_defaults(func=cmd_check)
+
+    p = sub.add_parser("next", help="print the next action for an idle agent (never empty)")
+    _add_common(p)
+    p.add_argument("--offline", action="store_true")
+    p.set_defaults(func=cmd_next)
 
     p = sub.add_parser("board", help="render the generated coordination board")
     p.add_argument("--path", default=None)
