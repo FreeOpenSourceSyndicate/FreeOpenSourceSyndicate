@@ -19,7 +19,7 @@ namespace fossynd::game::hudstyle
 // Bumped each cut in one place (like FOSSYND_VERSION); the English value is
 // mirrored in assets/lang/en.json `app.tagline`, which can override it for
 // translation (issue #48).
-constexpr const char* kReleaseCodename = "FIRESTORM";
+constexpr const char* kReleaseCodename = "DEMOLITION";
 
 // Agent body colours (the in-game marker and the title-card badge).
 constexpr std::uint8_t kPlayerBody[3] = {40, 170, 60};
