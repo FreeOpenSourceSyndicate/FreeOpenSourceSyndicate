@@ -10,6 +10,14 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **Shield gadget:** a combatant can spend a shield charge to raise a shield
+  that absorbs the next incoming hit whole and then drops (the following hit
+  lands normally). Ordinary, explosive-area, and stray damage all pass through
+  the shield. Charges and the raised flag live on `Mission` (`setShields`,
+  `shields`, `activateShield`, `shieldUp`) — no `core::Agent` change — and every
+  damage path now funnels through `Mission::damageAgent`. Deterministic, no RNG.
+  Covered by `tests/test_mission.cpp`; see ADR-0023. Not yet surfaced to the
+  player (a UI binding and a content `shields` field are follow-ups). Issue #211.
 - **Enemies take cover under fire:** a combatant that is being shot at now
   breaks for the nearest cover instead of trading shots in the open. While
   engaged and under fire (just hit, or the shooter is still firing), an enemy

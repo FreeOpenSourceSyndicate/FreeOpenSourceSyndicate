@@ -1032,3 +1032,51 @@ for reassignment by a coordinator.
     `EnemyHoldsCoverWhileStillUnderFire`, `EnemyWithoutCoverEngagesAsBefore`.
   - Only one step of cover is considered (the enemy does not path across the map
     to better cover); revisit if the AI needs richer positioning.
+
+---
+
+## ADR-0023 — Shield gadget: a Mission-local one-hit damage buffer
+
+- **Status:** Accepted (2026-10-15)
+- **Date:** 2026-10-15
+- **Context:** Issue #211, roadmap Phase 3 ("gadgets — shield and scanner
+  pending"). The medikit (ADR not needed; issue #88) established the pattern: a
+  gadget's *charges* and *state* live on `Mission`, never on the frozen,
+  World-owned `core::Agent` (`docs/FOCUS_AREAS.md` §2), so a tactical gadget
+  needs no cross-lane contract change. The shield is the defensive counterpart —
+  a combatant spends a charge to absorb the next incoming hit. The open
+  questions were **where damage is intercepted** and **what a shield absorbs**.
+- **Options:**
+  1. **Intercept only in `resolveFire`'s primary-target path.** Rejected:
+     explosive area damage (`applyAreaDamage`) and stray fire (`applyStrayFire`)
+     would bypass the shield, so a shielded agent could still be hurt by the very
+     hits the shield is meant to stop.
+  2. **Give `core::Agent` a `shieldHp_` field and subtract there.** Rejected: it
+     edits a world-owned header for a tactical gadget, and a damage-absorbing
+     field on `Agent` is a bigger contract than the medikit precedent set.
+  3. **Funnel every damage path through one `Mission::damageAgent` that consults
+     a Mission-local shield flag.** Chosen.
+- **Decision:** **Option 3.**
+  - `Mission` gains `std::vector<int> shields_` (charges, sized to `agents_`,
+    like `medikits_`) and `std::vector<bool> shieldUp_` (raised flag). Public
+    API: `setShields`, `shields`, `activateShield`, `shieldUp`.
+  - `activateShield(index)` spends one charge on a living combatant and raises
+    the shield; it is a no-op for a civilian, a dead agent, an out-of-range
+    index, or when a shield is already up (a charge is never wasted re-raising).
+  - The private `Mission::damageAgent(index, amount)` is now the **single** place
+    weapon damage reaches an agent. A raised shield absorbs the hit whole and
+    drops (returns 0 dealt); otherwise `Agent::applyDamage` runs as before. All
+    three call sites — `resolveFire`, `applyAreaDamage`, `applyStrayFire` — go
+    through it.
+- **Consequences:**
+  - The shield is a **one-hit buffer** that covers ordinary, area, and stray
+    damage alike; the hit after it lands normally.
+  - No `core::Agent` change; the gadget is Mission-local and deterministic (no
+    RNG), matching the medikit.
+  - Covered by `tests/test_mission.cpp`: `ShieldAbsorbsTheNextHitThenDrops`,
+    `ShieldAbsorbsAnExplosiveHit`, `ShieldWithNoChargeOrOnACivilianIsNoOp`,
+    `ShieldDoesNotStackWhileAlreadyUp`.
+  - The shield is **not yet surfaced to the player**: no UI binding or content
+    field, mirroring the medikit at the time of its ADR. A `focus: input-ui`
+    binding and a `focus: content` `shields` field are follow-ups (Rule 4).
+
