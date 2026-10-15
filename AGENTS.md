@@ -507,6 +507,15 @@ run the game target locally and note the result in the PR.
   `CapExceeded`. `findPath` is a thin wrapper (`findPathDetailed(...).path`), so
   existing callers and results are unchanged. New tests in
   `tests/test_pathfinding.cpp` cover all three outcomes and the wrapper equality.
+- **"Walk as close as you can" (issue #146):** `core::findPathToNearest` returns
+  `findPathDetailed`'s result when the goal is reachable, but when the goal is
+  blocked, out of bounds, or cap-abandoned it returns a path to the walkable tile
+  reachable from `start` that is nearest the goal (Manhattan, tie broken by
+  lowest tile index), so a click on an unreachable tile moves the squad toward it
+  instead of being dropped. `start` is never the fallback (the point is to
+  *move*); `NoPath` only when `start` is invalid or nothing else is reachable.
+  The bounded BFS reuses the same node cap (ADR-0008) and corner rule as
+  `findPath`. Consumer side (engine/input) is Input/UI's — a follow-up.
 - Combat/AI/mission logic lives in `src/core/sim/` (`Agent`, `Mission`, `Weapon`)
   and is unit-tested; keep it SDL-free.
 - **Enemy AI state machine** lives on `core::Agent` (`AiState`: `Idle`, `Patrol`,

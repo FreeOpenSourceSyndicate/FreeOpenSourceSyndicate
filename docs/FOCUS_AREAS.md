@@ -432,7 +432,7 @@ what is taken without reading every issue.
 | Area | `focus:` | Live claim | Pending workload | Seeded / open tasks |
 |------|----------|------------|------------------|---------------------|
 | Tactical | `focus: tactical` | — | 1 | #120 enemies take cover under fire |
-| World | `focus: world` | — | 1 | #146 path toward the nearest reachable tile |
+| World | `focus: world` | — | 1 | #149 wire `findPathToNearest` into `Agent::moveTo` |
 | Render | `focus: render` | — | 1 | #122 integer zoom levels (Phase 2's last item) |
 | Input/UI | `focus: input-ui` | — | 1 | #147 add `--version` and `--help` |
 | Content | `focus: content` | — | 1 | #124 minigun / flamethrower / laser |
@@ -486,6 +486,7 @@ Content rather than Text.
 | Bound the A* search (node cap) | world | #121 | ✅ merged (#137) |
 | `--lang` + `lang` config key wire the i18n API into the runtime | input-ui | #123 | ✅ merged (#144) |
 | Distinguish "no path" from "cap exceeded" (`findPathDetailed`) | world | #141 | ✅ merged (#145) |
+| "Walk as close as you can" to a blocked goal (`findPathToNearest`) | world | #146 | ✅ merged (#151) |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 

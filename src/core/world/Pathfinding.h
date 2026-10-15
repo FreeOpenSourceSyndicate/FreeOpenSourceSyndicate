@@ -75,4 +75,26 @@ PathResult findPathDetailed(const TileGrid& grid, TilePos start, TilePos goal,
                             bool allowDiagonal = false,
                             int maxExpandedNodes = kDefaultMaxExpandedNodes);
 
+// "Walk as close as you can" variant (issue #146): when `goal` is reachable this
+// is exactly `findPathDetailed`. When it is not — blocked, out of bounds, or
+// abandoned by the node cap — the result is instead a path to the walkable tile
+// reachable from `start` that is nearest `goal`, so a click on an unreachable
+// tile still moves the squad toward it rather than being dropped.
+//
+// The nearest tile is chosen by Manhattan distance to `goal`, ties broken by the
+// lowest tile index so the choice is deterministic. `start` itself is not a
+// candidate: a fallback only happens when `goal` could not be reached, and the
+// caller wants the squad to *move*, not to be told to stand still. `NoPath` is
+// therefore returned only when there is genuinely nowhere to go — `start` is not
+// a walkable in-bounds tile, or nothing else is reachable from it.
+//
+// The breadth-first scan that finds the nearest tile is bounded by the same
+// `maxExpandedNodes` budget as `findPath` (ADR-0008): if the cap is hit the best
+// tile found so far wins, so the result stays cheap and deterministic. The path
+// to the chosen tile is smoothed exactly like `findPathDetailed` when
+// `allowDiagonal` is set.
+PathResult findPathToNearest(const TileGrid& grid, TilePos start, TilePos goal,
+                             bool allowDiagonal = false,
+                             int maxExpandedNodes = kDefaultMaxExpandedNodes);
+
 } // namespace fossynd::core
