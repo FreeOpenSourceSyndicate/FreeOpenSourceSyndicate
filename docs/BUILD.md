@@ -72,7 +72,7 @@ cmake --build build -j
 
 It is **OFF** by default (a warning still lets a normal build succeed) and works
 with any other mode, so you can combine it with the low-spec or sanitizer
-profiles. CI runs it in the `Warnings-as-errors (core + game)` lane (issue #192),
+profiles. CI runs it in the `Warnings as errors (-Werror)` lane (issue #192),
 so a warning cannot land on `main`.
 
 ## Packaging a release artifact
