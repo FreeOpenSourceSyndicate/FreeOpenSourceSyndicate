@@ -49,6 +49,7 @@ bool parseAgent(const Json& node, const AgentCatalogue& agents, const WeaponCata
     }
     if (!AgentCatalogue::applyWeaponToAgent(node, weapons, out.weapon, error))
     {
+        error = "agent '" + out.name + "': " + error;
         return false;
     }
     return true;

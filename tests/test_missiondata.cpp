@@ -359,6 +359,44 @@ FOSSYND_TEST(Catalogues, WeaponCatalogueRejectsMalformedInput)
     FOSSYND_CHECK(!catalogue.loadFromJson(
         Json::parse(R"({"weapons": [{"id":"a","fireRate":0}]})", error), error));
     FOSSYND_CHECK(!error.empty());
+
+    // Field-range checks (issue #190): a bad number fails the load and the
+    // message names the offending entry and field.
+    struct BadField
+    {
+        const char* json;
+        const char* field;
+    };
+    const BadField badFields[] = {
+        {R"({"weapons": [{"id":"neg","damage":-5}]})", "damage"},
+        {R"({"weapons": [{"id":"zero","damage":0}]})", "damage"},
+        {R"({"weapons": [{"id":"range0","range":0}]})", "range"},
+        {R"({"weapons": [{"id":"negrange","range":-1}]})", "range"},
+        {R"({"weapons": [{"id":"acc2","accuracy":1.5}]})", "accuracy"},
+        {R"({"weapons": [{"id":"negacc","accuracy":-0.1}]})", "accuracy"},
+        {R"({"weapons": [{"id":"negaoe","areaRadius":-2}]})", "areaRadius"},
+    };
+    for (const BadField& bad : badFields)
+    {
+        error.clear();
+        FOSSYND_CHECK(!catalogue.loadFromJson(Json::parse(bad.json, error), error));
+        // The message names the entry id and the field, so a CI failure is
+        // actionable without opening the file.
+        FOSSYND_CHECK(error.find(bad.field) != std::string::npos);
+        FOSSYND_CHECK(error.find("'") != std::string::npos);
+    }
+
+    // Boundary values that must still be accepted.
+    error.clear();
+    FOSSYND_CHECK(catalogue.loadFromJson(
+        Json::parse(R"({"weapons": [{"id":"edge","damage":1,"range":1,"fireRate":1,
+                                     "accuracy":0,"areaRadius":0}]})", error), error));
+    FOSSYND_CHECK(error.empty());
+    error.clear();
+    FOSSYND_CHECK(catalogue.loadFromJson(
+        Json::parse(R"({"weapons": [{"id":"edge","damage":1,"range":1,"fireRate":1,
+                                     "accuracy":1,"areaRadius":0}]})", error), error));
+    FOSSYND_CHECK(error.empty());
 }
 
 FOSSYND_TEST(Catalogues, AgentCatalogueResolvesWeaponIds)

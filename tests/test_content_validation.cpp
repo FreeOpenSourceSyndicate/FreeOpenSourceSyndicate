@@ -180,6 +180,63 @@ FOSSYND_TEST(ContentValidation, MissingCataloguesAreReported)
     FOSSYND_CHECK(reportMentions(report, "no catalogue files found"));
 }
 
+FOSSYND_TEST(ContentValidation, BadCatalogueFieldIsReportedWithFileEntryAndField)
+{
+    TempContent content("bad_weapon_field");
+    // A catalogue entry with a non-positive damage: it must fail validation, and
+    // the message must name the file, the entry id, and the field.
+    content.write("weapons.json", R"({"weapons": [
+        {"id": "weak", "name": "Weak", "damage": -5, "range": 9, "fireRate": 4, "accuracy": 0.65}
+    ]})");
+    content.write("agents.json", kAgentsJson);
+    content.write("missions/good.json", R"({
+        "name": "Good", "width": 8, "height": 6,
+        "agents": [{"team": "player", "x": 1, "y": 1}]
+    })");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(!report.ok());
+    FOSSYND_CHECK(reportMentions(report, "weapons.json")); // the file
+    FOSSYND_CHECK(reportMentions(report, "weak"));          // the entry
+    FOSSYND_CHECK(reportMentions(report, "damage"));        // the field
+}
+
+FOSSYND_TEST(ContentValidation, BadAgentTeamInCatalogueIsReported)
+{
+    TempContent content("bad_agent_team");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", R"({"agents": [
+        {"id": "droid", "name": "DROID", "team": "robot", "speed": 3, "health": 70, "weaponId": "rifle"}
+    ]})");
+    content.write("missions/good.json", R"({
+        "name": "Good", "width": 8, "height": 6,
+        "agents": [{"team": "player", "x": 1, "y": 1}]
+    })");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(!report.ok());
+    FOSSYND_CHECK(reportMentions(report, "agents.json"));
+    FOSSYND_CHECK(reportMentions(report, "team"));
+}
+
+FOSSYND_TEST(ContentValidation, BadMissionInlineWeaponIsReported)
+{
+    TempContent content("bad_inline_weapon");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    // An inline weapon (not a catalogue reference) with a non-positive range.
+    content.write("missions/bad.json", R"({
+        "name": "Bad", "width": 8, "height": 6,
+        "agents": [{"team": "player", "x": 1, "y": 1,
+                    "weapon": {"name": "Broken", "damage": 5, "range": 0, "fireRate": 2}}]
+    })");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(!report.ok());
+    FOSSYND_CHECK(reportMentions(report, "bad.json"));
+    FOSSYND_CHECK(reportMentions(report, "range"));
+}
+
 // The shipped content must always be valid: this is the guard that keeps a
 // broken mission or catalogue out of `main`.
 FOSSYND_TEST(ContentValidation, ShippedContentPasses)
