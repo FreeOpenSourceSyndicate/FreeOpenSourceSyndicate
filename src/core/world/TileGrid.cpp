@@ -13,6 +13,7 @@ TileGrid::TileGrid(int width, int height)
     walkable_.assign(count, 1);
     decor_.assign(count, 0);
     destructible_.assign(count, 0);
+    rubble_.assign(count, 0);
     hitPoints_.assign(count, 0);
 }
 
@@ -89,6 +90,12 @@ void TileGrid::setDestructible(int x, int y, bool destructible, int hitPoints)
     const std::size_t i = index(x, y);
     destructible_[i] = destructible ? 1 : 0;
     hitPoints_[i] = destructible ? (hitPoints > 0 ? hitPoints : kDefaultTileHitPoints) : 0;
+    if (destructible)
+    {
+        // (Re)authoring an intact destructible wall clears any earlier breach, so
+        // a rebuilt wall is not still drawn as rubble.
+        rubble_[i] = 0;
+    }
 }
 
 bool TileGrid::isDestructible(int x, int y) const
@@ -122,12 +129,23 @@ bool TileGrid::damageTile(int x, int y, int amount)
         return false;
     }
     // Destroyed: open the tile so pathfinding and line of sight pass through,
-    // and drop the decor that was sitting on it.
+    // and drop the decor that was sitting on it. The breach is remembered so the
+    // view draws rubble rather than a plain floor tile (issue #217).
     hitPoints_[i] = 0;
     destructible_[i] = 0;
     walkable_[i] = 1;
+    rubble_[i] = 1;
     decor_[i] = static_cast<std::uint8_t>(Decor::None);
     return true;
+}
+
+bool TileGrid::isRubble(int x, int y) const
+{
+    if (!inBounds(x, y))
+    {
+        return false;
+    }
+    return rubble_[index(x, y)] != 0;
 }
 
 } // namespace fossynd::core

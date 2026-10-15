@@ -122,3 +122,60 @@ FOSSYND_TEST(TileGrid, ClearingDestructibleMarkResetsHitPoints)
     FOSSYND_CHECK(!grid.damageTile(0, 0, 10));
     FOSSYND_CHECK(!grid.isWalkable(0, 0)); // still blocked, just not breakable
 }
+
+// A breached tile must stay distinguishable from a floor tile that was never a
+// wall, so the view can draw rubble instead of the plain floor (issue #217).
+FOSSYND_TEST(TileGrid, BreachedTileBecomesRubble)
+{
+    TileGrid grid(3, 3);
+    grid.setWalkable(1, 1, false);
+    grid.setDestructible(1, 1, true, 2);
+    FOSSYND_CHECK(!grid.isRubble(1, 1)); // intact wall is not rubble
+
+    FOSSYND_CHECK(!grid.damageTile(1, 1, 1)); // chipped, still standing
+    FOSSYND_CHECK(!grid.isRubble(1, 1));
+
+    FOSSYND_CHECK(grid.damageTile(1, 1, 1)); // breached
+    FOSSYND_CHECK(grid.isRubble(1, 1));
+    FOSSYND_CHECK(grid.isWalkable(1, 1)); // walkable rubble, per the model
+    FOSSYND_CHECK(!grid.isDestructible(1, 1));
+
+    // The breach is permanent: further damage does not clear it.
+    FOSSYND_CHECK(!grid.damageTile(1, 1, 5));
+    FOSSYND_CHECK(grid.isRubble(1, 1));
+}
+
+FOSSYND_TEST(TileGrid, FloorAndIntactWallsAreNotRubble)
+{
+    TileGrid grid(4, 1);
+    // (0,0) is plain floor; (1,0) an intact destructible wall; (2,0) a solid wall.
+    grid.setWalkable(1, 0, false);
+    grid.setDestructible(1, 0, true, 3);
+    grid.setWalkable(2, 0, false);
+
+    FOSSYND_CHECK(!grid.isRubble(0, 0)); // never a wall
+    FOSSYND_CHECK(!grid.isRubble(1, 0)); // intact
+    FOSSYND_CHECK(!grid.isRubble(2, 0)); // solid, cannot be breached
+    FOSSYND_CHECK(!grid.damageTile(2, 0, 99));
+    FOSSYND_CHECK(!grid.isRubble(2, 0)); // still not rubble
+
+    // Out of bounds is never rubble.
+    FOSSYND_CHECK(!grid.isRubble(-1, 0));
+    FOSSYND_CHECK(!grid.isRubble(9, 9));
+}
+
+FOSSYND_TEST(TileGrid, RebuildingADestructibleWallClearsRubble)
+{
+    TileGrid grid(2, 2);
+    grid.setWalkable(0, 0, false);
+    grid.setDestructible(0, 0, true, 1);
+    FOSSYND_CHECK(grid.damageTile(0, 0, 1));
+    FOSSYND_CHECK(grid.isRubble(0, 0));
+
+    // Re-authoring the wall restores an intact tile, not lingering rubble.
+    grid.setWalkable(0, 0, false);
+    grid.setDestructible(0, 0, true, 2);
+    FOSSYND_CHECK(!grid.isRubble(0, 0));
+    FOSSYND_CHECK(grid.isDestructible(0, 0));
+    FOSSYND_CHECK_EQ(grid.tileHitPoints(0, 0), 2);
+}
