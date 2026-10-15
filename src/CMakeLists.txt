@@ -151,6 +151,14 @@ if(BUILD_TESTS)
     # Low-spec runtime path (ADR-0008): small window + software renderer, headless.
     add_test(NAME game_low_spec
              COMMAND FOSSynd --headless --low-spec --frames 30)
+    # Low-spec binary size budget (issue #222, AGENTS.md 1b, ADR-0008): the
+    # old-hardware profile must stay small, so the build is checked against a
+    # documented cap. Only meaningful for an actual low-spec build, so it is
+    # registered under FOSSYND_LOW_SPEC and runs in the CI low-spec lane.
+    if(FOSSYND_LOW_SPEC)
+        add_test(NAME low_spec_binary_size
+                 COMMAND ${CMAKE_SOURCE_DIR}/scripts/check-size.sh $<TARGET_FILE:FOSSynd>)
+    endif()
     # Title card: the authored pixel-art screen renders and the mission still
     # starts when the card times out. Guards the v0.4.0 title-card path.
     add_test(NAME game_title
