@@ -64,6 +64,12 @@ public:
     // an out-of-bounds or non-destructible tile, or when `amount <= 0`.
     bool damageTile(int x, int y, int amount);
 
+    // True once a destructible tile has been destroyed (issue #217): the tile is
+    // now walkable rubble, kept distinct from a floor tile that was never a wall
+    // so the view can draw the breach instead of the floor. A breached tile
+    // stays rubble. False for out-of-bounds, floor, and intact walls.
+    bool isRubble(int x, int y) const;
+
 private:
     std::size_t index(int x, int y) const;
 
@@ -73,6 +79,7 @@ private:
     std::vector<std::uint8_t> walkable_;
     std::vector<std::uint8_t> decor_;
     std::vector<std::uint8_t> destructible_;
+    std::vector<std::uint8_t> rubble_;
     std::vector<int> hitPoints_;
 };
 
