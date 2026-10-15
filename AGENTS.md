@@ -195,7 +195,8 @@ joins the project, revert to the "review someone else's PR" rule.
 2. **Scope and legality.** It matches its stated intent, stays within the
    project's goals (§1 — for v1.0.0, pixel-faithful, no modernising), and
    introduces no copyrighted asset, name, or code (`docs/LEGAL.md`).
-3. **CI is green** on the PR head (all jobs: core, core+game, low-spec).
+3. **CI is green** on the PR head (all jobs: core, core+game, low-spec,
+   sanitizers, warnings-as-errors, packaging).
 4. **Mergeable** — the PR is not conflicted with `main`. If it is conflicted,
    the author must rebase; do not force it.
 5. **Review the diff.** Read it. Confirm tests exist for new `core` logic, no new
@@ -426,20 +427,27 @@ ctest --test-dir build-core --output-on-failure
 cmake -S . -B build-san -DFOSSYND_BUILD_GAME=OFF -DFOSSYND_SANITIZE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build-san -j
 ctest --test-dir build-san --output-on-failure
+
+# Warnings are errors (developer/CI; issue #192) — a warning fails the build.
+cmake -S . -B build-werror -DFOSSYND_BUILD_GAME=ON -DFOSSYND_WERROR=ON
+cmake --build build-werror -j
+ctest --test-dir build-werror --output-on-failure
 ```
 
-CI runs five jobs on every push/PR: a **core + game** job (installs
+CI runs six jobs on every push/PR: a **core + game** job (installs
 `libsdl2-dev`, builds with `-DFOSSYND_BUILD_GAME=ON`, runs `ctest`, which
 includes the headless `game_smoke` test), a **core-only** job (no graphics deps),
 a **low-spec** job (`-DFOSSYND_LOW_SPEC=ON`, ADR-0008) so old-hardware support
 cannot bit-rot, a **sanitizers** job (`-DFOSSYND_SANITIZE=ON`, core-only,
-ADR-0015) that runs the unit tests under ASan + UBSan, and a **packaging** job
+ADR-0015) that runs the unit tests under ASan + UBSan, a **warnings-as-errors**
+job (`-DFOSSYND_WERROR=ON`, core + game) so a warning cannot land on `main`
+(issue #192), and a **packaging** job
 (CPack, ADR-0017) that builds the Linux `.tar.gz` + `.deb` and runs the packaged
 binary. Two further packaging lanes — **macOS** (`TGZ` + `DMG`) and **Windows**
 (`ZIP`) — are **gated to `workflow_dispatch` and non-blocking**, because those
 runners can queue and be cancelled before starting, which would redden `main`
 and deadlock merges (#136, #138). Dispatch the workflow to exercise them. If your
-change touches `src/core/` or `tests/`, all five push/PR jobs must pass. If it
+change touches `src/core/` or `tests/`, all six push/PR jobs must pass. If it
 touches `src/game/`, also run the game target locally and note the result in the
 PR.
 
@@ -632,7 +640,9 @@ PR.
   reads the core queue and never writes it (golden rule 4).
 - Engine-layer changes are covered by the CI `core + game` job (ADR-0005). The
   CI `low-spec` job builds the old-hardware profile (ADR-0008), the CI
-  `sanitizers` job runs the core tests under ASan + UBSan (ADR-0015), and the CI
+  `sanitizers` job runs the core tests under ASan + UBSan (ADR-0015), the CI
+  `werror` job builds core + game with `-DFOSSYND_WERROR=ON` so a warning cannot
+  land on `main` (issue #192), and the CI
   `packaging` job builds the Linux `.tar.gz` + `.deb` via CPack (ADR-0017).
 - **Packaging (Phase 5 tooling, ADR-0017):** `cmake --build build --target package`
   produces `FOSSynd-<version>-Linux.tar.gz` + `fossynd_<version>_amd64.deb` on
