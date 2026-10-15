@@ -103,7 +103,8 @@ Close out the 1993 tactical feature set (the tail of the old Phase 3).
 ### Milestone B — The metagame (the long pole; start now)
 
 The management half of the original, and the biggest gap. New, engine-free
-`src/core/` systems plus one map screen in `game/`.
+`src/core/` systems plus one map screen in `game/`. Tracked and claimed at
+**issue #249** — the first PR there is the interface contract.
 
 - [ ] **World map with territories** (a graph of regions; which are owned).
 - [ ] **Economy**: income from owned territories; tax level per region;

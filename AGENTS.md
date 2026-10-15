@@ -508,8 +508,10 @@ move us toward it, it is out of scope.
 **Where to work next.** Follow `docs/ROADMAP.md` → *The critical path*. The long
 pole is **Milestone B (the metagame)** — the world map, economy, research, and
 campaign, which is entirely unstarted and which no release can be "finished"
-without. Milestone A (finishing the tactical layer: cybernetics, scanner,
-vehicles, destructible environment, the remaining objectives) runs in parallel.
+without. **Claim it at issue #249** (`focus: metagame`); that issue is the
+tracking checklist and the interface contract is its first PR. Milestone A
+(finishing the tactical layer: cybernetics, scanner, vehicles, destructible
+environment, the remaining objectives) runs in parallel.
 Do not start work outside the scope fence (ADR-0024).
 
 - The game now has a **playable vertical slice** with authored pixel-art
