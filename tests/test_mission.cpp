@@ -528,3 +528,131 @@ FOSSYND_TEST(Mission, ElapsedSecondsIsFrozenAfterTheMissionEnds)
     }
     FOSSYND_CHECK_NEAR(mission.elapsedSeconds(), wonAt);
 }
+
+// --- Line of sight: walls block fire (issue #154) -------------------------
+
+namespace
+{
+
+// A 20x20 grid with a full-height wall in the x = `wallX` column, optionally
+// leaving `gapY` open so a sight line can pass through.
+TileGrid gridWithWall(int wallX, int gapY = -1)
+{
+    TileGrid grid(20, 20);
+    for (int y = 0; y < 20; ++y)
+    {
+        if (y != gapY)
+        {
+            grid.setWalkable(wallX, y, false);
+        }
+    }
+    return grid;
+}
+
+Weapon makeSniper()
+{
+    return Weapon{"Sniper", 50.0f, 20.0f, 5.0f, 1.0f};
+}
+
+} // namespace
+
+FOSSYND_TEST(Mission, WallBlocksAutoFireAcrossIt)
+{
+    TileGrid grid = gridWithWall(9);
+    Mission mission(grid, 11u);
+    mission.addAgent(makeAgent(2.0f, 10.0f, Team::Player, 100.0f, makeSniper()));
+    mission.addAgent(makeAgent(16.0f, 10.0f, Team::Enemy, 100.0f, makeSniper()));
+
+    for (int i = 0; i < 60; ++i) // 3 seconds, well past any fire cooldown
+    {
+        mission.update(0.05f);
+    }
+
+    // Neither side can see the other through the wall: nobody fires.
+    FOSSYND_CHECK_NEAR(mission.agents()[0].healthFraction(), 1.0f);
+    FOSSYND_CHECK_NEAR(mission.agents()[1].healthFraction(), 1.0f);
+    FOSSYND_CHECK(mission.state() == MissionState::Running);
+}
+
+FOSSYND_TEST(Mission, ClearLineOfSightIsReported)
+{
+    TileGrid grid(20, 20); // no wall
+    Mission mission(grid, 12u);
+    // An adjacent tile is always visible.
+    FOSSYND_CHECK(mission.hasLineOfSight(2, 10, 3, 10));
+    // A long diagonal across open ground is clear.
+    FOSSYND_CHECK(mission.hasLineOfSight(2, 2, 16, 16));
+    FOSSYND_CHECK(mission.hasLineOfSight(2, 16, 16, 2));
+}
+
+FOSSYND_TEST(Mission, WallBlocksLineOfSight)
+{
+    TileGrid grid = gridWithWall(9);
+    Mission mission(grid, 12u);
+    // Straight through the wall column: blocked.
+    FOSSYND_CHECK(!mission.hasLineOfSight(2, 10, 16, 10));
+    // A diagonal that crosses the wall column: also blocked.
+    FOSSYND_CHECK(!mission.hasLineOfSight(2, 4, 16, 14));
+    // Both endpoints on the same side: clear.
+    FOSSYND_CHECK(mission.hasLineOfSight(2, 10, 7, 10));
+    FOSSYND_CHECK(mission.hasLineOfSight(11, 10, 16, 10));
+}
+
+FOSSYND_TEST(Mission, AOpeningInTheWallRestoresLineOfSight)
+{
+    TileGrid grid = gridWithWall(9, 10);
+    Mission mission(grid, 13u);
+    // The gap at y = 10 lets the horizontal sight line through.
+    FOSSYND_CHECK(mission.hasLineOfSight(2, 10, 16, 10));
+    // A line that would cross a still-solid part of the wall is blocked.
+    FOSSYND_CHECK(!mission.hasLineOfSight(2, 5, 16, 5));
+}
+
+FOSSYND_TEST(Mission, WallSuppressesAutoAcquireAndFire)
+{
+    TileGrid grid = gridWithWall(9);
+    Mission mission(grid, 16u);
+    mission.addAgent(makeAgent(2.0f, 10.0f, Team::Player, 100.0f, makeSniper()));
+    mission.addAgent(makeAgent(16.0f, 10.0f, Team::Enemy, 100.0f, makeSniper()));
+    // The enemy is well within weapon range, but a wall sits between them.
+    FOSSYND_CHECK(!mission.hasLineOfSight(2, 10, 16, 10));
+
+    for (int i = 0; i < 60; ++i)
+    {
+        mission.update(0.05f);
+    }
+    // No line of sight means no shots are exchanged in either direction.
+    FOSSYND_CHECK_NEAR(mission.agents()[0].healthFraction(), 1.0f);
+    FOSSYND_CHECK_NEAR(mission.agents()[1].healthFraction(), 1.0f);
+}
+
+FOSSYND_TEST(Mission, OrderedShotAtCoveredTargetIsHeld)
+{
+    TileGrid grid = gridWithWall(9);
+    Mission mission(grid, 14u);
+    const std::size_t shooter = mission.addAgent(makeAgent(2.0f, 10.0f, Team::Player, 100.0f, makeSniper()));
+    mission.addAgent(makeAgent(16.0f, 10.0f, Team::Enemy, 100.0f, makeSniper()));
+
+    mission.orderAttack(shooter, 1);
+    for (int i = 0; i < 60; ++i)
+    {
+        mission.update(0.05f);
+    }
+    // The order stands, but the shot is held while the wall is in the way.
+    FOSSYND_CHECK_NEAR(mission.agents()[1].healthFraction(), 1.0f);
+}
+
+FOSSYND_TEST(Mission, EnemyDoesNotChaseThroughAWall)
+{
+    TileGrid grid = gridWithWall(9);
+    Mission mission(grid, 15u);
+    mission.addAgent(makeAgent(2.0f, 10.0f, Team::Player, 100.0f, makeSniper()));
+    mission.addAgent(makeAgent(16.0f, 10.0f, Team::Enemy, 100.0f, makeSniper()));
+
+    for (int i = 0; i < 100; ++i) // 5 seconds
+    {
+        mission.update(0.05f);
+    }
+    // With no line of sight the enemy holds position instead of pathing around.
+    FOSSYND_CHECK(mission.agents()[1].tile().x > 9);
+}

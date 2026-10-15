@@ -106,6 +106,10 @@ public:
 
     Rng& rng() { return rng_; }
 
+    // True if the straight line between two tiles passes only through walkable
+    // tiles, so a shot is not stopped by a wall or building. Symmetric.
+    bool hasLineOfSight(int x0, int y0, int x1, int y1) const;
+
 private:
     void updateAI(float dt);
     void updateCivilian(std::size_t index);
@@ -126,6 +130,10 @@ private:
 
     // Index of the nearest living agent on `enemyTeam`, or -1.
     int nearestEnemy(std::size_t self, Team enemyTeam) const;
+
+    // Index of the nearest living agent on `enemyTeam` that is within `maxRange`
+    // and has clear line of sight from `self`, or -1. Walls block shooting.
+    int nearestVisibleEnemy(std::size_t self, Team enemyTeam, float maxRange) const;
 
     // Straight-line distance between two agents, in tiles.
     float distanceBetween(std::size_t a, std::size_t b) const;

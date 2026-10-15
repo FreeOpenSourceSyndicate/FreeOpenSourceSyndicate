@@ -10,6 +10,13 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **Line-of-sight combat:** walls and buildings now block shooting. An agent
+  will not auto-acquire a target it cannot see, and a shot — even an explicit
+  right-click attack order — is held while cover is between the two tiles.
+  Enemy AI likewise patrols instead of chasing a player it cannot see through a
+  wall. `Mission::hasLineOfSight` samples the straight segment between tiles
+  (deterministic, no RNG); a short point-blank segment always counts as visible.
+  Covered by new tests in `tests/test_mission.cpp`.
 - **Data-driven mission objectives (reach / survive):** a mission can now
   declare its win condition in JSON via an optional `objective` object. `reach`
   wins when any living player agent stands on a target tile; `survive` wins

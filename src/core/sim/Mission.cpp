@@ -36,6 +36,15 @@ constexpr float kFollowerSpeed = 3.0f;
 constexpr float kStrayRadius = 1.5f;
 constexpr float kStrayDamageScale = 0.5f;
 
+// Line of sight: a shot is blocked by a wall or building. The check samples the
+// straight segment between the two shooter/target tiles at this step (in tiles),
+// which is fine enough that nothing thin is missed. Deterministic.
+constexpr float kLosSampleStep = 0.25f;
+
+// Manhattan distance (tiles) below which line of sight is skipped: at point-blank
+// range no wall can lie between the two tiles.
+constexpr int kPointBlankTiles = 2;
+
 // Enemy AI state machine. All transitions are pure functions of health and
 // distance, so no RNG is drawn and missions stay deterministic.
 // Below this fraction of health a combatant breaks off and retreats.
@@ -272,6 +281,68 @@ int Mission::nearestEnemy(std::size_t self, Team enemyTeam) const
     return best;
 }
 
+int Mission::nearestVisibleEnemy(std::size_t self, Team enemyTeam, float maxRange) const
+{
+    const TilePos from = agents_[self].tile();
+    int best = -1;
+    float bestDistance = 0.0f;
+    for (std::size_t i = 0; i < agents_.size(); ++i)
+    {
+        if (i == self || !agents_[i].isAlive() || agents_[i].team() != enemyTeam)
+        {
+            continue;
+        }
+        const float distance = distanceBetween(self, i);
+        if (distance > maxRange)
+        {
+            continue;
+        }
+        if (best != -1 && distance >= bestDistance)
+        {
+            continue;
+        }
+        const TilePos to = agents_[i].tile();
+        if (!hasLineOfSight(from.x, from.y, to.x, to.y))
+        {
+            continue;
+        }
+        best = static_cast<int>(i);
+        bestDistance = distance;
+    }
+    return best;
+}
+
+bool Mission::hasLineOfSight(int x0, int y0, int x1, int y1) const
+{
+    if (grid_ == nullptr)
+    {
+        return true;
+    }
+    // Adjacent tiles can never have a wall between them.
+    if (std::abs(x1 - x0) + std::abs(y1 - y0) <= kPointBlankTiles)
+    {
+        return true;
+    }
+
+    const float dx = static_cast<float>(x1 - x0);
+    const float dy = static_cast<float>(y1 - y0);
+    const int steps = static_cast<int>(std::ceil(length(Vec2{dx, dy}) / kLosSampleStep));
+
+    // Sample the open segment: the endpoints are the shooters' own tiles, which
+    // may themselves be blocked, so they are excluded.
+    for (int s = 1; s < steps; ++s)
+    {
+        const float t = static_cast<float>(s) / static_cast<float>(steps);
+        const int gx = static_cast<int>(std::lround(static_cast<float>(x0) + dx * t));
+        const int gy = static_cast<int>(std::lround(static_cast<float>(y0) + dy * t));
+        if (!grid_->inBounds(gx, gy) || !grid_->isWalkable(gx, gy))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 void Mission::update(float dt)
 {
     if (state_ != MissionState::Running || dt <= 0.0f)
@@ -350,7 +421,9 @@ void Mission::updateCombatantAI(std::size_t index)
         return;
     }
 
-    const int target = nearestEnemy(index, Team::Player);
+    // Only engage a target the agent can actually see within sight range;
+    // otherwise keep patrolling rather than chasing through walls.
+    const int target = nearestVisibleEnemy(index, Team::Player, kSightRange);
     if (target < 0)
     {
         // No target in sight: patrol the assigned route, or hold position.
@@ -680,7 +753,7 @@ void Mission::resolveFire()
         const Team enemyTeam = opposingTeam(attacker.team());
 
         // Honour an explicit attack order if it still points at a living enemy;
-        // otherwise auto-acquire the nearest enemy.
+        // otherwise auto-acquire the nearest enemy in range with line of sight.
         int target = -1;
         const int ordered = attacker.orderedTarget();
         if (ordered >= 0 && static_cast<std::size_t>(ordered) < agents_.size())
@@ -693,7 +766,7 @@ void Mission::resolveFire()
         }
         if (target < 0)
         {
-            target = nearestEnemy(i, enemyTeam);
+            target = nearestVisibleEnemy(i, enemyTeam, attacker.weapon().range);
         }
         if (target < 0)
         {
@@ -703,6 +776,14 @@ void Mission::resolveFire()
         const float distance = distanceBetween(i, static_cast<std::size_t>(target));
         const float range = attacker.weapon().range;
         if (distance > range)
+        {
+            continue;
+        }
+
+        // Walls stop bullets: an ordered shot at a target behind cover is held.
+        const TilePos from = attacker.tile();
+        const TilePos to = agents_[static_cast<std::size_t>(target)].tile();
+        if (!hasLineOfSight(from.x, from.y, to.x, to.y))
         {
             continue;
         }

@@ -82,6 +82,7 @@ A shippable demo, deliberately original in code and art.
 
 - [ ] Weapons: pistol, uzi, minigun, flamethrower, rocket launcher, laser
       (started: pistol, rifle, uzi)
+- [x] Combat: line of sight (walls block fire, auto-acquire, and enemy chase)
 - [ ] Gadgets: Persuadertron, shield, medikit, scanner
 - [ ] Cybernetic upgrades (speed, accuracy, health, perception)
 - [ ] Vehicles: cars/trains, hijacking, mounted weapons
