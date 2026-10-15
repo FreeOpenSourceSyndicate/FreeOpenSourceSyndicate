@@ -196,6 +196,9 @@ if(BUILD_TESTS)
     # the English fallback, and `--lang xx` (unknown) must warn and still start
     # in English rather than fail. `--frames 1` runs one headless frame so the
     # init path (which loads the language) is exercised, not just the flag.
+    # It also covers the mission-text wiring (issue #176): `--check-lang de`
+    # asserts the loaded mission's name resolved through the German table, so
+    # removing the Game::buildMission wiring fails this test.
     # WORKING_DIRECTORY is the repo root so the `assets/lang/*.json` files are
     # found (the documented "run from the repo root" fallback); otherwise a
     # build-dir cwd would only ever see the embedded English copy.

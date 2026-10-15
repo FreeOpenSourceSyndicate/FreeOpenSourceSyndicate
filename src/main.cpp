@@ -444,6 +444,10 @@ int main(int argc, char** argv)
             // The requested locale must have actually resolved — not silently
             // fallen back to English — and must translate a known key.
             ok = game.langOverlayLoaded() && game.langHasKey("hud.squad");
+            // The loaded mission's name must resolve through that locale too
+            // (issue #176): a locale that carries `mission.<id>.name` must show
+            // it, proving the mission-text wiring works, not just the UI chrome.
+            ok = ok && game.missionNameLocalized();
             if (!ok)
             {
                 std::fprintf(stderr, "language self-test: locale '%s' did not resolve\n",

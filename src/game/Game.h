@@ -138,6 +138,18 @@ public:
         return lang_.has(key) && !lang_.get(key, "").empty();
     }
 
+    // The current mission's display name, resolved through the active string
+    // table (issue #142/#176). Falls back to the mission's authored name when the
+    // table has no `mission.<id>.name` key, so it is never blank. The view reads
+    // it to label the mission; it is populated by buildMission().
+    const std::string& missionName() const { return missionName_; }
+
+    // True when the mission name was actually overlaid from the active locale
+    // (the table carries a non-empty `mission.<id>.name` different from the
+    // authored text). Used by --check-lang to prove the mission text resolves
+    // for the requested locale, not just that a locale file loaded.
+    bool missionNameLocalized() const { return missionNameLocalized_; }
+
 private:
     // Looks up a localised UI string, falling back to the literal when the table
     // has no such key (an empty table therefore renders today's text).
@@ -151,6 +163,9 @@ private:
     void buildSprites();
     void buildMinimap();
     void loadLanguage();
+    // Reflects the localised mission name in the OS window title (issue #176).
+    // No-op when there is no window (e.g. a headless check path).
+    void updateWindowTitle();
     void restart();
     void handleEvents(bool& running);
     void update(float dt);
@@ -299,6 +314,15 @@ private:
     // Localised UI strings (ADR-0016). Loaded once; empty means "no
     // localisation", in which case every lookup falls back to the literal.
     core::i18n::StringTable lang_;
+
+    // The current mission's display name, resolved through `lang_` in
+    // buildMission() (issue #142/#176). Never blank: falls back to the mission's
+    // authored name.
+    std::string missionName_;
+
+    // True when `missionName_` came from the active locale rather than the
+    // mission's authored text. See missionNameLocalized().
+    bool missionNameLocalized_ = false;
 
     BitmapFont font_;
 
