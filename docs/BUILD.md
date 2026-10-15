@@ -60,9 +60,8 @@ runs it on every change (the `Sanitizers (ASan + UBSan, core)` job).
 
 ## Packaging a release artifact
 
-CPack (which ships with CMake) turns the `install()` rules into a versioned,
-installable package — a portable `.tar.gz` and, on Debian/Ubuntu, a `.deb`
-(ADR-0017). It needs no extra dependency:
+CPack (which ships with CMake) turns the `install()` rules into versioned,
+installable packages (ADR-0017). It needs no extra dependency:
 
 ```bash
 cmake -S . -B build -DFOSSYND_BUILD_GAME=ON -DCMAKE_BUILD_TYPE=Release
@@ -70,17 +69,36 @@ cmake --build build -j
 cmake --build build --target package
 ```
 
-This writes, into the build directory:
+All three desktop platforms package from the same single-sourced `install()`
+rules; only the generators differ. The artifact base name is
+`FOSSynd-<version>-<system>` (`CPACK_PACKAGE_FILE_NAME`), so a version bump
+changes every package name at once.
+
+**Linux** — `TGZ` always, `DEB` where `dpkg-deb` is present:
 
 - `FOSSynd-<version>-Linux.tar.gz` — portable; unpack anywhere and run
-  `bin/FOSSynd`. The mission, string table, and example config sit in
-  `share/fossynd/`, which the binary finds relative to itself.
+  `bin/FOSSynd`. The missions, string tables, catalogues, and example config sit
+  in `share/fossynd/`, which the binary finds relative to itself.
 - `fossynd_<version>_amd64.deb` — install with `sudo apt install ./fossynd_*.deb`.
 
-The version comes from `project()` in the top-level `CMakeLists.txt`, so a
-release bump changes the package names automatically. The layout is single-sourced
-with the `install()` rules; changing one changes the package. macOS and Windows
-packaging is not set up yet.
+**macOS** — `TGZ` plus a drag-and-drop `DMG` (`DragNDrop`, which uses the
+`hdiutil` that ships with the OS):
+
+- `FOSSynd-<version>-Darwin.tar.gz`
+- `FOSSynd-<version>-Darwin.dmg` — open and drag `FOSSynd` to Applications.
+
+**Windows** — a self-contained `ZIP` (no NSIS/WiX tooling needed):
+
+- `FOSSynd-<version>-Windows.zip` — `FOSSynd.exe` and `SDL2.dll` under `bin/`,
+  content under `share/fossynd/`; unpack and run `bin/FOSSynd.exe`.
+
+The layout stays single-sourced with the `install()` rules; changing one changes
+every package. The version comes from `project()` in the top-level
+`CMakeLists.txt`, so a release bump changes the package names automatically.
+
+**CI.** Linux packaging is the only hard gate and runs on every change. The
+macOS and Windows lanes are `workflow_dispatch`-gated and non-blocking, so a
+maintainer triggers them manually (a runner shortage can never redden `main`).
 
 ## Prerequisites
 
