@@ -512,7 +512,8 @@ move us toward it, it is out of scope.
 **Where to work next.** Follow `docs/ROADMAP.md` → *The critical path*. The long
 pole is **Milestone B (the metagame)** — the world map, economy, research, and
 campaign, whose **core** systems have all merged (`src/core/economy/**`:
-`WorldMap`, `Economy`, `Research`, `Equipment`, `Campaign`; 44 unit checks). The
+`WorldMap`, `Economy`, `Research`, `Equipment`, `Campaign`; unit-tested in
+`tests/test_{worldmap,economy,research,equipment,campaign}.cpp`). The
 gap is that the game layer must **drive** them. **The map/management screen has
 landed**: `game::CampaignScreen` (`src/game/CampaignScreen.{h,cpp}`, its own
 translation unit — do not grow the shared `Game.cpp`) owns a `core::Campaign`,
