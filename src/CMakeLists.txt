@@ -282,4 +282,15 @@ if(BUILD_TESTS)
     add_test(NAME game_cli_config_missing
              COMMAND FOSSynd --headless --config /nonexistent/fossynd.conf --frames 1)
     set_tests_properties(game_cli_config_missing PROPERTIES WILL_FAIL TRUE)
+    # --frames must be a positive integer: `abc`/`0`/`-3` used to mean "no limit"
+    # (the game never exited) and `5x` was accepted as 5 (issue #264).
+    add_test(NAME game_cli_frames_nonnumeric
+             COMMAND FOSSynd --headless --frames abc)
+    set_tests_properties(game_cli_frames_nonnumeric PROPERTIES WILL_FAIL TRUE)
+    add_test(NAME game_cli_frames_zero
+             COMMAND FOSSynd --headless --frames 0)
+    set_tests_properties(game_cli_frames_zero PROPERTIES WILL_FAIL TRUE)
+    add_test(NAME game_cli_frames_trailing_garbage
+             COMMAND FOSSynd --headless --frames 5x)
+    set_tests_properties(game_cli_frames_trailing_garbage PROPERTIES WILL_FAIL TRUE)
 endif()
