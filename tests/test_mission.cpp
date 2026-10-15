@@ -1,6 +1,8 @@
 /* AI/LLM-generated file. Do not treat as human-written source documentation. */
 #include "TestHarness.h"
+#include "core/data/MissionData.h"
 #include "core/sim/Mission.h"
+#include "core/sim/PlayerLoadout.h"
 #include "core/world/LineOfSight.h"
 #include "core/world/Pathfinding.h"
 
@@ -1461,4 +1463,227 @@ FOSSYND_TEST(Mission, AttackOrderMovesWhenWallBlocksShot)
     }
     // The agent rounded the wall and opened fire.
     FOSSYND_CHECK(mission.agents()[1].health() < 1000.0f);
+}
+
+// --- squad loadout (Milestone B deployment, docs/METAGAME.md §7 R1) ---------
+
+namespace
+{
+
+// A mission with two player agents (index 0, 1) and one enemy (index 2), so the
+// tests can prove slots map onto players only.
+MissionData loadoutFixture()
+{
+    MissionData data;
+    data.width = 12;
+    data.height = 12;
+
+    AgentSpec hero;
+    hero.team = Team::Player;
+    hero.x = 2.0f;
+    hero.y = 2.0f;
+    hero.weapon = Weapon{"Authored", 3.0f, 4.0f, 1.0f, 0.5f};
+    data.agents.push_back(hero);
+
+    AgentSpec mate;
+    mate.team = Team::Player;
+    mate.x = 3.0f;
+    mate.y = 2.0f;
+    mate.weapon = makePistol();
+    data.agents.push_back(mate);
+
+    AgentSpec foe;
+    foe.team = Team::Enemy;
+    foe.x = 8.0f;
+    foe.y = 8.0f;
+    foe.weapon = makePistol();
+    data.agents.push_back(foe);
+    return data;
+}
+
+WeaponCatalogue loadoutWeapons()
+{
+    WeaponCatalogue weapons;
+    std::string error;
+    const Json root = Json::parse(
+        R"({"weapons":[{"id":"rifle","name":"Rifle","damage":9,"range":9,"fireRate":4,"accuracy":0.7}]})",
+        error);
+    FOSSYND_CHECK(weapons.loadFromJson(root, error));
+    return weapons;
+}
+
+} // namespace
+
+FOSSYND_TEST(Mission, LoadoutOverridesPlayerWeapon)
+{
+    const MissionData data = loadoutFixture();
+    TileGrid grid = buildGrid(data);
+    Mission mission(grid, 5u);
+    populateMission(data, mission);
+
+    PlayerLoadout loadout;
+    loadout.slots.resize(1);
+    loadout.slots[0].weaponId = "rifle";
+
+    std::string error;
+    const WeaponCatalogue weapons = loadoutWeapons();
+    FOSSYND_CHECK(applyLoadout(loadout, mission, weapons, error));
+    FOSSYND_CHECK(error.empty());
+
+    // Slot 0 (the first player) now carries the bought weapon...
+    FOSSYND_CHECK_EQ(mission.agents()[0].weapon().name, std::string("Rifle"));
+    // ...and it is the weapon the sim would fire (not a copy left behind).
+    FOSSYND_CHECK_NEAR(mission.agents()[0].weapon().damage, 9.0f);
+    // Slot 1 keeps the authored default, and the enemy is never touched.
+    FOSSYND_CHECK_EQ(mission.agents()[1].weapon().name, std::string("Pistol"));
+    FOSSYND_CHECK_EQ(mission.agents()[2].weapon().name, std::string("Pistol"));
+}
+
+FOSSYND_TEST(Mission, LoadoutWeaponIsWhatTheSimFires)
+{
+    // The acceptance bar: the override is not just stored, it is the weapon the
+    // simulation actually fires. One player against one enemy, so the only shot
+    // that can land is the player's: the enemy drops by exactly the rifle's
+    // damage (9) on the first hit, not the authored pistol's (10).
+    MissionData data;
+    data.width = 12;
+    data.height = 12;
+    AgentSpec hero;
+    hero.team = Team::Player;
+    hero.x = 2.0f;
+    hero.y = 2.0f;
+    hero.weapon = Weapon{"Authored", 10.0f, 4.0f, 1.0f, 0.9f};
+    data.agents.push_back(hero);
+    AgentSpec foe;
+    foe.team = Team::Enemy;
+    foe.x = 4.0f;
+    foe.y = 2.0f;
+    foe.health = 1000.0f;
+    foe.weapon = Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}; // cannot shoot back
+    data.agents.push_back(foe);
+
+    TileGrid grid = buildGrid(data);
+    Mission mission(grid, 9u);
+    populateMission(data, mission);
+
+    PlayerLoadout loadout;
+    loadout.slots.resize(1);
+    loadout.slots[0].weaponId = "rifle";
+    std::string error;
+    const WeaponCatalogue weapons = loadoutWeapons();
+    FOSSYND_CHECK(applyLoadout(loadout, mission, weapons, error));
+
+    for (int i = 0; i < 200 && mission.agents()[1].health() >= 1000.0f; ++i)
+    {
+        mission.update(0.05f);
+    }
+    // Exactly the rifle's damage (9), not the authored pistol's (10).
+    FOSSYND_CHECK_NEAR(mission.agents()[1].health(), 1000.0f - 9.0f);
+}
+
+FOSSYND_TEST(Mission, EmptyLoadoutKeepsAuthoredDefaults)
+{
+    const MissionData data = loadoutFixture();
+    TileGrid grid = buildGrid(data);
+    Mission mission(grid, 5u);
+    populateMission(data, mission);
+
+    PlayerLoadout loadout;
+    loadout.slots.resize(2); // two empty slots
+
+    std::string error;
+    const WeaponCatalogue weapons = loadoutWeapons();
+    FOSSYND_CHECK(applyLoadout(loadout, mission, weapons, error));
+    FOSSYND_CHECK(error.empty());
+
+    FOSSYND_CHECK_EQ(mission.agents()[0].weapon().name, std::string("Authored"));
+    FOSSYND_CHECK_EQ(mission.agents()[1].weapon().name, std::string("Pistol"));
+    FOSSYND_CHECK_EQ(mission.medikits(0), 0);
+    FOSSYND_CHECK_EQ(mission.shields(0), 0);
+}
+
+FOSSYND_TEST(Mission, LoadoutGrantsGadgets)
+{
+    const MissionData data = loadoutFixture();
+    TileGrid grid = buildGrid(data);
+    Mission mission(grid, 5u);
+    populateMission(data, mission);
+
+    PlayerLoadout loadout;
+    loadout.slots.resize(2);
+    loadout.slots[0].gadgetId = "medkit";
+    loadout.slots[1].gadgetId = "shield";
+
+    std::string error;
+    const WeaponCatalogue weapons = loadoutWeapons();
+    FOSSYND_CHECK(applyLoadout(loadout, mission, weapons, error));
+    FOSSYND_CHECK(error.empty());
+
+    FOSSYND_CHECK_EQ(mission.medikits(0), kGadgetCharges);
+    FOSSYND_CHECK_EQ(mission.shields(1), kGadgetCharges);
+    // The gadget is real: the medikit heals a wounded slot-0 agent.
+    mission.agents()[0].applyDamage(30.0f);
+    FOSSYND_CHECK_NEAR(mission.useMedikit(0), 30.0f);
+}
+
+FOSSYND_TEST(Mission, LoadoutRejectsUnknownIds)
+{
+    const MissionData data = loadoutFixture();
+    TileGrid grid = buildGrid(data);
+    Mission mission(grid, 5u);
+    populateMission(data, mission);
+
+    const WeaponCatalogue weapons = loadoutWeapons();
+    std::string error;
+
+    PlayerLoadout badWeapon;
+    badWeapon.slots.resize(1);
+    badWeapon.slots[0].weaponId = "death-ray";
+    FOSSYND_CHECK(!applyLoadout(badWeapon, mission, weapons, error));
+    FOSSYND_CHECK(!error.empty());
+    // Nothing was applied: the authored weapon is intact.
+    FOSSYND_CHECK_EQ(mission.agents()[0].weapon().name, std::string("Authored"));
+
+    error.clear();
+    PlayerLoadout badGadget;
+    badGadget.slots.resize(1);
+    badGadget.slots[0].gadgetId = "jetpack";
+    FOSSYND_CHECK(!applyLoadout(badGadget, mission, weapons, error));
+    FOSSYND_CHECK(!error.empty());
+    FOSSYND_CHECK_EQ(mission.medikits(0), 0);
+    FOSSYND_CHECK_EQ(mission.shields(0), 0);
+}
+
+FOSSYND_TEST(Mission, LoadoutIgnoresSlotsBeyondSquad)
+{
+    // A four-slot loadout against a one-player mission must not walk off the
+    // agent list (the deployed squad may be smaller than the bought one).
+    MissionData data = loadoutFixture();
+    data.agents.erase(data.agents.begin() + 1); // drop the second player
+    TileGrid grid = buildGrid(data);
+    Mission mission(grid, 5u);
+    populateMission(data, mission);
+
+    PlayerLoadout loadout;
+    loadout.slots.resize(PlayerLoadout::kMaxSlots);
+    loadout.slots[0].weaponId = "rifle";
+    loadout.slots[1].weaponId = "rifle";
+    loadout.slots[2].weaponId = "rifle";
+    loadout.slots[3].weaponId = "rifle";
+
+    std::string error;
+    const WeaponCatalogue weapons = loadoutWeapons();
+    FOSSYND_CHECK(applyLoadout(loadout, mission, weapons, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_EQ(mission.agents()[0].weapon().name, std::string("Rifle"));
+    // The enemy (now the last agent) kept its authored weapon.
+    FOSSYND_CHECK_EQ(mission.agents()[1].weapon().name, std::string("Pistol"));
+}
+
+FOSSYND_TEST(Mission, GadgetVocabularyRejectsUnknown)
+{
+    FOSSYND_CHECK_EQ(gadgetChargesForId("medkit"), kGadgetCharges);
+    FOSSYND_CHECK_EQ(gadgetChargesForId("shield"), kGadgetCharges);
+    FOSSYND_CHECK_EQ(gadgetChargesForId(""), kUnknownGadget);
+    FOSSYND_CHECK_EQ(gadgetChargesForId("jetpack"), kUnknownGadget);
 }

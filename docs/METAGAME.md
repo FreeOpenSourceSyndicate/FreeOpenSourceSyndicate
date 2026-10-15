@@ -454,11 +454,16 @@ Campaign ──owns──▶ WorldMap      (topology + ownership + tax level)
 
 ## 7. Cross-area requests (filed with this contract)
 
-- **R1 → Tactical/Content.** Deployment must place the chosen squad (up to four
-  agents, with their bought weapons/gadgets) into the mission instead of the
-  mission's default player agents. Needed in `core::MissionData` / `Mission`.
-  Interface wanted: a way to override the player `AgentSpec`s (weapons and
-  gadgets) at load time. Blocks the *mission selection & deployment* sub-task.
+- **R1 → Tactical/Content. *(landed, #311)*** Deployment must place the chosen
+  squad (up to four agents, with their bought weapons/gadgets) into the mission
+  instead of the mission's default player agents. Needed in `core::MissionData` /
+  `Mission`. Interface wanted: a way to override the player `AgentSpec`s (weapons
+  and gadgets) at load time. Blocks the *mission selection & deployment* sub-task.
+  **Delivered:** `core::PlayerLoadout` (`core/sim/PlayerLoadout.h`, data-only
+  `weaponId`/`gadgetId` per slot) plus `core::applyLoadout(loadout, mission,
+  weapons, error)` in `core/data/MissionData`; an empty id keeps the authored
+  default and an unknown id is a content error (ADR-0027). The engine-side wiring
+  (`Game`/`CampaignScreen` handing a loadout over on deploy) is issue #312.
 - **R2 → Content.** The equipment catalogue's weapon ids must resolve to the
   shared weapon catalogue (`assets/data/weapons.json`). Needed so a bought weapon
   is the same `core::Weapon` the sim fires. Interface wanted: a documented id
@@ -478,8 +483,8 @@ Smallest useful first, so each PR is small and reviewable:
 4. **Equipment** — catalogue + buy/assign + `tests/test_equipment.cpp` (needs R2).
 5. **Mission selection & deployment** — `Campaign` + the map screen skeleton
    (needs R1); the first slice that touches `src/game/**`. *(landed:
-   `game::CampaignScreen` + `--map`/`--check-campaign`; the mission-side loadout
-   override R1 is still open)*
+   `game::CampaignScreen` + `--map`/`--check-campaign`; R1 landed in #311
+   (`PlayerLoadout`/`applyLoadout`), the engine-side deploy wiring is #312)*
 6. **Campaign progression** — unlock on win, end state, victory screen.
 
 Each lands as its own PR under the `focus: metagame` lease (`AGENTS.md` §3,

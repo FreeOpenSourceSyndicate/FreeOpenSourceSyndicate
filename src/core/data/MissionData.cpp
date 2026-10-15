@@ -453,4 +453,56 @@ void populateMission(const MissionData& data, Mission& mission)
     }
 }
 
+bool applyLoadout(const PlayerLoadout& loadout, Mission& mission, const WeaponCatalogue& weapons,
+                  std::string& error)
+{
+    // Slots map onto the mission's *player* agents in authored order, so the
+    // mapping is independent of any enemy/civilian interleaving (Milestone B
+    // deployment, docs/METAGAME.md §7 R1). A slot past the last player agent is
+    // ignored: a full four-slot loadout is safe against a one-agent mission.
+    std::vector<Agent>& agents = mission.agents();
+    std::size_t slot = 0;
+    for (std::size_t i = 0; i < agents.size() && slot < loadout.slots.size(); ++i)
+    {
+        if (agents[i].team() != Team::Player)
+        {
+            continue;
+        }
+        const LoadoutSlot& item = loadout.slots[slot];
+        ++slot;
+
+        if (!item.weaponId.empty())
+        {
+            const Weapon* weapon = weapons.find(item.weaponId);
+            if (weapon == nullptr)
+            {
+                error = "loadout slot " + std::to_string(slot - 1) + ": unknown weaponId '" +
+                        item.weaponId + "' (no such weapon in the catalogue)";
+                return false;
+            }
+            agents[i].setWeapon(*weapon);
+        }
+
+        if (!item.gadgetId.empty())
+        {
+            const int charges = gadgetChargesForId(item.gadgetId);
+            if (charges == kUnknownGadget)
+            {
+                error = "loadout slot " + std::to_string(slot - 1) + ": unknown gadgetId '" +
+                        item.gadgetId + "' (expected 'medkit' or 'shield')";
+                return false;
+            }
+            if (item.gadgetId == "medkit")
+            {
+                mission.setMedikits(i, charges);
+            }
+            else
+            {
+                mission.setShields(i, charges);
+            }
+        }
+    }
+    return true;
+}
+
 } // namespace fossynd::core

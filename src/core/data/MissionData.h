@@ -9,6 +9,7 @@
 #include "core/data/Json.h"
 #include "core/data/MissionSpecs.h"
 #include "core/sim/Objective.h"
+#include "core/sim/PlayerLoadout.h"
 #include "core/world/TileGrid.h"
 
 namespace fossynd::core
@@ -70,5 +71,19 @@ TileGrid buildGrid(const MissionData& data);
 // Adds the agents from `data` to `mission`. `mission` must already reference a
 // grid built by `buildGrid(data)` (it stores a pointer to the grid).
 void populateMission(const MissionData& data, Mission& mission);
+
+// Applies a squad loadout (Milestone B deployment, docs/METAGAME.md §7 R1) to a
+// mission that `populateMission` has already filled. Slot `i` maps to the i-th
+// **player** agent of the mission, in authored order; a slot past the last
+// player agent is ignored, so a four-slot loadout is safe against a smaller
+// squad.
+//
+// `weapons` resolves each slot's `weaponId` (the shared catalogue). A gadget id
+// is resolved by `gadgetChargesForId` (the tactical gadget vocabulary). A slot
+// with empty ids keeps the mission's authored default. An id that is not in its
+// catalogue is a content error: returns false and sets `error` (the slots before
+// it stay applied), so a typo cannot silently deploy the wrong weapon.
+bool applyLoadout(const PlayerLoadout& loadout, Mission& mission, const WeaponCatalogue& weapons,
+                  std::string& error);
 
 } // namespace fossynd::core

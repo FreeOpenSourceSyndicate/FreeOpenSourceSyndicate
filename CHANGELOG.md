@@ -10,6 +10,17 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **Squad loadout at mission load (deployment, R1):** a mission can now take a
+  `core::PlayerLoadout` — per player slot, a weapon id and/or a gadget id — so a
+  bought squad reaches the deployed agents instead of the mission's authored
+  defaults. `core::applyLoadout` (in `core/data/MissionData`) resolves the ids
+  against the shared `WeaponCatalogue` and the tactical gadget vocabulary
+  (`medkit`/`shield`); an empty id keeps the authored default and an unknown id
+  is a content error, not a silent fallback. Slot `i` maps to the i-th player
+  agent, and a slot past the squad is ignored. Engine-free, data-only, and
+  unit-tested (ADR-0027). The metagame's engine-side deploy wiring is issue #312;
+  this is its frozen interface. Issue #311.
+
 - **Complete mission objective set:** `ObjectiveSpec` now supports the full 1993
   set beyond eliminate/reach/survive — **escort** (a named agent must reach a
   tile alive; losing it loses the mission), **destroy** (breach a destructible
