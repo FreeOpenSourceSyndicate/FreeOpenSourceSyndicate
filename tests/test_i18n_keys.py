@@ -16,6 +16,12 @@ Rules
    carry **exactly** the English key set — no key missing, none invented (#220).
 3. Every ``tr(key, fallback)`` call's fallback must equal ``en.json[key]``, so a
    table edit cannot leave a stale fallback behind (#238).
+4. ``en.json`` itself must carry no duplicate key — it is the reference for rule
+   2, so its own duplicates were the one place that check did not reach (#246).
+5. Every shipped mission (a file in ``assets/data/missions/``) must have
+   ``mission.<id>.name`` and ``mission.<id>.desc`` in ``en.json`` and every
+   locale; these keys are derived at runtime from the file stem, so rule 1
+   cannot see them (#246).
 
 A key-shaped literal is a double-quoted string of the form
 ``segment(.segment)+`` where each segment is ``[a-z][A-Za-z0-9_]*`` (the shape
@@ -37,6 +43,12 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC_DIR = os.path.join(REPO_ROOT, "src")
 LANG_DIR = os.path.join(REPO_ROOT, "assets", "lang")
 EN_JSON = os.path.join(LANG_DIR, "en.json")
+MISSIONS_DIR = os.path.join(REPO_ROOT, "assets", "data", "missions")
+
+# A mission id is the file stem; `missionIdFromPath` rejects anything that is not
+# a safe key segment, so a mission whose stem does not match this yields no key
+# and localisation is skipped — which is exactly what the guard must catch.
+MISSION_ID = re.compile(r"^[a-z][a-z0-9_]*$")
 
 # The shape `tr()` keys use: dotted, lower-camel segments.
 KEY_SHAPED = re.compile(r'"([a-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)"')
@@ -111,6 +123,19 @@ def shipped_locale_files():
         if name.endswith(".json") and name != "en.json"
     )
     return [os.path.join(LANG_DIR, name) for name in names]
+
+
+def shipped_mission_ids():
+    """The stem of every ``assets/data/missions/*.json``, sorted.
+
+    The mission id is the file stem (``core::i18n::missionIdFromPath``), so this
+    is the authoritative mission set — a new mission JSON cannot be forgotten by
+    a hardcoded list.
+    """
+    names = sorted(
+        name for name in os.listdir(MISSIONS_DIR) if name.endswith(".json")
+    )
+    return [name[: -len(".json")] for name in names]
 
 
 def source_files():
@@ -267,6 +292,56 @@ class StringTableKeyCoverage(unittest.TestCase):
                 + "\n  ".join(problems)
                 + "\nAdd the missing keys (translated), remove any extras, and "
                 "de-duplicate repeated keys."
+            )
+
+    def test_en_json_has_no_duplicate_keys(self):
+        # The English reference is loaded by name in most guards, so a duplicate
+        # key there is the one place the duplicate check above does not reach.
+        _keys, dupes = load_table(EN_JSON)
+        if dupes:
+            self.fail(
+                "en.json has duplicate key(s): " + ", ".join(sorted(set(dupes)))
+            )
+
+    def test_every_mission_has_localised_name_and_desc(self):
+        # Mission name/description keys are derived at runtime from the mission
+        # file stem (`mission.<id>.name` / `mission.<id>.desc`), so they are not
+        # key-shaped literals in `src/` and rule 1 cannot see them. Every shipped
+        # mission must be localisable in every locale, or a new mission ships a
+        # raw key / blank title (the silent-English class of #191).
+        english = english_table()
+        self.assertTrue(english, "en.json carried no keys")
+
+        ids = shipped_mission_ids()
+        self.assertTrue(ids, "no mission files found")
+
+        locale_tables = {}
+        for path in shipped_locale_files():
+            keys, _dupes = load_table(path)
+            locale_tables[os.path.basename(path)] = keys
+
+        problems = []
+        for mission_id in ids:
+            if not MISSION_ID.match(mission_id):
+                problems.append(
+                    f"  {mission_id}.json: id is not a safe key segment "
+                    f"(localisation would be skipped)"
+                )
+                continue
+            for suffix in ("name", "desc"):
+                key = f"mission.{mission_id}.{suffix}"
+                if key not in english:
+                    problems.append(f"  en.json: missing {key}")
+                for locale, keys in sorted(locale_tables.items()):
+                    if key not in keys:
+                        problems.append(f"  {locale}: missing {key}")
+
+        if problems:
+            self.fail(
+                "mission localisation is incomplete:\n"
+                + "\n".join(problems)
+                + "\nAdd `mission.<id>.name` and `mission.<id>.desc` to en.json "
+                "and every locale."
             )
 
 
