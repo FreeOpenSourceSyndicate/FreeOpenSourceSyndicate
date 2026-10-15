@@ -461,20 +461,22 @@ cmake --build build-werror -j
 ctest --test-dir build-werror --output-on-failure
 ```
 
-CI runs six jobs on every push/PR: a **core + game** job (installs
+CI runs seven jobs on every push/PR: a **core + game** job (installs
 `libsdl2-dev`, builds with `-DFOSSYND_BUILD_GAME=ON`, runs `ctest`, which
 includes the headless `game_smoke` test), a **core-only** job (no graphics deps),
 a **low-spec** job (`-DFOSSYND_LOW_SPEC=ON`, ADR-0008) so old-hardware support
 cannot bit-rot, a **sanitizers** job (`-DFOSSYND_SANITIZE=ON`, core-only,
 ADR-0015) that runs the unit tests under ASan + UBSan, a **warnings-as-errors**
 job (`-DFOSSYND_WERROR=ON`, core + game) so a warning cannot land on `main`
-(issue #192), and a **packaging** job
+(issue #192), a **shellcheck** job (`shellcheck scripts/*.sh`, issue #286) so a
+shell-script bug like the #256 shebang-above-the-marker one is caught
+mechanically rather than by a human, and a **packaging** job
 (CPack, ADR-0017) that builds the Linux `.tar.gz` + `.deb` and runs the packaged
 binary. Two further packaging lanes — **macOS** (`TGZ` + `DMG`) and **Windows**
 (`ZIP`) — are **gated to `workflow_dispatch` and non-blocking**, because those
 runners can queue and be cancelled before starting, which would redden `main`
 and deadlock merges (#136, #138). Dispatch the workflow to exercise them. If your
-change touches `src/core/` or `tests/`, all six push/PR jobs must pass. If it
+change touches `src/core/` or `tests/`, all seven push/PR jobs must pass. If it
 touches `src/game/`, also run the game target locally and note the result in the
 PR.
 
