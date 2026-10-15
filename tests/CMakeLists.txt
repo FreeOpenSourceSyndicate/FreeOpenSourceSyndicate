@@ -60,6 +60,14 @@ if(Python3_Interpreter_FOUND)
     # show an English fallback. Python because it scans source text.
     add_test(NAME i18n_key_coverage
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_i18n_keys.py)
+
+    # CMake registration guard (issue #298): the source/test lists above are
+    # explicit, so a file that is added but not registered never builds and its
+    # tests never run, while CI stays green. Python because it scans the tree and
+    # the CMake lists. Keep this in sync when adding a target (see TARGETS in the
+    # script).
+    add_test(NAME cmake_registration_guard
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_cmake_registration.py)
 else()
     message(STATUS "Python3 not found: skipping coord_tests")
 endif()
