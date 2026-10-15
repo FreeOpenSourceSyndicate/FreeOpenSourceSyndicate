@@ -432,7 +432,7 @@ what is taken without reading every issue.
 | Area | `focus:` | Live claim | Pending workload | Seeded / open tasks |
 |------|----------|------------|------------------|---------------------|
 | Tactical | `focus: tactical` | — | 1 | #120 enemies take cover under fire |
-| World | `focus: world` | — | 1 | #149 wire `findPathToNearest` into `Agent::moveTo` |
+| World | `focus: world` | — | 1 | #157 destructible blocked tiles in `core::TileGrid` |
 | Render | `focus: render` | — | 1 | #122 integer zoom levels (Phase 2's last item) |
 | Input/UI | `focus: input-ui` | — | 1 | #152 add `--window WxH` |
 | Content | `focus: content` | — | 1 | #124 minigun / flamethrower / laser |
@@ -488,6 +488,7 @@ Content rather than Text.
 | Distinguish "no path" from "cap exceeded" (`findPathDetailed`) | world | #141 | ✅ merged (#145) |
 | "Walk as close as you can" to a blocked goal (`findPathToNearest`) | world | #146 | ✅ merged (#151) |
 | CLI `--version` / `--help` | input-ui | #147 | ✅ merged (#150) |
+| `Agent::moveTo` uses `findPathToNearest` (walk as close as possible) | world | #149 | ✅ merged (#156) |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 
