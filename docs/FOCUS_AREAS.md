@@ -486,7 +486,7 @@ Content rather than Text.
 | Bound the A* search (node cap) | world | #121 | ✅ merged (#137) |
 | `--lang` + `lang` config key wire the i18n API into the runtime | input-ui | #123 | ✅ merged (#144) |
 | Distinguish "no path" from "cap exceeded" (`findPathDetailed`) | world | #141 | ✅ merged (#145) |
-| "Walk as close as you can" to a blocked goal (`findPathToNearest`) | world | #146 | ✅ merged (#150) |
+| "Walk as close as you can" to a blocked goal (`findPathToNearest`) | world | #146 | ✅ merged (#151) |
 
 Legend: ✅ merged · ◑ partially done · ⬜ open/unclaimed.
 
