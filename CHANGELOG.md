@@ -8,6 +8,15 @@ contains no original assets, code, names, or trademarks.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-10-15 — "Demolition"
+
+The battlefield is now destructible and legible. Weapon fire opens cracked walls
+so a blocked corridor becomes a route, and enemies break for cover instead of
+trading shots in the open. The map is drawn from authored pixel-art tiles, the
+view zooms in whole steps and goes fullscreen, and the mission can be paused.
+Missions are localised by a stable id — the mission name shows in the HUD and the
+window title — and the content loader now rejects off-map geometry.
+
 ### Added
 
 - **Shield gadget:** a combatant can spend a shield charge to raise a shield
@@ -71,6 +80,95 @@ contains no original assets, code, names, or trademarks.
   tool still reads the legacy lines during the transition, and a pre-fix client's
   old-layout ref is cleared by `sweep` or `claim --takeover`
   (`docs/COORDINATION_MIGRATION.md`).
+
+- **Destructible walls can be breached by fire.** Weapon fire is now wired into
+  the destructible-tile primitive, so a wall can actually be opened in play.
+  When a combatant has a target in range but the shot line is blocked, the shot
+  lands on the first blocked tile on that line: a destructible tile is chipped
+  by the weapon's damage and, at zero HP, opens (walkable, decor cleared) so
+  `hasLineOfSight`/`findPath` route through it on the next search. A solid wall
+  is unchanged — the round is simply absorbed, exactly the old no-op. A
+  destructible hit burns the normal fire cooldown, so wall damage is rate-limited
+  like any other shot. New private `Mission::firstWallOnLine` walks the same
+  supercover line as `hasLineOfSight` (not a plain Bresenham walk, which can
+  disagree at a corner crossing). Issue #163.
+- **A breached wall is remembered as rubble.** `core::TileGrid` gained a
+  permanent `rubble` flag (`isRubble(x, y)`) set when a destructible tile is
+  destroyed, so a breached wall is no longer indistinguishable from floor that
+  was never a wall — the renderer has the signal to draw rubble instead of plain
+  floor (art is a follow-up). The tile stays walkable, so pathfinding and line of
+  sight are unchanged. Issue #217.
+- **Fullscreen (`F11`) and a `--fullscreen` flag.** The renderer fixes a logical
+  resolution and scales the frame to the display, so the drawing code and the
+  pixel-art look are unchanged, and SDL maps mouse events back to logical space
+  so selection stays correct when scaled. Fullscreen is a guarded no-op
+  headlessly; `--check-fullscreen` exercises the toggle state machine (ctest
+  `game_fullscreen`, `game_fullscreen_flag`). Issue #194.
+- **Pause / resume (`Space`) with a visible cue.** A view-only pause: `Space`
+  toggles it and `--pause` starts paused. While paused, the fixed-step loop does
+  not run, so the mission clock banks nothing and resuming does not fire a
+  catch-up burst; `R` clears a stale pause. A distinct, centred `PAUSED` band
+  (localised) shows while frozen. `--headless --check-pause` (ctest `game_pause`,
+  `game_pause_flag`) proves a paused update advances `Mission::elapsedSeconds()`
+  by 0 while an unpaused one advances it, and that the toggle round-trips. Issue
+  #210.
+- **The mission name is localised and shown in-game.** Mission-authored copy
+  (name/description) now resolves through the UI string table, keyed by a stable
+  mission id, so a mission gains a translation by adding two JSON keys with no
+  C++ or schema change (`mission.<id>.{name,desc}`; an untranslated mission keeps
+  its authored name). The name is shown in the **HUD top bar** next to the
+  version as well as the OS **window title**, and is dropped rather than allowed
+  to overlap the objective block in a narrow window. `--check-lang <locale>`
+  asserts the name resolved, so removing the wiring fails the test. New
+  `core/i18n/MissionText.*` (engine-free, pure, idempotent). Issues #174, #176,
+  #187.
+- **Optional mission `id` for stable localisation keys.** An optional `"id"`
+  string survives a file rename, where the path-derived fallback would not; a
+  present-but-non-string `id` is a readable schema error rather than a silent
+  empty id. Both shipped missions set it, and `docs/DATA_FORMAT.md` documents it.
+  Issue #184.
+- **Enemy templates carrying the weapon tiers.** Three original enemy templates —
+  `SUPPRESSOR` (minigun), `PYRO` (flamethrower), `MARKSMAN` (laser) — so the
+  weapon tiers are used by real content instead of being inert. A shipped-
+  catalogue test pins the counts (7 weapons + 7 templates) so a tier or template
+  cannot silently vanish. Issue #160.
+- **Off-map mission geometry is rejected.** The loader previously accepted
+  geometry outside the map and silently ignored it (clipped buildings, undrawn
+  agents, an unwinnable `reach` objective) and `--check-content` still reported
+  `ok`. Every position — building rectangles, blocked tiles, agent `x`/`y`, and a
+  `reach` tile — is now bounded to `[0, width) x [0, height)` while parsing, and
+  a violation is a readable, file-named error that fails `--check-content` in CI.
+  Issue #212.
+- **Weapon catalogue field ranges are validated.** A weapon with a non-positive
+  damage/range/fireRate, an accuracy outside `[0,1]`, or a negative `areaRadius`
+  loaded without complaint and misbehaved at play time; `parseWeaponNode` now
+  range-checks every numeric field, and the catalogue and mission loaders prefix
+  the offending entry's id, so a `--check-content` failure names the file, the
+  entry, and the field. Issue #190.
+- **Reachability primitive (`reachableTiles`/`areConnected`).** A pure,
+  engine-free query in `core::world` asks "which tiles are reachable from here?"
+  or "can A reach B?" without running an A* per target — what mission validation
+  (is the objective walled off?) and AI reachability need. The BFS in
+  `findPathToNearest` is factored into a shared `bfsReachable` helper and reused,
+  so reachability and `findPath` agree exactly on the walk, the corner rule, and
+  the node budget. Issue #188.
+- **Locale coverage guards.** The shipped-locale parity gate now compares the
+  actual **key sets**, not just the entry counts, so a locale that drops one key
+  and invents a typo'd one can no longer pass; `tests/test_i18n_keys.py` also
+  fails on a missing key (would show English), an invented key (a typo rendered
+  raw), and a duplicate key (a copy-paste that silently shadows an earlier
+  entry). Both report the offending keys. Issues #214, #220.
+
+### Changed
+
+- **The on-screen version stamp reads `v0.7.0`** and the title-card codename is
+  **`DEMOLITION`** (German `ABBRUCH`), so you can confirm at a glance which build
+  you are running (`--version`, the window title, the HUD top bar, and the title
+  card are all single-sourced).
+- **Coordination is now machine-checked** (ADR-0021): a claim is a git-ref lease
+  with a TTL rather than a comment, so a lease that is not renewed frees its area
+  on the clock and the fleet never waits on an agent that stopped mid-work.
+  `scripts/coord` is the interface and `coord check` is a CI gate.
 
 ## [0.6.0] — 2026-10-15 — "Firestorm"
 
