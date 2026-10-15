@@ -1,0 +1,10 @@
+{
+  "territories": [
+    { "id": 0, "name": "Riverside", "neighbours": [1, 2], "owner": 0, "missionId": "demo" },
+    { "id": 1, "name": "The Docks", "neighbours": [0, 3], "owner": 0 },
+    { "id": 2, "name": "Old Town", "neighbours": [0, 3, 4], "owner": -1 },
+    { "id": 3, "name": "Ironworks", "neighbours": [1, 2, 5], "owner": -1 },
+    { "id": 4, "name": "Neon Row", "neighbours": [2, 5], "owner": -1 },
+    { "id": 5, "name": "The Sprawl", "neighbours": [3, 4], "owner": -1 }
+  ]
+}
