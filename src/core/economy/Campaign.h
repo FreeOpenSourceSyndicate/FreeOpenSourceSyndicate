@@ -69,6 +69,7 @@ public:
     // and it must be player-owned or on the frontier — adjacent to a territory
     // the player holds. A win at a frontier territory claims it, so ownership
     // grows inward from the border (the Syndicate attack model, ADR-0027).
+    // Always false once the campaign is finished (the end state is terminal).
     bool canDeployTo(TerritoryId territory) const;
 
     // Selects the mission deployed from `territory` and the agent slots to send
@@ -95,9 +96,15 @@ public:
 
     // Records the result of the selected mission. A win claims the territory for
     // `syndicate`; a loss leaves ownership unchanged. Then updates the end state.
+    // A no-op once the campaign is finished (the end state is terminal).
     void recordResult(bool won, int syndicate);
 
     CampaignState state() const { return state_; }
+
+    // True once the campaign has reached an end state (won or lost). A finished
+    // campaign is terminal: no further deployment, results, or clock ticks change
+    // it, so the victory/defeat screen shows a frozen final board.
+    bool finished() const { return state_ != CampaignState::Running; }
 
     // Advances the economy and research by `dt` in-game seconds (the campaign
     // clock, not the tactical timestep).

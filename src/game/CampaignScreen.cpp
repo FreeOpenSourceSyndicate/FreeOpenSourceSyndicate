@@ -304,6 +304,12 @@ bool CampaignScreen::handleClick(int x, int y, int w, int h)
 
 void CampaignScreen::adjustTax(int delta)
 {
+    // The campaign is frozen once it is won or lost: no taxation changes the
+    // final board (matching Campaign::tick, which stops advancing).
+    if (campaign_.finished())
+    {
+        return;
+    }
     const core::Territory* territory = campaign_.map().find(selected_);
     if (territory == nullptr || territory->owner != core::Campaign::kPlayerSyndicate)
     {
@@ -319,7 +325,13 @@ bool CampaignScreen::deploySelected()
 {
     // The squad is the four fixed slots, all of them; the loadout resolved from
     // the bought equipment maps onto the deployed mission's player agents via
-    // R1's applyLoadout (issue #312).
+    // R1's applyLoadout (issue #312). A finished campaign cannot deploy: the
+    // end state is terminal (Campaign::canDeployTo also refuses, but checking
+    // here keeps the pending-deployment state clean).
+    if (campaign_.finished())
+    {
+        return false;
+    }
     std::vector<int> slots;
     for (int slot = 0; slot < core::Equipment::kSquadSlots; ++slot)
     {
@@ -514,12 +526,51 @@ void CampaignScreen::render(SDL_Renderer* renderer, const BitmapFont& font, int 
 
     font.draw(renderer, margin, y, "[M] TACTICAL   [-/+] TAX   [D] DEPLOY", hudstyle::kHudDim);
 
-    if (campaign_.state() != core::CampaignState::Running)
+    // End-state panel: once the campaign is won or lost the map is frozen
+    // (Campaign::tick/recordResult/canDeployTo all refuse), so this is the final
+    // board. A centred panel says what happened, how much of the world the player
+    // held, and that there is nothing left to do.
+    if (campaign_.finished())
     {
         const bool won = campaign_.state() == core::CampaignState::Won;
-        const std::string message = won ? "CAMPAIGN WON" : "CAMPAIGN LOST";
-        font.draw(renderer, w / 2 - font.textWidth(message) / 2, h / 2, message,
+
+        // Dim the whole board so the panel reads as a modal overlay.
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
+        SDL_RenderFillRect(renderer, &full);
+
+        const std::string headline = won ? "CAMPAIGN WON" : "CAMPAIGN LOST";
+        const std::string detail = won
+                                       ? "ALL TERRITORIES SECURED"
+                                       : "THE SYNDICATE HAS FALLEN";
+        const std::string score =
+            "TERRITORIES: " + std::to_string(owned) + "/" +
+            std::to_string(campaign_.map().size());
+        const std::string hint = "PRESS ESC TO QUIT";
+
+        // Four lines drawn two line-heights apart, plus a margin top and bottom.
+        const int widest = std::max(std::max(font.textWidth(headline), font.textWidth(detail)),
+                                    std::max(font.textWidth(score), font.textWidth(hint)));
+        const int panelW = std::min(w - 2 * margin, std::max(240, widest + 4 * margin));
+        const int panelH = lineH * 7 + margin * 2;
+        SDL_Rect panel{(w - panelW) / 2, (h - panelH) / 2, panelW, panelH};
+        SDL_SetRenderDrawColor(renderer, 12, 14, 16, 235);
+        SDL_RenderFillRect(renderer, &panel);
+        SDL_SetRenderDrawColor(renderer, won ? hudstyle::kHudGood.r : hudstyle::kHudBad.r,
+                               won ? hudstyle::kHudGood.g : hudstyle::kHudBad.g,
+                               won ? hudstyle::kHudGood.b : hudstyle::kHudBad.b, 255);
+        SDL_RenderDrawRect(renderer, &panel);
+
+        const int cx = panel.x + panelW / 2;
+        int ty = panel.y + margin;
+        font.draw(renderer, cx - font.textWidth(headline) / 2, ty, headline,
                   won ? hudstyle::kHudGood : hudstyle::kHudBad);
+        ty += lineH * 2;
+        font.draw(renderer, cx - font.textWidth(detail) / 2, ty, detail, hudstyle::kHudText);
+        ty += lineH * 2;
+        font.draw(renderer, cx - font.textWidth(score) / 2, ty, score, hudstyle::kHudDim);
+        ty += lineH * 2;
+        font.draw(renderer, cx - font.textWidth(hint) / 2, ty, hint, hudstyle::kHudDim);
     }
 }
 
@@ -668,6 +719,29 @@ bool CampaignScreen::selfTest()
         campaign.state() != core::CampaignState::Won)
     {
         std::fprintf(stderr, "campaign self-test: the campaign could not be won by attacking\n");
+        return false;
+    }
+
+    // 7. The end state is terminal. The won campaign is frozen: it refuses to
+    // deploy and its clock stops. Exercise the *screen* guards (deploySelected /
+    // adjustTax), which read the same finished() flag, by temporarily forcing the
+    // live campaign to the won state, then restore it before returning.
+    const core::Campaign savedCampaign = campaign_;
+    const core::TerritoryId savedSelected = selected_;
+    campaign_ = campaign; // the won copy
+    selected_ = 0;
+    campaign_.map().setTaxLevel(0, 0);
+    const bool refusedDeploy = !deploySelected();
+    adjustTax(1);
+    const bool refusedTax = campaign_.map().taxLevel(0) == 0;
+    campaign_ = savedCampaign;
+    selected_ = savedSelected;
+    if (!refusedDeploy || !refusedTax)
+    {
+        std::fprintf(stderr,
+                     "campaign self-test: the end state did not freeze the screen "
+                     "(deploy=%d tax=%d)\n",
+                     refusedDeploy ? 1 : 0, refusedTax ? 1 : 0);
         return false;
     }
 

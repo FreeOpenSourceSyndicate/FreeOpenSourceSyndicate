@@ -273,6 +273,58 @@ FOSSYND_TEST(Campaign, RecordResultClaimsAndEvaluatesEndState)
     }
 }
 
+FOSSYND_TEST(Campaign, FinishedCampaignIsTerminal)
+{
+    // The end state must be terminal: once won, the campaign cannot be changed by
+    // a later loss, a further deployment, or a clock tick, so the victory/defeat
+    // screen shows a frozen final board.
+    const int player = Campaign::kPlayerSyndicate;
+
+    // A win locks the campaign: canDeployTo refuses, recordResult is a no-op,
+    // and tick stops advancing the economy.
+    {
+        Campaign campaign = loadedCampaign();
+        for (TerritoryId id = 0; id < static_cast<TerritoryId>(campaign.map().size()); ++id)
+        {
+            campaign.map().setOwner(id, player);
+        }
+        campaign.recordResult(true, player);
+        FOSSYND_CHECK(campaign.state() == CampaignState::Won);
+        FOSSYND_CHECK(campaign.finished());
+
+        // Every territory is player-owned and has a mission, so before the end
+        // state canDeployTo would return true; after it, never.
+        FOSSYND_CHECK(!campaign.canDeployTo(0));
+
+        // A later loss cannot un-win the campaign.
+        campaign.recordResult(false, player);
+        FOSSYND_CHECK(campaign.state() == CampaignState::Won);
+
+        // The clock is frozen: no further income ticks.
+        Rng rng(3);
+        const int before = campaign.economy().tickCount();
+        campaign.tick(1000.0f, rng);
+        FOSSYND_CHECK_EQ(campaign.economy().tickCount(), before);
+    }
+
+    // A loss is equally terminal: a later win cannot revive the campaign.
+    {
+        Campaign campaign = loadedCampaign();
+        for (TerritoryId id = 0; id < static_cast<TerritoryId>(campaign.map().size()); ++id)
+        {
+            campaign.map().setOwner(id, 1);
+        }
+        campaign.map().setOwner(0, player);
+        campaign.recordResult(false, player);
+        FOSSYND_CHECK(campaign.state() == CampaignState::Lost);
+        FOSSYND_CHECK(campaign.finished());
+
+        campaign.recordResult(true, player);
+        FOSSYND_CHECK(campaign.state() == CampaignState::Lost);
+        FOSSYND_CHECK(!campaign.canDeployTo(0));
+    }
+}
+
 FOSSYND_TEST(Campaign, TickAdvancesEconomyAndResearch)
 {
     Campaign campaign = loadedCampaign();

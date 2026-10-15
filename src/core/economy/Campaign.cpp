@@ -158,6 +158,14 @@ bool Campaign::loadFromFile(const std::string& path, Campaign& out, std::string&
 
 bool Campaign::canDeployTo(TerritoryId territory) const
 {
+    // The campaign is over once it is won or lost: no further deployment, so a
+    // finished game cannot keep changing (the end state is terminal, not just a
+    // banner). The engine layer also freezes its own input, but the rule lives
+    // here with the rest of the campaign rules.
+    if (finished())
+    {
+        return false;
+    }
     const Territory* node = map_.find(territory);
     if (node == nullptr || node->missionId.empty())
     {
@@ -236,6 +244,12 @@ PlayerLoadout Campaign::selectedLoadout() const
 
 void Campaign::recordResult(bool won, int syndicate)
 {
+    // The end state is terminal: once won or lost, a later result cannot change
+    // it (the player cannot "un-lose" by winning a straggler mission).
+    if (finished())
+    {
+        return;
+    }
     if (won && selectedTerritory_ >= 0)
     {
         map_.setOwner(selectedTerritory_, syndicate);
@@ -245,6 +259,13 @@ void Campaign::recordResult(bool won, int syndicate)
 
 void Campaign::tick(float dt, Rng& rng)
 {
+    // A finished campaign is frozen: no income, research, or revolts after the
+    // end state, so the final board the victory/defeat screen shows never
+    // changes under the player.
+    if (finished())
+    {
+        return;
+    }
     economy_.tick(dt, map_, rng);
     research_.tick(dt);
 }
