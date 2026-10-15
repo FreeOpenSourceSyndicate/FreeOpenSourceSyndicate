@@ -28,6 +28,10 @@ const char* const kMinimalSheet =
     "frame destructible\n"
     "DT\n"
     "DD\n"
+    "end\n"
+    "frame rubble\n"
+    "ST\n"
+    "DD\n"
     "end\n";
 
 std::string readAuthoredSheet()
@@ -41,19 +45,20 @@ std::string readAuthoredSheet()
 
 } // namespace
 
-FOSSYND_TEST(TileSprites, BakesFourFramesInKindOrder)
+FOSSYND_TEST(TileSprites, BakesFiveFramesInKindOrder)
 {
     TileSprites tiles;
     std::string error;
     FOSSYND_CHECK(bakeTileSprites(kMinimalSheet, tiles, error));
     FOSSYND_CHECK(tiles.valid());
-    FOSSYND_CHECK_EQ(static_cast<int>(tiles.sheet.frames.size()), 4);
+    FOSSYND_CHECK_EQ(static_cast<int>(tiles.sheet.frames.size()), 5);
 
     // The kind -> frame mapping is the order the art is authored in.
     FOSSYND_CHECK_EQ(TileSprites::index(TileKind::FloorLight), 0);
     FOSSYND_CHECK_EQ(TileSprites::index(TileKind::FloorDark), 1);
     FOSSYND_CHECK_EQ(TileSprites::index(TileKind::Wall), 2);
     FOSSYND_CHECK_EQ(TileSprites::index(TileKind::DestructibleWall), 3);
+    FOSSYND_CHECK_EQ(TileSprites::index(TileKind::Rubble), 4);
 }
 
 FOSSYND_TEST(TileSprites, TilesNeedNoAnchor)
@@ -106,6 +111,26 @@ FOSSYND_TEST(TileSprites, AuthoredSheetBakesAtTheExpectedSize)
         FOSSYND_CHECK_EQ(tiles.sheet.frame(i).width, 16);
         FOSSYND_CHECK_EQ(tiles.sheet.frame(i).height, 8);
     }
+}
+
+FOSSYND_TEST(TileSprites, AuthoredRubbleDiffersFromFloorAndWall)
+{
+    const std::string text = readAuthoredSheet();
+    TileSprites tiles;
+    std::string error;
+    FOSSYND_CHECK(bakeTileSprites(text, tiles, error));
+
+    // The breach tile must be its own art, not a duplicate of floor or wall, or
+    // a destroyed wall would still read as an intact one (issue #218).
+    const BakedFrame& rubble = tiles.frame(TileKind::Rubble);
+    FOSSYND_CHECK(rubble.rgba != tiles.frame(TileKind::FloorLight).rgba);
+    FOSSYND_CHECK(rubble.rgba != tiles.frame(TileKind::FloorDark).rgba);
+    FOSSYND_CHECK(rubble.rgba != tiles.frame(TileKind::Wall).rgba);
+    FOSSYND_CHECK(rubble.rgba != tiles.frame(TileKind::DestructibleWall).rgba);
+
+    // A breach is walkable ground: the cell centre is opaque, so it is drawn.
+    const std::size_t centre = (static_cast<std::size_t>(4) * 16u + 8u) * 4u;
+    FOSSYND_CHECK_EQ(static_cast<int>(rubble.rgba[centre + 3]), 255);
 }
 
 FOSSYND_TEST(TileSprites, AuthoredFloorIsTransparentAtTheCorners)

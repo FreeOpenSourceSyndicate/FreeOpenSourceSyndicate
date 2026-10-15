@@ -145,6 +145,26 @@ FOSSYND_TEST(TileGrid, BreachedTileBecomesRubble)
     FOSSYND_CHECK(grid.isRubble(1, 1));
 }
 
+FOSSYND_TEST(TileGrid, BreachEpochCountsBreachesOnly)
+{
+    // The view watches this counter to know when to re-bake the map, so it must
+    // advance on a breach and on nothing else (issue #218).
+    TileGrid grid(3, 3);
+    grid.setWalkable(1, 1, false);
+    grid.setDestructible(1, 1, true, 2);
+    const int start = grid.breachEpoch();
+
+    FOSSYND_CHECK(!grid.damageTile(1, 1, 1)); // a chip is not a breach
+    FOSSYND_CHECK_EQ(grid.breachEpoch(), start);
+    FOSSYND_CHECK(!grid.damageTile(0, 0, 5)); // floor: no-op
+    FOSSYND_CHECK_EQ(grid.breachEpoch(), start);
+
+    FOSSYND_CHECK(grid.damageTile(1, 1, 1)); // breached
+    FOSSYND_CHECK_EQ(grid.breachEpoch(), start + 1);
+    FOSSYND_CHECK(!grid.damageTile(1, 1, 1)); // already breached: no-op
+    FOSSYND_CHECK_EQ(grid.breachEpoch(), start + 1);
+}
+
 FOSSYND_TEST(TileGrid, FloorAndIntactWallsAreNotRubble)
 {
     TileGrid grid(4, 1);

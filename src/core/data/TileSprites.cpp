@@ -6,7 +6,7 @@
 namespace fossynd::core
 {
 
-const char* const kTileFrameNames[4] = {"floor", "floorAlt", "wall", "destructible"};
+const char* const kTileFrameNames[5] = {"floor", "floorAlt", "wall", "destructible", "rubble"};
 
 namespace
 {

@@ -211,6 +211,15 @@ if(BUILD_TESTS)
     # so a headless start with the flag still exits 0.
     add_test(NAME game_pause_flag
              COMMAND FOSSynd --headless --pause --frames 1)
+    # Breached-tile rendering (issue #218): a destructible wall must bake as its
+    # art, then as the rubble tile once breached, and the breach must re-bake the
+    # static map exactly once. Exits non-zero on a broken invariant.
+    add_test(NAME game_rubble
+             COMMAND FOSSynd --headless --check-rubble)
+    # `--breach` opens the destructible walls and must still render and write a
+    # screenshot headlessly, so a rubble capture is a real artefact (issue #218).
+    add_test(NAME game_rubble_screenshot
+             COMMAND FOSSynd --headless --breach --screenshot rubble.bmp --frames 2)
     # Content validation (issue #81): resolve every mission's weaponId/agentId
     # against the catalogues in the shipped assets/data and exit non-zero on a
     # dangling reference. Absolute path so it works from any build directory.

@@ -79,6 +79,23 @@ def paint_destructible(grid, cells):
             grid[y][x] = "T"
 
 
+def paint_rubble(grid, cells):
+    """A breached wall: the floor it left behind, strewn with debris (issue #218).
+
+    Drawn as a flat, shaded tile (the wall is gone) scattered with dark rubble
+    chunks and a few lit chips, so it reads as a breach and never as plain floor.
+    """
+    paint_floor(grid, cells, top=2, mid="S", bottom=1)
+    debris = [(5, 2), (6, 2), (6, 3), (4, 4), (9, 3), (10, 3), (9, 4), (11, 2), (7, 5), (8, 5)]
+    for x, y in debris:
+        if grid[y][x] != ".":
+            grid[y][x] = "D"
+    chips = [(5, 3), (10, 4), (7, 4)]
+    for x, y in chips:
+        if grid[y][x] not in (".", "D"):
+            grid[y][x] = "T"
+
+
 def render(grid):
     return ["".join(row) for row in grid]
 
@@ -115,6 +132,10 @@ def main():
     destructible = blank()
     paint_destructible(destructible, cells)
     emit("destructible", destructible, out)
+
+    rubble = blank()
+    paint_rubble(rubble, cells)
+    emit("rubble", rubble, out)
 
     with open("assets/tiles/ground.txt", "w") as handle:
         handle.write("\n".join(out) + "\n")

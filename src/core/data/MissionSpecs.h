@@ -36,11 +36,14 @@ struct BuildingSpec
     int height = 1;
 };
 
-// A single tile that blocks movement.
+// A single tile that blocks movement. `destructible` makes it a wall weapon
+// fire can break through (issue #157); when breached it becomes rubble (issue
+// #217). Off by default, so existing missions are unchanged.
 struct TileSpec
 {
     int x = 0;
     int y = 0;
+    bool destructible = false;
 };
 
 } // namespace fossynd::core

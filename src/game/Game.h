@@ -161,6 +161,17 @@ public:
     // round-trip. Returns false on a broken invariant. Used by game_pause.
     bool pauseSelfTest();
 
+    // Headless guard for breached-tile rendering (issue #218): a destructible
+    // wall must bake as the destructible art, then as the rubble tile once it is
+    // breached — and the map must re-bake on the breach without a per-frame
+    // rescan. Returns false on a broken invariant. Used by game_rubble.
+    bool rubbleSelfTest();
+
+    // Breaches every destructible wall and re-bakes the map (issue #218). Used
+    // by `--breach` so a headless screenshot can show the rubble art without
+    // waiting for combat to break a wall.
+    void breachAllDestructibles();
+
     // True when a non-English locale file was found and overlaid over the
     // English fallback (issue #123). Used by --check-lang to prove a requested
     // locale actually resolved, so a missing locale file fails the gate instead
@@ -195,6 +206,13 @@ private:
 
     void buildMission();
     void buildMapTexture();
+    // The authored tile kind a cell draws, from its state (issue #218): wall or
+    // destructible art when blocked, rubble once breached, else floor. Shared by
+    // the map bake and rubbleSelfTest() so the test checks the real decision.
+    core::TileKind tileKindAt(int x, int y) const;
+    // Breaches the first intact destructible wall, without re-baking. Used by
+    // rubbleSelfTest() so it can prove update() performs the re-bake itself.
+    void forceBreachForTest();
     void buildSprites();
     void buildTiles();
     void buildMinimap();
@@ -317,6 +335,11 @@ private:
     int mapSurfaceHeight_ = 0;
     float mapOffsetX_ = 0.0f;
     float mapOffsetY_ = 0.0f;
+
+    // Breach count the map texture was last baked at (issue #218). update()
+    // re-bakes only when the world reports a new breach, so the static map is
+    // not rebuilt every frame.
+    int mapBreachEpoch_ = 0;
 
     // Camera position, in pixels: the map texture is drawn at (-cameraX_, -cameraY_).
     float cameraX_ = 0.0f;
