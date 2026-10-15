@@ -301,12 +301,15 @@ public:
     // --- progression ---
     // Records the result of the selected mission. A win keeps/claims the
     // territory for `syndicate`; a loss leaves ownership unchanged. Updates the
-    // campaign end state.
+    // campaign end state. A no-op once finished().
     void recordResult(bool won, int syndicate);
 
     CampaignState state() const;
+    // True once won or lost. The end state is terminal: canDeployTo, recordResult,
+    // and tick all become no-ops, so the final board is frozen for the end screen.
+    bool finished() const;
 
-    // Ticks the economy and research (the campaign clock).
+    // Ticks the economy and research (the campaign clock). A no-op once finished().
     void tick(float dt, Rng& rng);
 };
 ```
@@ -363,6 +366,13 @@ public:
   map, not the board) and calls `CampaignScreen::update(realDt)`, which ticks
   economy + research. `M` toggles the screen; `-`/`+` change the selected
   territory's tax; `D` deploys.
+- **The end state is terminal and has its own panel.** Once `Campaign::finished()`
+  is true (won or lost), `canDeployTo`, `recordResult`, and `tick` all become
+  no-ops, so the board the player sees is frozen; the screen also refuses to
+  deploy or change tax (`CampaignScreen::deploySelected`/`adjustTax`). `render`
+  then draws a centred victory/defeat panel (headline, a one-line detail, the
+  held-territory count, and a quit hint) over a dimmed map. The self-test wins the
+  campaign, then checks the won state refuses deployment and taxation.
 - **Headless guard.** `--check-campaign` (ctest `game_campaign`) runs
   `CampaignScreen::selfTest`, which on a *copy* of the shipped campaign exercises
   starting funds → tax → income → research → buy → assign → attack the frontier
@@ -513,8 +523,10 @@ Smallest useful first, so each PR is small and reviewable:
    (`PlayerLoadout`/`applyLoadout`), the engine-side deploy wiring is #312)*
 6. **Campaign progression** — attack the frontier, end state, victory screen.
    *(landed: the frontier attack rule + `Campaign::canDeployTo`, so a win claims
-   an adjacent region and the map can actually be won — ADR-0029; the victory
-   screen is still a follow-up)*
+   an adjacent region and the map can actually be won — ADR-0029. The end state is
+   now terminal: `Campaign::finished()` freezes deployment, results, and the clock,
+   and the map screen shows a centred victory/defeat panel over the frozen board —
+   `game::CampaignScreen::render`; `--check-campaign` guards it)*
 
 Each lands as its own PR under the `focus: metagame` lease (`AGENTS.md` §3,
 "one task = one branch = one PR"). The issue's checkboxes are ticked as they merge.

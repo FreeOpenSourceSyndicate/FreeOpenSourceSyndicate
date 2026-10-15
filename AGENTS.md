@@ -549,11 +549,15 @@ already-owned territory, so `own-all-territories` was unreachable — the map
 could never progress. A `missionId` may now be shared by several regions (the
 original reuses city maps), and `CampaignScreen::selfTest` wins by attacking, so
 unwinnable data fails `game_campaign` instead of a playtest.
-What remains for Milestone B: the per-region mission content (Tactical), and the
-campaign victory screen. The mission round-trip has landed (issue #312): `D` on
-the map starts the territory's mission on the tactical board with the bought
-squad (R1's `applyLoadout`), and the mission's win/lose is fed back to
-`Campaign::recordResult` and returns the player to the map.
+What remains for Milestone B: the per-region mission content (Tactical); the
+campaign loop itself is now closed end to end. The mission round-trip landed
+(issue #312): `D` on the map starts the territory's mission on the tactical board
+with the bought squad (R1's `applyLoadout`), and the mission's win/lose is fed
+back to `Campaign::recordResult` and returns the player to the map. The **end
+state is terminal** (`Campaign::finished()`): once won or lost, `canDeployTo`,
+`recordResult`, and `tick` are no-ops and `CampaignScreen::render` draws a centred
+victory/defeat panel over the frozen board, so a finished campaign cannot keep
+changing under the player (the self-test's step 7 guards it).
 Claim it at issue #249 (`focus: metagame`);
 `docs/METAGAME.md` is the interface contract. Milestone A (finishing the tactical
 layer: cybernetics, scanner, vehicles, destructible environment) runs in
