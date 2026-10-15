@@ -238,6 +238,24 @@ jobs:
           SDL_VIDEODRIVER=dummy "$RUNNER_TEMP"/FOSSynd-*-Linux/bin/FOSSynd --headless \
             --check-content "$RUNNER_TEMP"/FOSSynd-*-Linux/share/fossynd
 
+      # The `.deb` is the artifact a Debian/Ubuntu player installs, yet the lane
+      # above only printed its control fields — it was never installed or run, so
+      # a broken layout or an unsatisfiable `Depends` would ship green (issue
+      # #293). Install it and run the *installed* binary. `apt-get install
+      # ./file.deb` (not `dpkg -i`) so an unresolvable dependency fails the job.
+      - name: Install the .deb and run the installed binary (headless)
+        run: |
+          sudo apt-get install -y ./build/*.deb
+          dpkg -s fossynd | grep -q '^Status: install ok installed'
+          dpkg -L fossynd | grep -q 'share/fossynd/world/campaign.json'
+          # Run from a neutral cwd: from the repo root the binary would resolve
+          # `assets/data/missions/demo.json` out of the checkout and pass even
+          # for an empty package. The install prefix is the real check.
+          cd "$RUNNER_TEMP"
+          SDL_VIDEODRIVER=dummy /usr/bin/FOSSynd --headless --frames 2
+          SDL_VIDEODRIVER=dummy /usr/bin/FOSSynd --headless \
+            --check-content /usr/share/fossynd
+
   packaging-macos:
     name: Packaging (macOS TGZ + DMG)
     # macOS runners are unavailable on this repo: the job queues and is then
