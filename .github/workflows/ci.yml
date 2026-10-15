@@ -197,6 +197,12 @@ jobs:
           # Every mission in the tree must ship, not just `demo.json` (issue #126).
           tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/missions/demo.json'
           tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/missions/escort.json'
+          # The metagame content must ship too: a package without it cannot start
+          # a campaign (assets/data/world/**, shipped data per ADR-0003).
+          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/world/campaign.json'
+          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/world/world.json'
+          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/world/research.json'
+          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/world/equipment.json'
           dpkg-deb -f build/*.deb Package Version Depends
 
       - name: Run the packaged binary (headless)
@@ -251,6 +257,11 @@ jobs:
           # Every mission in the tree must ship (issue #126).
           tar tzf build/FOSSynd-*-Darwin.tar.gz | grep -q 'share/fossynd/missions/demo.json'
           tar tzf build/FOSSynd-*-Darwin.tar.gz | grep -q 'share/fossynd/missions/escort.json'
+          # The metagame content must ship too (assets/data/world/**, ADR-0003).
+          tar tzf build/FOSSynd-*-Darwin.tar.gz | grep -q 'share/fossynd/world/campaign.json'
+          tar tzf build/FOSSynd-*-Darwin.tar.gz | grep -q 'share/fossynd/world/world.json'
+          tar tzf build/FOSSynd-*-Darwin.tar.gz | grep -q 'share/fossynd/world/research.json'
+          tar tzf build/FOSSynd-*-Darwin.tar.gz | grep -q 'share/fossynd/world/equipment.json'
 
       - name: Run the packaged binary (headless)
         run: |
@@ -311,6 +322,11 @@ jobs:
           unzip -l build/FOSSynd-*-Windows.zip | grep -q 'share/fossynd/lang/en.json'
           unzip -l build/FOSSynd-*-Windows.zip | grep -q 'share/fossynd/lang/de.json'
           unzip -l build/FOSSynd-*-Windows.zip | grep -q 'share/fossynd/missions/demo.json'
+          # The metagame content must ship too (assets/data/world/**, ADR-0003).
+          unzip -l build/FOSSynd-*-Windows.zip | grep -q 'share/fossynd/world/campaign.json'
+          unzip -l build/FOSSynd-*-Windows.zip | grep -q 'share/fossynd/world/world.json'
+          unzip -l build/FOSSynd-*-Windows.zip | grep -q 'share/fossynd/world/research.json'
+          unzip -l build/FOSSynd-*-Windows.zip | grep -q 'share/fossynd/world/equipment.json'
 
       - name: Run the packaged binary (headless)
         run: |
