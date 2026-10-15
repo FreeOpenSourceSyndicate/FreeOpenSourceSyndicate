@@ -1190,3 +1190,51 @@ FOSSYND_TEST(Mission, ShieldDoesNotStackWhileAlreadyUp)
     FOSSYND_CHECK_EQ(mission.shields(foe), 1);
 }
 
+FOSSYND_TEST(Mission, AttackOrderHoldsPositionWithClearShot)
+{
+    // In range with an unobstructed line: the agent must hold position (no
+    // path) and fire. Guards against the #229 fix over-eagerly moving an agent
+    // that can already shoot.
+    TileGrid grid(20, 20);
+    Mission mission(grid, 46u);
+    const std::size_t hero = mission.addAgent(
+        makeAgent(2.0f, 2.0f, Team::Player, 100.0f, Weapon{"Test", 10.0f, 10.0f, 10.0f, 1.0f}));
+    mission.addAgent(makeAgent(5.0f, 2.0f, Team::Enemy, 1000.0f,
+                               Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+
+    mission.orderAttack(hero, 1);
+    FOSSYND_CHECK(!mission.agents()[hero].hasPath()); // in range + clear shot: holds
+
+    for (int i = 0; i < 20; ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK(mission.agents()[1].health() < 1000.0f);
+}
+
+FOSSYND_TEST(Mission, AttackOrderMovesWhenWallBlocksShot)
+{
+    // Regression for #229: the enemy is inside weapon range by distance but a
+    // solid wall blocks the line, so the agent can neither shoot from here nor
+    // stand still. It must keep moving (around the wall) and eventually fire,
+    // instead of freezing and deadlocking the mission.
+    TileGrid grid(20, 20);
+    grid.setWalkable(5, 2, false); // solid wall between the two agents
+    Mission mission(grid, 47u);
+    const std::size_t hero = mission.addAgent(
+        makeAgent(2.0f, 2.0f, Team::Player, 100.0f, Weapon{"Test", 10.0f, 10.0f, 10.0f, 1.0f}));
+    // Far enough to stay alive, unarmed so it cannot shoot back.
+    mission.addAgent(makeAgent(8.0f, 2.0f, Team::Enemy, 1000.0f,
+                               Weapon{"None", 0.0f, 0.5f, 1.0f, 0.0f}));
+
+    // Sanity: the target is in range (distance 6 <= 9) but not visible.
+    mission.orderAttack(hero, 1);
+    FOSSYND_CHECK(mission.agents()[hero].hasPath()); // not frozen: has a route
+
+    for (int i = 0; i < 120; ++i)
+    {
+        mission.update(0.05f);
+    }
+    // The agent rounded the wall and opened fire.
+    FOSSYND_CHECK(mission.agents()[1].health() < 1000.0f);
+}
