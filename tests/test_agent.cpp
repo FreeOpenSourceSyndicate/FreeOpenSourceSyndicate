@@ -1,6 +1,7 @@
 /* AI/LLM-generated file. Do not treat as human-written source documentation. */
 #include "TestHarness.h"
 #include "core/sim/Agent.h"
+#include "core/world/Pathfinding.h"
 
 using namespace fossynd::core;
 
@@ -12,15 +13,59 @@ FOSSYND_TEST(Agent, MoveToFindsPath)
     FOSSYND_CHECK(agent.hasPath());
 }
 
-FOSSYND_TEST(Agent, MoveToUnreachableStops)
+FOSSYND_TEST(Agent, MoveToUnreachableWalksAsCloseAsPossible)
 {
+    // A full wall at x=2 blocks the goal at (4,0). moveTo no longer drops the
+    // order: the agent walks to the reachable tile nearest the goal (#149).
     TileGrid grid(5, 5);
     for (int y = 0; y < 5; ++y)
     {
         grid.setWalkable(2, y, false);
     }
     Agent agent(0.0f, 0.0f, 2.0f);
-    FOSSYND_CHECK(!agent.moveTo(grid, TilePos{4, 0}));
+    FOSSYND_CHECK(agent.moveTo(grid, TilePos{4, 0}));
+    FOSSYND_CHECK(agent.hasPath());
+
+    // Guard the size before indexing so a regression fails cleanly rather than
+    // dereferencing an empty path.
+    FOSSYND_CHECK(!agent.path().empty());
+    if (agent.path().empty())
+    {
+        return;
+    }
+    const std::vector<TilePos> path = agent.path();
+    // The route ends on the start side of the wall, adjacent to it.
+    FOSSYND_CHECK(path.back() == (TilePos{1, 0}));
+    // Every step is walkable: the route never enters the wall.
+    for (const TilePos& tile : path)
+    {
+        FOSSYND_CHECK(grid.isWalkable(tile.x, tile.y));
+    }
+}
+
+FOSSYND_TEST(Agent, MoveToReachablePathIsUnchanged)
+{
+    // When the goal is reachable, moveTo must be exactly findPath: the fallback
+    // must not perturb a good route.
+    TileGrid grid(8, 8);
+    Agent agent(0.0f, 0.0f, 2.0f);
+    FOSSYND_CHECK(agent.moveTo(grid, TilePos{5, 3}));
+
+    const std::vector<TilePos> expected = findPath(grid, TilePos{0, 0}, TilePos{5, 3}, true);
+    FOSSYND_CHECK(!expected.empty());
+    FOSSYND_CHECK(agent.path() == expected);
+}
+
+FOSSYND_TEST(Agent, MoveToEnclosedStartDropsOrder)
+{
+    // Nowhere to go: the start is sealed in, so there is no nearest reachable
+    // tile and the order is dropped (the one case that still returns false).
+    TileGrid grid(5, 5);
+    grid.setWalkable(1, 0, false);
+    grid.setWalkable(0, 1, false);
+    grid.setWalkable(1, 1, false);
+    Agent agent(0.0f, 0.0f, 2.0f);
+    FOSSYND_CHECK(!agent.moveTo(grid, TilePos{4, 4}));
     FOSSYND_CHECK(!agent.hasPath());
 }
 
