@@ -11,6 +11,7 @@ set(FOSSYND_CORE_SOURCES
     sim/Agent.cpp
     sim/Mission.cpp
     economy/WorldMap.cpp
+    economy/Economy.cpp
     data/Json.cpp
     data/MissionData.cpp
     data/Config.cpp
