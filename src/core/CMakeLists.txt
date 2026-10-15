@@ -10,6 +10,7 @@ set(FOSSYND_CORE_SOURCES
     world/Pathfinding.cpp
     sim/Agent.cpp
     sim/Mission.cpp
+    economy/WorldMap.cpp
     data/Json.cpp
     data/MissionData.cpp
     data/Config.cpp
