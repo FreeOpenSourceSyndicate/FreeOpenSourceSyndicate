@@ -377,11 +377,24 @@ FOSSYND_TEST(ContentValidation, ShippedNewWeaponFamiliesLoad)
     FOSSYND_CHECK(sniper->fireRate < rifle->fireRate);
 
     // Gauss: a mid-range, high-rate, high-accuracy slug between the rifle and
-    // the sniper.
+    // the sniper. Its low per-shot damage is the compensating weakness: the
+    // high rate must not buy strict dominance, so its sustained output stays
+    // inside the catalogue band (below the flamethrower, the highest-DPS gun)
+    // and its per-shot damage sits below the rifle's (tactical vet, #294).
     FOSSYND_CHECK(gauss->range > rifle->range);
     FOSSYND_CHECK(gauss->range < sniper->range);
     FOSSYND_CHECK(gauss->fireRate > rifle->fireRate);
     FOSSYND_CHECK(gauss->accuracy > rifle->accuracy);
+
+    const Weapon* flamethrower = catalogue.find("flamethrower");
+    FOSSYND_CHECK(flamethrower != nullptr);
+    if (flamethrower != nullptr)
+    {
+        const auto dps = [](const Weapon& w) { return w.damage * w.fireRate * w.accuracy; };
+        FOSSYND_CHECK(gauss->damage < rifle->damage);
+        FOSSYND_CHECK(dps(*gauss) > dps(*rifle));
+        FOSSYND_CHECK(dps(*gauss) < dps(*flamethrower));
+    }
 
     // Every catalogue entry satisfies the schema's required-field ranges, so
     // validation accepts the shipped file (it already loaded above, but assert
