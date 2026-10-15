@@ -226,22 +226,11 @@ jobs:
       - name: Verify package artifacts
         run: |
           ls -l build/*.tar.gz build/*.deb
-          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'bin/FOSSynd'
-          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/weapons.json'
-          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/agents.json'
-          # Every locale in the tree must ship, not just English (issue #103):
-          # `de.json` is an added translation and must be in the package.
-          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/lang/en.json'
-          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/lang/de.json'
-          # Every mission in the tree must ship, not just `demo.json` (issue #126).
-          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/missions/demo.json'
-          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/missions/escort.json'
-          # The metagame content must ship too: a package without it cannot start
-          # a campaign (assets/data/world/**, shipped data per ADR-0003).
-          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/world/campaign.json'
-          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/world/world.json'
-          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/world/research.json'
-          tar tzf build/FOSSynd-*-Linux.tar.gz | grep -q 'share/fossynd/world/equipment.json'
+          # Every shipped asset must reach the package. The check derives the
+          # expected files from the tree, so a new mission/locale/world file is
+          # required automatically instead of needing a hand-added `grep -q`
+          # (the #103/#126/#283 silent-omission class; issue #307).
+          ./scripts/check-package-contents.sh build/FOSSynd-*-Linux.tar.gz
           dpkg-deb -f build/*.deb Package Version Depends
 
       - name: Run the packaged binary (headless)
