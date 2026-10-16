@@ -1885,3 +1885,85 @@ artifact, and the flat ref-based scheme is the only live mechanism. If the fleet
 ever wants it gone, the delete is a self-contained removal of the three regexes,
 `cmd_migrate`, and the `migrate` help text — no other caller exists.
 
+---
+
+## ADR-0034 — A lease is identified by agent *and* branch, so same-model agents do not collide
+
+- **Status:** Accepted (2026-10-16)
+- **Date:** 2026-10-16
+- **Amends:** ADR-0021 / ADR-0033. The git-ref lease and the flat model are
+  **kept unchanged**; this fixes how "who holds this lease" is decided.
+
+- **Context:** A lease records a single self-asserted string, `agent`, and the
+  docs tell agents to set it to their **model** name (`docs/COORDINATION.md` §2,
+  `--agent "Claude Sonnet 4.5"`). A model name is **not unique**: two concurrent
+  workspaces running the same model produce the same string, and the ledger
+  cannot tell them apart. Observed this cycle: one workspace held
+  `release/#350` (branch `release/v0.8.0-dominion`) as `--agent "OpenHands"`;
+  from an unrelated workspace also using `--agent "OpenHands"` and sitting on
+  `main`,
+
+  ```
+  $ scripts/coord next --agent "OpenHands"
+  You hold release / #350 (3h left).
+  ```
+
+  Rung 1 is `mine = [l for l in leases if l.agent == args.agent]`, so it picked
+  the first same-named lease and asserted it belonged to the caller. It did not.
+  Worse, `release`/`renew` guard ownership with `lease.agent != args.agent`, so
+  for a same-named caller that check **passes**: `scripts/coord release --area
+  release --issue 350 --agent "OpenHands"` would delete a peer's **live** lease
+  mid-work — the exact double-claim the lease exists to prevent — and the area
+  would then look free to a third agent.
+
+- **Options:**
+
+  1. **Require a unique agent id (UUID, hostname, workspace path).** Rejected:
+     every in-flight agent would have to change how it claims, and the docs,
+     tests, and CI all speak the model name. It also makes the ledger harder to
+     read by a human, who wants to know *which model*, not a UUID.
+  2. **Keep name-only matching and tell humans to pass distinct names.**
+     Rejected: a convention is not a mechanism. Nothing enforces it, and the
+     failure (a peer's lease silently freed) is destructive and invisible.
+  3. **Key the lease ref by branch as well as area.** Rejected: it changes the
+     ref layout and the CAS, and an agent legitimately holds one area while on
+     any branch — the branch is metadata about the holder, not a second lock.
+  4. **Use the branch the lease already records as a tiebreaker.** Chosen:
+     `--branch` is already stored on every claim that passes one, so this adds
+     no field and no ref, and it changes no in-flight behaviour.
+
+- **Decision:** **Option 4.** A lease is *mine* only when the `agent` matches
+  **and** the `branch` it records is the branch I am on:
+
+  ```python
+  def lease_is_mine(lease, agent, branch):
+      if lease.agent != agent:
+          return False
+      if not lease.branch or not branch:   # legacy / no --branch: name alone
+          return True
+      return lease.branch == branch
+  ```
+
+  - `next` rung 1 matches on `lease_is_mine`, so a peer's lease is not reported
+    as yours. When a same-named lease exists on a *different* branch, `next`
+    says so explicitly (area, issue, that branch) instead of leaving the agent to
+    guess from the board.
+  - `renew` and `release` refuse when `lease_is_mine` is false. `--force` is
+    still the explicit override, and a new optional `--branch` lets a caller name
+    the branch instead of relying on `HEAD` (e.g. releasing from elsewhere).
+  - A **branchless** lease (legacy, or claimed without `--branch`) has nothing
+    to compare, so it matches by name alone — the pre-ADR-0034 behaviour, kept so
+    nothing that exists today breaks.
+
+- **Consequences:** Two workspaces on the same model can now coexist without one
+  reading or freeing the other's lease; the fix is inert for a solo fleet
+  (branchless leases behave exactly as before) and needs no new field, ref, or
+  service. The residual limit is honest: if two same-model workspaces also share
+  a branch *and* an area, they are genuinely indistinguishable, but they cannot
+  both hold the area (the CAS still admits one) — the second is told the area is
+  held, which is the correct outcome. Tests in `tests/test_coord.py`
+  (`TestSameNameIdentity`) cover the peer-is-not-mine, refuse, `--force`, and
+  explicit-`--branch` paths, and are proven to bite by reverting the guard to
+  name-only matching.
+
+

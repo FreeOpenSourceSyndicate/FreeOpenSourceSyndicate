@@ -566,6 +566,37 @@ def area_holder(area: str, at: Optional[int] = None, cwd: Optional[str] = None) 
     return max(live, key=lambda l: l.epoch)
 
 
+def current_branch(cwd: Optional[str] = None) -> str:
+    """The branch checked out right now, or "" (detached HEAD / no repo)."""
+    proc = git("rev-parse", "--abbrev-ref", "HEAD", check=False, cwd=cwd)
+    if proc.returncode != 0:
+        return ""
+    name = (proc.stdout or "").strip()
+    return "" if name == "HEAD" else name
+
+
+def lease_is_mine(lease: Lease, agent: str, branch: str) -> bool:
+    """Is ``lease`` held by *this* workspace, not a same-named peer?
+
+    A lease records only the self-asserted ``agent`` string, and the docs tell
+    agents to use their *model* name - which is not unique. Two workspaces running
+    the same model collide on that string, and the ledger cannot tell them apart,
+    so `next` would report a peer's lease as yours and `release`/`renew` would let
+    you free it (issue #365).
+
+    The recorded ``branch`` is the tiebreaker: a lease is yours only when the
+    agent matches *and* the branch it names is the branch you are on. A branchless
+    lease (legacy, or claimed without ``--branch``) has nothing to compare, so it
+    matches by name alone - that is the pre-#365 behaviour, kept so nothing that
+    exists today breaks.
+    """
+    if lease.agent != agent:
+        return False
+    if not lease.branch or not branch:
+        return True
+    return lease.branch == branch
+
+
 # --------------------------------------------------------------------------- #
 # Commands
 # --------------------------------------------------------------------------- #
@@ -655,8 +686,12 @@ def cmd_renew(args: argparse.Namespace) -> int:
     lease = read_lease(ref)
     if lease is None:
         raise CoordError(f"no lease on {args.area}/#{args.issue} to renew")
-    if lease.agent != args.agent and not args.force:
-        raise CoordError(f"{args.area}/#{args.issue} is held by {lease.agent}, not {args.agent}")
+    branch = getattr(args, "branch", None) or current_branch()
+    if not lease_is_mine(lease, args.agent, branch) and not args.force:
+        raise CoordError(f"{args.area}/#{args.issue} is held by {lease.agent}"
+                         + (f" on {lease.branch}" if lease.branch else "")
+                         + f", not {args.agent}"
+                         + (f" on {branch}" if lease.branch and branch else ""))
     lease.epoch = now()
     if args.ttl:
         lease.ttl = min(args.ttl, MAX_TTL)
@@ -683,8 +718,12 @@ def cmd_release(args: argparse.Namespace) -> int:
     if lease is None:
         print(f"nothing to release on {args.area}/#{args.issue}")
         return 0
-    if lease.agent != args.agent and not args.force:
-        raise CoordError(f"{args.area}/#{args.issue} is held by {lease.agent}, not {args.agent}")
+    branch = getattr(args, "branch", None) or current_branch()
+    if not lease_is_mine(lease, args.agent, branch) and not args.force:
+        raise CoordError(f"{args.area}/#{args.issue} is held by {lease.agent}"
+                         + (f" on {lease.branch}" if lease.branch else "")
+                         + f", not {args.agent}"
+                         + (f" on {branch}" if lease.branch and branch else ""))
     delete_ref(args.area)
     # Drop the convenience `status:` mirror immediately rather than waiting up to
     # a sweep interval.  Best-effort and only against a real GitHub remote, so a
@@ -814,7 +853,11 @@ def cmd_next(args: argparse.Namespace) -> int:
     by_area = _open_issues_by_area()
 
     # 1. Do you already hold something?  Finish or renew it before taking more.
-    mine = [l for l in leases if l.agent == args.agent]
+    #    Match on agent *and* branch: the agent string is a model name, not a
+    #    unique id, so a same-named peer's lease must not be reported as yours
+    #    (issue #365).
+    branch = getattr(args, "branch", None) or current_branch()
+    mine = [l for l in leases if lease_is_mine(l, args.agent, branch)]
     if mine:
         l = mine[0]
         state = "" if l.state == "claimed" else f" [{l.state}]"
@@ -825,6 +868,17 @@ def cmd_next(args: argparse.Namespace) -> int:
         print(f"  -> release: scripts/coord release --area {l.area} --issue {l.issue} "
               f"--agent \"{args.agent}\"")
         return 0
+
+    # Same model name, but a different workspace's lease (a branch you are not
+    # on).  Say so: otherwise the agent sees its name on the board and assumes it
+    # owns that work (issue #365).
+    namesakes = [l for l in leases if l.agent == args.agent and l.branch and l.branch != branch]
+    if namesakes:
+        l = namesakes[0]
+        print(f"'{args.agent}' also holds {l.area} / #{l.issue} on branch "
+              f"'{l.branch}' - not this workspace"
+              + (f" (you are on '{branch}')" if branch else "")
+              + ".")
 
     holders = {l.area: l for l in leases}
     free = [a for a in AREAS if a not in holders]
@@ -1453,6 +1507,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(p)
     p.add_argument("--area", required=True, choices=AREAS)
     p.add_argument("--issue", required=True, type=int)
+    p.add_argument("--branch", default=None,
+                   help="the branch your lease records (default: the current "
+                        "branch); guards against a same-named peer's lease")
     p.add_argument("--ttl", type=parse_duration, default=None)
     p.add_argument("--state", choices=("claimed", "blocked", "needs-review"), default=None)
     p.add_argument("--note", default=None)
@@ -1463,6 +1520,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(p)
     p.add_argument("--area", required=True, choices=AREAS)
     p.add_argument("--issue", required=True, type=int)
+    p.add_argument("--branch", default=None,
+                   help="the branch your lease records (default: the current "
+                        "branch); guards against a same-named peer's lease")
     p.add_argument("--force", action="store_true")
     p.set_defaults(func=cmd_release)
 
