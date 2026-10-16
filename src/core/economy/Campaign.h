@@ -85,11 +85,12 @@ public:
     // equipment slots (Milestone B deployment). Slot i of the result is the
     // equipment assigned to squad slot `selectedSlots()[i]`: a weapon id from
     // the shared weapon catalogue, a gadget id from the tactical gadget
-    // vocabulary, or both; a cybernetic (a passive upgrade) contributes nothing
-    // because it is not a loadout item. An empty result means "keep the
-    // mission's authored squad" (R1, docs/METAGAME.md §7). The engine layer hands
-    // this to `applyLoadout`, so a bought weapon/gadget reaches the deployed
-    // agent instead of the mission's default (issue #312).
+    // vocabulary, and/or a cybernetic id from the tactical cybernetic
+    // vocabulary (a passive upgrade applied once at mission load). An empty
+    // result means "keep the mission's authored squad" (R1, docs/METAGAME.md
+    // §7). The engine layer hands this to `applyLoadout`, so a bought
+    // weapon/gadget/cybernetic reaches the deployed agent instead of the
+    // mission's default (issues #312, #341).
     PlayerLoadout selectedLoadout() const;
 
     // --- progression ---

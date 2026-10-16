@@ -196,11 +196,14 @@ FOSSYND_TEST(Campaign, SelectedLoadoutMapsBoughtEquipmentToSlots)
     FOSSYND_CHECK_EQ(loadout.slots.size(), std::size_t{4});
     FOSSYND_CHECK_EQ(loadout.slots[0].weaponId, std::string("minigun"));
     FOSSYND_CHECK_EQ(loadout.slots[0].gadgetId, std::string("medkit"));
-    // A cybernetic is a passive upgrade, not a loadout item.
+    // A cybernetic is a passive upgrade, but it still deploys: it reaches the
+    // slot's `cyberneticId`, which applyLoadout applies once at mission load.
     FOSSYND_CHECK(loadout.slots[1].weaponId.empty());
     FOSSYND_CHECK(loadout.slots[1].gadgetId.empty());
+    FOSSYND_CHECK_EQ(loadout.slots[1].cyberneticId, std::string("targeting-implant"));
     // An unknown id deploys nothing rather than a broken weapon.
     FOSSYND_CHECK(loadout.slots[2].weaponId.empty());
+    FOSSYND_CHECK(loadout.slots[2].cyberneticId.empty());
     FOSSYND_CHECK(loadout.slots[3].weaponId.empty());
 
     // The loadout follows the *selected* slots, not the squad index: sending

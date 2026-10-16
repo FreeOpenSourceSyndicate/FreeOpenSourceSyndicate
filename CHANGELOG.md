@@ -10,6 +10,21 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **Cybernetic upgrades are purchasable and deploy:** the tactical side of
+  cybernetics landed in #313 (`CyberneticEffect`, `Mission::applyCybernetic`, a
+  data-only `LoadoutSlot::cyberneticId`), but the metagame had no catalogue or
+  research entries for `legs`/`arms`/`chest`/`eyes`, and
+  `Campaign::selectedLoadout` **skipped** `EquipmentKind::Cybernetic` — so a
+  cybernetic could be applied by `applyLoadout` yet had no in-game path. The four
+  upgrades now ship in `assets/data/world/equipment.json` gated by matching
+  `research.json` nodes, and `selectedLoadout` maps a bought cybernetic to the
+  slot's `cyberneticId` (one per slot, like a weapon/gadget), so a purchased
+  upgrade reaches the deployed agent for a permanent stat change. The
+  shipped-catalogue guard now checks that every sold cybernetic id is in the
+  tactical deploy vocabulary and that its research node unlocks it
+  (`applyLoadout` rejects an unknown id), so the two ends cannot drift. Issue
+  #341.
+
 - **Cybernetic upgrades:** the last Milestone A tactical item lands in `core`,
   alongside the gadgets. `CyberneticEffect` (`core/sim/Cybernetic.h`) maps a
   `kind: "cybernetic"` id to permanent stat **multipliers** applied once at

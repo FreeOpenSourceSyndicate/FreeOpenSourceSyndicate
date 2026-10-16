@@ -13,6 +13,14 @@
     { "id": "medkit", "kind": "gadget", "name": "Medkit", "cost": 200 },
     { "id": "scanner", "kind": "gadget", "name": "Scanner", "cost": 400 },
     { "id": "drugs", "kind": "gadget", "name": "Performance Drugs", "cost": 250 },
+    { "id": "legs", "kind": "cybernetic", "name": "Leg Cybernetics", "cost": 700,
+      "requiresResearch": "legs" },
+    { "id": "arms", "kind": "cybernetic", "name": "Arm Cybernetics", "cost": 700,
+      "requiresResearch": "arms" },
+    { "id": "chest", "kind": "cybernetic", "name": "Chest Cybernetics", "cost": 800,
+      "requiresResearch": "chest" },
+    { "id": "eyes", "kind": "cybernetic", "name": "Eye Cybernetics", "cost": 600,
+      "requiresResearch": "eyes" },
     { "id": "targeting-implant", "kind": "cybernetic", "name": "Targeting Implant", "cost": 800 }
   ]
 }

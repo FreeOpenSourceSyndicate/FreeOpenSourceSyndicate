@@ -5,6 +5,7 @@
 #include "core/economy/Economy.h"
 #include "core/economy/Equipment.h"
 #include "core/economy/Research.h"
+#include "core/sim/Cybernetic.h"
 #include "core/sim/PlayerLoadout.h"
 
 using namespace fossynd::core;
@@ -279,6 +280,30 @@ FOSSYND_TEST(Equipment, LoadsShippedCatalogueFile)
         if (item.kind == EquipmentKind::Gadget)
         {
             FOSSYND_CHECK(gadgetChargesForId(item.id) != kUnknownGadget);
+        }
+    }
+
+    // A cybernetic the catalogue sells must be in the tactical deploy vocabulary
+    // (cyberneticEffectForId) and gated by a research node that unlocks it, or it
+    // can be bought yet applyLoadout rejects it (issue #341). Both ends must agree.
+    std::string treeError;
+    ResearchTree tree;
+    const std::string treePath = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/world/research.json";
+    FOSSYND_CHECK(ResearchTree::loadFromFile(treePath, tree, treeError));
+    FOSSYND_CHECK(treeError.empty());
+    for (const EquipmentItem& item : catalogue.items())
+    {
+        if (item.kind != EquipmentKind::Cybernetic)
+        {
+            continue;
+        }
+        CyberneticEffect effect;
+        FOSSYND_CHECK(cyberneticEffectForId(item.id, effect));
+        if (!item.requiresResearch.empty())
+        {
+            const ResearchNode* node = tree.find(item.requiresResearch);
+            FOSSYND_CHECK(node != nullptr);
+            FOSSYND_CHECK_EQ(node->unlocks, item.id);
         }
     }
 }
