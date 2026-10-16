@@ -80,18 +80,22 @@ class CheckSizeTest(unittest.TestCase):
         self.assertEqual(code, USAGE, out)
         self.assertIn("not found", out)
 
-    def test_default_budget_is_the_documented_288_kib(self):
+    def test_default_budget_is_the_documented_320_kib(self):
         # CI calls the script with no FOSSYND_SIZE_BUDGET_BYTES, so the default is
         # the effective cap. Issue #328 confirmed 288 KiB (294912) after the
-        # low-spec binary reached 254 KiB against the old 256 KiB cap; the exact
-        # default is asserted so a silent nudge is caught here, not in review.
+        # low-spec binary reached 254 KiB against the old 256 KiB cap; the cap was
+        # raised to 320 KiB (327680) when the third shared catalogue
+        # (`assets/data/vehicles.json`, #319/#342) pushed main to 286 KiB - only
+        # ~2 KiB of headroom left, so the next data-only PR would fail spuriously.
+        # The exact default is asserted so a silent nudge is caught here, not in
+        # review.
         env = dict(os.environ)
         env.pop("FOSSYND_SIZE_BUDGET_BYTES", None)
-        self._write(256 * 1024 + 1)  # just past the *old* 256 KiB cap
+        self._write(288 * 1024 + 1)  # just past the *old* 288 KiB cap
         proc = subprocess.run([SCRIPT, self.binary], capture_output=True,
                               text=True, env=env)
         self.assertEqual(proc.returncode, OK, proc.stdout + proc.stderr)
-        self.assertIn("288 KiB", proc.stdout)
+        self.assertIn("320 KiB", proc.stdout)
 
     def test_reports_size_in_kib(self):
         self._write(2048)
