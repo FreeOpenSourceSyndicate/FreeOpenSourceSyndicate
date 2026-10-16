@@ -210,6 +210,7 @@ fund research, buy equipment, and deploy missions to take the world map.
 | **`S`** | Raise a shield on the selection (absorbs the next hit) |
 | **`C`** | Run a scanner pulse for the selection (marks nearby enemies) |
 | **`B`** | Take performance drugs on the selection (timed speed/hit buff) |
+| **`E`** | Hijack the nearest vehicle in range with the selection, or step out if the selected agent is already driving |
 | **Arrow keys** | Scroll the camera |
 | **`+` / `-` or the mouse wheel** | Zoom the view in whole steps (1x/2x/3x; wheel up = in) |
 | **`F11`** | Toggle fullscreen / windowed |
@@ -278,6 +279,7 @@ They flee when gunfire starts nearby. Civilian deaths you cause are counted as
 | `--zoom N` | Set the initial integer zoom level (1–3) |
 | `--breach` | Breach every destructible wall before rendering (for rubble screenshots) |
 | `--scan` | Fire a scanner pulse on the squad before rendering (for scanner screenshots) |
+| `--shield` | Raise a shield on the squad before rendering (for shield screenshots) |
 | `--vehicle` | Spawn a demo car and train before rendering (for vehicle screenshots) |
 | `--headless` | Use the dummy video driver (no display needed) |
 | `--frames N` | Run N frames then exit (must be a positive integer) |
@@ -306,6 +308,7 @@ wired into `ctest`.
 | `--check-pause` | Run the pause/resume self-check and exit (ctest `game_pause`) |
 | `--check-rubble` | Run the breached-tile rubble self-check and exit (ctest `game_rubble`) |
 | `--check-scanner` | Run the scanner-ping overlay self-check and exit (ctest `game_scanner`) |
+| `--check-shield` | Exit non-zero if the personal shield overlay fails to draw (ctest `game_shield`) |
 | `--check-objectives` | Validate the objective banner for every objective kind (ctest `game_objectives`) |
 | `--check-campaign` | Drive the whole management loop (funds → tax → research → buy → deploy → win) and exit (ctest `game_campaign`) |
 | `--check-deploy` | Drive the deploy round-trip (map → mission → result → map) and exit (ctest `game_deploy`) |
