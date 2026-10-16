@@ -418,13 +418,40 @@ def list_all_notes(cwd: Optional[str] = None) -> dict[str, list[Note]]:
     return result
 
 
-def _write_notes(area: str, notes: list[Note], *, cwd: Optional[str] = None) -> None:
+def _notes_push(area: str, head: str, expect: Optional[str], *,
+                cwd: Optional[str] = None) -> None:
+    """Publish the rebuilt note chain, refusing to clobber a concurrent append.
+
+    ``expect`` is the remote value the caller built its replacement on.  A
+    plain ``--force`` never conflicts, so it silently overwrites a note another
+    clone pushed meanwhile (a lost update).  The per-ref lease is the same
+    compare-and-swap the lease refs use: ``None`` means "the ref must not exist
+    yet" (create), a sha means "replace exactly that value".  A stale
+    expectation is reported as an ordinary failure for the caller to re-read and
+    retry; a credential failure is raised, since retrying cannot fix it.
+    """
+    ref = notes_ref_for(area)
+    lease = f"--force-with-lease={ref}:{expect or ''}"
+    proc = git("push", lease, "origin", f"{head}:{ref}",
+               check=False, cwd=cwd, env=_git_env())
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "").strip()
+        hint = _push_hint(detail)
+        if hint is not None:
+            raise CoordAuthError(f"could not publish notes for {area}: "
+                                 f"{hint}\n{detail}")
+        raise CoordError(f"note ref {ref} moved under us:\n{detail}")
+    git("update-ref", ref, head, check=False, cwd=cwd)
+
+
+def _write_notes(area: str, notes: list[Note], *, cwd: Optional[str] = None,
+                 expect: Optional[str] = None) -> None:
     """Replace an area's note ref with a fresh chain of the given notes.
 
     The ref is rebuilt as a linear history (one commit per note) so the log is
-    human-readable with `git log refs/coord/notes/<area>`, then force-pushed.
-    Notes are a log, not a lock: a concurrent append is reconciled by the caller
-    re-reading and retrying, so no compare-and-swap is needed.
+    human-readable with `git log refs/coord/notes/<area>`, then published under
+    a compare-and-swap on ``expect`` (see ``_notes_push``).  A lost race raises,
+    and the caller re-reads and retries, so no append is dropped.
     """
     env = _git_env()
     parent: Optional[str] = None
@@ -438,8 +465,7 @@ def _write_notes(area: str, notes: list[Note], *, cwd: Optional[str] = None) -> 
         head = commit
     if head is None:
         return
-    git("push", "--force", "origin", f"{head}:{notes_ref_for(area)}", cwd=cwd, env=env)
-    git("update-ref", notes_ref_for(area), head, check=False, cwd=cwd)
+    _notes_push(area, head, expect, cwd=cwd)
 
 
 def fetch_notes(cwd: Optional[str] = None) -> None:
@@ -456,15 +482,24 @@ def append_note(area: str, agent: str, text: str, *, cwd: Optional[str] = None) 
     """
     note = Note(agent=agent, area=area, text=text, epoch=now())
     for _ in range(5):
+        # Read the *remote* value first, then the notes themselves, and require
+        # the remote ref to still hold that value at push time.  Comparing
+        # against the remote (not a possibly-stale local mirror) is what makes
+        # two clones appending at once merge instead of one clobbering the
+        # other.
+        fetch_notes(cwd=cwd)
+        expect = _local_ref_sha(notes_ref_for(area), cwd=cwd)
         existing = read_notes(area, cwd=cwd)
         if any(n.agent == note.agent and n.text == note.text for n in existing):
             break
         merged = existing + [note]
         try:
-            _write_notes(area, merged, cwd=cwd)
+            _write_notes(area, merged, cwd=cwd, expect=expect)
             return note
+        except CoordAuthError:
+            raise
         except CoordError:
-            fetch_notes(cwd=cwd)
+            continue
     return note
 
 
