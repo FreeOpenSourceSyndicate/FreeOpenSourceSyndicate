@@ -546,10 +546,36 @@ def refs_for_area(area: str, cwd: Optional[str] = None) -> list[str]:
     return [r for r in list_refs(cwd) if r == prefix or r.startswith(prefix + "/")]
 
 
+def _delete_lease_ref(ref: str, cwd: Optional[str] = None) -> None:
+    """Delete one lease ref on the remote, raising if it did not go.
+
+    A ref that still exists on the remote is still held: reporting a release
+    that never landed strands the area until its TTL expires (issue #392 - the
+    same silent-success class as #381). A credential failure is reported as
+    such (ADR-0033), not as a lost race. The local mirror is dropped only once
+    the remote actually dropped it, so local state never claims a release the
+    remote refused.
+    """
+    proc = git("push", "origin", f":{ref}", check=False, cwd=cwd)
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "").strip()
+        hint = _push_hint(detail)
+        if hint is not None:
+            raise CoordAuthError(f"could not delete {ref} on the remote: "
+                                 f"{hint}\n{detail}")
+        raise CoordError(f"could not delete {ref} on the remote (it is still "
+                         f"held):\n{detail}")
+    git("update-ref", "-d", ref, check=False, cwd=cwd)
+
+
 def delete_refs_for_area(area: str, cwd: Optional[str] = None) -> None:
+    """Delete every lease ref for ``area``, or raise if any survives.
+
+    Deleting a ref that is already gone is a no-op that git reports as success,
+    so this is safe to call when the remote is only suspected of holding one.
+    """
     for ref in refs_for_area(area, cwd) or [ref_for(area)]:
-        git("push", "origin", f":{ref}", check=False, cwd=cwd)
-        git("update-ref", "-d", ref, check=False, cwd=cwd)
+        _delete_lease_ref(ref, cwd=cwd)
 
 
 def clear_legacy_refs(area: str, cwd: Optional[str] = None) -> bool:
@@ -564,8 +590,7 @@ def clear_legacy_refs(area: str, cwd: Optional[str] = None) -> bool:
     ref = ref_for(area)
     stale = [r for r in refs_for_area(area, cwd) if r != ref]
     for r in stale:
-        git("push", "origin", f":{r}", check=False, cwd=cwd)
-        git("update-ref", "-d", r, check=False, cwd=cwd)
+        _delete_lease_ref(r, cwd=cwd)
     return bool(stale)
 
 
@@ -740,6 +765,9 @@ def cmd_release(args: argparse.Namespace) -> int:
                          + f", not {args.agent}"
                          + (f" on {branch}" if lease.branch and branch else ""))
     delete_ref(args.area)
+    # `delete_ref` raises if the remote refused the delete (or is unreachable), so
+    # reaching here means the ref is actually gone: a release that did not land
+    # must not print success (issue #392, the same silent-success class as #381).
     # Drop the convenience `status:` mirror immediately rather than waiting up to
     # a sweep interval.  Best-effort and only against a real GitHub remote, so a
     # local test run never touches the network.  (`sweep --gh` is the backstop.)
@@ -1243,8 +1271,7 @@ def cmd_sweep(args: argparse.Namespace) -> int:
     legacy = [r for r in list_refs()
               if len(r[len(REF_PREFIX) + 1:].split("/")) == 2]
     for ref in legacy:
-        git("push", "origin", f":{ref}", check=False)
-        git("update-ref", "-d", ref, check=False)
+        _delete_lease_ref(ref)
     if legacy:
         print(f"cleared {len(legacy)} legacy per-issue ref(s).")
 
