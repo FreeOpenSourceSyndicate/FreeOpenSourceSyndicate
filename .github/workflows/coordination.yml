@@ -7,10 +7,11 @@
 #
 #   * verify - a hard gate: two live leases must never collide on an area or an
 #              issue. Runs on every relevant push/PR, so a bad claim fails fast.
-#   * sweep  - deletes expired lease refs, syncs issue labels/claims, and
-#              regenerates docs/COORDINATION_BOARD.md, committing it when it
-#              changed. Runs on a schedule (and on demand), so an agent that
-#              aborts mid-cycle strands nothing: its lease simply ages out and
+#   * sweep  - deletes expired lease refs, syncs issue labels/claims, clears a
+#              `status: blocked` whose `blocked-by:` blockers have all closed
+#              (ADR-0030), and regenerates docs/COORDINATION_BOARD.md, committing
+#              it when it changed. Runs on a schedule (and on demand), so an agent
+#              that aborts mid-cycle strands nothing: its lease simply ages out and
 #              the area becomes claimable again. Nobody hand-edits a "refresh the
 #              queue" PR any more - the board is generated from the ledger.
 name: Coordination

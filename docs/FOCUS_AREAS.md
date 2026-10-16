@@ -380,6 +380,9 @@ coordination; the ledger is the single source of truth.
   policy) is posted **by the asking agent directly to the human maintainer**, on
   the issue thread, tagged `question` + `status: blocked`, with options and a
   recommendation. **Do not route it through anyone, and do not wait silently.**
+  A question carries **no** `blocked-by:` line: that line means "waiting on a
+  closed issue", and the sweep clears `status: blocked` for it automatically
+  (ADR-0030). `question` is what keeps the sweep's hands off.
 
 ### 5.3 Claims and leases — how abandonment is handled
 

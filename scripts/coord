@@ -110,6 +110,15 @@ LEGACY_CLAIM_RE = re.compile(r"^\s*CLAIM:\s*(?P<agent>[^|]+)\|\s*(?P<area>[^|]+)
 LEGACY_LEASE_RE = re.compile(r"^\s*LEASE:\s*(?P<agent>[^|]+)\|\s*(?P<branch>[^|]+?)\s*\|", re.M)
 LEGACY_TAKEOVER_RE = re.compile(r"^\s*TAKEOVER:\s*(?P<agent>[^|]+)\|\s*(?P<area>[^|]+)", re.M)
 
+# A cross-area block is declared machine-readably in the dependent issue's body
+# as `blocked-by: #<n>` (docs/COORDINATION.md §3, ADR-0030).  The sweep clears
+# `status: blocked` once every referenced issue is closed, so a block lifts
+# itself instead of waiting for an agent to remember (issue #326).  Several
+# numbers may share one line (`blocked-by: #311, #312`).
+BLOCKED_BY_RE = re.compile(r"blocked-by:\s*(?P<refs>#[0-9]+(?:\s*,\s*#[0-9]+)*)",
+                           re.IGNORECASE)
+ISSUE_REF_RE = re.compile(r"#([0-9]+)")
+
 
 # --------------------------------------------------------------------------- #
 # Small helpers
@@ -859,6 +868,10 @@ def cmd_sweep(args: argparse.Namespace) -> int:
         # sweep the GitHub side for `status:` labels with no live lease behind
         # them.  This is what keeps the mirror from drifting (issue #222).
         _reconcile_status_labels({l.issue for l in leases if l.is_live(at)})
+        # A cross-area block (`status: blocked` + `blocked-by: #<n>`) lifts itself
+        # once its blocker(s) close, so a dependent issue becomes claimable again
+        # without an agent remembering (issue #326, ADR-0030).
+        _clear_resolved_blocks(_open_issue_numbers())
 
     if not args.no_board:
         cmd_board(argparse.Namespace(offline=True, stdout=False, path=args.board_path))
@@ -962,6 +975,89 @@ def _reconcile_status_labels(live_issues: set[int]) -> None:
         try:
             gh("issue", "edit", str(number), "--remove-label", "status: claimed")
             print(f"cleared stale status: claimed on open issue #{number}")
+        except (CoordError, OSError) as exc:  # pragma: no cover
+            print(f"warning: could not clear label on #{number}: {exc}",
+                  file=sys.stderr)
+
+
+def blocked_by_refs(body: str) -> set[int]:
+    """Issue numbers named by `blocked-by:` lines in ``body``.
+
+    The declaration is ``blocked-by: #311`` (several per line allowed:
+    ``blocked-by: #311, #312``).  Only the numbers on a `blocked-by:` line are
+    read, so prose that happens to mention an issue does not create a block.
+    """
+    refs: set[int] = set()
+    for match in BLOCKED_BY_RE.finditer(body or ""):
+        refs.update(int(n) for n in ISSUE_REF_RE.findall(match.group("refs")))
+    return refs
+
+
+def _open_issue_numbers() -> Optional[set[int]]:
+    """The set of open issue numbers, or ``None`` if GitHub could not be read.
+
+    ``None`` (not an empty set) is the "unknown" answer: a sweep must never treat
+    a failed read as "everything is closed" and clear a live block.
+    """
+    try:
+        proc = gh("issue", "list", "--state", "open", "--limit", "500",
+                  "--json", "number", check=False)
+    except OSError:  # gh binary absent
+        return None
+    if proc.returncode != 0:
+        return None
+    try:
+        rows = json.loads(proc.stdout or "[]")
+    except json.JSONDecodeError:
+        return None
+    return {int(row["number"]) for row in rows}
+
+
+def _clear_resolved_blocks(open_numbers: Optional[set[int]]) -> None:
+    """Clear `status: blocked` from issues whose `blocked-by:` blockers all closed.
+
+    A cross-area block is declared by hand as `status: blocked` plus a
+    machine-readable `blocked-by: #<n>` in the body (docs/COORDINATION.md §3,
+    ADR-0030).  Nothing used to clear it when the blocker landed, so the issue
+    stayed unclaimable forever and a *fresh* agent was never routed to it —
+    `next` skips `status: blocked` by design (ADR-0026, issue #326).
+
+    Scope is deliberately narrow, mirroring `_reconcile_status_labels`:
+
+    - **`status: blocked` with at least one `blocked-by:` ref only** — a human
+      question (§5.2) also carries `status: blocked` but has no `blocked-by:`
+      line, so it is never touched;
+    - **every** referenced issue must be *known closed* — ``open_numbers`` is the
+      open set, and ``None`` (an unreadable GitHub) clears nothing.
+
+    Best-effort: a failure never aborts a sweep.
+    """
+    if open_numbers is None:
+        return
+    try:
+        proc = gh("issue", "list", "--state", "open", "--limit", "500",
+                  "--json", "number,body,labels", check=False)
+    except OSError:  # gh binary absent
+        return
+    if proc.returncode != 0:
+        return
+    try:
+        rows = json.loads(proc.stdout or "[]")
+    except json.JSONDecodeError as exc:  # pragma: no cover
+        print(f"warning: blocked-by reconcile skipped: {exc}", file=sys.stderr)
+        return
+    for row in rows:
+        number = int(row["number"])
+        names = {l.get("name") for l in row.get("labels", [])}
+        if "status: blocked" not in names:
+            continue
+        refs = blocked_by_refs(row.get("body") or "")
+        if not refs or refs & open_numbers:
+            continue
+        try:
+            gh("issue", "edit", str(number), "--remove-label", "status: blocked")
+            print(f"cleared resolved status: blocked on open issue #{number} "
+                  f"(blockers {sorted(refs)} closed)")
         except (CoordError, OSError) as exc:  # pragma: no cover
             print(f"warning: could not clear label on #{number}: {exc}",
                   file=sys.stderr)
