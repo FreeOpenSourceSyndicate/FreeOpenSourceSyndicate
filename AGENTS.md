@@ -924,8 +924,12 @@ Do not start work outside the scope fence (ADR-0024).
   (`path_ == found.path`) keeps the current `nextWaypoint_`, because the AI
   re-paths every tick while retreating (`Mission::stepAwayFrom`) — resetting the
   index each tick oscillated the agent back to its centre (caught by
-  `Mission.WoundedEnemyRetreats`). Regression test:
-  `Agent.MoveToNeverEntersABlockedTileFromAnOffCentrePosition` (`tests/test_agent.cpp`).
+  `Mission.WoundedEnemyRetreats`). Guards (issue #409):
+  `Agent.MoveToNeverEntersABlockedTileFromAnOffCentrePosition` and the Vehicle
+  mirror `Vehicle.DriveToNeverEntersABlockedTileFromAnOffCentrePosition` pin the
+  start-waypoint half, and `Agent.MoveToReissuedSameRouteKeepsProgress` /
+  `Vehicle.DriveToReissuedSameRouteKeepsProgress` pin the same-route half (each
+  fails under the corresponding pre-#398 behaviour).
 - **Squad loadout is applied at mission load (issue #311, ADR-0027):**
   `core::PlayerLoadout` (`core/sim/PlayerLoadout.h`, header-only, data-only
   `weaponId`/`gadgetId` per slot) plus `core::applyLoadout(loadout, mission,
