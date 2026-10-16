@@ -13,6 +13,40 @@ FOSSYND_TEST(Agent, MoveToFindsPath)
     FOSSYND_CHECK(agent.hasPath());
 }
 
+// An off-centre agent must never clip the corner of a blocked tile on its way to
+// the first waypoint. A path is validated centre-to-centre, so `moveTo` now keeps
+// the agent's own tile centre as the first waypoint: skipping it let an agent
+// standing at a fractional position walk straight at the second waypoint and cut
+// a corner the centre line never crossed, landing inside a wall (and, once its
+// tile was blocked, `findPathToNearest` could not path it back out).
+FOSSYND_TEST(Agent, MoveToNeverEntersABlockedTileFromAnOffCentrePosition)
+{
+    TileGrid grid(8, 7);
+    const TilePos blocked[] = {{6, 0}, {5, 1}, {7, 2}, {6, 3}, {1, 5}, {3, 5}, {0, 6}};
+    for (const TilePos& b : blocked)
+    {
+        grid.setWalkable(b.x, b.y, false);
+    }
+
+    // Standing off-centre inside walkable (5,2) — the position a mid-move agent
+    // actually has, not the integer centre the tests above assume.
+    Agent agent(0.0f, 0.0f, 3.0f);
+    agent.setPosition(5.29069996f, 1.57879996f);
+    FOSSYND_CHECK_EQ(agent.tile().x, 5);
+    FOSSYND_CHECK_EQ(agent.tile().y, 2);
+
+    FOSSYND_CHECK(agent.moveTo(grid, TilePos{0, 1}));
+    for (int tick = 0; tick < 800; ++tick)
+    {
+        agent.update(1.0f / 60.0f);
+        const TilePos at = agent.tile();
+        if (grid.inBounds(at.x, at.y))
+        {
+            FOSSYND_CHECK(grid.isWalkable(at.x, at.y));
+        }
+    }
+}
+
 FOSSYND_TEST(Agent, MoveToUnreachableWalksAsCloseAsPossible)
 {
     // A full wall at x=2 blocks the goal at (4,0). moveTo no longer drops the

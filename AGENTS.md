@@ -861,6 +861,20 @@ Do not start work outside the scope fence (ADR-0024).
   60x60 serpentine cost ~1.6M probes / ~54 ms vs. ~180 us for the search), which
   would stall a frame (ADR-0008). Realistic orders stay far under the budget, so
   their smoothing is unchanged. `simplifyPath` is internal to `Pathfinding.cpp`.
+- **A move route keeps the agent's own tile centre as its first waypoint:**
+  `Agent::moveTo` (and `Vehicle::driveTo`) set `nextWaypoint_ = 0` for a
+  *new* route instead of skipping the start tile. A path is validated
+  centre-to-centre, but an agent stands at a fractional position, so walking
+  straight at the second waypoint could cut the corner of a tile the centre line
+  never touched — the agent clipped a wall (fuzz: ~1 in 2500 off-centre orders)
+  and, once its tile was blocked, `findPathToNearest` refused to move it, so it
+  was **permanently stuck**. Visiting the tile centre first makes every walked
+  segment a validated centre-to-centre segment. Re-issuing the *same* route
+  (`path_ == found.path`) keeps the current `nextWaypoint_`, because the AI
+  re-paths every tick while retreating (`Mission::stepAwayFrom`) — resetting the
+  index each tick oscillated the agent back to its centre (caught by
+  `Mission.WoundedEnemyRetreats`). Regression test:
+  `Agent.MoveToNeverEntersABlockedTileFromAnOffCentrePosition` (`tests/test_agent.cpp`).
 - **Squad loadout is applied at mission load (issue #311, ADR-0027):**
   `core::PlayerLoadout` (`core/sim/PlayerLoadout.h`, header-only, data-only
   `weaponId`/`gadgetId` per slot) plus `core::applyLoadout(loadout, mission,
