@@ -345,6 +345,14 @@ private:
     // with a non-zero area radius (issue #79).
     void applyAreaDamage(std::size_t attacker, std::size_t target, float damage, float radius);
 
+    // Chips every destructible, unbreached tile whose centre lies within `radius`
+    // tiles of `impact` (a position in tile space), opening the ones whose hit
+    // points run out. Called for every explosive blast — a weapon's area damage
+    // and a vehicle wreck's detonation — so an explosion breaches walls the way a
+    // blocked shot does, not only the single tile a round landed on (#185).
+    // Deterministic; no RNG. A null grid is a no-op.
+    void breachTilesInBlast(const Vec2& impact, float radius, float damage);
+
     // The single point where weapon damage reaches an agent. A raised shield
     // absorbs the hit entirely and drops; otherwise the damage is applied
     // normally. Returns the damage actually dealt (0 when a shield absorbed it).

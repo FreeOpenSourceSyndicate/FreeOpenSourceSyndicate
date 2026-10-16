@@ -1471,6 +1471,36 @@ void Mission::resolveFire()
     }
 }
 
+void Mission::breachTilesInBlast(const Vec2& impact, float radius, float damage)
+{
+    if (grid_ == nullptr || radius <= 0.0f || damage <= 0.0f)
+    {
+        return;
+    }
+    // A tile's centre is at (x, y) in tile space, so it is in the blast when its
+    // centre lies within `radius` of the impact. The scan is bounded to the
+    // radius box (and the board); squared distance avoids a square root.
+    const float r2 = radius * radius;
+    const int minX = std::max(0, static_cast<int>(impact.x - radius));
+    const int maxX = std::min(grid_->width() - 1, static_cast<int>(impact.x + radius));
+    const int minY = std::max(0, static_cast<int>(impact.y - radius));
+    const int maxY = std::min(grid_->height() - 1, static_cast<int>(impact.y + radius));
+    for (int y = minY; y <= maxY; ++y)
+    {
+        for (int x = minX; x <= maxX; ++x)
+        {
+            // `isDestructible` is false once a tile has been breached, so an
+            // already-open tile is never re-chipped.
+            const float dx = static_cast<float>(x) - impact.x;
+            const float dy = static_cast<float>(y) - impact.y;
+            if (dx * dx + dy * dy <= r2 && grid_->isDestructible(x, y))
+            {
+                grid_->damageTile(x, y, static_cast<int>(damage));
+            }
+        }
+    }
+}
+
 void Mission::applyAreaDamage(std::size_t attacker, std::size_t target, float damage, float radius)
 {
     const Vec2 impact = agents_[target].position();
@@ -1519,7 +1549,9 @@ void Mission::applyAreaDamage(std::size_t attacker, std::size_t target, float da
             continue;
         }
         // The wreck detonates: agents near it take a fraction of its size in
-        // damage. Deterministic; no RNG.
+        // damage, and the blast breaches destructible walls the wreck touches.
+        breachTilesInBlast(vehicle.position(), kVehicleWreckRadius,
+                           maxHealth * kVehicleWreckDamageScale);
         for (std::size_t i = 0; i < agents_.size(); ++i)
         {
             Agent& agent = agents_[i];
@@ -1531,6 +1563,10 @@ void Mission::applyAreaDamage(std::size_t attacker, std::size_t target, float da
             damageAgent(i, maxHealth * kVehicleWreckDamageScale);
         }
     }
+
+    // The explosion itself breaches destructible walls in its radius, not just
+    // the one tile a blocked shot would have landed on (#185).
+    breachTilesInBlast(impact, radius, damage);
 }
 
 void Mission::applyStrayFire(std::size_t attacker, std::size_t target, float damage)

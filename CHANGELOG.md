@@ -8,6 +8,19 @@ contains no original assets, code, names, or trademarks.
 
 ## [Unreleased]
 
+### Added
+
+- **Explosions breach destructible walls.** Weapon fire could already open a
+  cracked wall, but only the single tile a *blocked* round landed on: a rocket
+  aimed at a defender in the open left every wall around the impact standing,
+  and a blast never touched walls at all. `Mission::applyAreaDamage` now calls a
+  new `breachTilesInBlast`, which chips every destructible tile whose centre is
+  within the blast radius and opens the ones whose hit points run out — so the
+  launcher (and any future area weapon) breaches a room the way a point shot
+  chips one tile. A vehicle wreck's detonation breaches walls in its own blast
+  too, and a solid wall is still unbreakable. Engine-free and deterministic
+  (no RNG); `focus: tactical`. Issue #411.
+
 ### Changed
 
 - **The low-spec binary-size budget rose to 336 KiB** (from 320 KiB): `main` had
