@@ -64,6 +64,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Iterable, Optional
 
 # --------------------------------------------------------------------------- #
@@ -106,6 +107,12 @@ CRITICAL_PATH_AREAS = ("metagame", "tactical")
 
 # Unchecked roadmap items are the backlog seed when nothing is claimable.
 ROADMAP_PATH = "docs/ROADMAP.md"
+
+# A green, non-draft PR that has waited this long is *drainable*: merging it is
+# finished work one step from landing (near-zero marginal cost), so `next` offers
+# it ahead of *claiming* new work.  The floor stops an agent from abandoning its
+# own claim the instant a peer opens a PR; critical-path work still goes first.
+MERGE_DRAIN_MIN_AGE = 30 * 60
 
 # The legacy protocol, still accepted on read so a claim posted by an old agent
 # mid-migration is honoured.  See docs/COORDINATION_MIGRATION.md.
@@ -807,6 +814,79 @@ def _open_issues_by_area() -> dict[str, list[tuple[int, bool]]]:
             for area, items in buckets.items()}
 
 
+def _now_epoch() -> int:
+    """The wall clock as an epoch, honouring the test override.
+
+    ``coord now()`` in scripts/coord is the ledger's clock (it also feeds
+    ``COORD_NOW``); this reads the *real* time so a fake ledger clock in the tests
+    does not age every PR to "drainable".  Tests stub whole helpers instead.
+    """
+    override = os.environ.get("COORD_NOW")
+    if override:
+        try:
+            return int(override)
+        except ValueError:
+            pass
+    return int(time.time())
+
+
+def _drainable_prs(min_age: int = MERGE_DRAIN_MIN_AGE) -> list[dict]:
+    """Open, non-draft PRs whose checks are green and that have waited a while.
+
+    A PR that is finished, reviewed, and green is work *one step from landing*;
+    leaving it open is the most expensive kind of idle — the work is done and
+    worth nothing until merged.  So `next` offers the oldest such PR to be
+    adopted and merged (AGENTS.md §3a) rather than letting a fresh agent start
+    new work and orphan the PR.  Returns ``[]`` on any failure (gh absent,
+    offline, no auth): `next` must still answer, so this never raises.
+
+    A PR counts as drainable when all hold:
+      * it is ``OPEN`` and **not a draft** (a draft is not finished);
+      * its merge state is ``CLEAN`` (mergeable, checks green, no conflicts);
+      * it has been open at least ``min_age`` seconds (the floor that stops a
+        claim from being abandoned the moment a peer pushes).
+    The oldest PR is offered first, so the queue drains FIFO and a *stuck* PR
+    (any kind of stall) is reached before a merely young one.
+    """
+    try:
+        proc = gh("pr", "list", "--state", "open", "--limit", "50", "--json",
+                  "number,title,isDraft,mergeStateStatus,createdAt", check=False)
+    except OSError:  # gh binary absent
+        return []
+    if proc.returncode != 0:
+        return []
+    try:
+        rows = json.loads(proc.stdout or "[]")
+    except json.JSONDecodeError:
+        return []
+    at = _now_epoch()
+    drainable = []
+    for row in rows:
+        if row.get("isDraft"):
+            continue
+        if (row.get("mergeStateStatus") or "").upper() != "CLEAN":
+            continue
+        created = _iso_epoch(row.get("createdAt", ""))
+        if created is None:
+            continue
+        if at - created < min_age:
+            continue
+        drainable.append({**row, "_age": at - created})
+    drainable.sort(key=lambda r: r["_age"], reverse=True)
+    return drainable
+
+
+def _iso_epoch(stamp: str) -> Optional[int]:
+    """Parse a GitHub ISO-8601 timestamp (``...Z``) into an epoch, or None."""
+    if not stamp:
+        return None
+    try:
+        text = stamp.replace("Z", "+00:00")
+        return int(datetime.fromisoformat(text).timestamp())
+    except ValueError:
+        return None
+
+
 def _roadmap_gaps(limit: int = 3) -> list[str]:
     """The first unchecked roadmap items — the seed when the backlog is empty."""
     try:
@@ -834,17 +914,21 @@ def cmd_next(args: argparse.Namespace) -> int:
 
       1. you already hold a lease        -> renew / finish / release it
       2. a critical-path area is free    -> claim its next claimable issue
-      3. any free area has an issue      -> claim its next claimable issue
-      4. any area is free but has no issue, or a live lease is stale
+      3. a green PR has waited           -> review and merge it (drain the queue)
+      4. any free area has an issue      -> claim its next claimable issue
+      5. any area is free but has no issue, or a live lease is stale
                                          -> file the roadmap gap as a new issue
-      5. nothing is claimable at all     -> review an open PR you did not author
+      6. nothing is claimable at all     -> review an open PR you did not author
                                             (the fleet's other durable job)
 
     "Next claimable" skips unclaimable issues (`status: blocked`, `question`,
     `deferred: v2`) and treats a Rule 4 request (`status: needs-review`) as a
     *blocker*: another lane is waiting on it (FOCUS_AREAS §4), so a blocker in any
     free critical-path area is offered before plain work in the first one
-    (ADR-0026).
+    (ADR-0026).  Rung 3 sits between them by design: a green, non-draft PR is
+    *finished* work one step from landing, so merging it beats *starting* new work
+    even in a free non-critical area, but it never preempts a waiting blocker or
+    the critical path (ADR-0035).
     """
     if not args.offline:
         fetch_ledger()
@@ -894,12 +978,29 @@ def cmd_next(args: argparse.Namespace) -> int:
         if area in free and by_area.get(area):
             return _emit_claim(area, by_area[area][0][0], critical=True)
 
-    # 3. Any free area with work.
+    # 3. Drain the merge queue.  A green, non-draft PR that has waited is finished
+    #    work one step from landing: merging it costs almost nothing and is worth
+    #    more than *starting* new work, which commits a whole cycle and risks
+    #    orphaning the PR that was already done.  This outranks a non-critical
+    #    claim (ADR-0035) — it is the rung that stops "6 free areas, one green PR
+    #    unmerged for an hour".
+    drainable = _drainable_prs()
+    if drainable:
+        pr = drainable[0]
+        age = human_delta(pr["_age"])
+        print(f"Merge queue: PR #{pr['number']} is green, non-draft, and {age} old "
+              f"(no author needed).")
+        print(f"  {pr['title']}")
+        print(f"  -> review and merge it (AGENTS.md §3a):")
+        print(f"     gh pr view {pr['number']} && gh pr merge {pr['number']} --squash")
+        return 0
+
+    # 4. Any free area with work.
     for area in free:
         if by_area.get(area):
             return _emit_claim(area, by_area[area][0][0])
 
-    # 4. Free areas exist but the backlog is empty -> seed it.
+    # 5. Free areas exist but the backlog is empty -> seed it.
     gaps = _roadmap_gaps()
     if free:
         area = next((a for a in CRITICAL_PATH_AREAS if a in free), free[0])
@@ -915,7 +1016,7 @@ def cmd_next(args: argparse.Namespace) -> int:
         print("   is fixed by adding work, not by adding agents.)")
         return 0
 
-    # 5. Everything is held (or stale).  Fall through to the other durable job.
+    # 6. Everything is held (or stale).  Fall through to the other durable job.
     stale = [l for l in leases if l.is_stale(at)]
     if stale:
         l = stale[0]

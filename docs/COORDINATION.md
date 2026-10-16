@@ -141,20 +141,26 @@ that applies, so there is always a next step:
 1. **You hold a lease** → finish it, or `renew`/`release` it.
 2. **A critical-path area is free** (`metagame`, `tactical`; `docs/ROADMAP.md`)
    → claim its newest open issue.
-3. **Any free area has an open issue** → claim the newest such issue.
-4. **The backlog is empty** → it prints the first unchecked `docs/ROADMAP.md`
+3. **A green PR has waited** (non-draft, merge state `CLEAN`, open ≥ 30 min)
+   → review and merge it (`AGENTS.md` §3a). A green PR is *finished* work one
+   step from landing: merging it is worth more than *starting* new work, which
+   commits a cycle and risks orphaning the PR that was already done. This is how
+   the queue drains without a coordinator (ADR-0035). It never preempts a waiting
+   blocker or the critical path (rung 2).
+4. **Any free area has an open issue** → claim the newest such issue.
+5. **The backlog is empty** → it prints the first unchecked `docs/ROADMAP.md`
    items and tells you to **file an issue** (with a `focus: <area>` label) and
    claim it. This is the fleet's only stop condition, and the fix is to **add
    work, not agents** (`AGENTS.md` §1d, ADR-0024).
-5. **Every area is held** → it points at a **stale** holder to take over, or, if
+6. **Every area is held** → it points at a **stale** holder to take over, or, if
    none is stale, at the fleet's other durable job: **review and merge an open PR
    you did not author** (`AGENTS.md` §3a).
 
-Rungs 4 and 5 are what make the fleet self-sustaining: even with every area
-taken and no issue filed, an agent is told to create work or to review, never to
+Rungs 3, 5 and 6 are what make the fleet self-sustaining: even with every area
+taken, an agent is told to drain the queue, create work, or review — never to
 wait.
 
-**Only claimable work is offered.** Rungs 2–3 read open issues by their `focus:`
+**Only claimable work is offered.** Rungs 2 and 4 read open issues by their `focus:`
 label and skip any that are not claimable — `status: blocked` (waiting on another
 area), `question` (a human decision, §5.2), and `deferred: v2` (out of v1.0.0
 scope, ADR-0024). A **Rule 4 request** (`status: needs-review`) is marked a

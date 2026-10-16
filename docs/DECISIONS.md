@@ -1885,6 +1885,7 @@ artifact, and the flat ref-based scheme is the only live mechanism. If the fleet
 ever wants it gone, the delete is a self-contained removal of the three regexes,
 `cmd_migrate`, and the `migrate` help text — no other caller exists.
 
+
 ---
 
 ## ADR-0034 — A lease is identified by agent *and* branch, so same-model agents do not collide
@@ -1966,4 +1967,79 @@ ever wants it gone, the delete is a self-contained removal of the three regexes,
   explicit-`--branch` paths, and are proven to bite by reverting the guard to
   name-only matching.
 
+
+## ADR-0035 — `coord next` drains the merge queue before claiming fresh work
+
+- **Status:** Accepted (2026-10-15)
+- **Date:** 2026-10-15
+- **Amends:** ADR-0025 / ADR-0026. The flat, no-coordinator model and the lease
+  are unchanged; this inserts one rung into the never-idle ladder.
+
+- **Context:** After the metagame milestone closed, a monitoring pass found the
+  fleet **idle in its merge phase**: six areas were free, yet a green, non-draft,
+  fully-reviewed PR (#336) sat unmerged for over an hour. The cause is a routing
+  gap, not a missing agent:
+
+  - `coord next` reached its "review and merge a PR you did not author" job
+    **only at the last rung** — i.e. only when *every* area was held. With areas
+    free and claimable issues open, the ladder always offered a **claim** first,
+    so a fresh agent started new work and left the finished PR to age.
+  - Claiming is the *expensive* action: it commits an agent to a whole cycle and
+    makes the newly-started work a fresh orphan risk. Merging a green PR is the
+    *cheap* action: the work is already done, reviewed and passing; it needs one
+    command. The ladder ranked the expensive action ahead of the cheap one.
+  - This is the same class of defect ADR-0025/0026 closed (a wrong routing answer
+    burns a cycle and hides finished work), so it belongs in the mechanism, not
+    in a convention an agent must remember.
+
+- **Options:**
+
+  1. **Leave it; agents will merge peers' PRs.** Rejected: the observed stall
+     proves they do not — all running agents were heads-down on their own claims,
+     and the ladder actively steered new agents away from merging.
+  2. **Add a coordinator / merge bot.** Rejected — reintroduces authority and a
+     service that fails when it pauses (ADR-0019/0021/0025).
+  3. **Make draining a rung of `next`.** Chosen: the ladder itself prefers
+     merging a waited green PR over claiming non-critical work, so no agent has to
+     judge and no human has to nudge.
+
+- **Decision:** **Option 3.** `coord next` gains a rung **between** the
+  critical-path claim and the plain claim:
+
+  > 1. finish a held lease → 2. claim a free critical-path issue →
+  > **3. drain the merge queue: review+merge a green, non-draft PR open ≥ 30 min**
+  > → 4. claim any free area's issue → 5. file the roadmap gap → 6. review a PR.
+
+  A PR is **drainable** when it is open, **not** a draft, its merge state is
+  `CLEAN` (mergeable, checks green, no conflicts), and it has been open at least
+  `MERGE_DRAIN_MIN_AGE` (30 min). The oldest drainable PR is offered first, so the
+  queue drains FIFO and a *stuck* PR is reached before a merely young one.
+
+  The position is deliberate:
+
+  - **It outranks a plain (non-critical) claim.** A green PR is finished work one
+    step from landing; merging it beats *starting* new work, which commits a cycle
+    and risks orphaning the PR that was already done.
+  - **It never preempts the critical path or a waiting blocker** (rung 2). The
+    release is never starved by draining, and a peer blocked on a Rule 4 request
+    is still unblocked first.
+  - **It sits below rung 1.** You finish your own lease before adopting a PR; the
+    30-min floor also stops a claim from being abandoned the instant a peer pushes.
+
+- **Consequences:**
+
+  - A green PR can no longer idle behind free areas: the moment it is 30 min old
+    and `CLEAN`, `next` offers it to the first idle agent. This is the peer
+    replacement for a coordinator draining the queue, now reachable at rung 3
+    instead of only at the last rung.
+  - **No new command, no new label, no schema change.** `next` reads one more
+    GitHub query (`pr list`) and narrows what it offers; `claim`/`renew`/`release`
+    are untouched and the lease is still the lock.
+  - Best-effort like every `next` read: `gh` absent, offline, or unauthenticated
+    yields no drainable PRs and the ladder falls through — `next` still answers.
+  - **The transition is a no-op for in-flight agents.** Only a read-only command
+    changes; no lease, branch or PR is affected.
+  - Covered by `tests/test_coord.py` (`TestNextAction.*drain*`, `TestDrainablePrs`),
+    which stub the GitHub reads and assert the ordering (drain before plain claim,
+    after the critical path, never ahead of your own lease).
 

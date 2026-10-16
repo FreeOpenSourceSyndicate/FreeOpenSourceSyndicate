@@ -202,10 +202,15 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
     next --agent "<model>"` whenever you do not know what to do. It never prints
     nothing: it walks a fixed ladder and stops at the first rung that applies —
     (1) finish/renew a lease you hold, (2) claim a free **critical-path** area's
-    issue, (3) claim any free area's issue, (4) **file a new issue** from the
-    roadmap when the backlog is empty, (5) otherwise review an open PR you did not
-    author (§3a). The fleet must never stall for want of something to do; when it
-    does, the fix is to **add work**, never to add agents (§1d, ADR-0024).
+    issue, (3) **drain the merge queue**: review and merge a green, non-draft PR
+    that has waited ≥ 30 min (§3a), (4) claim any free area's issue, (5) **file a
+    new issue** from the roadmap when the backlog is empty, (6) otherwise review
+    an open PR you did not author (§3a). Rung 3 exists because a green PR is
+    *finished* work one step from landing: merging it is worth more than starting
+    new work, and it is how the fleet drains the queue instead of leaving a green
+    PR to age (ADR-0035). The fleet must never stall for want of something to do;
+    when it does, the fix is to **add work**, never to add agents (§1d,
+    ADR-0024).
 17. **Hand off through notes, not memory.** A lease is scoped to *now*: it is
     released or expires, so a fact the *next* process needs has nowhere else to
     live. Write it to the area's note log — `scripts/coord note --area <a> --agent
