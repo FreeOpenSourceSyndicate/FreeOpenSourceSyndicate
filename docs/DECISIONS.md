@@ -1558,3 +1558,50 @@ for reassignment by a coordinator.
   - A campaign that cannot be won (a neutral region with no `missionId`, or one
     walled off from any player territory) is now a **test failure**, not a
     silent dead end.
+
+## ADR-0030 — A cross-area block declares `blocked-by:` and clears itself
+
+- **Status:** Accepted (2026-10-16)
+- **Date:** 2026-10-16
+- **Context:** A cross-area block is declared by hand as `status: blocked` on the
+  dependent issue (`docs/COORDINATION.md` §3). Nothing cleared it when the
+  blocker landed, so the issue stayed unclaimable forever and a **fresh** agent
+  was never routed to it — `next` skips `status: blocked` by design (ADR-0026).
+  Observed: #312 was filed blocked on tactical R1 (#311); #311 merged and closed,
+  yet at the next cycle #312 was still blocked and `next` offered a different
+  tactical issue instead. The metagame agent only resumed because it re-read its
+  own tracker by hand; a new process would not have. `_reconcile_status_labels`
+  could not help: it clears only `status: claimed`, because `status: blocked` is
+  also the human-question convention (§5.2), which has no lease and must not be
+  touched.
+
+- **Options:**
+  1. **Clear on closure by scanning prose.** Rejected: the block is a sentence
+     today, so "does this body reference #311?" matches any passing mention, and
+     a false positive clears a live block.
+  2. **Document the manual step.** Rejected: it relies on an agent remembering —
+     the exact failure just observed.
+  3. **Make the dependency machine-readable.** Chosen: the dependent issue's body
+     carries `blocked-by: #<n>`, and the sweep clears `status: blocked` once every
+     referenced issue is closed. Self-clearing, no new authority, no new label.
+
+- **Decision:** **Option 3.** A cross-area block is declared as `status: blocked`
+  **plus** a `blocked-by: #<n>` line in the issue body (several numbers per line
+  allowed). The scheduled `sweep` reads the open-issue set once and, for each open
+  issue carrying `status: blocked` whose `blocked-by:` refs are **all closed**,
+  removes the label (`scripts/coord`, `_clear_resolved_blocks`). Two guard rails
+  keep the scope as narrow as the existing reconciler:
+  - an issue with **no** `blocked-by:` refs is never touched, so a §5.2 human
+    question (which also carries `status: blocked`) is safe;
+  - if GitHub cannot be read the sweep clears **nothing** — an unknown open set is
+    not an empty one, so a failed read never drops a live block.
+
+- **Consequences:**
+  - A block lifts itself the cycle after its last blocker closes, so the issue is
+    claimable again and `next` routes to it with no human or agent edit.
+  - Declaring a block gains one required line; the block stays *visible* (label +
+    board) while it is real, and the reason is now greppable rather than prose.
+  - The human-question convention is unchanged: it carries no `blocked-by:` line,
+    so the sweep ignores it, exactly as it ignores a Rule 4 request today.
+  - A block whose blocker never closes still waits forever by design — the sweep
+    only ever *lifts* a block, never creates or extends one.

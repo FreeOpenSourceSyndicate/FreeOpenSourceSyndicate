@@ -105,6 +105,13 @@ breath.
 2. **You need a change in another area's files.** Do not edit them. File a
    cross-area request (`docs/FOCUS_AREAS.md` §4, Rule 4) and work on something
    else; the owner (or, if the area is free, you) picks it up.
+   If **your own** issue cannot start until that request lands, mark it
+   `status: blocked` **and** add a `blocked-by: #<n>` line to its body (several
+   numbers per line allowed: `blocked-by: #311, #312`). The scheduled `sweep`
+   clears `status: blocked` automatically once **every** referenced issue is
+   closed, so the block lifts itself — no agent has to remember (ADR-0030). An
+   issue with no `blocked-by:` line is never touched, which is what keeps the
+   §3.3 human-question use of `status: blocked` safe.
 3. **You hit a genuinely human question** (product direction, licensing, a rule
    change, release policy). Post it **yourself** on the issue thread, tagged
    `question` + `status: blocked`, with options and a recommendation, and continue
@@ -260,8 +267,12 @@ change for a *working* agent, all non-destructive:
   re-files it when they next touch it.
 - **A stray `status: claimed` may be cleared** by the sweep when no live lease
   backs it. The **lease is authoritative**, so if the label is dropped, `renew`
-  restores it; a human question (`status: blocked`) and a Rule 4 request
-  (`status: needs-review`) are left alone.
+  restores it; a human question (`status: blocked` with no `blocked-by:` line) and
+  a Rule 4 request (`status: needs-review`) are left alone.
+- **A resolved block clears itself** (ADR-0030). A `status: blocked` issue whose
+  body carries `blocked-by: #<n>` loses the label once every referenced issue is
+  closed, so a dependent issue becomes claimable again without an agent editing
+  it. Nothing to do while blocked; the label going away is the signal.
 
 Nothing is lost: a live lease is never revoked by the transition, and the ledger
 was already the source of truth.

@@ -485,6 +485,103 @@ class TestStatusLabelReconcile(CoordTestCase):
         coord._reconcile_status_labels(set())  # must not raise
 
 
+class TestResolvedBlockReconcile(CoordTestCase):
+    """A `blocked-by:` block lifts itself once its blocker(s) close (ADR-0030)."""
+
+    def _stateful_gh(self, issues):
+        """A fake gh over ``issues`` that mutates, so a test sees the real result.
+
+        `issue list` returns the current rows (each carrying number/body/labels/
+        createdAt, which every reader accepts); `issue edit --remove-label` drops
+        the label, exactly as the sweep would leave it.
+        """
+        calls = []
+
+        def fake_gh(*args, **kwargs):
+            calls.append(args)
+            if args[:2] == ("issue", "list"):
+                rows = [{"number": i["number"], "body": i.get("body", ""),
+                         "labels": [{"name": n} for n in i["labels"]],
+                         "createdAt": "2026-01-01T00:00:00Z"} for i in issues]
+                return subprocess.CompletedProcess(
+                    args, 0, stdout=json.dumps(rows), stderr="")
+            if args[:2] == ("issue", "edit"):
+                number = int(args[2])
+                label = args[args.index("--remove-label") + 1]
+                for i in issues:
+                    if i["number"] == number and label in i["labels"]:
+                        i["labels"].remove(label)
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+        orig = coord.gh
+        coord.gh = fake_gh
+        self.addCleanup(setattr, coord, "gh", orig)
+        return calls
+
+    def test_blocked_by_parses_and_ignores_prose(self):
+        self.assertEqual(coord.blocked_by_refs("blocked-by: #311"), {311})
+        self.assertEqual(coord.blocked_by_refs("Blocked-By: #311, #312"), {311, 312})
+        # Prose that merely mentions an issue is not a block.
+        self.assertEqual(coord.blocked_by_refs("see #311 and #312"), set())
+        self.assertEqual(coord.blocked_by_refs(""), set())
+
+    def test_clears_when_all_blockers_closed(self):
+        issues = [{"number": 312, "body": "blocked-by: #311",
+                   "labels": ["focus: metagame", "status: blocked"]}]
+        self._stateful_gh(issues)
+        coord._clear_resolved_blocks(open_numbers=set())  # nothing is open
+        self.assertNotIn("status: blocked", issues[0]["labels"])
+
+    def test_keeps_block_while_a_blocker_is_open(self):
+        issues = [{"number": 312, "body": "blocked-by: #311",
+                   "labels": ["focus: metagame", "status: blocked"]}]
+        self._stateful_gh(issues)
+        coord._clear_resolved_blocks(open_numbers={311})
+        self.assertIn("status: blocked", issues[0]["labels"])
+
+    def test_keeps_block_while_any_of_several_blockers_is_open(self):
+        issues = [{"number": 312, "body": "blocked-by: #311, #313",
+                   "labels": ["focus: metagame", "status: blocked"]}]
+        self._stateful_gh(issues)
+        coord._clear_resolved_blocks(open_numbers={313})  # #313 still open
+        self.assertIn("status: blocked", issues[0]["labels"])
+
+    def test_leaves_a_human_question_alone(self):
+        # A §5.2 question carries `status: blocked` with no `blocked-by:` line.
+        issues = [{"number": 216, "body": "Should we add a shield?",
+                   "labels": ["question", "status: blocked"]}]
+        self._stateful_gh(issues)
+        coord._clear_resolved_blocks(open_numbers=set())
+        self.assertIn("status: blocked", issues[0]["labels"])
+
+    def test_never_clears_when_github_is_unreadable(self):
+        # `None` is "unknown", not "everything closed": a live block must survive.
+        issues = [{"number": 312, "body": "blocked-by: #311",
+                   "labels": ["focus: metagame", "status: blocked"]}]
+        self._stateful_gh(issues)
+        coord._clear_resolved_blocks(open_numbers=None)
+        self.assertIn("status: blocked", issues[0]["labels"])
+
+    def test_never_raises_when_gh_is_unavailable(self):
+        def failing_gh(*args, **kwargs):
+            return subprocess.CompletedProcess(args, 1, stdout="", stderr="boom")
+
+        orig = coord.gh
+        coord.gh = failing_gh
+        self.addCleanup(setattr, coord, "gh", orig)
+        coord._clear_resolved_blocks(open_numbers=set())  # must not raise
+
+    def test_resolved_block_becomes_claimable_again(self):
+        # Acceptance (#326): after the blocker closes, `next` offers the issue.
+        issues = [{"number": 312, "body": "blocked-by: #311",
+                   "labels": ["focus: metagame", "status: blocked"]}]
+        self._stateful_gh(issues)
+        self.assertEqual(coord._open_issues_by_area(), {})  # blocked: not offered
+        coord._clear_resolved_blocks(open_numbers=set())
+        self.assertEqual(coord._open_issues_by_area()["metagame"], [(312, False)])
+
+
 class TestDurations(CoordTestCase):
     def test_parse_duration_units(self):
         self.assertEqual(coord.parse_duration("90"), 90 * 60)
