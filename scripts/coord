@@ -336,13 +336,27 @@ def list_leases(cwd: Optional[str] = None) -> list[Lease]:
     return leases
 
 
-def fetch_ledger(cwd: Optional[str] = None) -> None:
-    """Best-effort refresh of the remote lease refs into the local namespace.
+def fetch_ledger(cwd: Optional[str] = None, *, required: bool = False) -> None:
+    """Refresh the remote lease refs into the local namespace.
 
-    Missing refs are normal (a fresh ledger), so failures are ignored.
+    A fetch that matches no refs is a success (a fresh ledger), so an empty
+    result is never an error.  But a fetch that *fails* leaves the local
+    namespace holding whatever it held before - possibly nothing - and callers
+    that read the ledger to decide something (does this area have a holder? what
+    is live?) would then act on a stale or empty view.  ``required=True`` makes
+    that failure fatal: ``CoordAuthError`` for a credential rejection, else
+    ``CoordError``.  The best-effort default keeps ``fetch_notes``-style
+    refreshes (and reads that only display) tolerant.
     """
-    git("fetch", "--prune", "--force", "origin",
-        f"+{REF_PREFIX}/*:{REF_PREFIX}/*", check=False, cwd=cwd)
+    proc = git("fetch", "--prune", "--force", "origin",
+               f"+{REF_PREFIX}/*:{REF_PREFIX}/*", check=False, cwd=cwd)
+    if not required or proc.returncode == 0:
+        return
+    detail = (proc.stderr or proc.stdout or "").strip()
+    hint = _push_hint(detail)
+    if hint is not None:
+        raise CoordAuthError(f"could not read the lease ledger: {hint}\n{detail}")
+    raise CoordError(f"could not read the lease ledger:\n{detail}")
 
 
 # --------------------------------------------------------------------------- #
@@ -677,7 +691,7 @@ def lease_is_mine(lease: Lease, agent: str, branch: str) -> bool:
 # --------------------------------------------------------------------------- #
 
 def cmd_claim(args: argparse.Namespace) -> int:
-    fetch_ledger()
+    fetch_ledger(required=True)
     at = now()
     area, issue = args.area, args.issue
     ref = ref_for(area)
@@ -696,7 +710,7 @@ def cmd_claim(args: argparse.Namespace) -> int:
                 f"sweep`, or re-run with --takeover to clear it now."
             )
         clear_legacy_refs(area)
-        fetch_ledger()
+        fetch_ledger(required=True)
         existing = read_lease(ref)
         local_sha = _local_ref_sha(ref)
 
@@ -729,8 +743,9 @@ def cmd_claim(args: argparse.Namespace) -> int:
         raise
     except CoordError as exc:
         # Someone raced us.  Re-read and report the real holder, so the caller
-        # gets an actionable message instead of raw git output.
-        fetch_ledger()
+        # gets an actionable message instead of raw git output.  The re-read is
+        # required: reporting "no live holder" off a failed fetch would be a lie.
+        fetch_ledger(required=True)
         holder = area_holder(area, at)
         if holder is not None and holder.issue != issue:
             raise CoordError(
@@ -756,7 +771,7 @@ def cmd_claim(args: argparse.Namespace) -> int:
 
 
 def cmd_renew(args: argparse.Namespace) -> int:
-    fetch_ledger()
+    fetch_ledger(required=True)
     ref = ref_for(args.area)
     lease = read_lease(ref)
     if lease is None:
@@ -788,7 +803,7 @@ def _is_github_remote() -> bool:
 
 
 def cmd_release(args: argparse.Namespace) -> int:
-    fetch_ledger()
+    fetch_ledger(required=True)
     lease = read_lease(ref_for(args.area))
     if lease is None:
         print(f"nothing to release on {args.area}/#{args.issue}")
@@ -814,7 +829,7 @@ def cmd_release(args: argparse.Namespace) -> int:
 
 def cmd_status(args: argparse.Namespace) -> int:
     if not args.offline:
-        fetch_ledger()
+        fetch_ledger(required=True)
     at = now()
     leases = sorted(list_leases(), key=lambda l: (l.area, l.issue))
     if args.json:
@@ -1002,7 +1017,7 @@ def cmd_next(args: argparse.Namespace) -> int:
     the critical path (ADR-0035).
     """
     if not args.offline:
-        fetch_ledger()
+        fetch_ledger(required=True)
     at = now()
     leases = [l for l in list_leases() if l.is_live(at)]
     by_area = _open_issues_by_area()
@@ -1116,7 +1131,7 @@ def _emit_claim(area: str, issue: int, critical: bool = False) -> int:
 def cmd_check(args: argparse.Namespace) -> int:
     """CI gate: two live leases must never collide on an area or an issue."""
     if not args.offline:
-        fetch_ledger()
+        fetch_ledger(required=True)
     at = now()
     leases = list_leases()
     live = [l for l in leases if l.is_live(at)]
@@ -1240,7 +1255,7 @@ def render_board(at: Optional[int] = None) -> str:
 
 def cmd_board(args: argparse.Namespace) -> int:
     if not args.offline:
-        fetch_ledger()
+        fetch_ledger(required=True)
     content = render_board()
     if args.stdout:
         print(content, end="")
@@ -1287,7 +1302,7 @@ def cmd_notes(args: argparse.Namespace) -> int:
 
 def cmd_sweep(args: argparse.Namespace) -> int:
     """Delete expired refs, sync issue labels/claims, rebuild the board."""
-    fetch_ledger()
+    fetch_ledger(required=True)
     at = now()
     leases = list_leases()
     expired = [l for l in leases if not l.is_live(at)]
@@ -1610,7 +1625,7 @@ def cmd_migrate(args: argparse.Namespace) -> int:
     """
     if not args.issues:
         raise CoordError("migrate needs at least one issue number (e.g. the hub, 38)")
-    fetch_ledger()
+    fetch_ledger(required=True)
     at = now()
     commands: list[str] = []
     for issue in args.issues:

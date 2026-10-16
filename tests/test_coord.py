@@ -1130,6 +1130,61 @@ class TestReleaseHonesty(CoordTestCase):
         self.assertEqual(self.remote_refs(), ["refs/coord/leases/platform"])
 
 
+class TestLedgerReadHonesty(CoordTestCase):
+    """A read that could not reach the ledger must not look like an empty one.
+
+    `fetch_ledger` used to ignore every failure, so a fetch that did not land
+    left the caller reading an empty namespace: `check` printed "no collisions"
+    without having seen a single lease, and `sweep` deleted nothing while
+    stripping every `status: claimed` label. The CI gate compounded it by
+    fetching with `|| true` and then checking `--offline`.
+    """
+
+    def _break_remote(self):
+        """Point origin at a path that is not a repository, so fetch fails."""
+        git(self.work, "remote", "set-url", "origin",
+            os.path.join(self.tmp, "gone.git"))
+
+    def test_fetch_ledger_default_tolerates_a_failed_fetch(self):
+        # Reads that only display stay best-effort: no raise, no output change.
+        self._break_remote()
+        coord.fetch_ledger()
+
+    def test_fetch_ledger_required_raises_when_the_fetch_fails(self):
+        self._break_remote()
+        with self.assertRaises(coord.CoordError):
+            coord.fetch_ledger(required=True)
+
+    def test_check_fails_loudly_when_the_ledger_cannot_be_read(self):
+        self.run_coord("claim", "--area", "platform", "--issue", 1,
+                       "--agent", "a", "--branch", "b")
+        self._break_remote()
+        out, err = self.run_coord("check", expect=2)
+        self.assertIn("could not read the lease ledger", err)
+        # The vacuous pass is exactly what must not happen.
+        self.assertNotIn("coordination check OK", out)
+
+    def test_sweep_does_not_delete_on_a_failed_fetch(self):
+        self.run_coord("claim", "--area", "platform", "--issue", 1,
+                       "--agent", "a", "--branch", "b")
+        self._set_now(self.now + coord.DEFAULT_TTL + 1)  # now expired
+        self._break_remote()
+        _, err = self.run_coord("sweep", "--no-board", expect=2)
+        self.assertIn("could not read the lease ledger", err)
+        self.assertNotIn("swept", err)
+        # The expired ref is untouched, not silently "swept".
+        self.assertEqual(self.remote_refs(), ["refs/coord/leases/platform"])
+
+    def test_release_does_not_proceed_on_a_failed_fetch(self):
+        self.run_coord("claim", "--area", "platform", "--issue", 1,
+                       "--agent", "a", "--branch", "b")
+        self._break_remote()
+        _, err = self.run_coord("release", "--area", "platform", "--issue", 1,
+                                "--agent", "a", "--branch", "b", expect=2)
+        self.assertIn("could not read the lease ledger", err)
+        self.assertEqual(self.remote_refs(), ["refs/coord/leases/platform"])
+
+
 class TestNotes(CoordTestCase):
     """Notes are cross-cycle handoff: they outlive the lease that wrote them."""
 

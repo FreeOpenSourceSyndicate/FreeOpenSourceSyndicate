@@ -31,6 +31,7 @@ on:
     paths:
       - "scripts/coord"
       - "tests/test_coord.py"
+      - ".github/workflows/coordination.yml"
       - "docs/COORDINATION.md"
       - "docs/COORDINATION_MIGRATION.md"
       - "docs/FOCUS_AREAS.md"
@@ -52,14 +53,14 @@ jobs:
     steps:
       # Check out the commit under test (the PR merge commit, or the pushed
       # commit) - it carries scripts/coord. The lease refs are not part of the
-      # checkout, so fetch them separately below.
+      # checkout, so `coord check` fetches them itself below. That fetch is
+      # required: if it failed, an empty ledger would read as "no collisions"
+      # and the gate would pass without having looked at anything.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Fetch the lease ledger
-        run: git fetch --prune --force origin '+refs/coord/leases/*:refs/coord/leases/*' || true
       - name: Check for live lease collisions
-        run: python3 scripts/coord check --offline
+        run: python3 scripts/coord check
       - name: Unit-test the coordination tool
         run: python3 tests/test_coord.py
 
@@ -72,8 +73,6 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
-      - name: Fetch the lease ledger
-        run: git fetch --prune --force origin '+refs/coord/leases/*:refs/coord/leases/*' || true
       - name: Sweep expired leases, sync labels, rebuild the board
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
