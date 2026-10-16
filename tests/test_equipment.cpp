@@ -3,6 +3,7 @@
 #include "core/economy/Economy.h"
 #include "core/economy/Equipment.h"
 #include "core/economy/Research.h"
+#include "core/sim/PlayerLoadout.h"
 
 using namespace fossynd::core;
 
@@ -188,4 +189,18 @@ FOSSYND_TEST(Equipment, LoadsShippedCatalogueFile)
     FOSSYND_CHECK(error.empty());
     FOSSYND_CHECK(catalogue.size() >= std::size_t{4});
     FOSSYND_CHECK(catalogue.find("pistol") != nullptr);
+
+    // A gadget the catalogue sells must be in the deploy vocabulary, or it can be
+    // bought and equipped yet silently grants nothing when the squad deploys
+    // (gadgetChargesForId rejects an unknown id). The scanner and drugs landed in
+    // core with #314; guard that the catalogue keeps up.
+    FOSSYND_CHECK(catalogue.find("scanner") != nullptr);
+    FOSSYND_CHECK(catalogue.find("drugs") != nullptr);
+    for (const EquipmentItem& item : catalogue.items())
+    {
+        if (item.kind == EquipmentKind::Gadget)
+        {
+            FOSSYND_CHECK(gadgetChargesForId(item.id) != kUnknownGadget);
+        }
+    }
 }

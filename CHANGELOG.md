@@ -10,6 +10,15 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **The equipment catalogue sells the scanner and performance drugs:** it now
+  lists the two gadgets #314 added to `core`, so a player can actually buy and
+  equip them from the R&D shop and they reach a deployed squad (they were
+  otherwise unreachable — no catalogue entry). No code change: the deploy
+  vocabulary (`gadgetChargesForId`) already accepted both ids. The `Equipment`
+  shipped-catalogue guard now checks that the catalogue lists `scanner`/`drugs`
+  and that *every* `kind: "gadget"` item is in the deploy vocabulary, so a
+  future gadget that is sold but cannot deploy fails CI. #324.
+
 - **The R&D shop (research and purchase in play):** `B` on the campaign map
   opens a shop listing the research tree and the equipment catalogue — Up/Down to
   move, Left/Right to pick the squad slot, Enter to fund a node or buy gear and
