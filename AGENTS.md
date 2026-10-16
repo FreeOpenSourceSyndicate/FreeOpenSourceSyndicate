@@ -696,6 +696,15 @@ Do not start work outside the scope fence (ADR-0024).
   deterministic and RNG-free.
 - Combat/AI/mission logic lives in `src/core/sim/` (`Agent`, `Mission`, `Weapon`)
   and is unit-tested; keep it SDL-free.
+- **Perception is a per-agent stat (issue #333):** `core::Agent` carries a
+  `sightRange()` (tiles, straight-line; `setSightRange` clamps negatives to 0),
+  defaulted to `kDefaultSightRange` (`12.0f`, the value the AI used before the
+  field existed) so adding it changes no behaviour. It exists so two agents can
+  perceive differently and a cybernetic "eyes" upgrade has a stat to raise. The
+  mission AI still reads its own `kSightRange` constant — replacing that with
+  `agents_[i].sightRange()` is a **tactical** follow-up (Mission.cpp is tactical's
+  file), as is wiring the "eyes" upgrade to it. Do not expect the field to affect
+  gameplay until that lands.
 - **Enemy AI state machine** lives on `core::Agent` (`AiState`: `Idle`, `Patrol`,
   `Engage`, `Retreat`) and is driven by `Mission::updateCombatantAI`. Enemies
   patrol an assigned route (`Agent::setPatrolRoute`) when no target is in sight,

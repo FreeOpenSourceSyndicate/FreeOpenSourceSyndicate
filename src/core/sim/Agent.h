@@ -13,6 +13,11 @@
 namespace fossynd::core
 {
 
+// Default straight-line sight range, in tiles. Mirrors the constant the mission
+// AI used before perception became a per-agent stat (`kSightRange` in
+// Mission.cpp), so a default agent behaves exactly as it did.
+inline constexpr float kDefaultSightRange = 12.0f;
+
 // Which side an agent fights for.
 enum class Team
 {
@@ -102,6 +107,19 @@ public:
 
     float speed() const { return tilesPerSecond_; }
     void setSpeed(float tilesPerSecond) { tilesPerSecond_ = tilesPerSecond; }
+
+    // --- perception -------------------------------------------------------
+
+    // Straight-line distance (tiles) at which the agent notices a target. Read
+    // per-agent by the mission AI, so two agents can perceive differently and a
+    // cybernetic "eyes" upgrade has a stat to raise. Defaults to the value the
+    // AI used before this field existed, so behaviour is unchanged until a
+    // caller reads it (FOCUS_AREAS §4 Rule 3). Never negative.
+    float sightRange() const { return sightRange_; }
+    void setSightRange(float tiles)
+    {
+        sightRange_ = tiles > 0.0f ? tiles : 0.0f;
+    }
 
     TilePos tile() const;
 
@@ -215,6 +233,7 @@ private:
     Vec2 position_;
     Vec2 previousPosition_;
     float tilesPerSecond_ = 2.0f;
+    float sightRange_ = kDefaultSightRange;
     std::vector<TilePos> path_;
     std::size_t nextWaypoint_ = 0;
     // Player-ordered waypoints queued after `path_` (see moveQueue() above).

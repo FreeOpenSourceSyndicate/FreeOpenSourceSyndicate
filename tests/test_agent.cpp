@@ -157,3 +157,46 @@ FOSSYND_TEST(Agent, HealPartialAndNoOpCases)
     FOSSYND_CHECK_NEAR(agent.heal(50.0f), 0.0f);
     FOSSYND_CHECK(!agent.isAlive());
 }
+
+FOSSYND_TEST(Agent, SightRangeDefaultsToTheLegacyConstant)
+{
+    // A default agent perceives as far as the AI's old hard-coded `kSightRange`,
+    // so adding the field changes no existing behaviour (FOCUS_AREAS Rule 3).
+    const Agent agent(0.0f, 0.0f, 1.0f);
+    FOSSYND_CHECK_NEAR(agent.sightRange(), kDefaultSightRange);
+    FOSSYND_CHECK_NEAR(agent.sightRange(), 12.0f);
+}
+
+FOSSYND_TEST(Agent, SightRangeRoundTrips)
+{
+    Agent agent(0.0f, 0.0f, 1.0f);
+    agent.setSightRange(20.0f);
+    FOSSYND_CHECK_NEAR(agent.sightRange(), 20.0f);
+    // A cybernetic "eyes" upgrade can lower as well as raise it.
+    agent.setSightRange(4.5f);
+    FOSSYND_CHECK_NEAR(agent.sightRange(), 4.5f);
+}
+
+FOSSYND_TEST(Agent, SightRangeClampsNegativeToZero)
+{
+    Agent agent(0.0f, 0.0f, 1.0f);
+    agent.setSightRange(-7.0f);
+    FOSSYND_CHECK_NEAR(agent.sightRange(), 0.0f);
+    // Zero is a legal "blind" value, and a later positive set is unaffected.
+    agent.setSightRange(0.0f);
+    FOSSYND_CHECK_NEAR(agent.sightRange(), 0.0f);
+    agent.setSightRange(9.0f);
+    FOSSYND_CHECK_NEAR(agent.sightRange(), 9.0f);
+}
+
+FOSSYND_TEST(Agent, SightRangeIsPerAgent)
+{
+    // Two agents can perceive differently — the point of moving this off the
+    // mission-wide constant.
+    Agent sharp(0.0f, 0.0f, 1.0f);
+    Agent dull(0.0f, 1.0f, 1.0f);
+    sharp.setSightRange(18.0f);
+    dull.setSightRange(3.0f);
+    FOSSYND_CHECK(sharp.sightRange() > dull.sightRange());
+    FOSSYND_CHECK_NEAR(dull.sightRange(), 3.0f);
+}
