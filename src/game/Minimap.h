@@ -34,7 +34,8 @@ public:
     bool init(SDL_Renderer* renderer, const core::TileGrid& grid, int pixelScale);
 
     // Recomputes the blip list from the current mission state. Call once per
-    // frame before render(); one entry per living agent, so it is cheap.
+    // frame before render(); one entry per living agent plus one per vehicle
+    // (wrecks included), so it stays cheap.
     void updateBlips(const core::Mission& mission, const std::vector<std::size_t>& selected);
 
     // Draws the panel with its top-left corner at (x, y).
@@ -44,9 +45,9 @@ public:
     int height() const { return height_; }
     bool valid() const { return texture_ != nullptr; }
 
-    // Headless self-check: true when a blip exists for every living agent and all
-    // blips lie inside the panel. Call updateBlips() first. Used by the
-    // --check-minimap guard and the game_minimap ctest.
+    // Headless self-check: true when a blip exists for every living agent and
+    // every vehicle, and all blips lie inside the panel. Call updateBlips()
+    // first. Used by the --check-minimap guard and the game_minimap ctest.
     bool verifyBlips(const core::Mission& mission) const;
 
 private:
