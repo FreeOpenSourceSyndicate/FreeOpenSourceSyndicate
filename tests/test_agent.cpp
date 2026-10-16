@@ -47,6 +47,38 @@ FOSSYND_TEST(Agent, MoveToNeverEntersABlockedTileFromAnOffCentrePosition)
     }
 }
 
+// Re-issuing the *same* route every tick must keep the agent's progress, not
+// yank it back to its own tile centre. The mission AI re-paths every tick while
+// retreating (`Mission::stepAwayFrom`), so a `moveTo` that reset the waypoint
+// index on every call would oscillate the agent in place and it would never
+// arrive. Without the same-route guard this agent never leaves (0,0); with it,
+// it walks the bent route to the goal.
+FOSSYND_TEST(Agent, MoveToReissuedSameRouteKeepsProgress)
+{
+    TileGrid grid(12, 12);
+    for (int y = 0; y < 12; ++y)
+    {
+        grid.setWalkable(9, y, false); // a wall to bend the route around
+    }
+
+    Agent agent(0.0f, 0.0f, 2.0f);
+    FOSSYND_CHECK(agent.moveTo(grid, TilePos{5, 5}));
+
+    bool reached = false;
+    for (int tick = 0; tick < 3000; ++tick)
+    {
+        agent.update(1.0f / 60.0f);
+        if (agent.tile() == (TilePos{5, 5}))
+        {
+            reached = true;
+            break;
+        }
+        FOSSYND_CHECK(agent.moveTo(grid, TilePos{5, 5})); // re-issue, unchanged
+    }
+    FOSSYND_CHECK(reached);
+    FOSSYND_CHECK_EQ(agent.tile(), (TilePos{5, 5}));
+}
+
 FOSSYND_TEST(Agent, MoveToUnreachableWalksAsCloseAsPossible)
 {
     // A full wall at x=2 blocks the goal at (4,0). moveTo no longer drops the

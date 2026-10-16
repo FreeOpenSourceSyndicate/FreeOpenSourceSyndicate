@@ -97,6 +97,83 @@ FOSSYND_TEST(Vehicle, DriveToEnclosedStartDropsOrder)
     FOSSYND_CHECK(!car.hasPath());
 }
 
+// The Vehicle mirror of `Agent.MoveToNeverEntersABlockedTileFromAnOffCentrePosition`
+// (#396). `driveTo` keeps the vehicle's own tile centre as the first waypoint for
+// the same reason `Agent::moveTo` does: the path is validated centre-to-centre, so
+// a vehicle standing off-centre could otherwise walk straight at the second
+// waypoint, cut the corner of a blocked tile the centre line never crossed, and
+// end up inside a wall. Without the start waypoint this car clips (2,3) on its
+// first step; with it, every tile visited is walkable and it reaches the goal.
+FOSSYND_TEST(Vehicle, DriveToNeverEntersABlockedTileFromAnOffCentrePosition)
+{
+    const int width = 12;
+    const char* rows[] = {
+        ".....#.#....",
+        ".##.#.......",
+        "##..#.#..#..",
+        "#.#....#...#",
+    };
+    TileGrid grid(width, 4);
+    for (int y = 0; y < 4; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            grid.setWalkable(x, y, rows[y][x] == '.');
+        }
+    }
+
+    // Off-centre inside walkable (2,2) — a fractional position like a mid-move
+    // vehicle actually has.
+    Vehicle car = makeCar(2.0f + 0.303f, 2.0f + 0.443f);
+    FOSSYND_CHECK_EQ(car.tile(), (TilePos{2, 2}));
+    FOSSYND_CHECK(car.driveTo(grid, TilePos{6, 3}));
+
+    for (int tick = 0; tick < 900; ++tick)
+    {
+        car.update(1.0f / 60.0f);
+        const TilePos at = car.tile();
+        if (grid.inBounds(at.x, at.y))
+        {
+            FOSSYND_CHECK(grid.isWalkable(at.x, at.y));
+        }
+        if (!car.hasPath())
+        {
+            break;
+        }
+    }
+    FOSSYND_CHECK_EQ(car.tile(), (TilePos{6, 3}));
+}
+
+// The Vehicle mirror of `Agent.MoveToReissuedSameRouteKeepsProgress` (#396): a
+// per-tick re-issue of an unchanged route (how the mission AI drives) must not
+// reset the vehicle to its tile centre, or it oscillates and never arrives.
+FOSSYND_TEST(Vehicle, DriveToReissuedSameRouteKeepsProgress)
+{
+    TileGrid grid(12, 12);
+    for (int y = 0; y < 12; ++y)
+    {
+        grid.setWalkable(9, y, false);
+    }
+
+    Vehicle car = makeCar(0.0f, 0.0f);
+    car.setSpeed(2.0f);
+    FOSSYND_CHECK(car.driveTo(grid, TilePos{5, 5}));
+
+    bool reached = false;
+    for (int tick = 0; tick < 3000; ++tick)
+    {
+        car.update(1.0f / 60.0f);
+        if (car.tile() == (TilePos{5, 5}))
+        {
+            reached = true;
+            break;
+        }
+        FOSSYND_CHECK(car.driveTo(grid, TilePos{5, 5})); // re-issue, unchanged
+    }
+    FOSSYND_CHECK(reached);
+    FOSSYND_CHECK_EQ(car.tile(), (TilePos{5, 5}));
+}
+
 FOSSYND_TEST(Vehicle, UpdateMovesAlongPath)
 {
     TileGrid grid(10, 3);
