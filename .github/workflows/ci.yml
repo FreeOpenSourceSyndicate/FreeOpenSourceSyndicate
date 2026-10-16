@@ -127,6 +127,56 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
+  # The documented build entry point (scripts/build.sh, AGENTS.md + five docs) is
+  # never *executed* by the other lanes: every one calls cmake directly, so the
+  # script is only linted. A drifted `-D` name is silently ignored by CMake, so
+  # build.sh could quietly produce the wrong profile (a wrong-build of the
+  # #227/#256/#277/#280 class) and stay green. Run the real script and assert the
+  # profile it claims to configure is the one configured and built (issue #376).
+  build-script:
+    name: Documented build script (build.sh)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ccache
+        run: sudo apt-get update && sudo apt-get install -y ccache
+
+      - name: Cache compiler output (ccache)
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ccache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('CMakeLists.txt', 'src/**/CMakeLists.txt', 'tests/CMakeLists.txt') }}
+          restore-keys: ccache-${{ runner.os }}-${{ github.job }}-
+
+      - name: Run the build script (core-only low-spec profile)
+        run: |
+          set -euo pipefail
+          FOSSYND_BUILD_GAME=OFF FOSSYND_LOW_SPEC=ON ./scripts/build.sh | tee /tmp/build.log
+
+      - name: Assert the profile the script asked for was the one configured
+        run: |
+          set -euo pipefail
+          # A renamed -D in build.sh is ignored by CMake, so the cache is where a
+          # drift shows up: the value must be exactly what the script requested.
+          grep -qx 'FOSSYND_BUILD_GAME:BOOL=OFF' build/CMakeCache.txt
+          grep -qx 'FOSSYND_LOW_SPEC:BOOL=ON' build/CMakeCache.txt
+          grep -qx 'FOSSYND_SANITIZE:BOOL=OFF' build/CMakeCache.txt
+          grep -qx 'FOSSYND_WERROR:BOOL=OFF' build/CMakeCache.txt
+
+      - name: Assert the script built and reported what it claims
+        run: |
+          set -euo pipefail
+          # The test binary must exist, run, and be named by the script's message.
+          test -x build/tests/run_tests
+          # Core-only: the script must not promise a game binary it did not build.
+          test ! -e build/src/FOSSynd
+          grep -q '(core only, no game binary)' /tmp/build.log
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
   low-spec:
     name: Low-spec build (old hardware)
     runs-on: ubuntu-latest

@@ -25,4 +25,11 @@ cmake .. \
 JOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)"
 cmake --build . --config "${CMAKE_BUILD_TYPE:-Release}" -j"${JOBS}"
 
-echo "Build complete. Binary: ${BUILD_DIR}/src/FOSSynd"
+# Report only what was actually built. With FOSSYND_BUILD_GAME=OFF there is no
+# game binary, so naming one sends a contributor chasing a file that is not
+# there — the script exits 0 either way, so nothing else catches the mismatch.
+if [ "${FOSSYND_BUILD_GAME:-ON}" = "ON" ]; then
+    echo "Build complete. Binary: ${BUILD_DIR}/src/FOSSynd"
+else
+    echo "Build complete (core only, no game binary). Tests: ${BUILD_DIR}/tests/run_tests"
+fi
