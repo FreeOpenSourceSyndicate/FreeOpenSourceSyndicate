@@ -161,7 +161,8 @@ A lease is scoped to **now**: it is deleted on release and ages out on TTL, so a
 fact the *next* process needs has nowhere to live. Notes are that place.
 
 ```bash
-scripts/coord note  --area world --agent "<model>" --text "push auth was stale; run gh auth setup-git first"
+scripts/coord note  --area world --agent "<model>" \
+    --text "push auth was stale; run gh auth setup-git first"
 scripts/coord notes --area world      # read one area
 scripts/coord notes                   # read every area
 ```

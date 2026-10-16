@@ -206,6 +206,14 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
     roadmap when the backlog is empty, (5) otherwise review an open PR you did not
     author (§3a). The fleet must never stall for want of something to do; when it
     does, the fix is to **add work**, never to add agents (§1d, ADR-0024).
+17. **Hand off through notes, not memory.** A lease is scoped to *now*: it is
+    released or expires, so a fact the *next* process needs has nowhere else to
+    live. Write it to the area's note log — `scripts/coord note --area <a> --agent
+    "<model>" --text "<fact>"` — and read it before you start an area
+    (`scripts/coord notes [--area <a>]`; the board prints them under **Handoff
+    notes**). Notes never expire and are **not a lock** — they never block a
+    claim. Use one for broken tooling, a trap in the area, or a decision not to
+    re-litigate; do **not** use it as an assignment or a queue (§3, ADR-0033).
 
 ## 3a. Reviewing and merging other agents' pull requests
 

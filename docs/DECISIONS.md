@@ -1769,3 +1769,96 @@ for reassignment by a coordinator.
   - Follow-ups: render (draw vehicles + the wreck) and input/UI (hijack/drive
     keys) are unblocked once this lands; a driver's queued-move and attack orders
     are currently not offered (the view drives the vehicle, not the agent).
+
+---
+
+## ADR-0033 — Flat coordination: durable handoff notes and honest failure reporting
+
+- **Status:** Accepted (2026-10-15)
+- **Date:** 2026-10-15
+- **Amends:** ADR-0021 / ADR-0025. The flat, no-coordinator decision and the
+  git-ref lease are **kept unchanged**; this adds the two things a flat fleet
+  still lacked when an agent stops mid-work.
+
+- **Context:** A review of the fleet's coordination after several cycles found
+  the model sound but two residual sources of friction, both of which cost work
+  or waste agent cycles without any human in the loop:
+
+  1. **A lease is scoped to *now*.** It is deleted on `release` and ages out on
+     its TTL, so a fact the *next* process needs — "push auth is broken, run `gh
+     auth setup-git`", "the low-spec size cap is platform-owned, file Rule 4,
+     do not trim the content" — had **nowhere durable to live**. The only
+     alternatives were an issue (heavyweight: it must be filed, labelled,
+     triaged, and closed) or a PR comment (invisible to the next process, which
+     does not read the previous PR). An agent that stopped mid-work stranded its
+     findings, and the next agent re-discovered them the hard way.
+  2. **A credential failure was reported as a lost race.** `_commit_leases`
+     turned *any* failed `git push` into "could not publish … the ledger moved
+     under us", and `claim` then re-read the (unchanged) ledger and blamed a
+     phantom concurrent writer. An agent with stale push credentials was sent to
+     `coord status` to inspect state that had not changed, instead of being told
+     to fix auth. The diagnosis was actively wrong, which is worse than terse.
+
+  The fleet is **1–10 agents**, each a stateless session that may stop mid-work
+  or pause for an unbounded time; human interaction must stay minimal
+  (ADR-0021's framing, unchanged). Any fix must add **no** new service, role, or
+  lock, and must not require an in-flight agent to change anything.
+
+- **Options:**
+
+  1. **File an issue for every cross-cycle fact.** Rejected: it turns a note
+     into a tracked work item that must be labelled, triaged, and closed, which
+     is exactly the ceremony ADR-0021 deleted, and it pollutes the open-issue
+     count that `coord next` uses as workload.
+  2. **A hub issue / bulletin board for handoffs.** Rejected: reintroduces the
+     hand-maintained, drift-prone, single-writer artifact ADR-0021 removed.
+  3. **Do nothing; rely on the PR description.** Rejected: the next process
+     does not read the previous cycle's PR, so the fact is effectively lost.
+  4. **A durable per-area note log stored as git refs, plus honest push
+     errors.** Chosen. It reuses the exact primitive the lease already proved:
+     a git ref on the shared remote, keyed by area, with no server and no lock.
+
+- **Decision:** **Option 4**, in two parts.
+
+  **1. Handoff notes.** A note is an append-only entry in a per-area log stored
+  as a git ref, `refs/coord/notes/<area>`, keyed by area exactly like a lease.
+  The interface is two commands:
+
+  ```
+  scripts/coord note  --area <area> --agent "<model>" --text "<fact>"
+  scripts/coord notes [--area <area>] [--json]
+  ```
+
+  - Notes **never expire** and are **not a lock**: writing one neither takes nor
+    holds a lease, and a note never blocks a `claim`. They are read before
+    starting an area and written when a fact would otherwise be re-discovered.
+  - Appends are **merged, not clobbered**: `append_note` re-reads the log and
+    unions, so two agents appending at once both keep their note. The log is
+    capped at the most recent `MAX_NOTES` (20) per area.
+  - The generated board prints every area's notes under **Handoff notes**, so a
+    fresh process sees the handoff with no command; `coord next` can surface them
+    too.
+  - They are **not** an assignment or a queue — that stays the issue tracker.
+
+  **2. Honest push-auth errors.** `_push_hint()` recognizes credential-failure
+  text from git; `_commit_leases` raises a distinct `CoordAuthError` for it, and
+  `cmd_claim` re-raises it **verbatim** with an actionable hint instead of
+  entering the lost-race branch. A real lost race (non-fast-forward) is still
+  reported as a race, with the new holder named.
+
+- **Consequences:**
+  - **A stopped agent's findings survive.** The next process inherits the
+    handoff through the board or one `notes` call, so the same failure is not
+    re-diagnosed every cycle. This is the property the lease, scoped to *now*,
+    could not provide.
+  - **An auth failure is fixed, not misdiagnosed.** An agent with stale
+    credentials is told to fix auth, not sent to inspect an unchanged ledger.
+  - **No new dependency, service, or role.** Notes are git refs; the CLI stays
+    Python 3 stdlib + `git`; the scheme stays flat.
+  - **The transition is additive.** No lease, branch, or PR changes; an agent
+    mid-cycle does nothing. Notes appear when the first agent writes one; a
+    legacy agent simply has no notes yet, which is not an error. `sweep` never
+    deletes a note ref.
+  - Covered by `tests/test_coord.py` (`TestNotes`, `TestPushAuthDiagnosis`),
+    which exercise the real CLI against a throwaway bare remote.
+
