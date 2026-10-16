@@ -6,7 +6,7 @@
 # source of truth for assets/ui/banner.png: re-run it to regenerate the art.
 #
 #   python3 assets/ui/make_banner.py                 # current release defaults
-#   python3 assets/ui/make_banner.py 0.7.0 DEMOLITION
+#   python3 assets/ui/make_banner.py 0.8.0 DOMINION
 #
 # Original art only: the shapes are the same isometric diamonds the game draws
 # at runtime, and the wordmark uses a tiny 5x7 bitmap font defined below. No
@@ -154,8 +154,8 @@ def write_png(path, canvas, palette, scale):
 
 
 def main():
-    version = sys.argv[1] if len(sys.argv) > 1 else "0.7.0"
-    subtitle = sys.argv[2] if len(sys.argv) > 2 else "DEMOLITION"
+    version = sys.argv[1] if len(sys.argv) > 1 else "0.8.0"
+    subtitle = sys.argv[2] if len(sys.argv) > 2 else "DOMINION"
 
     c = Canvas(NATIVE_W, NATIVE_H, BG)
 

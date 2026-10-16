@@ -46,8 +46,8 @@ old hardware, that is a bug — please report it.
 
 The whole point of the profile is a **small** binary, so CI enforces a cap on it
 (issue #222, AGENTS.md §1b, ADR-0008): the **stripped low-spec binary must be
-<= 320 KiB**. As measured today, the low-spec build is ~286 KiB and the default
-Release build is ~418 KiB, so the budget leaves ~1.1x headroom while still
+<= 320 KiB**. As measured today, the low-spec build is ~287 KiB and the default
+Release build is ~667 KiB, so the budget leaves ~1.1x headroom while still
 failing loudly if the profile flags are ever dropped or a heavy dependency
 sneaks in. The cap was raised from 288 KiB when the third shared catalogue
 (`assets/data/vehicles.json`, #319/#342) left only ~2 KiB of headroom, so the
@@ -185,13 +185,18 @@ ctest --test-dir build --output-on-failure
 
 ## Playing the demo
 
-The current build is a **playable prototype mission**: eliminate all enemy
-agents before your squad is wiped out.
+There are two layers. The **tactical board** is a playable mission: eliminate
+all enemy agents before your squad is wiped out. Press **`M`** (or start with
+`--map`) to open the **campaign management screen**, where you tax territories,
+fund research, buy equipment, and deploy missions to take the world map.
+
+### Tactical board
 
 | Input | Action |
 |-------|--------|
 | **Left click an agent** | Select that agent (highlighted) |
 | **Shift + left click an agent** | Add/remove that agent from the selection |
+| **Left-drag on the map** | Box-select every player agent inside the rectangle |
 | **Keys `5`–`8`** | Select the 1st–4th living agent |
 | **Ctrl + keys `1`–`4`** | Assign the current selection to control group 1–4 |
 | **Keys `1`–`4`** | Recall control group 1–4 |
@@ -201,12 +206,43 @@ agents before your squad is wiped out.
 | **Right click an enemy (or left-click it)** | Order the selection to focus fire on that enemy |
 | **`P`** | Use the selected agents' Compliance Beacons to recruit the nearest civilian in range |
 | **`F`** | Release the selected agents' followers back into the crowd |
+| **`H`** | Use a medikit on the selection (heal the most-wounded agent) |
+| **`S`** | Raise a shield on the selection (absorbs the next hit) |
+| **`C`** | Run a scanner pulse for the selection (marks nearby enemies) |
+| **`B`** | Take performance drugs on the selection (timed speed/hit buff) |
 | **Arrow keys** | Scroll the camera |
-| **R** | Restart the mission (new seed) |
-| **Esc** | Quit |
+| **`+` / `-` or the mouse wheel** | Zoom the view in whole steps (1x/2x/3x; wheel up = in) |
+| **`F11`** | Toggle fullscreen / windowed |
+| **`Space`** | Pause / resume the simulation (a `PAUSED` band shows while frozen) |
+| **`M`** | Open the campaign management screen (needs campaign data) |
+| **`R`** | Restart the mission (new seed) |
+| **`Esc`** | Quit |
 
 An agent under a focus-fire order shows a white/red reticle; the order clears
 when you give that agent a move order, or automatically when the target dies.
+
+### The campaign management screen
+
+`M` (or `--map`) opens the **metagame**: a world of territories you tax for
+income, fund research for, and buy equipment from. The tactical simulation is
+frozen while the screen is up, and the campaign clock ticks instead.
+
+| Input | Action |
+|-------|--------|
+| **Click a territory** | Select it (name, owner, mission, tax, and status show in the sidebar) |
+| **`-` / `+`** | Lower / raise the selected territory's tax |
+| **`D`** | Deploy the selected territory's mission with your bought loadout |
+| **`B`** | Open the R&D shop (fund research, buy + assign equipment) |
+| **`M`** | Return to the tactical board |
+| **`Esc`** | Quit |
+
+In the R&D shop: **Up/Down** move through the research tree and catalogue,
+**Left/Right** pick the squad slot, and **Enter** funds a research node or buys
+and assigns the selected gear. **`Esc`**/`B` closes it.
+
+Win the deployed mission to claim the territory; take them all and a centred
+`CAMPAIGN WON` panel appears (or `CAMPAIGN LOST` if the syndicate falls). The
+map then freezes — the end state is final.
 
 Recruited civilians ("followers") trail their recruiter in cyan. They are not
 combatants: they are never targeted, never fire, and never affect win/lose, so
@@ -226,22 +262,58 @@ They flee when gunfire starts nearby. Civilian deaths you cause are counted as
 
 | Flag | Effect |
 |------|--------|
+| `-h`, `--help` | Show the option list and exit |
+| `-V`, `--version` | Show the version and exit |
+| `--mission PATH` | Load the given mission file (overrides the config default) |
+| `--campaign PATH` | Load the given campaign file (the world map) |
+| `--config PATH` | Load the given config file; a missing file is a hard error |
+| `--lang CODE` | Set the UI language (e.g. `en`, `de`) |
 | `--demo` | Attract mode: the squad advances on the nearest enemy automatically |
+| `--title` | Force the pixel-art title card (used to capture it headlessly) |
+| `--map` | Start on the campaign management screen |
 | `--low-spec` | Old-hardware mode: 320x200 window + software renderer (ADR-0008) |
+| `--window WxH` | Set the window size in pixels (e.g. `1280x800`) |
 | `--fullscreen` | Start fullscreen (desktop); `F11` toggles it at runtime |
 | `--pause` | Start paused (frozen board); `Space` toggles it at runtime |
-| `--title` | Force the pixel-art title card (used to capture it headlessly) |
+| `--zoom N` | Set the initial integer zoom level (1–3) |
+| `--breach` | Breach every destructible wall before rendering (for rubble screenshots) |
+| `--scan` | Fire a scanner pulse on the squad before rendering (for scanner screenshots) |
+| `--vehicle` | Spawn a demo car and train before rendering (for vehicle screenshots) |
 | `--headless` | Use the dummy video driver (no display needed) |
-| `--frames N` | Run N frames then exit |
+| `--frames N` | Run N frames then exit (must be a positive integer) |
 | `--screenshot PATH` | Render one frame to a BMP and exit (with `--frames` first, simulates then captures) |
-| `--check-sprites` | Headless guard: exit non-zero if the sprite sheet fails to bake |
-| `--check-minimap` | Headless guard: exit non-zero if the minimap panel or blips fail |
-| `--check-selection` | Run the selection / control-group self-check headlessly and exit (ctest `game_selection`) |
-| `--check-waypoints` | Run the shift-click waypoint-queue self-check headlessly and exit (ctest `game_waypoints`) |
+
+Unknown or incomplete options fail fast with a non-zero exit and a message on
+stderr, rather than being silently ignored (issue #248); an explicitly named
+`--config` or `--campaign` file that is missing is likewise a hard error
+(issue #259).
+
+### Headless verification flags
+
+These run a self-check with no display and exit non-zero on failure; most are
+wired into `ctest`.
+
+| Flag | Effect |
+|------|--------|
+| `--check-sprites` | Exit non-zero if the sprite sheet fails to bake (ctest `game_sprites`) |
+| `--check-minimap` | Exit non-zero if the minimap panel or blips fail (ctest `game_minimap`) |
+| `--check-selection` | Run the selection / control-group self-check and exit (ctest `game_selection`) |
+| `--check-box-select` | Run the box-select self-check and exit (ctest `game_box_select`) |
+| `--check-waypoints` | Run the shift-click waypoint-queue self-check and exit (ctest `game_waypoints`) |
+| `--check-waypoint-path` | Run the queued-route overlay self-check and exit (ctest `game_waypoint_path`) |
+| `--check-zoom` | Run the integer-zoom self-check and exit (ctest `game_zoom`) |
+| `--check-fullscreen` | Run the fullscreen-toggle self-check and exit (ctest `game_fullscreen`) |
+| `--check-pause` | Run the pause/resume self-check and exit (ctest `game_pause`) |
+| `--check-rubble` | Run the breached-tile rubble self-check and exit (ctest `game_rubble`) |
+| `--check-scanner` | Run the scanner-ping overlay self-check and exit (ctest `game_scanner`) |
+| `--check-objectives` | Validate the objective banner for every objective kind (ctest `game_objectives`) |
+| `--check-campaign` | Drive the whole management loop (funds → tax → research → buy → deploy → win) and exit (ctest `game_campaign`) |
+| `--check-deploy` | Drive the deploy round-trip (map → mission → result → map) and exit (ctest `game_deploy`) |
+| `--check-lang [LOCALE]` | Run the UI string-table self-check and exit (ctest `game_lang`) |
 | `--check-content [DIR]` | Validate the mission `weaponId`/`agentId` references against the catalogues in `DIR` (default `assets/data`) and exit; non-zero on a dangling reference (ctest `game_content`) |
-| `--check-lang` | Run the UI string-table self-check headlessly and exit (ctest `game_lang`) |
 | `--check-gadgets` | Run the tactical gadget hotkey self-check (`H`/`S`/`C`/`B`) headlessly and exit (ctest `game_gadgets`) |
 | `--check-campaign-keys` | Headless guard: exit non-zero if a tactical hotkey leaks through the campaign map screen (ctest `game_campaign_keys`) |
+| `--check-vehicles` | Exit non-zero if a live vehicle or a wreck fails to draw (ctest `game_vehicles`) |
 
 ### Core-only build (no SDL2 needed)
 
