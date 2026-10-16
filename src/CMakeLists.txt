@@ -313,9 +313,13 @@ if(BUILD_TESTS)
     # exits 0 without initialising SDL or loading content; the PASS regex fails
     # the test if the output is empty or not version-shaped. `--help` likewise
     # prints a usage block listing the flags.
+    # The version must match the `project()` value this build was configured
+    # with, not merely look version-shaped (issue #361): a release tag whose
+    # binary still reports the previous version is the failure a forgotten bump
+    # causes (#347), and a shape-only regex would let it ship green.
     add_test(NAME game_version
              COMMAND FOSSynd --version)
-    set_tests_properties(game_version PROPERTIES PASS_REGULAR_EXPRESSION "FOSSynd [0-9]")
+    set_tests_properties(game_version PROPERTIES PASS_REGULAR_EXPRESSION "FOSSynd ${PROJECT_VERSION}")
     add_test(NAME game_help
              COMMAND FOSSynd --help)
     set_tests_properties(game_help PROPERTIES PASS_REGULAR_EXPRESSION "Usage: FOSSynd")
