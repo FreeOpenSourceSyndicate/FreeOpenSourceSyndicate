@@ -251,6 +251,15 @@ set, and breached-tile rubble.
   (issue #248, #259). Unknown or incomplete options are likewise rejected, and
   `--frames` must be a positive integer (issue #264).
 
+### Fixed
+
+- **Tactical hotkeys no longer leak through the campaign map.** On the map
+  screen, pressing a tactical key (the gadget keys `H`/`S`/`C`/`B`, control
+  groups, pause, restart) used to fall through to the board underneath and fire
+  the action — so a player managing the map could silently use a medikit, pause
+  the sim, or restart. The map screen now consumes those keys while it is open.
+  Covered by the `game_campaign_keys` guard. Issue #368.
+
 ## [0.7.0] — 2026-10-15 — "Demolition"
 
 The battlefield is now destructible and legible. Weapon fire opens cracked walls

@@ -47,7 +47,7 @@ old hardware, that is a bug — please report it.
 The whole point of the profile is a **small** binary, so CI enforces a cap on it
 (issue #222, AGENTS.md §1b, ADR-0008): the **stripped low-spec binary must be
 <= 320 KiB**. As measured today, the low-spec build is ~287 KiB and the default
-Release build is ~655 KiB, so the budget leaves ~1.1x headroom while still
+Release build is ~667 KiB, so the budget leaves ~1.1x headroom while still
 failing loudly if the profile flags are ever dropped or a heavy dependency
 sneaks in. The cap was raised from 288 KiB when the third shared catalogue
 (`assets/data/vehicles.json`, #319/#342) left only ~2 KiB of headroom, so the
