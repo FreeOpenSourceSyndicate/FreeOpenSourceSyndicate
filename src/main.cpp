@@ -63,6 +63,7 @@ void printUsage()
         "      --check-zoom           Validate integer zoom levels.\n"
         "      --check-fullscreen     Validate the fullscreen toggle.\n"
         "      --check-pause          Validate pause/resume.\n"
+        "      --check-gadgets        Validate the tactical gadget hotkeys.\n"
         "      --check-rubble         Validate breached-tile rubble rendering.\n"
         "      --check-scanner        Validate the scanner ping overlay.\n"
         "      --check-objectives     Validate the objective banner for every kind.\n"
@@ -181,6 +182,7 @@ int main(int argc, char** argv)
     bool checkZoom = false;
     bool checkFullscreen = false;
     bool checkPause = false;
+    bool checkGadgets = false;
     bool checkRubble = false;
     bool checkScanner = false;
     bool checkObjectives = false;
@@ -304,6 +306,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-pause") == 0)
         {
             checkPause = true;
+        }
+        else if (std::strcmp(argv[i], "--check-gadgets") == 0)
+        {
+            checkGadgets = true;
         }
         else if (std::strcmp(argv[i], "--check-rubble") == 0)
         {
@@ -645,6 +651,16 @@ int main(int argc, char** argv)
         // round-trip. Used by the game_pause ctest.
         const bool ok = game.pauseSelfTest();
         std::printf(ok ? "pause: ok\n" : "pause: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkGadgets)
+    {
+        // Headless guard for the tactical gadget hotkeys (issue #339): each
+        // handler must spend a charge and apply its effect on the selected agent,
+        // and a charge-less selection must be a safe no-op. Used by game_gadgets.
+        const bool ok = game.gadgetSelfTest();
+        std::printf(ok ? "gadgets: ok\n" : "gadgets: FAILED\n");
         return ok ? 0 : 1;
     }
 

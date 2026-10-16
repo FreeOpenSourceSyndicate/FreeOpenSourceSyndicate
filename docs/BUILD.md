@@ -238,6 +238,7 @@ They flee when gunfire starts nearby. Civilian deaths you cause are counted as
 | `--check-waypoints` | Run the shift-click waypoint-queue self-check headlessly and exit (ctest `game_waypoints`) |
 | `--check-content [DIR]` | Validate the mission `weaponId`/`agentId` references against the catalogues in `DIR` (default `assets/data`) and exit; non-zero on a dangling reference (ctest `game_content`) |
 | `--check-lang` | Run the UI string-table self-check headlessly and exit (ctest `game_lang`) |
+| `--check-gadgets` | Run the tactical gadget hotkey self-check (`H`/`S`/`C`/`B`) headlessly and exit (ctest `game_gadgets`) |
 
 ### Core-only build (no SDL2 needed)
 
