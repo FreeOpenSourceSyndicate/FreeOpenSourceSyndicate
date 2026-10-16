@@ -69,6 +69,14 @@ if(Python3_Interpreter_FOUND)
     # script).
     add_test(NAME cmake_registration_guard
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_cmake_registration.py)
+
+    # Size-gate regression (issue #328): scripts/check-size.sh is the only thing
+    # that fails CI when the low-spec binary outgrows its budget (AGENTS.md 1b),
+    # and it is a shell script, so the C++ harness never touches it. A bug there
+    # is either a silent size regression or a spurious red lane. Python because it
+    # drives the real script with hand-sized files; no build needed.
+    add_test(NAME size_gate_tests
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_check_size.py)
 else()
     message(STATUS "Python3 not found: skipping coord_tests")
 endif()
