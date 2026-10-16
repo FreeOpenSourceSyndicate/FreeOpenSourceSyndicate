@@ -49,6 +49,7 @@ void printUsage()
         "      --breach               Breach all destructible walls before rendering.\n"
         "      --scan                 Activate a scanner pulse on the squad before rendering.\n"
         "      --shield               Raise a shield on the squad before rendering.\n"
+        "      --drugs                Take performance drugs on the squad before rendering.\n"
         "      --vehicle              Spawn a demo car and train before rendering.\n"
         "      --zoom <n>             Set the integer zoom level (1-3).\n"
         "      --headless             Run without a display.\n"
@@ -69,6 +70,7 @@ void printUsage()
         "      --check-rubble         Validate breached-tile rubble rendering.\n"
         "      --check-scanner        Validate the scanner ping overlay.\n"
         "      --check-shield         Validate the personal shield overlay.\n"
+        "      --check-drugs          Validate the performance-drug aura overlay.\n"
         "      --check-vehicles       Validate vehicle rendering.\n"
         "      --check-objectives     Validate the objective banner for every kind.\n"
         "      --check-campaign       Validate the campaign management loop.\n"
@@ -178,6 +180,7 @@ int main(int argc, char** argv)
     bool breachWalls = false;
     bool scanSquad = false;               // --scan
     bool shieldSquad = false;             // --shield
+    bool drugsSquad = false;              // --drugs
     bool spawnVehicles = false;           // --vehicle
     bool checkVehicles = false;           // --check-vehicles
     bool checkSprites = false;
@@ -194,6 +197,7 @@ int main(int argc, char** argv)
     bool checkRubble = false;
     bool checkScanner = false;
     bool checkShield = false;
+    bool checkDrugs = false;
     bool checkObjectives = false;
     bool checkCampaign = false;
     bool checkDeploy = false;
@@ -269,6 +273,10 @@ int main(int argc, char** argv)
         {
             shieldSquad = true;
         }
+        else if (std::strcmp(argv[i], "--drugs") == 0)
+        {
+            drugsSquad = true;
+        }
         else if (std::strcmp(argv[i], "--vehicle") == 0)
         {
             spawnVehicles = true;
@@ -340,6 +348,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-shield") == 0)
         {
             checkShield = true;
+        }
+        else if (std::strcmp(argv[i], "--check-drugs") == 0)
+        {
+            checkDrugs = true;
         }
         else if (std::strcmp(argv[i], "--check-vehicles") == 0)
         {
@@ -580,6 +592,13 @@ int main(int argc, char** argv)
         game.raiseShieldForSquad();
     }
 
+    // `--drugs` doses every living player agent up front so a headless screenshot
+    // shows the drug aura without a hotkey (issue #387). Kept beside `--shield`.
+    if (drugsSquad)
+    {
+        game.takeDrugsForSquad();
+    }
+
     // `--vehicle` spawns a demo car and train so a headless screenshot shows the
     // vehicle art without a mission that ships one (#363). Kept beside `--breach`
     // and `--scan` as a demo hook.
@@ -738,6 +757,17 @@ int main(int argc, char** argv)
         // dome stays while a re-raise is a no-op. Used by the game_shield ctest.
         const bool ok = game.shieldSelfTest();
         std::printf(ok ? "shield: ok\n" : "shield: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkDrugs)
+    {
+        // Headless guard for the performance-drug aura overlay (issue #387): no
+        // aura before a dose, one aura on the dosed combatant, no aura for a
+        // civilian dose, and the aura clearing once the buff expires. Used by the
+        // game_drugs ctest.
+        const bool ok = game.drugsSelfTest();
+        std::printf(ok ? "drugs: ok\n" : "drugs: FAILED\n");
         return ok ? 0 : 1;
     }
 

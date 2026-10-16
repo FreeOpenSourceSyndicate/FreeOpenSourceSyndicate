@@ -110,6 +110,9 @@ Close out the 1993 tactical feature set (the tail of the old Phase 3).
       ping landed (#323): `Game::renderScannerPing` draws a ring at each
       scanning agent and a crosshair on every revealed enemy, and the minimap
       marks them.
+      The performance-drug buff's on-board cue landed (#387):
+      `Game::renderDrugAura` draws a fading amber rim for the buff's life, so the
+      last seconds read as an expiry warning (`--drugs`).
 - [x] **Vehicles**: cars/trains you can hijack, drive, and fire from.
       _Entity `core::Vehicle` (#320, World); `Mission` policy — hijack, drive,
       mounted fire, blast-wreck — landed (#318, ADR-0032). The player-facing

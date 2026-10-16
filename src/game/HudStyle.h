@@ -43,6 +43,11 @@ constexpr std::uint8_t kScannerPing[3] = {90, 235, 245};
 // the cyan scanner sweep or the blue waypoint dots.
 constexpr std::uint8_t kShieldField[3] = {120, 185, 255};
 
+// Performance-drug aura (issue #387): the fading rim around a drugged agent. A
+// hot amber reads as a stimulant and is distinct from the blue shield dome, the
+// cyan scanner sweep, and every team colour.
+constexpr std::uint8_t kDrugAura[3] = {255, 170, 60};
+
 // Drag-box marquee (issue #94): the rectangle drawn while box-selecting.
 constexpr std::uint8_t kSelectionBox[3] = {120, 220, 255};
 

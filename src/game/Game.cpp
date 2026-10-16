@@ -55,6 +55,12 @@ constexpr int kShieldFieldAlpha = 70;
 constexpr int kShieldRimAlpha = 200;
 constexpr float kShieldAbsorbFlashSeconds = 0.3f;
 
+// Performance-drug aura (issue #387). The buff is a timed state, so the rim
+// fades from a bright amber to nothing as the dose runs out — an expiry cue the
+// flat overlay would not give. Alpha spans this range across the buff's life.
+constexpr int kDrugRimAlphaMin = 60;
+constexpr int kDrugRimAlphaMax = 230;
+
 void setPixel(SDL_Surface* surface, int x, int y, std::uint32_t color)
 {
     if (x < 0 || y < 0 || x >= surface->w || y >= surface->h)
@@ -1224,6 +1230,24 @@ void Game::raiseShieldForSquad()
         }
         mission_.activateShield(i);
     }
+}
+
+void Game::takeDrugsForSquad()
+{
+    for (std::size_t i = 0; i < mission_.agents().size(); ++i)
+    {
+        const core::Agent& agent = mission_.agents()[i];
+        if (!agent.isAlive() || agent.team() != core::Team::Player)
+        {
+            continue;
+        }
+        if (mission_.drugs(i) <= 0)
+        {
+            mission_.setDrugs(i, 1);
+        }
+        mission_.useDrugs(i);
+    }
+    updateDrugSnapshot();
 }
 
 bool Game::scannerSelfTest()
@@ -2716,6 +2740,7 @@ void Game::update(float frameSeconds)
     }
     updateAgentViews(frameSeconds);
     updateShieldSnapshot(frameSeconds);
+    updateDrugSnapshot();
 }
 
 void Game::updateAgentViews(float dt)
@@ -3470,6 +3495,162 @@ bool Game::shieldSelfTest()
     return true;
 }
 
+void Game::renderDrugAura()
+{
+    // Performance-drug aura (issue #387): an amber rim around each agent with a
+    // live buff, fading as the dose runs out. View-only: it reads
+    // `Mission::drugsTimer` and never writes it (golden rule 4).
+    const std::vector<DrugMark> marks = drugMarks();
+    if (marks.empty())
+    {
+        return;
+    }
+
+    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
+    for (const DrugMark& mark : marks)
+    {
+        // The rim dims across the buff's life, so the last seconds read as a
+        // warning that the boost is about to drop.
+        const float clamped = std::max(0.0f, std::min(1.0f, mark.fraction));
+        const int alpha =
+            kDrugRimAlphaMin + static_cast<int>((kDrugRimAlphaMax - kDrugRimAlphaMin) * clamped);
+        strokeDiamondWorld(mark.world, 0.62f, hudstyle::kDrugAura[0], hudstyle::kDrugAura[1],
+                           hudstyle::kDrugAura[2], static_cast<std::uint8_t>(alpha));
+    }
+}
+
+std::vector<Game::DrugMark> Game::drugMarks() const
+{
+    // The drug auras the overlay should draw, from the live mission state
+    // (issue #387). An aura only while an agent's buff is running, with the
+    // remaining fraction so the renderer can fade it. Pure read of core.
+    std::vector<DrugMark> marks;
+    const auto& agents = mission_.agents();
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        const float timer = mission_.drugsTimer(i);
+        if (timer <= 0.0f)
+        {
+            continue;
+        }
+        const core::Vec2 position = agents[i].interpolatedPosition(clock_.alpha());
+        const core::Vec2 world =
+            core::tileToWorld(position.x, position.y, kTileWidth, kTileHeight);
+        // The buff's full duration is core-private, so the fraction is against the
+        // peak timer this view observed (set the moment the buff was taken).
+        const float peak = i < drugPeak_.size() ? drugPeak_[i] : 0.0f;
+        const float fraction = peak > 0.0f ? timer / peak : 0.0f;
+        const DrugMark mark{i, world, fraction};
+        marks.push_back(mark);
+    }
+    return marks;
+}
+
+void Game::updateDrugSnapshot()
+{
+    // Records each agent's peak drug timer so drugMarks() can report a remaining
+    // fraction, and clears it when the buff ends (issue #387). View-only.
+    const auto& agents = mission_.agents();
+    if (drugPeak_.size() != agents.size())
+    {
+        drugPeak_.assign(agents.size(), 0.0f);
+    }
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        const float timer = mission_.drugsTimer(i);
+        if (timer <= 0.0f)
+        {
+            drugPeak_[i] = 0.0f;
+            continue;
+        }
+        drugPeak_[i] = std::max(drugPeak_[i], timer);
+    }
+}
+
+bool Game::drugsSelfTest()
+{
+    // Headless guard for the drug aura overlay (issue #387): drive the shared
+    // drugMarks() decision the render pass uses, and prove the invariants a
+    // broken overlay would violate — no aura before a dose, one aura on the dosed
+    // combatant with the full remaining fraction, no aura for a civilian dose,
+    // and the aura clearing once the buff expires through the real update path.
+    const auto& agents = mission_.agents();
+    if (!drugMarks().empty())
+    {
+        std::fprintf(stderr, "drugs self-test: an aura was drawn before any dose\n");
+        return false;
+    }
+
+    std::size_t user = agents.size();
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (agents[i].isAlive() && agents[i].team() == core::Team::Player)
+        {
+            user = i;
+            break;
+        }
+    }
+    if (user == agents.size())
+    {
+        std::fprintf(stderr, "drugs self-test: no living player agent\n");
+        return false;
+    }
+
+    // A dose on a living combatant: exactly one aura, at (near) full strength.
+    mission_.setDrugs(user, 1);
+    if (!mission_.useDrugs(user))
+    {
+        std::fprintf(stderr, "drugs self-test: could not take the dose\n");
+        return false;
+    }
+    updateDrugSnapshot();
+    std::vector<DrugMark> marks = drugMarks();
+    if (marks.size() != 1 || marks[0].index != user)
+    {
+        std::fprintf(stderr, "drugs self-test: expected one aura on the dosed agent\n");
+        return false;
+    }
+    if (marks[0].fraction < 0.9f)
+    {
+        std::fprintf(stderr, "drugs self-test: a fresh dose did not read as near-full\n");
+        return false;
+    }
+
+    // A civilian is never dosed: useDrugs is a no-op, so it adds no aura.
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (agents[i].isAlive() && agents[i].team() == core::Team::Civilian)
+        {
+            mission_.setDrugs(i, 1);
+            if (mission_.useDrugs(i))
+            {
+                std::fprintf(stderr, "drugs self-test: a civilian took a dose\n");
+                return false;
+            }
+            if (drugMarks().size() != 1)
+            {
+                std::fprintf(stderr, "drugs self-test: a civilian dose changed the overlay\n");
+                return false;
+            }
+            break;
+        }
+    }
+
+    // Let the buff expire through the real update path: the aura clears. Step in
+    // small increments so the guard does not depend on core's buff duration.
+    for (int step = 0; step < 400 && mission_.drugsTimer(user) > 0.0f; ++step)
+    {
+        mission_.update(0.5f);
+        updateDrugSnapshot();
+    }
+    if (mission_.drugsTimer(user) > 0.0f || !drugMarks().empty())
+    {
+        std::fprintf(stderr, "drugs self-test: aura survived the buff expiry\n");
+        return false;
+    }
+    return true;
+}
+
 std::vector<Game::VehicleDraw> Game::vehicleDraws() const
 {
     // The draw decision for every vehicle in the mission (issue #363). A
@@ -3695,6 +3876,7 @@ void Game::render()
     renderWaypointPath();
     renderScannerPing();
     renderShield();
+    renderDrugAura();
     renderSelectionBox();
     if (titleCardActive_)
     {
