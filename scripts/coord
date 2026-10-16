@@ -96,6 +96,9 @@ AREAS = (
 BOARD_PATH = "docs/COORDINATION_BOARD.md"
 BOARD_MARKER = "<!-- coord:board -->"
 
+# The well-known empty tree id, so ledger/note commits need no mktree stdin.
+_EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
 # Areas on the critical path (docs/ROADMAP.md).  `coord next` prefers these so an
 # idle agent is steered at the work that actually unblocks the release, not just
 # at any area that happens to be free.
@@ -126,6 +129,43 @@ ISSUE_REF_RE = re.compile(r"#([0-9]+)")
 
 class CoordError(RuntimeError):
     """A recoverable, user-facing coordination error."""
+
+
+class CoordAuthError(CoordError):
+    """A push failed because the remote rejected our credentials.
+
+    Distinct from a lost CAS race: the ledger did *not* move, we simply could
+    not talk to it.  Reporting it as a race sends the caller to re-read state
+    that is unchanged, so it is raised (and re-raised) verbatim.
+    """
+
+
+# Substrings git emits when a push is rejected for authentication/credentials
+# rather than a non-fast-forward.  Kept lowercase for a casefolded match.
+_AUTH_FAILURE_MARKERS = (
+    "authentication failed",
+    "could not read username",
+    "could not read password",
+    "terminal prompts disabled",
+    "invalid username or password",
+    "support for password authentication was removed",
+    "permission denied (publickey)",
+    "403 forbidden",
+    "401 unauthorized",
+)
+
+
+def _push_hint(detail: str) -> Optional[str]:
+    """An actionable hint if ``detail`` is a credential failure, else None."""
+    low = (detail or "").lower()
+    if not any(marker in low for marker in _AUTH_FAILURE_MARKERS):
+        return None
+    return (
+        "the remote rejected your git credentials (not a lease race - the ledger "
+        "did not move). Fix push auth, then re-run: `gh auth setup-git` installs "
+        "a credential helper for github.com; a stale token embedded in the "
+        "remote URL is the usual cause - check `git remote -v`."
+    )
 
 
 def now() -> int:
@@ -290,6 +330,130 @@ def fetch_ledger(cwd: Optional[str] = None) -> None:
         f"+{REF_PREFIX}/*:{REF_PREFIX}/*", check=False, cwd=cwd)
 
 
+# --------------------------------------------------------------------------- #
+# Notes - cross-cycle handoff that survives a lease release
+# --------------------------------------------------------------------------- #
+#
+# A lease is scoped to *now*: it is deleted when it expires or is released, so a
+# fact that the next cycle needs ("the push auth is broken", "do not re-claim
+# epic #315, its scope landed") has nowhere to live.  Notes are that place.  They
+# are the same git-native shape as the leases - one ref per area, a JSON body,
+# no lock server - but they are *append-only* and never expire: the area ref is
+# a running log, newest entry last, capped to the most recent ``MAX_NOTES``.
+
+NOTE_PREFIX = "refs/coord/notes"
+MAX_NOTES = 20
+
+
+@dataclass
+class Note:
+    agent: str
+    area: str
+    text: str
+    epoch: int = 0
+
+    def to_json(self) -> str:
+        return json.dumps({
+            "agent": self.agent,
+            "area": self.area,
+            "text": self.text,
+            "epoch": self.epoch,
+        }, sort_keys=True)
+
+    @classmethod
+    def from_json(cls, body: str) -> "Note":
+        data = json.loads(body)
+        return cls(
+            agent=data["agent"],
+            area=data["area"],
+            text=data["text"],
+            epoch=int(data.get("epoch", 0)),
+        )
+
+
+def notes_ref_for(area: str) -> str:
+    return f"{NOTE_PREFIX}/{area}"
+
+
+def read_notes(area: str, cwd: Optional[str] = None) -> list[Note]:
+    """All notes for an area, oldest first.  Missing/corrupt ref -> []."""
+    proc = git("log", "--reverse", "--format=%B%x00", notes_ref_for(area),
+               check=False, cwd=cwd)
+    if proc.returncode != 0:
+        return []
+    notes = []
+    for body in (proc.stdout or "").split("\x00"):
+        body = body.strip()
+        if not body:
+            continue
+        try:
+            notes.append(Note.from_json(body))
+        except (ValueError, KeyError, json.JSONDecodeError):
+            continue
+    return notes
+
+
+def list_all_notes(cwd: Optional[str] = None) -> dict[str, list[Note]]:
+    """Every area's notes, keyed by area, oldest first."""
+    result: dict[str, list[Note]] = {}
+    for area in AREAS:
+        notes = read_notes(area, cwd=cwd)
+        if notes:
+            result[area] = notes
+    return result
+
+
+def _write_notes(area: str, notes: list[Note], *, cwd: Optional[str] = None) -> None:
+    """Replace an area's note ref with a fresh chain of the given notes.
+
+    The ref is rebuilt as a linear history (one commit per note) so the log is
+    human-readable with `git log refs/coord/notes/<area>`, then force-pushed.
+    Notes are a log, not a lock: a concurrent append is reconciled by the caller
+    re-reading and retrying, so no compare-and-swap is needed.
+    """
+    env = _git_env()
+    parent: Optional[str] = None
+    head: Optional[str] = None
+    for note in notes[-MAX_NOTES:]:
+        args = ["commit-tree", _EMPTY_TREE, "-m", note.to_json()]
+        if parent:
+            args += ["-p", parent]
+        commit = _run(["git", *args], cwd=cwd, env=env).stdout.strip()
+        parent = commit
+        head = commit
+    if head is None:
+        return
+    git("push", "--force", "origin", f"{head}:{notes_ref_for(area)}", cwd=cwd, env=env)
+    git("update-ref", notes_ref_for(area), head, check=False, cwd=cwd)
+
+
+def fetch_notes(cwd: Optional[str] = None) -> None:
+    """Best-effort refresh of the remote note refs into the local namespace."""
+    git("fetch", "--prune", "--force", "origin",
+        f"+{NOTE_PREFIX}/*:{NOTE_PREFIX}/*", check=False, cwd=cwd)
+
+
+def append_note(area: str, agent: str, text: str, *, cwd: Optional[str] = None) -> Note:
+    """Append a note for an area, preserving any concurrent appends.
+
+    Read-modify-write against a log: re-read after a lost push and merge the
+    entries, so two agents appending at once both keep their note.
+    """
+    note = Note(agent=agent, area=area, text=text, epoch=now())
+    for _ in range(5):
+        existing = read_notes(area, cwd=cwd)
+        if any(n.agent == note.agent and n.text == note.text for n in existing):
+            break
+        merged = existing + [note]
+        try:
+            _write_notes(area, merged, cwd=cwd)
+            return note
+        except CoordError:
+            fetch_notes(cwd=cwd)
+    return note
+
+
+
 def _git_env() -> dict:
     """Identity for the throwaway ledger commits (never touches user config)."""
     env = dict(os.environ)
@@ -307,9 +471,7 @@ def _local_ref_sha(ref: str, cwd: Optional[str] = None) -> Optional[str]:
 
 
 def _empty_commit(message: str, *, cwd: Optional[str] = None, env: Optional[dict] = None) -> str:
-    # An empty tree id is stable and well known; avoids depending on mktree stdin.
-    empty_tree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-    return _run(["git", "commit-tree", empty_tree, "-m", message],
+    return _run(["git", "commit-tree", _EMPTY_TREE, "-m", message],
                 cwd=cwd, env=env).stdout.strip()
 
 
@@ -342,10 +504,15 @@ def _commit_leases(leases: list["Lease"], *, expects: dict[str, Optional[str]],
     push_args += ["origin", *refspecs]
     proc = git(*push_args, check=False, cwd=cwd, env=env)
     if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "").strip()
+        hint = _push_hint(detail)
+        if hint is not None:
+            raise CoordAuthError(f"could not publish lease(s) "
+                                 f"{', '.join(l.area for l in leases)}: {hint}\n{detail}")
         raise CoordError(
             f"could not publish lease(s) {', '.join(l.area for l in leases)} "
             f"(someone else wrote first - re-run to see the new state):\n"
-            f"{(proc.stderr or proc.stdout or '').strip()}"
+            f"{detail}"
         )
     # Keep the local mirror in step with the remote so the next read sees it
     # without waiting for a fetch.
@@ -450,6 +617,10 @@ def cmd_claim(args: argparse.Namespace) -> int:
     expect = local_sha if local_sha else ""
     try:
         _commit_leases([lease], expects={ref: expect})
+    except CoordAuthError:
+        # Not a race: the ledger did not move, we could not reach it.  Surface
+        # the auth diagnosis instead of blaming a phantom concurrent writer.
+        raise
     except CoordError as exc:
         # Someone raced us.  Re-read and report the real holder, so the caller
         # gets an actionable message instead of raw git output.
@@ -804,6 +975,28 @@ def render_board(at: Optional[int] = None) -> str:
         "**needs-review** = the holder set the state. Pending workload per area is the",
         "open-issue count on GitHub.",
         "",
+    ]
+    notes = list_all_notes()
+    if notes:
+        lines += [
+            "## Handoff notes",
+            "",
+            "Cross-cycle notes left by earlier processes (`refs/coord/notes/*`). These",
+            "outlive the lease that wrote them, so read them before starting an area:",
+            "",
+        ]
+        for area in sorted(notes):
+            lines.append(f"**`{area}`**")
+            lines.append("")
+            for n in notes[area]:
+                when = iso(n.epoch) if n.epoch else "?"
+                lines.append(f"- _{when}_ {n.agent}: {n.text}")
+            lines.append("")
+        lines += [
+            "Add one with `scripts/coord note --area <area> --agent \"<model>\" --text \"...\"`.",
+            "",
+        ]
+    lines += [
         "## How to take an area",
         "",
         "```bash",
@@ -831,6 +1024,38 @@ def cmd_board(args: argparse.Namespace) -> int:
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(content)
     print(f"wrote {path}")
+    return 0
+
+
+def cmd_note(args: argparse.Namespace) -> int:
+    """Append a cross-cycle note to an area's log."""
+    append_note(args.area, args.agent, args.text)
+    print(f"noted {args.area}: {args.text}")
+    return 0
+
+
+def cmd_notes(args: argparse.Namespace) -> int:
+    """Print the notes for an area, or every area."""
+    if not args.offline:
+        fetch_notes()
+    if args.area:
+        areas = {args.area: read_notes(args.area)}
+    else:
+        areas = list_all_notes()
+    if args.json:
+        payload = {
+            a: [{"agent": n.agent, "text": n.text, "epoch": n.epoch} for n in ns]
+            for a, ns in areas.items()
+        }
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    if not any(areas.values()):
+        print("no notes.")
+        return 0
+    for area in sorted(areas):
+        for n in areas[area]:
+            when = iso(n.epoch) if n.epoch else "?"
+            print(f"[{area}] {when} {n.agent}: {n.text}")
     return 0
 
 
@@ -1260,6 +1485,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--stdout", action="store_true")
     p.add_argument("--offline", action="store_true")
     p.set_defaults(func=cmd_board)
+
+    p = sub.add_parser("note", help="append a cross-cycle note to an area (survives release)")
+    _add_common(p)
+    p.add_argument("--area", required=True, choices=AREAS)
+    p.add_argument("--text", required=True)
+    p.set_defaults(func=cmd_note)
+
+    p = sub.add_parser("notes", help="print notes for an area, or all areas")
+    p.add_argument("--area", choices=AREAS, default=None)
+    p.add_argument("--json", action="store_true")
+    p.add_argument("--offline", action="store_true")
+    p.set_defaults(func=cmd_notes)
 
     p = sub.add_parser("sweep", help="delete expired refs, sync labels, rebuild board")
     p.add_argument("--gh", action="store_true", help="also sync issue labels/comments (needs gh)")

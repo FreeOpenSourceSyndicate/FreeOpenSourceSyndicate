@@ -155,6 +155,33 @@ blocker in any free critical-path area outranks plain work in the first one.
 Clearing a blocker unblocks a peer, so an agent is never steered to work it cannot
 start, nor past a blocker that is holding a peer.
 
+## 3b. Handoff notes (survive the lease)
+
+A lease is scoped to **now**: it is deleted on release and ages out on TTL, so a
+fact the *next* process needs has nowhere to live. Notes are that place.
+
+```bash
+scripts/coord note  --area world --agent "<model>" \
+    --text "push auth was stale; run gh auth setup-git first"
+scripts/coord notes --area world      # read one area
+scripts/coord notes                   # read every area
+```
+
+- Notes are keyed by **area**, exactly like leases, and stored as git refs
+  (`refs/coord/notes/<area>`) with the same flat, server-free shape.
+- They are **append-only and never expire** — releasing or expiring a lease does
+  not remove its notes. Read them before you start an area.
+- They are **not a lock**: a note never blocks a claim, and writing one never
+  takes or holds a lease. Two agents appending at once both keep their note.
+- Only the most recent `MAX_NOTES` (20) per area are kept.
+- The generated board prints every area's notes under **Handoff notes**, so a
+  fresh process sees the handoff without running a command.
+
+Use a note when the next process would otherwise re-discover something the hard
+way: broken tooling, a decision that should not be re-litigated, a warning about
+a trap in an area. Do **not** use it as a queue or an assignment — that is what
+issues are for.
+
 ## 4. The board
 
 `docs/COORDINATION_BOARD.md` is **generated** from the ledger:
