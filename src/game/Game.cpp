@@ -1079,6 +1079,25 @@ bool Game::objectiveSelfTest()
     return ok;
 }
 
+bool Game::campaignSelfTest()
+{
+    if (!campaign_.selfTest())
+    {
+        return false;
+    }
+    // Also draw the R&D shop overlay headlessly so `renderShop` is exercised (the
+    // logic self-test above only drives the shop keys, not the draw). Opened and
+    // closed on the live screen, so the player's state is unchanged. `render` is a
+    // no-op when the screen is invalid, so this is safe with a null renderer.
+    const bool savedVisible = campaign_.visible();
+    campaign_.setVisible(true);
+    campaign_.toggleShop();
+    campaign_.render(renderer_, font_, screenWidth_, screenHeight_);
+    campaign_.toggleShop();
+    campaign_.setVisible(savedVisible);
+    return !campaign_.shopOpen();
+}
+
 bool Game::deploySelfTest()
 {
     // Deploying from the map must (a) resolve the territory's mission to a file,
@@ -1846,6 +1865,14 @@ void Game::handleEvents(bool& running)
             running = false;
             break;
         case SDL_KEYDOWN:
+            // The campaign management screen can own a key: `B` opens the R&D shop,
+            // and while the shop is open it is modal (navigation + action). This
+            // runs before the global bindings so `M`/`D`/`-`/`+` cannot fire behind
+            // the shop.
+            if (campaign_.visible() && campaign_.handleKey(event.key.keysym.sym))
+            {
+                break;
+            }
             switch (event.key.keysym.sym)
             {
             case SDLK_ESCAPE:

@@ -84,6 +84,23 @@ public:
     // state after the result, so the caller can show the end state.
     core::CampaignState recordDeployResult(bool won);
 
+    // --- R&D shop (Milestone B: research and purchase in play) ---
+
+    // The shop overlay. It lists the research tree and the equipment catalogue so
+    // a player can fund research and buy gear without a debug flag — the middle of
+    // the loop (tax -> research -> buy -> deploy), which was previously reachable
+    // only from the self-test. View-only state; every rule (cost, prerequisites,
+    // research gate, funds) stays in `core/economy/**`.
+    bool shopOpen() const { return shopOpen_; }
+    void toggleShop();
+
+    // Handles a management-screen key. Returns true when the screen consumed it.
+    // `B` opens/closes the shop; while it is open the shop owns Up/Down (move the
+    // row), Left/Right (target squad slot), Enter (act), and Esc (close). Returns
+    // false for every other key (and once the campaign is finished) so the global
+    // bindings still run.
+    bool handleKey(int sym);
+
     // Draws the screen: backdrop, world map, and the management panel.
     void render(SDL_Renderer* renderer, const BitmapFont& font, int w, int h) const;
 
@@ -117,6 +134,11 @@ private:
     // tolerance in pixels.
     int nodeAtScreen(int x, int y, int w, int h, int radius) const;
 
+    // Draws the R&D shop overlay: the research nodes and the equipment items as
+    // one scrollable list, with the selected row's cost/state and the target squad
+    // slot. Reads `core::Campaign` only (golden rule 4).
+    void renderShop(SDL_Renderer* renderer, const BitmapFont& font, int w, int h) const;
+
     // Resolves a mission id (as named by a territory) to its JSON file. Searches
     // the mission directory under the repo root, then alongside the executable,
     // then the common install prefixes — the same order as the default mission
@@ -146,6 +168,16 @@ private:
     std::string deployedMissionId_;
     std::string deployedMissionPath_;
     core::PlayerLoadout deployedLoadout_;
+
+    // R&D shop view state. Rows are the research nodes followed by the equipment
+    // items; `shopRow_` indexes that list, `shopSlot_` is the squad slot a bought
+    // item is assigned to. Never saved and never part of the simulation.
+    // `shopScroll_` is mutable: render() is const but clamps the scroll window to
+    // keep the selected row visible, and it is a pure view cache.
+    bool shopOpen_ = false;
+    int shopRow_ = 0;
+    int shopSlot_ = 0;
+    mutable int shopScroll_ = 0;
 };
 
 } // namespace fossynd::game

@@ -10,6 +10,25 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **The R&D shop (research and purchase in play):** `B` on the campaign map
+  opens a shop listing the research tree and the equipment catalogue — Up/Down to
+  move, Left/Right to pick the squad slot, Enter to fund a node or buy gear and
+  assign it. This is the *player* path for the middle of the loop
+  (tax → research → buy → deploy); before it, research and purchase were
+  reachable only from the headless self-test, so Milestone B's "the whole loop
+  works without a config file or debug flag" was not actually true. The shop is
+  modal while open and refuses to open once the campaign is finished; every rule
+  (cost, prerequisites, research gate, funds) stays in `core/economy/**`. The
+  `game_campaign` guard now drives the shop through the player keys and draws it.
+  Issue #249.
+
+- **The campaign end state is terminal:** once the campaign is won or lost,
+  `Campaign::finished()` freezes the board — `canDeployTo`, `recordResult`, and
+  `tick` are no-ops, and the map screen refuses to deploy or change tax and draws
+  a centred victory/defeat panel (headline, held-territory count, quit hint) over
+  the frozen map. Before this the end state was cosmetic: a finished campaign
+  kept ticking and could still be deployed into. Issue #249.
+
 - **The campaign can be won (frontier attacks):** a region is now a deploy
   target when the player owns it **or holds an adjacent region**
   (`Campaign::canDeployTo`), and a win claims it, so ownership spreads inward
