@@ -992,10 +992,20 @@ Do not start work outside the scope fence (ADR-0024).
   append an entry to the matching file and reference it by
   `weaponId`/`agentId`/`vehicleId`; a mission that inlines its content (e.g.
   `demo.json`) is unaffected. A new catalogue entry **must** bump the pinned
-  `cataloguesChecked` count in `tests/test_content_validation.cpp` (currently 24:
-  10 weapons + 10 templates + 4 vehicles) and a new weapon should add a carrier
+  `cataloguesChecked` count in `tests/test_content_validation.cpp` (currently 26:
+  12 weapons + 10 templates + 4 vehicles) and a new weapon should add a carrier
   template so it is mission-referenceable, not inert. Schema in
   `docs/DATA_FORMAT.md` ("Shared catalogues").
+- **The metagame world data is cross-checked against the weapon catalogue
+  (issue #369):** `content::validateContentDir` now also reads
+  `assets/data/world/equipment.json` and `research.json` (when present) and
+  requires every `kind: "weapon"` equipment id to exist in `weapons.json` and
+  every research `unlocks` to be an equipment id. This exists because the shop
+  sold `longshot`/`railgun` while `weapons.json` defined neither, so buying one
+  made `applyLoadout` reject the **whole** squad loadout at deploy (the player
+  paid first). If you add a weapon the metagame sells, add the catalogue entry —
+  `--check-content` now fails otherwise. `assets/data/world/**` is
+  `focus: metagame`; the catalogue and the validator are `focus: content`.
 - **Mission selection is configurable:** `--mission <path>` (CLI) overrides a
   `mission`/`mission_dir` key in a config file (`--config <path>`, else
   `./fossynd.conf`, `<exe-dir>/fossynd.conf`, `/etc/fossynd.conf`,

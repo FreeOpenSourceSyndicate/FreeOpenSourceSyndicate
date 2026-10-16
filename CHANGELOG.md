@@ -20,6 +20,19 @@ set, and breached-tile rubble.
 
 ### Added
 
+- **The shop's `longshot`/`railgun` now exist as weapons, and dangling catalogue
+  references fail CI:** `assets/data/world/equipment.json` sold a "Longshot
+  Rifle" and a "Railgun" (and `research.json` gated them), but neither id was in
+  the shared `weapons.json`, so buying either made `applyLoadout` reject the
+  **whole** squad loadout at deploy — the player paid the research cost and the
+  price, then lost every weapon and gadget for the mission. Both are now real
+  catalogue entries (`longshot` 15/14/2/0.9, `railgun` 34/13/0.9/0.9, inside the
+  catalogue DPS band). `content::validateContentDir` now cross-checks
+  `assets/data/world/*.json`: every `kind: "weapon"` equipment id must be in
+  `weapons.json`, and every research `unlocks` must be an equipment id, so this
+  class of dangling reference fails `--check-content` in CI instead of shipping.
+  Issue #369.
+
 - **Hijackable vehicles reach play:** `Mission` now owns vehicle policy for the
   `core::Vehicle` entity (`focus: world`, #320), so cars and trains are actually
   reachable in a mission. `Mission::addVehicle`/`vehicles()` track them;

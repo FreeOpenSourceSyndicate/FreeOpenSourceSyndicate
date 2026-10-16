@@ -27,6 +27,7 @@ struct TempContent
         std::error_code ec;
         std::filesystem::remove_all(root, ec);
         std::filesystem::create_directories(root / "missions", ec);
+        std::filesystem::create_directories(root / "world", ec);
     }
 
     ~TempContent()
@@ -275,6 +276,64 @@ FOSSYND_TEST(ContentValidation, OffMapMissionGeometryIsReported)
     FOSSYND_CHECK(reportMentions(report, "agent.json"));
 }
 
+// The metagame world data must agree with the weapon catalogue (#369): an
+// `equipment.json` weapon the catalogue does not define, or a research `unlocks`
+// that is not an equipment id, would be bought/researched and then make
+// `applyLoadout` reject the whole squad loadout at deploy. Nothing read these
+// files before, so the dangling reference shipped.
+FOSSYND_TEST(ContentValidation, WorldDataWeaponReferenceIsChecked)
+{
+    TempContent content("world_weapon_ref");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    content.write("world/equipment.json", R"({"items": [
+        {"id": "rifle", "kind": "weapon", "name": "Rifle", "cost": 0},
+        {"id": "ghost", "kind": "weapon", "name": "Ghost", "cost": 900}
+    ]})");
+    content.write("world/research.json", R"({"nodes": [
+        {"id": "rifle", "name": "Rifle", "cost": 100, "time": 10, "requires": [], "unlocks": "rifle"}
+    ]})");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(!report.ok());
+    FOSSYND_CHECK(reportMentions(report, "equipment item 'ghost' is a weapon"));
+    FOSSYND_CHECK(reportMentions(report, "not in the weapon catalogue"));
+}
+
+// A research `unlocks` that names no equipment id is reported too (it gates a
+// purchase that can never resolve).
+FOSSYND_TEST(ContentValidation, WorldDataResearchUnlockIsChecked)
+{
+    TempContent content("world_unlock_ref");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    content.write("world/equipment.json", R"({"items": [
+        {"id": "rifle", "kind": "weapon", "name": "Rifle", "cost": 0}
+    ]})");
+    content.write("world/research.json", R"({"nodes": [
+        {"id": "rifle", "name": "Rifle", "cost": 100, "time": 10, "requires": [], "unlocks": "rifle"},
+        {"id": "ghost", "name": "Ghost", "cost": 100, "time": 10, "requires": [], "unlocks": "ghost"}
+    ]})");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(!report.ok());
+    FOSSYND_CHECK(reportMentions(report, "research node 'ghost' unlocks 'ghost'"));
+    FOSSYND_CHECK(reportMentions(report, "not an equipment id"));
+}
+
+// World files are optional: a content directory with only catalogues and
+// missions must still validate (a minimal dir, or a package that ships no
+// campaign).
+FOSSYND_TEST(ContentValidation, MissingWorldDataIsNotAProblem)
+{
+    TempContent content("no_world_data");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(report.ok());
+}
+
 // The shipped content must always be valid: this is the guard that keeps a
 // broken mission or catalogue out of `main`.
 FOSSYND_TEST(ContentValidation, ShippedContentPasses)
@@ -283,11 +342,11 @@ FOSSYND_TEST(ContentValidation, ShippedContentPasses)
     const ValidationReport report = validateContentDir(dataDir);
     FOSSYND_CHECK(report.ok());
     FOSSYND_CHECK(report.missionsChecked >= static_cast<std::size_t>(2));
-    // 10 weapons (the #124 tiers and the #219 additions) + 10 agent templates
-    // (the #160 carriers included) + 4 vehicle templates (#319). Pinned exactly
-    // so an entry cannot silently vanish from a shipped catalogue; bump it when
-    // content is added on purpose.
-    FOSSYND_CHECK_EQ(report.cataloguesChecked, static_cast<std::size_t>(24));
+    // 12 weapons (the #124 tiers, the #219 additions, and the #369 longshot/
+    // railgun) + 10 agent templates (the #160 carriers included) + 4 vehicle
+    // templates (#319). Pinned exactly so an entry cannot silently vanish from a
+    // shipped catalogue; bump it when content is added on purpose.
+    FOSSYND_CHECK_EQ(report.cataloguesChecked, static_cast<std::size_t>(26));
 }
 
 // The Phase 3 weapon tiers (issue #124) must be present in the shipped catalogue
@@ -407,6 +466,51 @@ FOSSYND_TEST(ContentValidation, ShippedNewWeaponFamiliesLoad)
         FOSSYND_CHECK(entry.weapon.accuracy >= 0.0f && entry.weapon.accuracy <= 1.0f);
         FOSSYND_CHECK(entry.weapon.areaRadius >= 0.0f);
     }
+}
+
+// The #369 weapons (`longshot`, `railgun`) must be present in the shipped
+// catalogue with stats in the catalogue band: the metagame already sold and
+// researched them, so without a weapon entry the buy broke the whole squad
+// loadout. Pins each niche so a mis-edit cannot slip through.
+FOSSYND_TEST(ContentValidation, ShippedMetagameWeaponsLoad)
+{
+    const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/weapons.json";
+    WeaponCatalogue catalogue;
+    bool found = false;
+    std::string error;
+    FOSSYND_CHECK(catalogue.loadFromFile(path, found, error));
+    FOSSYND_CHECK(found);
+
+    const Weapon* rifle = catalogue.find("rifle");
+    const Weapon* flamethrower = catalogue.find("flamethrower");
+    const Weapon* longshot = catalogue.find("longshot");
+    const Weapon* railgun = catalogue.find("railgun");
+    FOSSYND_CHECK(rifle != nullptr);
+    FOSSYND_CHECK(flamethrower != nullptr);
+    FOSSYND_CHECK(longshot != nullptr);
+    FOSSYND_CHECK(railgun != nullptr);
+    if (rifle == nullptr || flamethrower == nullptr || longshot == nullptr || railgun == nullptr)
+    {
+        return;
+    }
+
+    FOSSYND_CHECK_EQ(longshot->name, std::string("Longshot"));
+    FOSSYND_CHECK_EQ(railgun->name, std::string("Railgun"));
+
+    // Longshot: a long, accurate, mid-rate rifle between the rifle and the laser.
+    FOSSYND_CHECK(longshot->range > rifle->range);
+    FOSSYND_CHECK(longshot->accuracy > rifle->accuracy);
+
+    // Railgun: the hardest-hitting non-AoE slug, but the slowest rate of the
+    // long guns, so it does not dominate the launcher or the sniper.
+    FOSSYND_CHECK(railgun->damage > rifle->damage);
+    FOSSYND_CHECK(railgun->fireRate < rifle->fireRate);
+
+    // Both stay inside the catalogue DPS band (below the flamethrower, the
+    // highest-DPS gun) so neither strictly dominates (tactical vet, #294).
+    const auto dps = [](const Weapon& w) { return w.damage * w.fireRate * w.accuracy; };
+    FOSSYND_CHECK(dps(*longshot) < dps(*flamethrower));
+    FOSSYND_CHECK(dps(*railgun) < dps(*flamethrower));
 }
 
 // The #219 weapons are carried by agent templates (#219), so they are

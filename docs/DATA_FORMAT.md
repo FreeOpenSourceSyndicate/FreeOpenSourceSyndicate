@@ -343,7 +343,8 @@ if (!report.ok())
 
 - `validateContentDir(dataDir)` loads `weapons.json`/`agents.json`/`vehicles.json`
   from `dataDir` (missing files are fine) and checks every `*.json` in
-  `dataDir/missions/`.
+  `dataDir/missions/`. It also cross-checks `dataDir/world/*.json` when present
+  (see below).
 - It collects **all** problems rather than stopping at the first, and each line
   names the file: `content: assets/data/missions/demo.json: unknown weaponId ...`.
 - It reports a missing `weaponId`/`agentId`/`vehicleId`, a duplicate catalogue
@@ -353,6 +354,13 @@ if (!report.ok())
   `blocked` tile, agent, vehicle, or `reach` tile outside the grid), a malformed
   mission, and a missing catalogue directory. Each message names the file and the
   offending entry/field.
+- **The metagame world data is cross-checked too** (issue #369): a
+  `kind: "weapon"` item in `dataDir/world/equipment.json` must exist in
+  `weapons.json`, and a `research.json` node's `unlocks` must be an
+  `equipment.json` id. Without this a weapon the shop sells but the catalogue
+  does not define (the pre-#369 `longshot`/`railgun`) would be bought and then
+  make `applyLoadout` reject the **whole** squad loadout at deploy. The world
+  files are optional, so a content dir that ships no campaign still validates.
 - A `dataDir` with **no** catalogue files is reported, because then no mission
   reference could ever resolve — a likely misconfiguration.
 - The shipped content is covered by `tests/test_content_validation.cpp`

@@ -124,6 +124,100 @@ inline void validateMissionFile(const std::filesystem::path& path, const WeaponC
     }
 }
 
+// Cross-checks the metagame world data (`dataDir/world/*.json`) against the
+// shared weapon catalogue. `equipment.json` names weapons by id, and
+// `research.json` `unlocks` names an equipment id; nothing else validated those
+// references, so a weapon id the catalogue does not define (e.g. the pre-#369
+// `longshot`/`railgun`) was bought and then made `applyLoadout` reject the
+// *whole* squad loadout at deploy. Missing world files are skipped (a minimal
+// content dir need not ship them); a present file is validated.
+inline void validateWorldData(const std::filesystem::path& dir, const WeaponCatalogue& weapons,
+                              ValidationReport& report)
+{
+    const std::filesystem::path worldDir = dir / "world";
+
+    // Every equipment id, so a research `unlocks` can be resolved against it.
+    std::vector<std::string> equipmentIds;
+
+    std::string text;
+    std::string error;
+    const std::filesystem::path equipmentPath = worldDir / "equipment.json";
+    if (detail::readFile(equipmentPath, text, error))
+    {
+        const Json root = Json::parse(text, error);
+        if (!error.empty())
+        {
+            report.problems.push_back({equipmentPath.string(), error});
+        }
+        else
+        {
+            const Json& items = root["items"];
+            for (std::size_t i = 0; i < items.size(); ++i)
+            {
+                const Json& item = items[i];
+                if (!item.isObject())
+                {
+                    continue; // shape errors are the economy loader's to report
+                }
+                const std::string id = item["id"].asString();
+                if (id.empty())
+                {
+                    continue;
+                }
+                equipmentIds.push_back(id);
+                const std::string kind = item["kind"].asString();
+                if (kind == "weapon" && weapons.find(id) == nullptr)
+                {
+                    report.problems.push_back(
+                        {equipmentPath.string(),
+                         "equipment item '" + id + "' is a weapon but '" + id +
+                             "' is not in the weapon catalogue (" + std::string(kWeaponsFileName) +
+                             ")"});
+                }
+            }
+        }
+    }
+
+    const std::filesystem::path researchPath = worldDir / "research.json";
+    if (detail::readFile(researchPath, text, error))
+    {
+        const Json root = Json::parse(text, error);
+        if (!error.empty())
+        {
+            report.problems.push_back({researchPath.string(), error});
+        }
+        else
+        {
+            const Json& nodes = root["nodes"];
+            for (std::size_t i = 0; i < nodes.size(); ++i)
+            {
+                const Json& node = nodes[i];
+                if (!node.isObject())
+                {
+                    continue;
+                }
+                const std::string unlocks = node["unlocks"].asString();
+                if (unlocks.empty())
+                {
+                    continue;
+                }
+                // A research node unlocks an equipment id; it must name a real
+                // catalogue item or the purchase it gates can never deploy.
+                if (std::find(equipmentIds.begin(), equipmentIds.end(), unlocks) ==
+                    equipmentIds.end())
+                {
+                    const std::string id = node["id"].asString();
+                    report.problems.push_back(
+                        {researchPath.string(),
+                         "research node '" + id + "' unlocks '" + unlocks +
+                             "', which is not an equipment id (" + std::string("equipment.json") +
+                             ")"});
+                }
+            }
+        }
+    }
+}
+
 // Loads `weapons.json`/`agents.json`/`vehicles.json` from `dataDir` (missing
 // files are fine: the catalogues stay empty), then validates every `*.json`
 // under `dataDir/missions`. `dataDir` is the directory holding the catalogues
@@ -159,6 +253,8 @@ inline ValidationReport validateContentDir(const std::string& dataDir)
                                std::string(kVehiclesFileName) + ")"});
     }
     report.cataloguesChecked = weapons.size() + agents.size() + vehicles.size();
+
+    validateWorldData(dir, weapons, report);
 
     for (const std::filesystem::path& mission : detail::sortedJsonFiles(dir / "missions"))
     {
