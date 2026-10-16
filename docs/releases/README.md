@@ -26,3 +26,12 @@ predate this directory; their notes live in their GitHub Release pages and in
 [`CHANGELOG.md`](../../CHANGELOG.md).
 
 For building `main` or any other version, use [`docs/BUILD.md`](../BUILD.md).
+
+## Major versions: the candidate + approval gate
+
+A **major version** (`X.0.0`) is not cut like a minor release. It rolls out only
+after a **feature-complete candidate** has been built, **played by a human**, and
+**approved** (`AGENTS.md` §6a-i, ADR-0036). The checklist a candidate carries and
+the human signs is [`MAJOR_RELEASE_GATE.md`](MAJOR_RELEASE_GATE.md). The first
+major version is **v1.0.0**; it is **not yet candidate-able** (Milestone C is
+open). Minor releases (`0.x.0`) follow `AGENTS.md` §6a unchanged.

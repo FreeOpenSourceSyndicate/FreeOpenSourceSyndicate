@@ -2043,3 +2043,80 @@ ever wants it gone, the delete is a self-contained removal of the three regexes,
     which stub the GitHub reads and assert the ordering (drain before plain claim,
     after the critical path, never ahead of your own lease).
 
+---
+
+## ADR-0036 — A major version is gated behind a feature-complete, human-approved candidate
+
+- **Status:** Accepted (2026-10-16)
+- **Date:** 2026-10-16
+- **Amends:** ADR-0024 (the v1.0.0 scope fence) and `AGENTS.md` §6a (releases).
+  The scope fence and the minor-release process are unchanged; this adds the
+  **major-version** step the process was missing.
+
+- **Context:** `AGENTS.md` §6a defines what a *release* is — a frozen, playable
+  snapshot a human can playtest — and how to cut one (`0.x.0` minor releases,
+  one tag per branch, a `CHANGELOG.md` entry, `docs/releases/**`, a GitHub
+  Release page). It says nothing about a **major version** (`X.0.0`). The next
+  major version, **v1.0.0**, is the project's whole goal: §9 and
+  `docs/ROADMAP.md` define it as *feature parity with the 1993 original*, playable
+  end to end. As written, an agent could tag `v1.0.0` the moment CI is green,
+  with **no rule** requiring that a build implementing the full v1.0.0 scope
+  exist, that a human have played it, or that it be approved. That is the one
+  release where the claim on the tin ("this is the finished clone") is large
+  enough that shipping it un-played is a real risk — and it is irreversible under
+  §6b (a released tag is immutable).
+
+- **Options:**
+
+  1. **Treat v1.0.0 as just another minor release.** Rejected: it removes the only
+     human checkpoint in front of the project's headline claim. CI proves it
+     *builds and its tests pass*; it cannot prove the game *is the finished clone*
+     a person would enjoy. The two are exactly the gap a major version closes.
+  2. **Gate every release, including minors.** Rejected: §6a deliberately keeps
+     minor releases cheap ("cut one whenever a hands-on playtest is useful; do not
+     wait for a finished game"). A mandatory approval on every `0.x.0` would stall
+     the fleet on a human and defeat that rule.
+  3. **Gate only major versions behind a candidate + human approval.** Chosen:
+     cheap releases stay cheap, and the single large, irreversible claim gets one
+     explicit human checkpoint.
+
+- **Decision:** **Option 3.** Add a **major-version gate** to §6a:
+
+  > A **major version** (`X.0.0` — first is **v1.0.0**) may be rolled out only
+  > after:
+  >
+  > 1. A **release candidate** exists that **implements everything** in that
+  >    version's Definition of Done (for v1.0.0: `docs/ROADMAP.md` →
+  >    *Definition of Done — v1.0.0*, §9) — no missing feature, no "will land
+  >    later" carve-out.
+  > 2. That candidate is **buildable and playable by a human** from the exact
+  >    branch/tag, following its `docs/releases/vX.Y.Z-*.md`.
+  > 3. A human has **playtested** it and **approved** the rollout, recorded on the
+  >    candidate's GitHub Release page (or its tracking issue) via
+  >    `docs/releases/MAJOR_RELEASE_GATE.md`.
+  >
+  > Only then is the major **tag** cut and the version **rolled out**. The
+  > candidate is tagged as a **pre-release** (e.g. `v1.0.0-rc.1`) so §6b
+  > immutability applies to the candidate too; if the playtest finds gaps, cut
+  > `-rc.2` rather than re-tagging. Minor releases (`0.x.0`) keep §6a unchanged.
+
+  The gate is **human-owned**: agents prepare the candidate, the release notes,
+  and the checklist, and a human supplies the approval. An agent must never
+  self-approve a major version (unlike the §3a sole-account merge rule, which is
+  about merging PRs, not about declaring the game finished).
+
+- **Consequences:**
+
+  - Every major version has exactly one human checkpoint, in front of the
+    irreversible, headline release. Minor releases are untouched, so the fleet
+    is not gated on a human for routine work.
+  - The gate needs a **record**, so `docs/releases/MAJOR_RELEASE_GATE.md` is the
+    checklist a candidate carries and a human signs; it is the single source for
+    "what does approval mean", referenced by §6a, §9, `docs/ROADMAP.md`, and the
+    release area's remit in `docs/FOCUS_AREAS.md`.
+  - **No code, no new dependency, no CI change.** The gate is docs + a pre-release
+    tag + a human approval; `ctest` and the seven CI jobs are unaffected.
+  - **v1.0.0 is not yet candidate-able**: `docs/ROADMAP.md` Milestone C still has
+    open items (destructible environment, the mission set, original art/audio,
+    save/load, balance). The gate makes that the explicit precondition rather
+    than something an agent might discover late.

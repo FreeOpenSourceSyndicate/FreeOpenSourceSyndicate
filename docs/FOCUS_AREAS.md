@@ -101,7 +101,7 @@ team grows, re-split (§8) rather than sharing.
 | 6 | **Text / i18n / Lore** | `focus: text` | `assets/lang/**`, `src/core/i18n/*`, `src/game/EmbeddedLang.{h,cpp.in}`, `docs/LORE.md`, `tests/test_i18n.cpp` | strings, localisation, in-game text, lore lexicon |
 | 7 | **Metagame / Campaign** | `focus: metagame` | `src/core/economy/**` (world map, territories, economy, research, equipment, campaign), the map/management screen in `src/game/**`, `assets/data/world/**` | world map, income/taxation, research tree, purchase, mission selection, campaign progression |
 | 8 | **Build / CI / Tooling** | `focus: platform` | `.github/**`, `CMakeLists.txt`, `src/**/CMakeLists.txt`, `tests/CMakeLists.txt`, `scripts/**` | CI, build options, packaging, dependencies |
-| 9 | **Release / Playtest** | `focus: release` | `CHANGELOG.md`, `docs/releases/**`, `assets/ui/**`, tags / Release pages, `docs/BUILD.md` | cut releases, playtest docs, banners, build instructions |
+| 9 | **Release / Playtest** | `focus: release` | `CHANGELOG.md`, `docs/releases/**`, `assets/ui/**`, tags / Release pages, `docs/BUILD.md` | cut releases, playtest docs, banners, build instructions; **own the major-version candidate + human-approval gate** (`AGENTS.md` §6a-i, `docs/releases/MAJOR_RELEASE_GATE.md`) |
 
 **One deliberate sub-split inside `assets/data/`:** Content owns the loader,
 schema, and shared catalogues (`assets/data/{weapons,agents}.json`), while
