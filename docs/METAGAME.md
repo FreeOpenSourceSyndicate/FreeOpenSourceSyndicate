@@ -260,6 +260,14 @@ public:
     static constexpr int kSquadSlots = 4;
     std::vector<std::string> loadout(int syndicate, int slot) const;   // item ids
     void assign(int syndicate, int slot, const std::string& itemId);
+
+    // Places a *catalogue* item in the slot, respecting the deployed-loadout rule
+    // (a slot deploys one weapon and one gadget): a weapon replaces the slot's
+    // weapon, a gadget replaces its gadget, so an upgrade is the item that
+    // deploys. This is what the shop uses instead of `assign`, so buying a second
+    // weapon does not spend funds on a purchase `selectedLoadout` would ignore.
+    bool equip(int syndicate, int slot, const std::string& itemId,
+               const EquipmentCatalogue& catalogue);
     void clear(int syndicate, int slot);
 };
 ```

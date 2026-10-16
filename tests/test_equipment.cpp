@@ -1,4 +1,6 @@
 /* AI/LLM-generated file. Do not treat as human-written source documentation. */
+#include <algorithm>
+
 #include "TestHarness.h"
 #include "core/economy/Economy.h"
 #include "core/economy/Equipment.h"
@@ -21,6 +23,15 @@ const char* kCatalogueJson = R"({
 
 const char* kTreeJson = R"({
   "nodes": [ { "id": "a", "name": "A", "cost": 100, "time": 10, "requires": [] } ]
+})";
+
+// A catalogue with two cybernetics and a weapon, for the equip same-kind rule.
+const char* kCatalogueJsonWithCyber = R"({
+  "items": [
+    { "id": "pistol", "kind": "weapon", "name": "Pistol", "cost": 0 },
+    { "id": "arms", "kind": "cybernetic", "name": "Arms", "cost": 500 },
+    { "id": "legs", "kind": "cybernetic", "name": "Legs", "cost": 500 }
+  ]
 })";
 
 EquipmentCatalogue catalogueOrFail(const char* json)
@@ -167,6 +178,73 @@ FOSSYND_TEST(Equipment, AssignAndClearLoadout)
     equipment.assign(0, -1, "pistol");
     FOSSYND_CHECK_EQ(equipment.loadout(0, 99).size(), std::size_t{0});
     FOSSYND_CHECK_EQ(equipment.loadout(5, 0).size(), std::size_t{0});
+}
+
+FOSSYND_TEST(Equipment, EquipReplacesSameKindAndKeepsOtherKind)
+{
+    const EquipmentCatalogue catalogue = catalogueOrFail(kCatalogueJson);
+    Equipment equipment;
+
+    // A weapon replaces the slot's weapon; the gadget is kept (a slot deploys one
+    // of each kind, so both fit).
+    FOSSYND_CHECK(equipment.equip(0, 0, "pistol", catalogue));
+    FOSSYND_CHECK(equipment.equip(0, 0, "shield", catalogue));
+    FOSSYND_CHECK(equipment.equip(0, 0, "rifle", catalogue)); // replaces pistol
+    const std::vector<std::string> slot = equipment.loadout(0, 0);
+    FOSSYND_CHECK_EQ(slot.size(), std::size_t{2});
+    FOSSYND_CHECK(std::find(slot.begin(), slot.end(), "rifle") != slot.end());
+    FOSSYND_CHECK(std::find(slot.begin(), slot.end(), "pistol") == slot.end());
+    FOSSYND_CHECK(std::find(slot.begin(), slot.end(), "shield") != slot.end());
+
+    // Equipping the item already in the slot is a no-op (not a duplicate).
+    FOSSYND_CHECK(equipment.equip(0, 0, "rifle", catalogue));
+    FOSSYND_CHECK_EQ(equipment.loadout(0, 0).size(), std::size_t{2});
+
+    // An id that is not in the catalogue is refused, and nothing changes.
+    FOSSYND_CHECK(!equipment.equip(0, 0, "ghost", catalogue));
+    FOSSYND_CHECK(!equipment.equip(0, 99, "pistol", catalogue));
+    FOSSYND_CHECK_EQ(equipment.loadout(0, 0).size(), std::size_t{2});
+}
+
+FOSSYND_TEST(Equipment, EquipReplacesACyberneticToo)
+{
+    // A LoadoutSlot carries one cybernetic, so a second cybernetic replaces the
+    // first (the same rule as weapon/gadget), keeping the slot's other kinds.
+    const EquipmentCatalogue catalogue = catalogueOrFail(kCatalogueJsonWithCyber);
+    Equipment equipment;
+    FOSSYND_CHECK(equipment.equip(0, 0, "pistol", catalogue));
+    FOSSYND_CHECK(equipment.equip(0, 0, "arms", catalogue));
+    FOSSYND_CHECK(equipment.equip(0, 0, "legs", catalogue)); // replaces arms
+
+    const std::vector<std::string> slot = equipment.loadout(0, 0);
+    FOSSYND_CHECK_EQ(slot.size(), std::size_t{2});
+    FOSSYND_CHECK(std::find(slot.begin(), slot.end(), "legs") != slot.end());
+    FOSSYND_CHECK(std::find(slot.begin(), slot.end(), "arms") == slot.end());
+    FOSSYND_CHECK(std::find(slot.begin(), slot.end(), "pistol") != slot.end());
+}
+
+FOSSYND_TEST(Equipment, EquipUpgradeDeploysTheNewWeapon)
+{
+    // The bug this guards: buying a second weapon into a slot used to spend the
+    // funds but deploy the *first* weapon, so an upgrade was silently lost.
+    const EquipmentCatalogue catalogue = catalogueOrFail(kCatalogueJson);
+    Equipment equipment;
+    FOSSYND_CHECK(equipment.equip(0, 0, "pistol", catalogue));
+    FOSSYND_CHECK(equipment.equip(0, 0, "rifle", catalogue));
+
+    // A slot holds exactly one weapon; the upgrade is the one deployed.
+    const std::vector<std::string> slot = equipment.loadout(0, 0);
+    int weapons = 0;
+    for (const std::string& id : slot)
+    {
+        const EquipmentItem* item = catalogue.find(id);
+        if (item != nullptr && item->kind == EquipmentKind::Weapon)
+        {
+            ++weapons;
+            FOSSYND_CHECK_EQ(id, std::string("rifle"));
+        }
+    }
+    FOSSYND_CHECK_EQ(weapons, 1);
 }
 
 FOSSYND_TEST(Equipment, LoadoutsAreIndependentPerSyndicate)

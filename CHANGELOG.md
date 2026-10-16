@@ -23,6 +23,17 @@ contains no original assets, code, names, or trademarks.
   through the same strict path as a weapon/gadget (an unknown id is a content
   error). Engine-free, deterministic (ADR-0031). Issue #313.
 
+- **Buying an upgrade actually deploys it:** the R&D shop used to `assign` a
+  purchase to the target slot, but a slot deploys at most one weapon and one
+  gadget (`Campaign::selectedLoadout` reads the first of each kind), so buying a
+  *second* weapon — the natural upgrade from the free pistol to a minigun — spent
+  the funds and then silently dropped the purchase at deploy time. The new
+  `Equipment::equip` replaces the slot's same-kind item (keeping the other kind),
+  and the shop uses it, skips the charge when the item is already equipped, and
+  says in the action line what it will replace (`REPLACE Pistol`) or that it is
+  already equipped. The `game_campaign` guard buys the minigun over a pistol
+  through the player keys and asserts the minigun is what deploys. Issue #346.
+
 - **The equipment catalogue sells the scanner and performance drugs:** it now
   lists the two gadgets #314 added to `core`, so a player can actually buy and
   equip them from the R&D shop and they reach a deployed squad (they were

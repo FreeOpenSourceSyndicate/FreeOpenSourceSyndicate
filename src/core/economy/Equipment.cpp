@@ -180,4 +180,42 @@ void Equipment::clear(int syndicate, int slot)
     loadouts_[static_cast<std::size_t>(syndicate)][static_cast<std::size_t>(slot)].clear();
 }
 
+bool Equipment::equip(int syndicate, int slot, const std::string& itemId,
+                      const EquipmentCatalogue& catalogue)
+{
+    if (syndicate < 0 || !validSlot(slot) || itemId.empty())
+    {
+        return false;
+    }
+    const EquipmentItem* item = catalogue.find(itemId);
+    if (item == nullptr)
+    {
+        return false;
+    }
+    if (loadouts_.size() < static_cast<std::size_t>(syndicate) + 1)
+    {
+        loadouts_.resize(static_cast<std::size_t>(syndicate) + 1);
+    }
+    std::vector<std::string>& items = loadouts_[static_cast<std::size_t>(syndicate)]
+                                               [static_cast<std::size_t>(slot)];
+    if (std::find(items.begin(), items.end(), itemId) != items.end())
+    {
+        return true; // already equipped; nothing to change
+    }
+    // A LoadoutSlot carries one weapon, one gadget, and one cybernetic, so a new
+    // item of a kind replaces the slot's existing item of that kind rather than
+    // being appended and then ignored at deploy time.
+    for (auto it = items.begin(); it != items.end(); ++it)
+    {
+        const EquipmentItem* existing = catalogue.find(*it);
+        if (existing != nullptr && existing->kind == item->kind)
+        {
+            *it = itemId;
+            return true;
+        }
+    }
+    items.push_back(itemId);
+    return true;
+}
+
 } // namespace fossynd::core
