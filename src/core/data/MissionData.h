@@ -35,6 +35,10 @@ struct MissionData
     std::vector<TileSpec> blocked;
     std::vector<AgentSpec> agents;
 
+    // Hijackable vehicles placed by the mission (cars/trains). Empty by default,
+    // so a mission without vehicles is unchanged (golden rule 7, ADR-0003).
+    std::vector<VehicleSpec> vehicles;
+
     // Win condition. Defaults to EliminateAll, so missions that omit it behave
     // exactly as before. See `ObjectiveSpec` for the supported kinds.
     ObjectiveSpec objective;
@@ -52,13 +56,14 @@ struct MissionData
     // failure (including a readable parse or schema error).
     static bool loadFromFile(const std::string& path, MissionData& out, std::string& error);
 
-    // Parses an already-parsed JSON document into `out`. `weapons` and `agents`
-    // are the shared catalogues; a mission may reference them by `weaponId` /
-    // `agentId`. Empty catalogues are fine for a mission that only inlines its
-    // content (the common case), but a reference then fails with a readable
-    // error rather than being silently ignored.
+    // Parses an already-parsed JSON document into `out`. `weapons`, `agents`,
+    // and `vehicles` are the shared catalogues; a mission may reference them by
+    // `weaponId` / `agentId` / `vehicleId`. Empty catalogues are fine for a
+    // mission that only inlines its content (the common case), but a reference
+    // then fails with a readable error rather than being silently ignored.
     static bool fromJson(const Json& root, MissionData& out, const WeaponCatalogue& weapons,
-                         const AgentCatalogue& agents, std::string& error);
+                         const AgentCatalogue& agents, const VehicleCatalogue& vehicles,
+                         std::string& error);
 
     // Convenience overload for missions that do not use catalogue references.
     static bool fromJson(const Json& root, MissionData& out, std::string& error);

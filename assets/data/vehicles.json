@@ -1,0 +1,8 @@
+{
+  "vehicles": [
+    { "id": "car",   "name": "Car",   "kind": "car",   "speed": 6.0, "health": 150, "weaponId": "uzi" },
+    { "id": "train", "name": "Train", "kind": "train", "speed": 9.0, "health": 400, "weaponId": "rifle" },
+    { "id": "van",   "name": "Van",   "kind": "car",   "speed": 5.0, "health": 200, "weaponId": "flamethrower" },
+    { "id": "railgun-carriage", "name": "Railgun Carriage", "kind": "train", "speed": 7.0, "health": 300, "weaponId": "laser" }
+  ]
+}

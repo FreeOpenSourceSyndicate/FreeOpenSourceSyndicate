@@ -50,7 +50,8 @@ inline bool hasJsonExtension(const std::filesystem::path& path)
 inline bool isCatalogueFile(const std::filesystem::path& path)
 {
     const std::string name = path.filename().string();
-    return name == kWeaponsFileName || name == kAgentsFileName;
+    return name == kWeaponsFileName || name == kAgentsFileName ||
+           name == kVehiclesFileName;
 }
 
 // `directory_iterator` returns entries in an unspecified order. Sorting by path
@@ -96,7 +97,8 @@ inline bool readFile(const std::filesystem::path& path, std::string& out, std::s
 // conflicts; this adds the file name to each error and the catalogue-duplicate
 // check.
 inline void validateMissionFile(const std::filesystem::path& path, const WeaponCatalogue& weapons,
-                                const AgentCatalogue& agents, ValidationReport& report)
+                                const AgentCatalogue& agents, const VehicleCatalogue& vehicles,
+                                ValidationReport& report)
 {
     ++report.missionsChecked;
 
@@ -116,16 +118,16 @@ inline void validateMissionFile(const std::filesystem::path& path, const WeaponC
     }
 
     MissionData data;
-    if (!MissionData::fromJson(root, data, weapons, agents, error))
+    if (!MissionData::fromJson(root, data, weapons, agents, vehicles, error))
     {
         report.problems.push_back({path.string(), error});
     }
 }
 
-// Loads `weapons.json`/`agents.json` from `dataDir` (missing files are fine:
-// the catalogues stay empty), then validates every `*.json` under
-// `dataDir/missions`. `dataDir` is the directory holding the catalogues and the
-// `missions/` subdirectory (`assets/data`).
+// Loads `weapons.json`/`agents.json`/`vehicles.json` from `dataDir` (missing
+// files are fine: the catalogues stay empty), then validates every `*.json`
+// under `dataDir/missions`. `dataDir` is the directory holding the catalogues
+// and the `missions/` subdirectory (`assets/data`).
 inline ValidationReport validateContentDir(const std::string& dataDir)
 {
     ValidationReport report;
@@ -133,6 +135,7 @@ inline ValidationReport validateContentDir(const std::string& dataDir)
 
     WeaponCatalogue weapons;
     AgentCatalogue agents;
+    VehicleCatalogue vehicles;
     bool found = false;
     std::string error;
 
@@ -144,17 +147,22 @@ inline ValidationReport validateContentDir(const std::string& dataDir)
     {
         report.problems.push_back({(dir / kAgentsFileName).string(), error});
     }
-    if (weapons.empty() && agents.empty())
+    if (!vehicles.loadFromFile((dir / kVehiclesFileName).string(), weapons, found, error))
+    {
+        report.problems.push_back({(dir / kVehiclesFileName).string(), error});
+    }
+    if (weapons.empty() && agents.empty() && vehicles.empty())
     {
         report.problems.push_back(
             {dir.string(), "no catalogue files found (expected " + std::string(kWeaponsFileName) +
-                               " and/or " + std::string(kAgentsFileName) + ")"});
+                               ", " + std::string(kAgentsFileName) + " and/or " +
+                               std::string(kVehiclesFileName) + ")"});
     }
-    report.cataloguesChecked = weapons.size() + agents.size();
+    report.cataloguesChecked = weapons.size() + agents.size() + vehicles.size();
 
     for (const std::filesystem::path& mission : detail::sortedJsonFiles(dir / "missions"))
     {
-        validateMissionFile(mission, weapons, agents, report);
+        validateMissionFile(mission, weapons, agents, vehicles, report);
     }
 
     return report;

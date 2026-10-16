@@ -930,15 +930,17 @@ Do not start work outside the scope fence (ADR-0024).
   `assets/data/missions/demo.json`, preferring an external file and falling
   back to the copy embedded at build time (so the binary stays self-contained).
   To add a mission, add a JSON file — do not hard-code it in C++.
-- **Shared catalogues (ADR-0003, `focus: content`):** weapons and reusable agent
-  templates that several missions share live in `assets/data/weapons.json` and
-  `assets/data/agents.json`. To add a weapon or agent template, append an entry
-  to the matching file and reference it by `weaponId`/`agentId`; a mission that
-  inlines its content (e.g. `demo.json`) is unaffected. Schema in
-  `docs/DATA_FORMAT.md` ("Shared catalogues"). The shipped catalogue is 10
-  weapons + 10 templates; a new entry **must** bump the pinned
-  `cataloguesChecked` count in `tests/test_content_validation.cpp` and should add
-  a carrier template so the weapon is mission-referenceable, not inert.
+- **Shared catalogues (ADR-0003, `focus: content`):** weapons, reusable agent
+  templates, and vehicle templates that several missions share live in
+  `assets/data/weapons.json`, `assets/data/agents.json`, and
+  `assets/data/vehicles.json`. To add a weapon, agent template, or vehicle,
+  append an entry to the matching file and reference it by
+  `weaponId`/`agentId`/`vehicleId`; a mission that inlines its content (e.g.
+  `demo.json`) is unaffected. A new catalogue entry **must** bump the pinned
+  `cataloguesChecked` count in `tests/test_content_validation.cpp` (currently 24:
+  10 weapons + 10 templates + 4 vehicles) and a new weapon should add a carrier
+  template so it is mission-referenceable, not inert. Schema in
+  `docs/DATA_FORMAT.md` ("Shared catalogues").
 - **Mission selection is configurable:** `--mission <path>` (CLI) overrides a
   `mission`/`mission_dir` key in a config file (`--config <path>`, else
   `./fossynd.conf`, `<exe-dir>/fossynd.conf`, `/etc/fossynd.conf`,

@@ -634,13 +634,14 @@ FOSSYND_TEST(Catalogues, MissionResolvesWeaponByIdAndInlineStillWorks)
         Json::parse(R"({"weapons": [{"id":"uzi","name":"Uzi","damage":5,"range":5,
                                      "fireRate":9,"accuracy":0.55}]})", error), error));
     const AgentCatalogue noAgents;
+    const VehicleCatalogue noVehicles;
 
     // An agent referencing a catalogue weapon.
     MissionData data;
     FOSSYND_CHECK(MissionData::fromJson(
         Json::parse(R"({"width": 8, "height": 6,
             "agents": [{"team":"player","x":1,"y":1,"weaponId":"uzi"}]})", error),
-        data, weapons, noAgents, error));
+        data, weapons, noAgents, noVehicles, error));
     FOSSYND_CHECK(error.empty());
     FOSSYND_CHECK_EQ(data.agents[0].weapon.name, std::string("Uzi"));
     FOSSYND_CHECK_NEAR(data.agents[0].weapon.fireRate, 9.0f);
@@ -650,7 +651,7 @@ FOSSYND_TEST(Catalogues, MissionResolvesWeaponByIdAndInlineStillWorks)
     FOSSYND_CHECK(!MissionData::fromJson(
         Json::parse(R"({"width": 8, "height": 6,
             "agents": [{"team":"player","x":1,"y":1,"weaponId":"nope"}]})", error),
-        data, weapons, noAgents, error));
+        data, weapons, noAgents, noVehicles, error));
     FOSSYND_CHECK(!error.empty());
 
     // The inline form still works with no catalogues at all (regression).
@@ -677,12 +678,14 @@ FOSSYND_TEST(Catalogues, MissionInheritsAnAgentTemplateAndOverridesPosition)
                                     "speed":3,"health":70,"weaponId":"rifle"}]})", error),
         weapons, error));
 
+    const AgentCatalogue noAgents;
+    const VehicleCatalogue noVehicles;
     MissionData data;
     FOSSYND_CHECK(MissionData::fromJson(
         Json::parse(R"({"width": 8, "height": 6,
             "agents": [{"agentId":"guard","x":5,"y":4},
                        {"agentId":"guard","x":6,"y":1,"health":120}]})", error),
-        data, weapons, agents, error));
+        data, weapons, agents, noVehicles, error));
     FOSSYND_CHECK(error.empty());
     FOSSYND_CHECK_EQ(data.agents.size(), static_cast<std::size_t>(2));
     FOSSYND_CHECK_EQ(data.agents[0].name, std::string("GUARD"));
@@ -699,7 +702,7 @@ FOSSYND_TEST(Catalogues, MissionInheritsAnAgentTemplateAndOverridesPosition)
     FOSSYND_CHECK(!MissionData::fromJson(
         Json::parse(R"({"width": 8, "height": 6,
             "agents": [{"agentId":"ghost","x":1,"y":1}]})", error),
-        data, weapons, agents, error));
+        data, weapons, agents, noVehicles, error));
     FOSSYND_CHECK(!error.empty());
 }
 
@@ -796,4 +799,155 @@ FOSSYND_TEST(Catalogues, LoadsTheShippedCataloguesFromDisk)
     FOSSYND_CHECK(MissionData::loadFromFile(missionPath, data, error));
     FOSSYND_CHECK(error.empty());
     FOSSYND_CHECK_EQ(data.agents.size(), static_cast<std::size_t>(9));
+}
+
+// --- Shared vehicle catalogue (issue #319) --------------------------------
+
+FOSSYND_TEST(Catalogues, VehicleCatalogueLoadsAndResolvesWeaponIds)
+{
+    std::string error;
+    WeaponCatalogue weapons;
+    FOSSYND_CHECK(weapons.loadFromJson(
+        Json::parse(R"({"weapons": [{"id":"uzi","name":"Uzi","damage":5,"range":5,
+                                     "fireRate":9,"accuracy":0.55}]})", error), error));
+
+    VehicleCatalogue vehicles;
+    FOSSYND_CHECK(vehicles.loadFromJson(
+        Json::parse(R"({"vehicles": [
+            { "id": "car", "name": "Car", "kind": "car", "speed": 6, "health": 150,
+              "weaponId": "uzi" },
+            { "id": "tram", "name": "Tram", "kind": "train", "speed": 9, "health": 400,
+              "weapon": { "name": "Cannon", "damage": 30, "range": 10, "fireRate": 1,
+                          "accuracy": 0.9 } }
+        ]})", error), weapons, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_EQ(vehicles.size(), static_cast<std::size_t>(2));
+
+    const VehicleEntry* car = vehicles.find("car");
+    FOSSYND_CHECK(car != nullptr);
+    FOSSYND_CHECK(car->spec.kind == VehicleKind::Car);
+    FOSSYND_CHECK_NEAR(car->spec.speed, 6.0f);
+    FOSSYND_CHECK_NEAR(car->spec.health, 150.0f);
+    FOSSYND_CHECK_EQ(car->spec.weapon.name, std::string("Uzi"));
+
+    // A train template, with an inline mounted weapon.
+    const VehicleEntry* tram = vehicles.find("tram");
+    FOSSYND_CHECK(tram != nullptr);
+    FOSSYND_CHECK(tram->spec.kind == VehicleKind::Train);
+    FOSSYND_CHECK_EQ(tram->spec.weapon.name, std::string("Cannon"));
+    FOSSYND_CHECK_NEAR(tram->spec.weapon.damage, 30.0f);
+
+    FOSSYND_CHECK(vehicles.find("tank") == nullptr);
+}
+
+FOSSYND_TEST(Catalogues, VehicleCatalogueRejectsMalformedInput)
+{
+    const WeaponCatalogue weapons; // empty: an unknown weaponId must be an error
+    std::string error;
+
+    VehicleCatalogue catalogue;
+    FOSSYND_CHECK(!catalogue.loadFromJson(Json::parse("[]", error), weapons, error));
+    error.clear();
+    FOSSYND_CHECK(!catalogue.loadFromJson(Json::parse(R"({"vehicles": 5})", error), weapons, error));
+    error.clear();
+    // A missing id.
+    FOSSYND_CHECK(!catalogue.loadFromJson(
+        Json::parse(R"({"vehicles": [{"name": "X"}]})", error), weapons, error));
+    error.clear();
+    // An unknown kind.
+    FOSSYND_CHECK(!catalogue.loadFromJson(
+        Json::parse(R"({"vehicles": [{"id":"x","kind":"boat"}]})", error), weapons, error));
+    error.clear();
+    // Non-positive speed.
+    FOSSYND_CHECK(!catalogue.loadFromJson(
+        Json::parse(R"({"vehicles": [{"id":"x","speed":0}]})", error), weapons, error));
+    error.clear();
+    // A dangling weaponId (the catalogue is empty).
+    FOSSYND_CHECK(!catalogue.loadFromJson(
+        Json::parse(R"({"vehicles": [{"id":"x","weaponId":"rifle"}]})", error), weapons, error));
+    error.clear();
+    // A duplicate id.
+    FOSSYND_CHECK(!catalogue.loadFromJson(
+        Json::parse(R"({"vehicles": [{"id":"x"},{"id":"x"}]})", error), weapons, error));
+}
+
+FOSSYND_TEST(Catalogues, MissionPlacesVehiclesByIdAndInline)
+{
+    std::string error;
+    WeaponCatalogue weapons;
+    FOSSYND_CHECK(weapons.loadFromJson(
+        Json::parse(R"({"weapons": [{"id":"uzi","name":"Uzi","damage":5,"range":5,
+                                     "fireRate":9,"accuracy":0.55}]})", error), error));
+    VehicleCatalogue vehicles;
+    FOSSYND_CHECK(vehicles.loadFromJson(
+        Json::parse(R"({"vehicles": [{"id":"car","name":"Car","kind":"car","speed":6,
+                                      "health":150,"weaponId":"uzi"}]})", error),
+        weapons, error));
+    const AgentCatalogue noAgents;
+
+    // A vehicle inherited from the catalogue keeps the template stats but takes
+    // the mission's placement; an inline vehicle sets everything itself.
+    MissionData data;
+    FOSSYND_CHECK(MissionData::fromJson(
+        Json::parse(R"({"width": 8, "height": 6,
+            "agents": [{"team":"player","x":1,"y":1}],
+            "vehicles": [{"vehicleId":"car","x":3,"y":4},
+                         {"kind":"train","x":5,"y":2,"speed":9,"health":400}]})", error),
+        data, weapons, noAgents, vehicles, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_EQ(data.vehicles.size(), static_cast<std::size_t>(2));
+
+    FOSSYND_CHECK_EQ(data.vehicles[0].id, std::string("car"));
+    FOSSYND_CHECK_NEAR(data.vehicles[0].x, 3.0f);
+    FOSSYND_CHECK_NEAR(data.vehicles[0].y, 4.0f);
+    FOSSYND_CHECK_NEAR(data.vehicles[0].speed, 6.0f);
+    FOSSYND_CHECK_EQ(data.vehicles[0].weapon.name, std::string("Uzi"));
+
+    // The inline vehicle: no catalogue, chosen kind and stats.
+    FOSSYND_CHECK(data.vehicles[1].kind == VehicleKind::Train);
+    FOSSYND_CHECK_NEAR(data.vehicles[1].speed, 9.0f);
+    FOSSYND_CHECK_NEAR(data.vehicles[1].health, 400.0f);
+
+    // A mission with no `vehicles` key is unchanged: no vehicles.
+    MissionData plain;
+    FOSSYND_CHECK(MissionData::fromJson(
+        Json::parse(R"({"width": 8, "height": 6,
+            "agents": [{"team":"player","x":1,"y":1}]})", error),
+        plain, error));
+    FOSSYND_CHECK(plain.vehicles.empty());
+}
+
+FOSSYND_TEST(Catalogues, MissionRejectsBadVehiclePlacement)
+{
+    const WeaponCatalogue noWeapons;
+    const AgentCatalogue noAgents;
+    const VehicleCatalogue noVehicles;
+
+    std::string error;
+    MissionData data;
+    // Unknown vehicleId.
+    FOSSYND_CHECK(!MissionData::fromJson(
+        Json::parse(R"({"width": 8, "height": 6,
+            "agents": [{"team":"player","x":1,"y":1}],
+            "vehicles": [{"vehicleId":"tank","x":1,"y":1}]})", error),
+        data, noWeapons, noAgents, noVehicles, error));
+    FOSSYND_CHECK(!error.empty());
+
+    // Off-map position.
+    error.clear();
+    FOSSYND_CHECK(!MissionData::fromJson(
+        Json::parse(R"({"width": 8, "height": 6,
+            "agents": [{"team":"player","x":1,"y":1}],
+            "vehicles": [{"kind":"car","x":99,"y":1}]})", error),
+        data, noWeapons, noAgents, noVehicles, error));
+    FOSSYND_CHECK(!error.empty());
+
+    // A missing position.
+    error.clear();
+    FOSSYND_CHECK(!MissionData::fromJson(
+        Json::parse(R"({"width": 8, "height": 6,
+            "agents": [{"team":"player","x":1,"y":1}],
+            "vehicles": [{"kind":"car"}]})", error),
+        data, noWeapons, noAgents, noVehicles, error));
+    FOSSYND_CHECK(!error.empty());
 }

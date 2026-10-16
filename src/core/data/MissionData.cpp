@@ -64,6 +64,60 @@ bool parseAgent(const Json& node, int mapWidth, int mapHeight, const AgentCatalo
     return true;
 }
 
+// Parses one mission `vehicles` entry. Like `parseAgent`, a vehicle may inherit
+// a shared catalogue template by `vehicleId`, then override any field inline.
+// An unknown id is a readable error, never a silent fallback. A vehicle needs a
+// position, and an off-map one is never drawn or reachable (the same class of
+// error as a misplaced agent, issue #212).
+bool parseVehicle(const Json& node, int mapWidth, int mapHeight, const VehicleCatalogue& vehicles,
+                  const WeaponCatalogue& weapons, VehicleSpec& out, std::string& error)
+{
+    if (!node.isObject())
+    {
+        error = "each vehicle must be an object";
+        return false;
+    }
+
+    if (node.has("vehicleId"))
+    {
+        const std::string id = node["vehicleId"].asString();
+        const VehicleEntry* entry = vehicles.find(id);
+        if (entry == nullptr)
+        {
+            error = "unknown vehicleId '" + id + "' (no such vehicle in the catalogue)";
+            return false;
+        }
+        out = entry->spec;
+        out.id = id;
+    }
+
+    if (!node.has("x") || !node.has("y"))
+    {
+        error = "each vehicle needs numeric 'x' and 'y'";
+        return false;
+    }
+    out.x = node["x"].asFloat(out.x);
+    out.y = node["y"].asFloat(out.y);
+    if (!(out.x >= 0.0f && out.x < static_cast<float>(mapWidth) && out.y >= 0.0f &&
+          out.y < static_cast<float>(mapHeight)))
+    {
+        error = "vehicle position ('x', 'y') must be inside the " + std::to_string(mapWidth) + "x" +
+                std::to_string(mapHeight) + " map";
+        return false;
+    }
+
+    if (!detail::applyVehicleCommon(node, out, error))
+    {
+        return false;
+    }
+    if (!AgentCatalogue::applyWeaponToAgent(node, weapons, out.weapon, error))
+    {
+        error = "vehicle '" + out.name + "': " + error;
+        return false;
+    }
+    return true;
+}
+
 bool parseBuildings(const Json& array, int mapWidth, int mapHeight, std::vector<BuildingSpec>& out,
                     std::string& error)
 {
@@ -250,7 +304,8 @@ bool MissionData::parseObjectiveJson(const Json& node, int mapWidth, int mapHeig
 }
 
 bool MissionData::fromJson(const Json& root, MissionData& out, const WeaponCatalogue& weapons,
-                           const AgentCatalogue& agents, std::string& error)
+                           const AgentCatalogue& agents, const VehicleCatalogue& vehicles,
+                           std::string& error)
 {
     if (!root.isObject())
     {
@@ -317,6 +372,27 @@ bool MissionData::fromJson(const Json& root, MissionData& out, const WeaponCatal
         out.agents.push_back(std::move(spec));
     }
 
+    // Optional: hijackable vehicles. Absent leaves the mission vehicle-free, so
+    // an existing mission is unchanged (golden rule 7, ADR-0003).
+    if (root.has("vehicles"))
+    {
+        if (!root["vehicles"].isArray())
+        {
+            error = "'vehicles' must be an array";
+            return false;
+        }
+        for (std::size_t i = 0; i < root["vehicles"].size(); ++i)
+        {
+            VehicleSpec spec;
+            if (!parseVehicle(root["vehicles"][i], out.width, out.height, vehicles, weapons, spec,
+                              error))
+            {
+                return false;
+            }
+            out.vehicles.push_back(std::move(spec));
+        }
+    }
+
     // The escorted unit must exist: an escort objective naming an agent that is
     // not in the mission can never be won, so it is a content error (issue #212
     // pattern). Checked here because the objective is parsed before the agents.
@@ -333,11 +409,12 @@ bool MissionData::fromJson(const Json& root, MissionData& out, const WeaponCatal
 bool MissionData::fromJson(const Json& root, MissionData& out, std::string& error)
 {
     // Missions that inline their content (the demo and most sample missions)
-    // need no catalogues; a `weaponId`/`agentId` reference then reports a
-    // readable "unknown id" error instead of being ignored.
+    // need no catalogues; a `weaponId`/`agentId`/`vehicleId` reference then
+    // reports a readable "unknown id" error instead of being ignored.
     static const WeaponCatalogue kNoWeapons;
     static const AgentCatalogue kNoAgents;
-    return fromJson(root, out, kNoWeapons, kNoAgents, error);
+    static const VehicleCatalogue kNoVehicles;
+    return fromJson(root, out, kNoWeapons, kNoAgents, kNoVehicles, error);
 }
 
 bool MissionData::loadFromFile(const std::string& path, MissionData& out, std::string& error)
@@ -349,10 +426,11 @@ bool MissionData::loadFromFile(const std::string& path, MissionData& out, std::s
     }
 
     // Load the shared catalogues that sit beside the mission (if present), so a
-    // mission can reference weapons/agents by id. A missing catalogue is fine;
-    // a malformed one is a readable error.
+    // mission can reference weapons/agents/vehicles by id. A missing catalogue
+    // is fine; a malformed one is a readable error.
     WeaponCatalogue weapons;
     AgentCatalogue agents;
+    VehicleCatalogue vehicles;
     bool found = false;
     const std::string weaponsPath = cataloguePathForMission(path, kWeaponsFileName);
     if (!weaponsPath.empty() && !weapons.loadFromFile(weaponsPath, found, error))
@@ -364,8 +442,13 @@ bool MissionData::loadFromFile(const std::string& path, MissionData& out, std::s
     {
         return false;
     }
+    const std::string vehiclesPath = cataloguePathForMission(path, kVehiclesFileName);
+    if (!vehiclesPath.empty() && !vehicles.loadFromFile(vehiclesPath, weapons, found, error))
+    {
+        return false;
+    }
 
-    return fromJson(root, out, weapons, agents, error);
+    return fromJson(root, out, weapons, agents, vehicles, error);
 }
 
 TileGrid buildGrid(const MissionData& data)

@@ -284,10 +284,10 @@ FOSSYND_TEST(ContentValidation, ShippedContentPasses)
     FOSSYND_CHECK(report.ok());
     FOSSYND_CHECK(report.missionsChecked >= static_cast<std::size_t>(2));
     // 10 weapons (the #124 tiers and the #219 additions) + 10 agent templates
-    // (the #160 carriers included). Pinned exactly so a tier or template cannot
-    // silently vanish from the shipped catalogue; bump it when content is added
-    // on purpose.
-    FOSSYND_CHECK_EQ(report.cataloguesChecked, static_cast<std::size_t>(20));
+    // (the #160 carriers included) + 4 vehicle templates (#319). Pinned exactly
+    // so an entry cannot silently vanish from a shipped catalogue; bump it when
+    // content is added on purpose.
+    FOSSYND_CHECK_EQ(report.cataloguesChecked, static_cast<std::size_t>(24));
 }
 
 // The Phase 3 weapon tiers (issue #124) must be present in the shipped catalogue
@@ -446,5 +446,59 @@ FOSSYND_TEST(ContentValidation, ShippedNewWeaponCarriersLoad)
         {
             FOSSYND_CHECK_EQ(agent->spec.weapon.name, std::string(carrier.weaponName));
         }
+    }
+}
+
+// The shared vehicle catalogue (issue #319) must be present in the shipped
+// content and parse to the intended kinds. This is the guard that keeps a
+// vehicle from silently vanishing from vehicles.json, and it pins each
+// template's kind and mounted-weapon reference so a mis-edit cannot slip
+// through (golden rule 7: vehicles are data, not code).
+FOSSYND_TEST(ContentValidation, ShippedVehicleCatalogueLoads)
+{
+    const std::string dir = std::string(FOSSYND_SOURCE_DIR) + "/assets/data";
+    WeaponCatalogue weapons;
+    bool found = false;
+    std::string error;
+    FOSSYND_CHECK(weapons.loadFromFile(dir + "/weapons.json", found, error));
+    FOSSYND_CHECK(found);
+
+    VehicleCatalogue vehicles;
+    FOSSYND_CHECK(vehicles.loadFromFile(dir + "/vehicles.json", weapons, found, error));
+    FOSSYND_CHECK(found);
+    FOSSYND_CHECK_EQ(vehicles.size(), static_cast<std::size_t>(4));
+
+    const VehicleEntry* car = vehicles.find("car");
+    const VehicleEntry* train = vehicles.find("train");
+    FOSSYND_CHECK(car != nullptr);
+    FOSSYND_CHECK(train != nullptr);
+    if (car == nullptr || train == nullptr)
+    {
+        return;
+    }
+
+    // The code defaults (`makeCar`/`makeTrain`) are the catalogue's car/train, so
+    // the two representations cannot silently drift apart.
+    FOSSYND_CHECK_EQ(car->spec.name, std::string("Car"));
+    FOSSYND_CHECK(car->spec.kind == VehicleKind::Car);
+    FOSSYND_CHECK_NEAR(car->spec.speed, kCarSpeed);
+    FOSSYND_CHECK_NEAR(car->spec.health, kCarMaxHealth);
+    FOSSYND_CHECK_EQ(car->spec.weapon.name, std::string("Uzi"));
+
+    FOSSYND_CHECK_EQ(train->spec.name, std::string("Train"));
+    FOSSYND_CHECK(train->spec.kind == VehicleKind::Train);
+    FOSSYND_CHECK_NEAR(train->spec.speed, kTrainSpeed);
+    FOSSYND_CHECK_NEAR(train->spec.health, kTrainMaxHealth);
+    FOSSYND_CHECK_EQ(train->spec.weapon.name, std::string("Rifle"));
+
+    // Every entry's `weaponId` must resolve (a typo would otherwise deploy a
+    // default weapon silently); the loader already rejects an unknown id, so
+    // reaching here with a parsed entry proves the reference resolved.
+    for (const VehicleEntry& entry : vehicles.entries())
+    {
+        FOSSYND_CHECK(!entry.id.empty());
+        FOSSYND_CHECK(entry.spec.weapon.damage > 0.0f);
+        FOSSYND_CHECK(entry.spec.weapon.range > 0.0f);
+        FOSSYND_CHECK(entry.spec.weapon.fireRate > 0.0f);
     }
 }
