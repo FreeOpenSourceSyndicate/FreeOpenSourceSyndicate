@@ -208,6 +208,18 @@ public:
     // a broken invariant. Used by game_scanner.
     bool scannerSelfTest();
 
+    // Headless guard for vehicle rendering (issue #363): every vehicle in the
+    // mission must yield a draw entry at its interpolated tile with the right
+    // kind, and a destroyed vehicle must still draw (as a wreck). Returns false
+    // on a broken invariant. Used by game_vehicles.
+    bool vehicleSelfTest();
+
+    // Spawns one car and one train on the board (issue #363). A demo/verification
+    // hook (like `--breach`/`--scan`): no mission in assets/data ships a vehicle
+    // yet (that is a Tactical fragment), so `--vehicle` makes the art visible for
+    // a headless screenshot. Not a gameplay rule.
+    void addVehiclesForDemo();
+
     // Activates a scanner pulse on every living player agent, granting one
     // charge first when the squad has none. A demo/verification hook (like
     // `--breach`): the metagame-bought scanner reaches the board, but no hotkey
@@ -398,6 +410,22 @@ private:
     // the real decision (a ping only for a live pulse; a mark per revealed
     // enemy). View-only: pure read of core (golden rule 4).
     std::vector<ScannerMark> scannerMarks() const;
+
+    // One vehicle the depth-sorted pass draws (issue #363): its screen position,
+    // its sheet frame, and whether it is a wreck. Shared by renderAgents() and
+    // vehicleSelfTest() so the guard checks the real draw decision.
+    struct VehicleDraw
+    {
+        core::Vec2 drawPos{0.0f, 0.0f};
+        int vehicleIndex = 0;
+        int frame = 0;
+        bool wreck = false;
+    };
+
+    // Every vehicle the depth-sorted pass should draw, from the live mission
+    // state. View-only: pure read of core (golden rule 4). A destroyed vehicle is
+    // still drawn (as a wreck) — it stays on the board, unlike a dead agent.
+    std::vector<VehicleDraw> vehicleDraws() const;
 
     // Writes a filled isometric diamond directly into a surface (used once).
     void fillDiamond(SDL_Surface* surface, int centerX, int centerY, float halfW, float halfH,

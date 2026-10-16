@@ -253,6 +253,15 @@ if(BUILD_TESTS)
     # headlessly, so a scanner capture is a real artefact (issue #323).
     add_test(NAME game_scanner_screenshot
              COMMAND FOSSynd --headless --scan --screenshot scanner.bmp --frames 2)
+    # Vehicle rendering (issue #363): every vehicle must yield a draw entry at its
+    # tile with the right kind, and a destroyed vehicle must still draw as a
+    # wreck. Exits non-zero on a broken invariant.
+    add_test(NAME game_vehicles
+             COMMAND FOSSynd --headless --check-vehicles)
+    # `--vehicle` spawns a demo car and train and must still render and write a
+    # screenshot headlessly, so a vehicle capture is a real artefact (issue #363).
+    add_test(NAME game_vehicles_screenshot
+             COMMAND FOSSynd --headless --vehicle --screenshot vehicles.bmp --frames 2)
     # Objective banner (issue #281): every objective kind must render a non-empty,
     # distinct, fully substituted localised string. Exits non-zero on a broken
     # invariant (a kind that fell through to the default or left a placeholder).
