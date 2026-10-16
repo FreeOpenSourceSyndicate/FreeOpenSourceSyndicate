@@ -4053,6 +4053,10 @@ bool Game::checkMinimap()
     {
         return false;
     }
+    // Put vehicles on the board first (issue #403) so the guard exercises the
+    // vehicle-blip path, not just the agent one. verifyBlips() counts vehicles,
+    // so a regression that dropped their blips fails this guard.
+    addVehiclesForDemo();
     minimap_.updateBlips(mission_, selected_);
     return minimap_.verifyBlips(mission_);
 }

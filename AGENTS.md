@@ -1044,13 +1044,17 @@ Do not start work outside the scope fence (ADR-0024).
   Input/UI's to edit.
 - **The minimap is `game/Minimap.*` (Phase 2):** a whole-board overview panel in
   the top-right HUD corner. The static terrain is baked once into a one-texel-
-  per-tile texture (`Minimap::init`), and only per-agent blips are drawn each
-  frame (`updateBlips`/`render`), so the per-frame cost stays tiny (AGENTS.md 1b).
-  Blip colours mirror the in-world marker palette. It is display-only — it reads
-  `core::Mission` and never writes it (golden rule 4). Kept in its own file to
-  avoid growing the shared `Game.cpp` (FOCUS_AREAS.md §4 Rule 2). A headless
-  `--check-minimap` guard + ctest `game_minimap` verify a blip per living agent.
-  Extend the panel here, not in `Game.cpp`.
+  per-tile texture (`Minimap::init`), and only per-agent and per-vehicle blips
+  are drawn each frame (`updateBlips`/`render`), so the per-frame cost stays tiny
+  (AGENTS.md 1b). Blip colours mirror the in-world marker palette. It is
+  display-only — it reads `core::Mission` and never writes it (golden rule 4).
+  Kept in its own file to avoid growing the shared `Game.cpp` (FOCUS_AREAS.md §4
+  Rule 2). **Vehicles get a blip too (issue #403):** a wreck stays on the board,
+  so it stays on the panel (dim wreck grey), unlike a dead agent. A headless
+  `--check-minimap` guard + ctest `game_minimap` verify a blip per living agent
+  **and per vehicle** (`verifyBlips` counts both); `Game::checkMinimap` puts two
+  demo vehicles on the board first so the guard exercises the vehicle path, not
+  just the agent one. Extend the panel here, not in `Game.cpp`.
 - **Content format is decided (ADR-0003):** JSON in `assets/data/`, parsed by
   the dependency-free `core/data/` loader (`Json`, `MissionData`); schema in
   `docs/DATA_FORMAT.md`. `Game::buildMission` loads

@@ -29,6 +29,21 @@ constexpr std::uint8_t kCivilian[3] = {205, 200, 180};
 constexpr std::uint8_t kFollower[3] = {90, 205, 230};
 // A scanner-marked enemy (issue #323) shares the in-world ping cyan.
 constexpr std::uint8_t kScannerMarked[3] = {90, 235, 245};
+// Vehicles (issue #403): match the in-world marker palette in HudStyle.h, so a
+// car reads the same on the panel as on the board; a wreck stays drawn (unlike a
+// dead agent) in the dim wreck grey.
+constexpr std::uint8_t kVehicle[3] = {120, 128, 138};
+constexpr std::uint8_t kVehicleWreck[3] = {60, 56, 54};
+
+// Maps a fractional tile position to the blip's pixel origin, clamped inside the
+// panel. Shared by the agent and vehicle blips so both agree on the mapping.
+void positionBlip(int pixelScale, int width, int height, const core::Vec2& position, int& x, int& y)
+{
+    const int maxX = std::max(0, width - pixelScale);
+    const int maxY = std::max(0, height - pixelScale);
+    x = std::max(0, std::min(static_cast<int>(position.x * static_cast<float>(pixelScale)), maxX));
+    y = std::max(0, std::min(static_cast<int>(position.y * static_cast<float>(pixelScale)), maxY));
+}
 
 void setPixel(SDL_Surface* surface, int x, int y, std::uint32_t color)
 {
@@ -136,13 +151,8 @@ void Minimap::updateBlips(const core::Mission& mission, const std::vector<std::s
             continue;
         }
         const core::Vec2 position = agent.position();
-        const int maxX = std::max(0, width_ - pixelScale_);
-        const int maxY = std::max(0, height_ - pixelScale_);
         Blip blip;
-        blip.x = std::max(0, std::min(static_cast<int>(position.x * static_cast<float>(pixelScale_)),
-                                       maxX));
-        blip.y = std::max(0, std::min(static_cast<int>(position.y * static_cast<float>(pixelScale_)),
-                                       maxY));
+        positionBlip(pixelScale_, width_, height_, position, blip.x, blip.y);
 
         const std::uint8_t* color = kCivilian;
         if (agent.team() == core::Team::Player)
@@ -163,6 +173,21 @@ void Minimap::updateBlips(const core::Mission& mission, const std::vector<std::s
         blip.selected =
             agent.team() == core::Team::Player &&
             std::find(selected.begin(), selected.end(), i) != selected.end();
+        blips_.push_back(blip);
+    }
+
+    // Vehicles (issue #403). Unlike a dead agent, a wreck stays on the board, so
+    // it stays on the panel too. There is no per-vehicle selection, so no blip is
+    // flagged selected. A vehicle may share a tile with its driver; the two blips
+    // coincide, which is acceptable for an overview panel.
+    for (const core::Vehicle& vehicle : mission.vehicles())
+    {
+        Blip blip;
+        positionBlip(pixelScale_, width_, height_, vehicle.position(), blip.x, blip.y);
+        const std::uint8_t* color = vehicle.isDestroyed() ? kVehicleWreck : kVehicle;
+        blip.r = color[0];
+        blip.g = color[1];
+        blip.b = color[2];
         blips_.push_back(blip);
     }
 }
@@ -220,6 +245,9 @@ bool Minimap::verifyBlips(const core::Mission& mission) const
             ++living;
         }
     }
+    // Vehicles (issue #403): every vehicle gets a blip, wreck or not, so they add
+    // to the expected count even though they are not agents.
+    living += mission.vehicles().size();
     if (blips_.size() != living)
     {
         return false;
