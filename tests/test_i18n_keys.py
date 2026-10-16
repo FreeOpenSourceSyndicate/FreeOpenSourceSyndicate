@@ -32,6 +32,13 @@ Rules
    ``tr()`` fallback), so a non-ASCII English string ships an invisible glyph.
    The C++ renderability gate (``ShippedLocalesKeepPlaceholdersAndAreRenderable``)
    covers only the locale files, so the reference table was unchecked (#288).
+8. Every ``substitute(<key lookup>, {{"name", ...}})`` call site must supply
+   exactly the ``{tokens}`` its format string in ``en.json`` uses. ``substitute``
+   leaves an unmatched ``{token}`` verbatim (``src/game/HudStyle.h``), so a call
+   site that has drifted from its format string draws ``{count}`` / ``{x}`` on
+   the HUD. Rule 3 cannot see this (the fallback is kept equal to ``en.json``),
+   the C++ gate compares only a locale's placeholder set, and
+   ``Game::objectiveSelfTest`` covers the objective banner alone (#332).
 
 A key-shaped literal is a double-quoted string of the form
 ``segment(.segment)+`` where each segment is ``[a-z][A-Za-z0-9_]*`` (the shape
@@ -213,6 +220,68 @@ def tr_call_sites():
                 parts.append(value)
             if parts:
                 sites.append((key, rel, "".join(parts)))
+    return sites
+
+
+def _match_paren(text, pos):
+    """Index of the ``)`` matching the ``(`` at ``pos``, or ``-1``.
+
+    String literals are skipped, so a ``)`` inside one (e.g. ``"({x},{y})"``)
+    does not close the call early.
+    """
+    depth = 0
+    while pos < len(text):
+        char = text[pos]
+        if char == '"':
+            _value, pos = _decode_string(text, pos)
+            continue
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return pos
+        pos += 1
+    return -1
+
+
+# The leading `substitute(tr("key",` / `substitute(lang_.get("key",` of a call.
+SUBSTITUTE_CALL = re.compile(r"\bsubstitute\s*\(")
+SUBSTITUTE_KEY = re.compile(
+    r'\b(?:tr|lang_\.get)\(\s*"([a-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)"\s*,'
+)
+# One `{"name", value}` pair in the initializer list, e.g. `{"count", ...}`.
+SUBSTITUTE_VALUE = re.compile(r'\{\s*"([a-z][a-z0-9_]*)"\s*,')
+# A `{token}` in a format string.
+PLACEHOLDER = re.compile(r"\{([a-z][a-z0-9_]*)\}")
+
+
+def substitute_call_sites():
+    """Every ``substitute(<key lookup>, {{"name", ...}})`` -> (key, file, names).
+
+    Only calls whose first argument is a ``tr("key", ...)`` or
+    ``lang_.get("key", ...)`` are captured; the ``substitute`` *definition* in
+    ``HudStyle.h`` and any call that does not name a table key are skipped.
+    ``names`` is the set of ``{"name", ...}`` keys in the initializer list — the
+    values the call supplies for the format string's ``{token}`` s.
+    """
+    sites = []
+    for path in source_files():
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            text = handle.read()
+        text = BLOCK_COMMENT.sub("", LINE_COMMENT.sub("", text))
+        rel = os.path.relpath(path, REPO_ROOT)
+        for match in SUBSTITUTE_CALL.finditer(text):
+            open_paren = text.index("(", match.start())
+            close_paren = _match_paren(text, open_paren)
+            if close_paren == -1:
+                continue
+            block = text[open_paren:close_paren + 1]
+            key_match = SUBSTITUTE_KEY.search(block)
+            if key_match is None:
+                continue
+            provided = set(SUBSTITUTE_VALUE.findall(block))
+            sites.append((key_match.group(1), rel, provided))
     return sites
 
 
@@ -401,6 +470,56 @@ class StringTableKeyCoverage(unittest.TestCase):
                 + "\n".join(problems)
                 + "\nThe 5x7 bitmap font covers ASCII 32..126 only; use an ASCII "
                 "transliteration (e.g. '-' for an em-dash)."
+            )
+
+    def test_every_substitute_site_supplies_its_placeholders(self):
+        # `hudstyle::substitute` replaces each `{token}` it is given a value for
+        # and leaves the rest verbatim (src/game/HudStyle.h), so a call site that
+        # supplies fewer names than the format string has tokens draws a raw
+        # `{count}` / `{x}` on the HUD. Nothing else ties the two together: rule 3
+        # keeps the tr() fallback equal to en.json (so a format-vs-argument
+        # mismatch is invisible there), the C++ gate only compares a locale's
+        # placeholder set to en.json, and Game::objectiveSelfTest checks the
+        # objective banner alone at runtime. This is the cheap editor-side half of
+        # that invariant.
+        table = english_table()
+        self.assertTrue(table, "en.json carried no keys")
+
+        sites = substitute_call_sites()
+        self.assertTrue(sites, "no substitute(<key lookup>, {...}) call sites found")
+        # Guard against the scanner degenerating to the trivial single-name shape:
+        # hud.agentRow is the widest shipped format string (four tokens).
+        agent_row = [provided for key, _rel, provided in sites if key == "hud.agentRow"]
+        self.assertTrue(agent_row, "scanner missed the hud.agentRow call site")
+        self.assertTrue(
+            all(provided == {"name", "marker", "hp", "weapon"} for provided in agent_row),
+            f"scanner mis-parsed the hud.agentRow names: {agent_row}",
+        )
+
+        problems = []
+        for key, rel, provided in sites:
+            if key not in table:
+                if key in ALLOWED_ABSENT:
+                    continue
+                problems.append(f"  {rel}: {key}  (not in en.json)")
+                continue
+            wanted = set(PLACEHOLDER.findall(table[key]))
+            missing = wanted - provided
+            extra = provided - wanted
+            if missing or extra:
+                detail = []
+                if missing:
+                    detail.append(f"missing {sorted(missing)} (would be drawn raw)")
+                if extra:
+                    detail.append(f"unused {sorted(extra)}")
+                problems.append(f"  {rel}: {key}  ({'; '.join(detail)})")
+
+        if problems:
+            self.fail(
+                "substitute() call site(s) do not match their format string's "
+                "placeholders:\n"
+                + "\n".join(problems)
+                + "\nSupply exactly the {tokens} the format string in en.json uses."
             )
 
 
