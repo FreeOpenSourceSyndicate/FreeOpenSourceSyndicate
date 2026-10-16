@@ -44,7 +44,9 @@ bool Vehicle::driveTo(const TileGrid& grid, TilePos goal)
 {
     // Same search as `Agent::moveTo`: 8-way A* + string-pulling, falling back to
     // the nearest reachable tile when the goal cannot be reached, so a drive
-    // order to an unreachable tile still moves the vehicle toward it.
+    // order to an unreachable tile still moves the vehicle toward it. As in
+    // `Agent::moveTo`, the first waypoint (the vehicle's own tile centre) is kept
+    // so an off-centre vehicle cannot clip a wall corner its path never crossed.
     const TilePos start = tile();
     const PathResult found = findPathToNearest(grid, start, goal, /*allowDiagonal=*/true);
     if (!found.found())
@@ -54,8 +56,15 @@ bool Vehicle::driveTo(const TileGrid& grid, TilePos goal)
         return false;
     }
 
+    // Same route as the agent (see `Agent::moveTo`): re-issuing an unchanged route
+    // keeps the current progress instead of restarting at the tile centre, so a
+    // per-tick AI re-issue cannot oscillate the vehicle back to the centre.
+    const bool sameRoute = path_ == found.path;
     path_ = found.path;
-    nextWaypoint_ = path_.size() > 1 ? 1 : 0;
+    if (!sameRoute)
+    {
+        nextWaypoint_ = 0;
+    }
     return true;
 }
 

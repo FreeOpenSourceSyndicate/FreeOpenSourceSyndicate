@@ -74,9 +74,23 @@ TilePos Agent::tile() const
 
 bool Agent::moveTo(const TileGrid& grid, TilePos goal)
 {
-    // Path from the agent's current tile. The first waypoint is usually the
-    // tile we are standing on; skipping it avoids an immediate zero-distance
-    // step.
+    // Path from the agent's current tile.
+    //
+    // The first waypoint is the agent's own tile centre and it is deliberately
+    // *kept* (nextWaypoint_ = 0 the first time the route is set). A path is
+    // validated centre-to-centre, but the agent physically stands at a fractional
+    // position, so walking straight at the second waypoint can cut the corner of a
+    // tile the centre line never touched — through a wall it was never allowed to
+    // pass. Routing through the tile centre first makes every walked segment a
+    // validated centre-to-centre segment, so the agent can never end up on a
+    // blocked tile.
+    //
+    // Re-issuing the *same* route while the agent is mid-segment must not send it
+    // back to that centre, though: the AI re-paths every tick while retreating
+    // (`Mission::stepAwayFrom`), so resetting `nextWaypoint_` each time would
+    // yank the agent back to the centre and it would oscillate in place instead of
+    // retreating. Only a *changed* route (a new goal, or a new start tile after
+    // the agent has crossed into one) restarts from the centre.
     //
     // 8-way A* + string-pulling (see findPathToNearest): diagonal movement lets
     // the search find shortcuts, and the smoothing collapses the remaining
@@ -97,8 +111,12 @@ bool Agent::moveTo(const TileGrid& grid, TilePos goal)
         return false;
     }
 
+    const bool sameRoute = path_ == found.path;
     path_ = found.path;
-    nextWaypoint_ = path_.size() > 1 ? 1 : 0;
+    if (!sameRoute)
+    {
+        nextWaypoint_ = 0;
+    }
     return true;
 }
 
