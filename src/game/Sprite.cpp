@@ -164,6 +164,27 @@ bool AgentSprites::build(SDL_Renderer* renderer, const std::string& text, std::s
         }
     }
 
+    // Vehicles are scenery too (issue #363): a neutral steel palette, not a team
+    // colour, so a hijacked car does not recolour when its driver changes side.
+    const core::SpritePalette vehiclePalette{{120, 128, 138}, {190, 198, 205}, {0, 0, 0}, {48, 54, 62}};
+    const char* const vehicleNames[] = {"car", "train"};
+    for (int i = 0; i < VehicleCount; ++i)
+    {
+        core::BakedSheet baked;
+        std::vector<std::string> names{vehicleNames[i]};
+        if (!core::bakeSheet(text, vehiclePalette, names, baked, error, /*requireAnchor=*/false))
+        {
+            destroy();
+            return false;
+        }
+        if (!vehicles_[i].build(renderer, baked))
+        {
+            error = "could not upload vehicle sprite texture";
+            destroy();
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -176,6 +197,10 @@ void AgentSprites::destroy()
     for (SpriteSheet& prop : props_)
     {
         prop.destroy();
+    }
+    for (SpriteSheet& vehicle : vehicles_)
+    {
+        vehicle.destroy();
     }
 }
 

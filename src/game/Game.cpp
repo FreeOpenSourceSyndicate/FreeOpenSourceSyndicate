@@ -2663,12 +2663,24 @@ void Game::renderAgents()
         float depth;
         std::size_t agentIndex;
         bool isDecor;
+        bool isVehicle;
         int tileX;
         int tileY;
+        int frame;
+        bool wreck;
         core::Vec2 drawPos;
     };
     std::vector<Drawable> items;
-    items.reserve(agents.size() + 64);
+    items.reserve(agents.size() + mission_.vehicles().size() + 64);
+
+    // Hijackable vehicles are scenery on the board (issue #363): drawn in the
+    // same back-to-front pass at their interpolated position, so an agent beside
+    // a car overlaps correctly. A wreck is still drawn; it never leaves the map.
+    for (const VehicleDraw& vd : vehicleDraws())
+    {
+        const float depth = tileToScreen(vd.drawPos).y;
+        items.push_back(Drawable{depth, 0, false, true, 0, 0, vd.frame, vd.wreck, vd.drawPos});
+    }
 
     for (std::size_t i = 0; i < agents.size(); ++i)
     {
@@ -2678,7 +2690,7 @@ void Game::renderAgents()
         }
         const core::Vec2 drawPos = agents[i].interpolatedPosition(alpha);
         const float depth = tileToScreen(drawPos).y;
-        items.push_back(Drawable{depth, i, false, 0, 0, drawPos});
+        items.push_back(Drawable{depth, i, false, false, 0, 0, 0, false, drawPos});
     }
     if (useSprites)
     {
@@ -2692,7 +2704,7 @@ void Game::renderAgents()
                 }
                 const core::Vec2 decorPos{static_cast<float>(x), static_cast<float>(y)};
                 const float depth = tileToScreen(decorPos).y;
-                items.push_back(Drawable{depth, 0, true, x, y, decorPos});
+                items.push_back(Drawable{depth, 0, true, false, x, y, 0, false, decorPos});
             }
         }
     }
@@ -2711,6 +2723,57 @@ void Game::renderAgents()
                                                 : AgentSprites::Crate;
             drawSpriteFrame(sprites_.prop(prop), 0, static_cast<int>(screen.x),
                             static_cast<int>(screen.y));
+            continue;
+        }
+
+        if (item.isVehicle)
+        {
+            const core::Vec2 screen = tileToScreen(item.drawPos);
+            const core::Vec2 world =
+                core::tileToWorld(item.drawPos.x, item.drawPos.y, kTileWidth, kTileHeight);
+            const int sx = static_cast<int>(screen.x);
+            const int sy = static_cast<int>(screen.y);
+
+            // A drop shadow grounds the vehicle on its tile, like an agent's.
+            SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 80);
+            const int shadowW = 30 * zoom_;
+            const int shadowH = 11 * zoom_;
+            SDL_Rect shadow{sx - shadowW / 2, sy - shadowH / 2 + 2, shadowW, shadowH};
+            SDL_RenderFillRect(renderer_, &shadow);
+
+            if (useSprites)
+            {
+                const AgentSprites::Vehicle kind = item.frame == 0 ? AgentSprites::VehicleCar
+                                                                   : AgentSprites::VehicleTrain;
+                drawSpriteFrame(sprites_.vehicle(kind), 0, sx, sy);
+                if (item.wreck)
+                {
+                    // A wreck reads as a charred, darkened shell — a black veil
+                    // over the intact sprite (a sprite has no wreck frame yet).
+                    const SDL_Rect src = sprites_.vehicle(kind).frameRect(0);
+                    const int scale = kSpriteScale * zoom_;
+                    SDL_Rect rect{sx - sprites_.vehicle(kind).anchorX(0) * scale,
+                                  sy - sprites_.vehicle(kind).anchorY(0) * scale, src.w * scale,
+                                  src.h * scale};
+                    SDL_SetRenderDrawColor(renderer_, 20, 18, 16, 150);
+                    SDL_RenderFillRect(renderer_, &rect);
+                }
+            }
+            else
+            {
+                // Fallback: a flat steel diamond, dark grey once destroyed.
+                if (item.wreck)
+                {
+                    fillDiamondWorld(world, 0.5f, hudstyle::kVehicleWreck[0], hudstyle::kVehicleWreck[1],
+                                     hudstyle::kVehicleWreck[2]);
+                }
+                else
+                {
+                    fillDiamondWorld(world, 0.5f, hudstyle::kVehicleBody[0], hudstyle::kVehicleBody[1],
+                                     hudstyle::kVehicleBody[2]);
+                }
+            }
             continue;
         }
 
@@ -3017,6 +3080,145 @@ std::vector<Game::ScannerMark> Game::scannerMarks() const
         }
     }
     return marks;
+}
+
+std::vector<Game::VehicleDraw> Game::vehicleDraws() const
+{
+    // The draw decision for every vehicle in the mission (issue #363). A
+    // destroyed vehicle is still drawn, as a wreck: unlike a dead agent it stays
+    // on the board. Pure read of core (golden rule 4).
+    std::vector<VehicleDraw> draws;
+    const auto& vehicles = mission_.vehicles();
+    draws.reserve(vehicles.size());
+    const float alpha = clock_.alpha();
+    for (std::size_t i = 0; i < vehicles.size(); ++i)
+    {
+        const core::Vehicle& vehicle = vehicles[i];
+        const int frame =
+            vehicle.kind() == core::VehicleKind::Train ? AgentSprites::VehicleTrain
+                                                       : AgentSprites::VehicleCar;
+        draws.push_back(VehicleDraw{vehicle.interpolatedPosition(alpha), static_cast<int>(i), frame,
+                                    vehicle.isDestroyed()});
+    }
+    return draws;
+}
+
+bool Game::vehicleSelfTest()
+{
+    // Headless guard for vehicle rendering (issue #363): drive the shared
+    // vehicleDraws() decision the depth-sorted pass uses, on a board with one car
+    // and one train, and prove the invariants a broken draw pass would violate.
+    addVehiclesForDemo();
+
+    const std::vector<VehicleDraw> draws = vehicleDraws();
+    if (draws.size() != 2)
+    {
+        std::fprintf(stderr, "vehicle self-test: expected 2 draws, got %zu\n", draws.size());
+        return false;
+    }
+
+    bool sawCar = false;
+    bool sawTrain = false;
+    for (const VehicleDraw& draw : draws)
+    {
+        if (draw.wreck)
+        {
+            std::fprintf(stderr, "vehicle self-test: intact vehicle drawn as a wreck\n");
+            return false;
+        }
+        if (draw.frame == AgentSprites::VehicleCar)
+        {
+            sawCar = true;
+        }
+        else if (draw.frame == AgentSprites::VehicleTrain)
+        {
+            sawTrain = true;
+        }
+        else
+        {
+            std::fprintf(stderr, "vehicle self-test: unknown vehicle frame %d\n", draw.frame);
+            return false;
+        }
+    }
+    if (!sawCar || !sawTrain)
+    {
+        std::fprintf(stderr, "vehicle self-test: a kind did not map to its own sprite\n");
+        return false;
+    }
+
+    // A destroyed vehicle must still draw — as a wreck, not by disappearing.
+    core::Vehicle& car = mission_.vehicles().front();
+    car.applyDamage(car.maxHealth() * 2.0f);
+    if (!car.isDestroyed())
+    {
+        std::fprintf(stderr, "vehicle self-test: could not destroy the vehicle\n");
+        return false;
+    }
+    const std::vector<VehicleDraw> after = vehicleDraws();
+    if (after.size() != 2)
+    {
+        std::fprintf(stderr, "vehicle self-test: a wreck left the draw pass\n");
+        return false;
+    }
+    if (!after.front().wreck)
+    {
+        std::fprintf(stderr, "vehicle self-test: destroyed vehicle not flagged as a wreck\n");
+        return false;
+    }
+    return true;
+}
+
+void Game::addVehiclesForDemo()
+{
+    // One car and one train on walkable tiles near the board centre (issue #363),
+    // so the demo art lands in view rather than on the map edge. A
+    // demo/verification hook: keeps the art visible without a mission file that
+    // ships vehicles (that mission-data change is a Tactical fragment).
+    const int cx = grid_.width() / 2;
+    const int cy = grid_.height() / 2;
+    // Walk the board in rings of increasing Manhattan distance from the centre
+    // and take the first two free walkable tiles. Deterministic, no RNG.
+    int placed = 0;
+    const int maxRing = grid_.width() + grid_.height();
+    for (int ring = 0; ring < maxRing && placed < 2; ++ring)
+    {
+        for (int y = 0; y < grid_.height() && placed < 2; ++y)
+        {
+            for (int x = 0; x < grid_.width() && placed < 2; ++x)
+            {
+                if (std::abs(x - cx) + std::abs(y - cy) != ring)
+                {
+                    continue;
+                }
+                if (!grid_.isWalkable(x, y))
+                {
+                    continue;
+                }
+                bool occupied = false;
+                for (const core::Vehicle& existing : mission_.vehicles())
+                {
+                    if (existing.tile().x == x && existing.tile().y == y)
+                    {
+                        occupied = true;
+                        break;
+                    }
+                }
+                if (occupied)
+                {
+                    continue;
+                }
+                if (placed == 0)
+                {
+                    mission_.addVehicle(core::makeCar(static_cast<float>(x), static_cast<float>(y)));
+                }
+                else
+                {
+                    mission_.addVehicle(core::makeTrain(static_cast<float>(x), static_cast<float>(y)));
+                }
+                ++placed;
+            }
+        }
+    }
 }
 
 void Game::renderSelectionBox()

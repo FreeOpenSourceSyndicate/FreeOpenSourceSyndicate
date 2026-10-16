@@ -48,6 +48,7 @@ void printUsage()
         "      --pause                Start paused (Space toggles it).\n"
         "      --breach               Breach all destructible walls before rendering.\n"
         "      --scan                 Activate a scanner pulse on the squad before rendering.\n"
+        "      --vehicle              Spawn a demo car and train before rendering.\n"
         "      --zoom <n>             Set the integer zoom level (1-3).\n"
         "      --headless             Run without a display.\n"
         "      --frames <n>           Run n frames, then exit.\n"
@@ -66,6 +67,7 @@ void printUsage()
         "      --check-gadgets        Validate the tactical gadget hotkeys.\n"
         "      --check-rubble         Validate breached-tile rubble rendering.\n"
         "      --check-scanner        Validate the scanner ping overlay.\n"
+        "      --check-vehicles       Validate vehicle rendering.\n"
         "      --check-objectives     Validate the objective banner for every kind.\n"
         "      --check-campaign       Validate the campaign management loop.\n"
         "      --check-deploy         Validate deploying a mission from the map.\n"
@@ -172,6 +174,8 @@ int main(int argc, char** argv)
     bool startPaused = false;
     bool breachWalls = false;
     bool scanSquad = false;               // --scan
+    bool spawnVehicles = false;           // --vehicle
+    bool checkVehicles = false;           // --check-vehicles
     bool checkSprites = false;
     bool checkMinimap = false;
     bool checkSelection = false;
@@ -255,6 +259,10 @@ int main(int argc, char** argv)
         {
             scanSquad = true;
         }
+        else if (std::strcmp(argv[i], "--vehicle") == 0)
+        {
+            spawnVehicles = true;
+        }
         else if (std::strcmp(argv[i], "--demo") == 0)
         {
             demo = true;
@@ -318,6 +326,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-scanner") == 0)
         {
             checkScanner = true;
+        }
+        else if (std::strcmp(argv[i], "--check-vehicles") == 0)
+        {
+            checkVehicles = true;
         }
         else if (std::strcmp(argv[i], "--check-objectives") == 0)
         {
@@ -542,6 +554,14 @@ int main(int argc, char** argv)
         game.activateScannerForSquad();
     }
 
+    // `--vehicle` spawns a demo car and train so a headless screenshot shows the
+    // vehicle art without a mission that ships one (#363). Kept beside `--breach`
+    // and `--scan` as a demo hook.
+    if (spawnVehicles)
+    {
+        game.addVehiclesForDemo();
+    }
+
     if (checkSprites)
     {
         // Headless guard for the sprite pipeline: the authored sheet must bake
@@ -682,6 +702,16 @@ int main(int argc, char** argv)
         // game_scanner ctest.
         const bool ok = game.scannerSelfTest();
         std::printf(ok ? "scanner: ok\n" : "scanner: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkVehicles)
+    {
+        // Headless guard for vehicle rendering (issue #363): every vehicle must
+        // yield a draw entry at its tile with the right kind, and a destroyed
+        // vehicle must still draw as a wreck. Used by the game_vehicles ctest.
+        const bool ok = game.vehicleSelfTest();
+        std::printf(ok ? "vehicles: ok\n" : "vehicles: FAILED\n");
         return ok ? 0 : 1;
     }
 

@@ -41,6 +41,12 @@ constexpr std::uint8_t kScannerPing[3] = {90, 235, 245};
 // Drag-box marquee (issue #94): the rectangle drawn while box-selecting.
 constexpr std::uint8_t kSelectionBox[3] = {120, 220, 255};
 
+// Vehicle markers (issue #363): the no-art fallback diamond for a vehicle, and
+// the dark grey of a wreck. Steel grey reads as machinery, distinct from every
+// team colour.
+constexpr std::uint8_t kVehicleBody[3] = {120, 128, 138};
+constexpr std::uint8_t kVehicleWreck[3] = {60, 56, 54};
+
 // HUD text colours.
 constexpr SDL_Color kHudText{225, 235, 225, 255};
 constexpr SDL_Color kHudGood{120, 230, 140, 255};

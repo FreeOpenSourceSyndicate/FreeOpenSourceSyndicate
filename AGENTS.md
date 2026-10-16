@@ -923,6 +923,23 @@ Do not start work outside the scope fence (ADR-0024).
   Render (draw vehicles + wrecks) and Input/UI (hijack/drive keys) are the
   follow-ups; there is nothing to read until `Mission` exposes them, which it now
   does. `tests/test_mission.cpp` covers the whole surface.
+- **The view draws vehicles (issue #363):** Render now paints the vehicles the
+  core tracks. `Game::vehicleDraws()` turns `mission_.vehicles()` into per-vehicle
+  draw entries (interpolated position, the `car`/`train` sheet frame, a wreck
+  flag), and `Game::renderAgents()` draws them in the same depth-sorted pass as
+  agents and props, so an agent beside a car overlaps correctly. A **destroyed
+  vehicle is still drawn**, as a wreck (a dark veil over the intact sprite; a flat
+  dark diamond in the no-art fallback) — unlike a dead agent, a wreck stays on the
+  board. Art is authored text in `assets/sprites/agents.txt` (`car`, `train`
+  frames) baked by `game::AgentSprites` (`Sprite.{h,cpp}`) with a neutral steel
+  palette, so a hijacked vehicle does not recolour with its driver. No mission in
+  `assets/data` ships a vehicle yet (a Tactical mission-data fragment), so the
+  demo hook `--vehicle` spawns a car and train near the board centre for a
+  headless screenshot. `--check-vehicles` (ctest `game_vehicles`, plus
+  `game_vehicles_screenshot` via `--vehicle`) drives `vehicleDraws()` — the real
+  draw decision — and fails if an intact vehicle is flagged a wreck, a kind maps
+  to the wrong sprite, or a wreck leaves the pass. **Driving/hijacking keys
+  (Input/UI) remain the follow-up.**
 - **The minimap is `game/Minimap.*` (Phase 2):** a whole-board overview panel in
   the top-right HUD corner. The static terrain is baked once into a one-texel-
   per-tile texture (`Minimap::init`), and only per-agent blips are drawn each
@@ -991,14 +1008,17 @@ Do not start work outside the scope fence (ADR-0024).
   `--headless --check-deploy`,
   `--headless --check-objectives`,
   `--headless --check-scanner`,
+  `--headless --check-vehicles`,
   `--headless --scan [--screenshot out.bmp]`,
+  `--headless --vehicle [--screenshot out.bmp]`,
   `--headless --map --frames N`, and
   `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
   `game_demo`, `game_low_spec`, `game_title`, `game_sprites`, `game_minimap`,
   `game_selection`, `game_waypoints`, `game_waypoint_path`, `game_pause`,
   `game_pause_flag`, `game_gadgets`, `game_campaign`, `game_deploy`,
-  `game_map_flag`, `game_objectives`, `game_scanner`, and
-  `game_scanner_screenshot`
+  `game_map_flag`, `game_objectives`, `game_scanner`,
+  `game_scanner_screenshot`, `game_vehicles`, and
+  `game_vehicles_screenshot`
   cover the SDL layer
   headlessly.
 - **Queued-route overlay (issue #89):** the view draws a selected agent's

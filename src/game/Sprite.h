@@ -72,12 +72,21 @@ public:
         PropCount = 2,
     };
 
+    // Hijackable vehicle sprites (issue #363), one per `core::VehicleKind`.
+    enum Vehicle
+    {
+        VehicleCar = 0,
+        VehicleTrain = 1,
+        VehicleCount = 2,
+    };
+
     bool build(SDL_Renderer* renderer, const std::string& text, std::string& error);
     void destroy();
 
     bool valid() const { return sheets_[Player].valid(); }
     const SpriteSheet& sheet(Role role) const { return sheets_[role]; }
     const SpriteSheet& prop(Prop prop) const { return props_[prop]; }
+    const SpriteSheet& vehicle(Vehicle vehicle) const { return vehicles_[vehicle]; }
 
     // Frame index inside a role sheet (see AgentSpriteSheet::frameIndex).
     static int frameIndex(bool back, bool step) { return (back ? 2 : 0) + (step ? 1 : 0); }
@@ -85,6 +94,7 @@ public:
 private:
     SpriteSheet sheets_[RoleCount];
     SpriteSheet props_[PropCount];
+    SpriteSheet vehicles_[VehicleCount];
 };
 
 // The authored per-role palettes (original colours echoing the previous flat
