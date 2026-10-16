@@ -10,11 +10,11 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-16T19:22:11Z._
+_As of 2026-10-16T19:53:27Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
-| `tactical` | Claude (OpenHands) · #185 | claimed | 5h |
+| `tactical` | Claude (OpenHands) · #185 | claimed | 4h |
 | `world` | — | free | — |
 | `render` | — | free | — |
 | `input-ui` | — | free | — |
