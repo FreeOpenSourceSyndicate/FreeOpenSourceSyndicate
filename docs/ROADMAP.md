@@ -241,10 +241,11 @@ A shippable demo, deliberately original in code and art.
       Milestone A
 - [x] Cybernetic upgrades (speed, accuracy, health, perception) → Milestone A
 - [x] Vehicles: cars/trains, hijacking, mounted weapons → Milestone A
-      _`core::Vehicle` landed (#320, World); `Mission` now owns the policy
+      _`core::Vehicle` landed (#320, World); `Mission` owns the policy
       (#318) — track, hijack, drive, and mounted fire routed through the agent
-      damage funnel (ADR-0032). The view now **draws** vehicles and wrecks
-      (#363, Render); Input/UI hijack/drive keys are the remaining fragment._
+      damage funnel (ADR-0032). The view **draws** vehicles and wrecks
+      (#363, Render); Input/UI binds hijack/drive/exit and mounted fire
+      (`E`, move/attack orders, #373)._
 - [x] Destructible environment (cracked walls: weapon fire opens them; enemies use cover)
 - [x] Enemy AI: engage (basic chase + fire)
 - [x] Enemy AI: take cover when under fire (steps behind walls; flank to dislodge)

@@ -70,6 +70,7 @@ void printUsage()
         "      --check-scanner        Validate the scanner ping overlay.\n"
         "      --check-shield         Validate the personal shield overlay.\n"
         "      --check-vehicles       Validate vehicle rendering.\n"
+        "      --check-vehicle-input  Validate the hijack/drive/exit keys.\n"
         "      --check-objectives     Validate the objective banner for every kind.\n"
         "      --check-campaign       Validate the campaign management loop.\n"
         "      --check-deploy         Validate deploying a mission from the map.\n"
@@ -180,6 +181,7 @@ int main(int argc, char** argv)
     bool shieldSquad = false;             // --shield
     bool spawnVehicles = false;           // --vehicle
     bool checkVehicles = false;           // --check-vehicles
+    bool checkVehicleInput = false;       // --check-vehicle-input
     bool checkSprites = false;
     bool checkMinimap = false;
     bool checkSelection = false;
@@ -344,6 +346,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-vehicles") == 0)
         {
             checkVehicles = true;
+        }
+        else if (std::strcmp(argv[i], "--check-vehicle-input") == 0)
+        {
+            checkVehicleInput = true;
         }
         else if (std::strcmp(argv[i], "--check-objectives") == 0)
         {
@@ -748,6 +754,18 @@ int main(int argc, char** argv)
         // vehicle must still draw as a wreck. Used by the game_vehicles ctest.
         const bool ok = game.vehicleSelfTest();
         std::printf(ok ? "vehicles: ok\n" : "vehicles: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkVehicleInput)
+    {
+        // Headless guard for the vehicle input bindings (issue #373): E hijacks
+        // and ejects, a move order from a driver steers the vehicle, and an
+        // attack order from a driver aims the mounted weapon. Used by the
+        // game_vehicle_input ctest. Needs the demo mission, so run from the repo
+        // root (or with a `mission` in the config).
+        const bool ok = game.vehicleInputSelfTest();
+        std::printf(ok ? "vehicle-input: ok\n" : "vehicle-input: FAILED\n");
         return ok ? 0 : 1;
     }
 

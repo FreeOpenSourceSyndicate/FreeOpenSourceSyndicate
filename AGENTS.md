@@ -935,7 +935,9 @@ Do not start work outside the scope fence (ADR-0024).
   = auto) is kept in step with `vehicles_`, exactly as `medikits_`/`shields_` are.
   Render (draw vehicles + wrecks) and Input/UI (hijack/drive keys) are the
   follow-ups; there is nothing to read until `Mission` exposes them, which it now
-  does. `tests/test_mission.cpp` covers the whole surface.
+  does. **Both follow-ups have now landed** — Render (#363) and Input/UI (#373,
+  see the vehicle-input bullet below). `tests/test_mission.cpp` covers the whole
+  surface.
 - **The view draws vehicles (issue #363):** Render now paints the vehicles the
   core tracks. `Game::vehicleDraws()` turns `mission_.vehicles()` into per-vehicle
   draw entries (interpolated position, the `car`/`train` sheet frame, a wreck
@@ -951,8 +953,23 @@ Do not start work outside the scope fence (ADR-0024).
   headless screenshot. `--check-vehicles` (ctest `game_vehicles`, plus
   `game_vehicles_screenshot` via `--vehicle`) drives `vehicleDraws()` — the real
   draw decision — and fails if an intact vehicle is flagged a wreck, a kind maps
-  to the wrong sprite, or a wreck leaves the pass. **Driving/hijacking keys
-  (Input/UI) remain the follow-up.**
+  to the wrong sprite, or a wreck leaves the pass.
+- **The view drives vehicles (issue #373):** Input/UI wires the board so the core
+  vehicle policy above is reachable in play. **`E`** hijacks the nearest intact,
+  undriven vehicle in range (the `kHijackRange` view constant mirrors Mission's
+  `kHijackRadius`) with the current selection, or ejects the selected driver if it
+  is already aboard. A **move order from a driver steers the vehicle**
+  (`orderSelectedMove` -> `Mission::orderDrive`), so the carried agent is not
+  walked off its vehicle; a **driver's attack order aims the mounted weapon**
+  (`orderAttackOn` -> `Mission::orderVehicleAttack`), not the personal gun. The
+  view only picks the vehicle/agents; the core decides range, eligibility, and
+  effect (golden rule 1/4). No core or `Agent` change. `--check-vehicle-input`
+  (ctest `game_vehicle_input`) drives the real handlers against the real Mission
+  and fails if `E` does not hijack or eject, a move order walks a driver, a
+  driver's attack sets a personal target, or the routing leaks onto agents on
+  foot. The HUD/title control hints need the `E` key added — filed as a
+  cross-area request for `text`/`render` (issue #377), since those files are not
+  Input/UI's to edit.
 - **The minimap is `game/Minimap.*` (Phase 2):** a whole-board overview panel in
   the top-right HUD corner. The static terrain is baked once into a one-texel-
   per-tile texture (`Minimap::init`), and only per-agent blips are drawn each
