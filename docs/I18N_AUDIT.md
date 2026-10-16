@@ -141,12 +141,24 @@ A literal is easy to re-introduce. `tests/test_i18n_keys.py` (ctest
    invisible glyph. The C++ renderability gate walked only the **locale** files,
    so the reference table was the one place this went unchecked (#288); it now
    asserts the English entries too.
+8. any `substitute(<key lookup>, {{"name", ...}})` call site supplies a different
+   set of names than the `{tokens}` in its format string. `substitute()`
+   (`src/game/HudStyle.h`) replaces only the tokens it is given a value for and
+   leaves the rest **verbatim**, so a call site that has drifted from its format
+   string draws a raw `{count}` / `{x}` on the HUD. Rule 3 cannot see this — it
+   keeps the `tr()` fallback byte-equal to `en.json`, so a format-vs-argument
+   mismatch is invisible there — the C++ gate compares only a **locale's**
+   placeholder set against `en.json`, and `Game::objectiveSelfTest`
+   (`src/game/Game.cpp`, ctest `game_objectives`) checks the objective banner
+   alone, at runtime, for the six objective kinds. Rule 8 is the editor-side half
+   of that invariant, covering every `substitute()` call site in `src/` (#332).
 
 It ignores file-name literals (`.json`, `.bmp`, …) and allow-lists `no.such.key`
 (looked up on purpose by `Game::languageSelfTest`). The rules are mutation-checked:
 renaming a key, dropping one, duplicating one, corrupting a `tr()` fallback,
-adding a mission without its keys, emptying a value, or adding a non-ASCII
-character to an English value each makes the guard fail.
+adding a mission without its keys, emptying a value, adding a non-ASCII
+character to an English value, or dropping / adding a `substitute()` placeholder
+name each makes the guard fail.
 The C++ parity gate
 in `tests/test_i18n.cpp`
 (`ShippedLocalesMatchTheEnglishKeySet`) covers the same key-set rule for the

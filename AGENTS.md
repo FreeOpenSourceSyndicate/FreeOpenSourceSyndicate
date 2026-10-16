@@ -676,6 +676,14 @@ Do not start work outside the scope fence (ADR-0024).
   string ships an invisible glyph — `test_english_values_are_renderable`
   (`tests/test_i18n_keys.py`) and the extended C++ renderability gate fail it
   (issue #288).
+- **A `substitute()` call site must supply its format string's `{tokens}`.**
+  `hudstyle::substitute` replaces only the tokens it is handed a value for and
+  leaves the rest verbatim (`src/game/HudStyle.h`), so a call site that has
+  drifted from its `en.json` format string draws a raw `{count}` / `{x}` on the
+  HUD. Editing a `{token}` in `en.json` means updating every `substitute()` call
+  site that uses that key in the same change;
+  `test_every_substitute_site_supplies_its_placeholders` (`tests/test_i18n_keys.py`,
+  issue #332) fails a missing or unused name.
 - **The UI language is selectable (issue #123):** `--lang <code>` (CLI, wins) or
   `lang = <code>` in the config file picks a locale; `Game::loadLanguage`
   overlays `assets/lang/<code>.json` on the English table (untranslated keys stay
