@@ -757,7 +757,14 @@ Do not start work outside the scope fence (ADR-0024).
   a `kScannerPulseSeconds` pulse; `scanTargets(index)` lists the living enemies
   within `kScannerRadius` tiles while it runs. The reveal is **presentation-only**
   — the sim never reads it, so it cannot change a combat outcome — and the view
-  draws it (a `focus: render` follow-up, #218). `Mission::useDrugs(index)` spends
+  **now draws it** (`Game::renderScannerPing`, issue #323): a hollow cyan diamond
+  ring at each scanning agent and a cyan crosshair on every enemy its pulse
+  revealed, drawn after the agents so a mark sits on top of the sprite. The
+  minimap (`Minimap::updateBlips`) recolours a revealed enemy's blip to the same
+  cyan. The overlay decision is `Game::scannerMarks()` — a pure read of the core
+  state, shared by the renderer and the headless guard so the guard checks the
+  real draw path. `--scan` fires a squad pulse up front (a demo hook beside
+  `--breach`) because no hotkey activates a gadget yet. `Mission::useDrugs(index)` spends
   a dose for a `kDrugDurationSeconds` buff that multiplies movement speed by
   `kDrugSpeedMultiplier` (multiplied in on activation, divided back out on expiry
   in `Mission::update`) and the base hit chance by `kDrugAccuracyMultiplier`
@@ -906,12 +913,14 @@ Do not start work outside the scope fence (ADR-0024).
   `--headless --check-pause`, `--headless --check-campaign`,
   `--headless --check-deploy`,
   `--headless --check-objectives`,
+  `--headless --check-scanner`,
+  `--headless --scan [--screenshot out.bmp]`,
   `--headless --map --frames N`, and
   `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
   `game_demo`, `game_low_spec`, `game_title`, `game_sprites`, `game_minimap`,
   `game_selection`, `game_waypoints`, `game_waypoint_path`, `game_pause`,
-  `game_pause_flag`, `game_campaign`, `game_deploy`, `game_map_flag`, and
-  `game_objectives`
+  `game_pause_flag`, `game_campaign`, `game_deploy`, `game_map_flag`,
+  `game_objectives`, `game_scanner`, and `game_scanner_screenshot`
   cover the SDL layer
   headlessly.
 - **Queued-route overlay (issue #89):** the view draws a selected agent's

@@ -195,6 +195,19 @@ public:
     // rescan. Returns false on a broken invariant. Used by game_rubble.
     bool rubbleSelfTest();
 
+    // Headless guard for the scanner ping overlay (issue #323): no ping before a
+    // scan, then a ring at the scanning agent and a mark on each revealed enemy
+    // once its pulse runs, with no mark for a civilian scanner. Returns false on
+    // a broken invariant. Used by game_scanner.
+    bool scannerSelfTest();
+
+    // Activates a scanner pulse on every living player agent, granting one
+    // charge first when the squad has none. A demo/verification hook (like
+    // `--breach`): the metagame-bought scanner reaches the board, but no hotkey
+    // fires a gadget yet, so `--scan` makes the ping visible for a headless
+    // screenshot. Not a gameplay rule — the charge/scan rules stay in core.
+    void activateScannerForSquad();
+
     // Headless guard for the objective banner (issue #281): every objective kind
     // must render a non-empty, kind-specific, localised banner with no unsubstituted
     // `{placeholder}` left in it. Returns false on a broken invariant. Used by
@@ -284,6 +297,10 @@ private:
     void render();
     void renderAgents();
     void renderWaypointPath();
+    // Scanner ping overlay (issue #323): a ring at each agent with a live pulse
+    // and a highlight on each enemy its scan reveals. Presentation-only; it reads
+    // the mission and never writes it (golden rule 4).
+    void renderScannerPing();
     void renderSelectionBox();
     void renderHud();
     void renderMinimap();
@@ -348,6 +365,23 @@ private:
     // self-test can verify the exact geometry the renderer uses.
     std::vector<core::Vec2> waypointRoute(std::size_t agentIndex) const;
 
+    // One mark the scanner overlay draws: the pulse ring around a scanning
+    // agent, or the highlight on an enemy its scan revealed.
+    struct ScannerMark
+    {
+        std::size_t index = 0;
+        core::Vec2 screen{0.0f, 0.0f};
+        core::Vec2 world{0.0f, 0.0f};
+        float radius = 0.0f;
+        bool ring = false;
+    };
+
+    // The scanner marks the overlay should draw, from the live mission state.
+    // Shared by renderScannerPing() and scannerSelfTest() so the guard checks
+    // the real decision (a ping only for a live pulse; a mark per revealed
+    // enemy). View-only: pure read of core (golden rule 4).
+    std::vector<ScannerMark> scannerMarks() const;
+
     // Writes a filled isometric diamond directly into a surface (used once).
     void fillDiamond(SDL_Surface* surface, int centerX, int centerY, float halfW, float halfH,
                      std::uint32_t color);
@@ -355,6 +389,11 @@ private:
     // World-space filled diamond for the renderer (agents, selection, health).
     void fillDiamondWorld(const core::Vec2& worldCenter, float radius, std::uint8_t r, std::uint8_t g,
                           std::uint8_t b);
+
+    // World-space hollow diamond outline for the renderer (the scanner pulse
+    // ring, issue #323): four 1px edges, so it reads as a sweep and not a blob.
+    void strokeDiamondWorld(const core::Vec2& worldCenter, float radius, std::uint8_t r,
+                            std::uint8_t g, std::uint8_t b);
 
     SDL_Window* window_ = nullptr;
     SDL_Renderer* renderer_ = nullptr;

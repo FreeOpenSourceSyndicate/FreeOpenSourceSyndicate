@@ -27,6 +27,8 @@ constexpr std::uint8_t kPlayerSelected[3] = {140, 255, 170};
 constexpr std::uint8_t kEnemy[3] = {225, 70, 55};
 constexpr std::uint8_t kCivilian[3] = {205, 200, 180};
 constexpr std::uint8_t kFollower[3] = {90, 205, 230};
+// A scanner-marked enemy (issue #323) shares the in-world ping cyan.
+constexpr std::uint8_t kScannerMarked[3] = {90, 235, 245};
 
 void setPixel(SDL_Surface* surface, int x, int y, std::uint32_t color)
 {
@@ -110,6 +112,22 @@ void Minimap::updateBlips(const core::Mission& mission, const std::vector<std::s
     }
 
     const auto& agents = mission.agents();
+
+    // Which agents any active scan has revealed (issue #323): computed once so
+    // the per-blip loop below does not re-run the scan for every agent.
+    std::vector<bool> marked(agents.size(), false);
+    for (std::size_t s = 0; s < agents.size(); ++s)
+    {
+        if (mission.scannerPulse(s) <= 0.0f)
+        {
+            continue;
+        }
+        for (std::size_t target : mission.scanTargets(s))
+        {
+            marked[target] = true;
+        }
+    }
+
     for (std::size_t i = 0; i < agents.size(); ++i)
     {
         const core::Agent& agent = agents[i];
@@ -133,7 +151,7 @@ void Minimap::updateBlips(const core::Mission& mission, const std::vector<std::s
         }
         else if (agent.team() == core::Team::Enemy)
         {
-            color = kEnemy;
+            color = marked[i] ? kScannerMarked : kEnemy;
         }
         else if (agent.isFollower())
         {

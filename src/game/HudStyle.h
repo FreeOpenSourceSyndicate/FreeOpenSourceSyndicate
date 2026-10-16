@@ -33,6 +33,11 @@ constexpr std::uint8_t kFollowerBody[3] = {90, 205, 230};
 constexpr std::uint8_t kWaypointLine[3] = {255, 236, 120};
 constexpr std::uint8_t kWaypointDot[3] = {60, 110, 220};
 
+// Scanner ping overlay (issue #323): the ring around a scanning agent and the
+// highlight on each enemy its pulse reveals. A bright cyan reads as a sensor
+// sweep against every terrain/agent colour.
+constexpr std::uint8_t kScannerPing[3] = {90, 235, 245};
+
 // Drag-box marquee (issue #94): the rectangle drawn while box-selecting.
 constexpr std::uint8_t kSelectionBox[3] = {120, 220, 255};
 

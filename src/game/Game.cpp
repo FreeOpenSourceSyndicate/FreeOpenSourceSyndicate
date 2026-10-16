@@ -1018,6 +1018,119 @@ bool Game::rubbleSelfTest()
     return true;
 }
 
+void Game::activateScannerForSquad()
+{
+    for (std::size_t i = 0; i < mission_.agents().size(); ++i)
+    {
+        const core::Agent& agent = mission_.agents()[i];
+        if (!agent.isAlive() || agent.team() != core::Team::Player)
+        {
+            continue;
+        }
+        if (mission_.scanners(i) <= 0)
+        {
+            mission_.setScanners(i, 1);
+        }
+        mission_.activateScanner(i);
+    }
+}
+
+bool Game::scannerSelfTest()
+{
+    // Headless guard for the scanner ping overlay (issue #323): before any scan
+    // the overlay draws nothing; a live pulse yields one ring at the scanning
+    // agent and one mark per enemy within range; and a civilian cannot scan (no
+    // ring, no marks). The overlay decision (scannerMarks) is shared with the
+    // renderer, so this guards the real draw path without a display.
+    const auto& agents = mission_.agents();
+    const std::vector<ScannerMark> before = scannerMarks();
+    if (!before.empty())
+    {
+        std::fprintf(stderr, "scanner self-test: overlay drew a ping before any scan\n");
+        return false;
+    }
+
+    std::size_t player = agents.size();
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (agents[i].isAlive() && agents[i].team() == core::Team::Player)
+        {
+            player = i;
+            break;
+        }
+    }
+    if (player == agents.size())
+    {
+        std::fprintf(stderr, "scanner self-test: no living player agent\n");
+        return false;
+    }
+
+    mission_.setScanners(player, 1);
+    if (!mission_.activateScanner(player))
+    {
+        std::fprintf(stderr, "scanner self-test: could not start a scan\n");
+        return false;
+    }
+
+    const std::vector<std::size_t> targets = mission_.scanTargets(player);
+    const std::vector<ScannerMark> marks = scannerMarks();
+    // One ring for the scanner, one mark per revealed enemy.
+    if (marks.size() != targets.size() + 1)
+    {
+        std::fprintf(stderr, "scanner self-test: expected %zu marks, got %zu\n", targets.size() + 1,
+                     marks.size());
+        return false;
+    }
+    bool hasRing = false;
+    for (const ScannerMark& mark : marks)
+    {
+        if (mark.ring)
+        {
+            hasRing = true;
+            if (mark.index != player)
+            {
+                std::fprintf(stderr, "scanner self-test: ring is not on the scanning agent\n");
+                return false;
+            }
+        }
+    }
+    if (!hasRing)
+    {
+        std::fprintf(stderr, "scanner self-test: no pulse ring for a live scan\n");
+        return false;
+    }
+
+    // A civilian is never a scanner: activating is a no-op, so it adds no mark.
+    const std::size_t civilianCount = marks.size();
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (agents[i].isAlive() && agents[i].team() == core::Team::Civilian)
+        {
+            mission_.setScanners(i, 1);
+            if (mission_.activateScanner(i))
+            {
+                std::fprintf(stderr, "scanner self-test: a civilian started a scan\n");
+                return false;
+            }
+            if (scannerMarks().size() != civilianCount)
+            {
+                std::fprintf(stderr, "scanner self-test: a civilian changed the overlay\n");
+                return false;
+            }
+            break;
+        }
+    }
+
+    // Let the pulse expire through the real update path: the overlay clears.
+    mission_.update(6.0f);
+    if (mission_.scannerPulse(player) > 0.0f || !scannerMarks().empty())
+    {
+        std::fprintf(stderr, "scanner self-test: overlay survived the pulse expiry\n");
+        return false;
+    }
+    return true;
+}
+
 bool Game::objectiveSelfTest()
 {
     // Every objective kind must produce a non-empty, localised banner with no
@@ -1824,6 +1937,36 @@ void Game::fillDiamondWorld(const core::Vec2& worldCenter, float radius, std::ui
         line.y = py;
         line.h = 1;
         SDL_RenderFillRect(renderer_, &line);
+    }
+}
+
+void Game::strokeDiamondWorld(const core::Vec2& worldCenter, float radius, std::uint8_t r,
+                              std::uint8_t g, std::uint8_t b)
+{
+    // A hollow isometric diamond outline (the scanner pulse ring). For each
+    // screen row across the diamond, draw the two edge pixels instead of the
+    // full span, so the ring reads as an outline and does not hide the board.
+    const float z = static_cast<float>(zoom_);
+    const float halfW = radius * (kTileWidth * 0.5f) * z;
+    const float halfH = radius * (kTileHeight * 0.5f) * z;
+    const core::Vec2 screen = core::Vec2{(worldCenter.x + mapOffsetX_ - cameraX_) * z,
+                                         (worldCenter.y + mapOffsetY_ - cameraY_) * z};
+    SDL_SetRenderDrawColor(renderer_, r, g, b, 235);
+    const int minY = static_cast<int>(screen.y - halfH);
+    const int maxY = static_cast<int>(screen.y + halfH);
+    for (int py = minY; py <= maxY; ++py)
+    {
+        const float dy = (static_cast<float>(py) - screen.y) / halfH;
+        const float span = 1.0f - std::fabs(dy);
+        if (span <= 0.0f)
+        {
+            continue;
+        }
+        const float half = halfW * span;
+        SDL_Rect left{static_cast<int>(screen.x - half), py, 2, 1};
+        SDL_Rect right{static_cast<int>(screen.x + half) - 1, py, 2, 1};
+        SDL_RenderFillRect(renderer_, &left);
+        SDL_RenderFillRect(renderer_, &right);
     }
 }
 
@@ -2646,6 +2789,73 @@ void Game::renderWaypointPath()
     }
 }
 
+void Game::renderScannerPing()
+{
+    // Scanner ping overlay (issue #323): for every agent with a live pulse, draw
+    // a sensor ring at its tile and a highlight on each enemy the scan revealed.
+    // View-only: it reads `Mission::scannerPulse`/`scanTargets` and never writes
+    // them, so the reveal cannot change a combat outcome (golden rule 4).
+    const std::vector<ScannerMark> marks = scannerMarks();
+    if (marks.empty())
+    {
+        return;
+    }
+
+    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
+    for (const ScannerMark& mark : marks)
+    {
+        if (mark.ring)
+        {
+            // The pulse ring around the scanning agent: a hollow diamond outline
+            // sized to the scan radius, so the sweep reads without hiding the
+            // agent it is centred on.
+            strokeDiamondWorld(mark.world, mark.radius, hudstyle::kScannerPing[0],
+                               hudstyle::kScannerPing[1], hudstyle::kScannerPing[2]);
+            continue;
+        }
+
+        // A marked enemy: a bright crosshair that reads on top of any sprite.
+        const int cx = static_cast<int>(mark.screen.x);
+        const int cy = static_cast<int>(mark.screen.y);
+        const int arm = 9 * zoom_;
+        SDL_SetRenderDrawColor(renderer_, hudstyle::kScannerPing[0], hudstyle::kScannerPing[1],
+                               hudstyle::kScannerPing[2], 220);
+        SDL_Rect horizontal{cx - arm, cy - 1, arm * 2 + 1, 2};
+        SDL_Rect vertical{cx - 1, cy - arm, 2, arm * 2 + 1};
+        SDL_RenderFillRect(renderer_, &horizontal);
+        SDL_RenderFillRect(renderer_, &vertical);
+    }
+}
+
+std::vector<Game::ScannerMark> Game::scannerMarks() const
+{
+    std::vector<ScannerMark> marks;
+    const auto& agents = mission_.agents();
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (mission_.scannerPulse(i) <= 0.0f)
+        {
+            continue;
+        }
+        const core::Vec2 position = agents[i].interpolatedPosition(clock_.alpha());
+        const core::Vec2 screen = tileToScreen(position);
+        const core::Vec2 world =
+            core::tileToWorld(position.x, position.y, kTileWidth, kTileHeight);
+        // A ring drawn as a diamond footprint: the horizontal half-width factor
+        // (1.6 tiles) makes the sweep read against the isometric board.
+        const ScannerMark ring{i, screen, world, 1.6f, true};
+        marks.push_back(ring);
+        for (std::size_t target : mission_.scanTargets(i))
+        {
+            const core::Vec2 markPos = agents[target].interpolatedPosition(clock_.alpha());
+            const ScannerMark mark{target, tileToScreen(markPos), core::Vec2{0.0f, 0.0f}, 0.0f,
+                                   false};
+            marks.push_back(mark);
+        }
+    }
+    return marks;
+}
+
 void Game::renderSelectionBox()
 {
     // Drag marquee (issue #94). View-only: draws the rectangle the player is
@@ -2730,6 +2940,7 @@ void Game::render()
 
     renderAgents();
     renderWaypointPath();
+    renderScannerPing();
     renderSelectionBox();
     if (titleCardActive_)
     {
