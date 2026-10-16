@@ -428,6 +428,40 @@ Rules:
 A release branch is a frozen, playable snapshot: keep it building and playable,
 and do not let unrelated work drift onto it.
 
+### 6a-i. Major versions need a feature-complete, human-approved candidate
+
+Rules 1–6 above cover **minor** releases (`0.x.0`): cut one whenever a playtest is
+useful. A **major version** (`X.0.0` — the next is **v1.0.0**) is different: its
+claim is "this is the finished clone", it is irreversible under §6b, and it is
+the one release a machine cannot validate. So a major version may be rolled out
+**only** after all of:
+
+1. **Feature-complete candidate.** A build exists that **implements everything**
+   in that version's Definition of Done — for v1.0.0, `docs/ROADMAP.md` →
+   *Definition of Done — v1.0.0* and §9 below. No missing feature, no "lands
+   later" carve-out; the candidate is the whole scope or it is not a candidate.
+2. **A human can build and play it.** From the candidate's exact branch/tag, a
+   human follows its `docs/releases/vX.Y.Z-*.md` and gets a runnable copy on
+   another machine.
+3. **Human approval.** A **human** has playtested the candidate and **approved**
+   the rollout, recorded via `docs/releases/MAJOR_RELEASE_GATE.md` on the
+   candidate's GitHub Release page (or its tracking issue).
+
+Only then is the major **tag** cut and the version **rolled out**. Details:
+
+- **Tag the candidate as a pre-release** — e.g. `v1.0.0-rc.1` — so §6b
+  immutability applies to it; if the playtest finds gaps, cut **`-rc.2`**, never
+  re-tag. The final `vX.Y.Z` tag is cut only after approval, on the approved
+  commit.
+- **The gate is human-owned.** Agents prepare the candidate, the release notes,
+  and the filled-in checklist; a **human supplies the approval**. An agent must
+  **never self-approve** a major version — the §3a sole-account self-merge rule is
+  about merging PRs, not about declaring the game finished.
+- **It cannot be waived by an agent.** If the scope is not done, the honest move
+  is to keep shipping `0.x.0` milestones (ADR-0025 §3.7), not to cut `1.0.0`.
+
+Reasoning: **ADR-0036**. Minor releases (`0.x.0`) are unchanged by this section.
+
 ### 6b. Release branches are immutable
 
 Once a release is published (tagged, with a GitHub Release page), **do not touch
@@ -536,6 +570,11 @@ move us toward it, it is out of scope.
       `CHANGELOG.md` entry, and `docs/releases/vX.Y.Z-*.md` (build/play + copy
       instructions) all exist, and the release is visibly different from the
       last (§6a).
+- [ ] If this is a **major** version (`X.0.0`): the §6a-i gate is satisfied — a
+      feature-complete candidate (the whole Definition of Done, no carve-outs),
+      buildable and playable by a human, and **approved by a human** via
+      `docs/releases/MAJOR_RELEASE_GATE.md`. An agent never self-approves a
+      major version.
 
 ## 10. Known gaps / TODO for the next agent
 

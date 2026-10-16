@@ -159,6 +159,12 @@ Turn the systems into a game.
 - [ ] **Save/load** between sessions (the original saved progress).
 - [ ] **Balance pass** on weapons, economy, and research pacing.
 - [ ] **v1.0.0 release**: tag, GitHub Release, `docs/releases/`, CHANGELOG.
+      _A **major version** is gated: it rolls out only after a feature-complete,
+      buildable, human-played **candidate** is **approved** (`AGENTS.md` §6a-i,
+      ADR-0036). The candidate + approval record is
+      [`docs/releases/MAJOR_RELEASE_GATE.md`](releases/MAJOR_RELEASE_GATE.md). This
+      item is **not done** until every other box in Milestone C is checked and the
+      human gate opens._
 
 ---
 

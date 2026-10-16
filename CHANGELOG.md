@@ -8,6 +8,23 @@ contains no original assets, code, names, or trademarks.
 
 ## [Unreleased]
 
+### Changed
+
+- **A major version is now gated behind a feature-complete, human-approved
+  candidate.** `AGENTS.md` §6a defined how to cut *minor* releases (`0.x.0`) but
+  said nothing about a **major** version (`X.0.0`), so `v1.0.0` could in
+  principle have been tagged the moment CI went green — with no build that
+  implemented the whole v1.0.0 scope, and no human ever having played it. §6a-i
+  now requires, before any major version rolls out: a **release candidate** that
+  implements the entire Definition of Done (no carve-outs), a build a **human can
+  build and play** from the candidate's branch/tag, and **human approval**
+  recorded via [`docs/releases/MAJOR_RELEASE_GATE.md`](docs/releases/MAJOR_RELEASE_GATE.md).
+  The candidate is tagged as a pre-release (`v1.0.0-rc.N`, immutable under §6b);
+  the final tag is cut only on approval. The gate is **human-owned** — an agent
+  never self-approves a major version. Minor releases are unchanged. Recorded in
+  **ADR-0036**; see also `docs/ROADMAP.md` (Milestone C) and `docs/FOCUS_AREAS.md`
+  (release remit). Issue #402.
+
 ## [0.8.0] — 2026-10-16 — "Dominion"
 
 The war now has a map. Above the tactical board sits a **management screen**: a
