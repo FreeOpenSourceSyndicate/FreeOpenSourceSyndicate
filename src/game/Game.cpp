@@ -913,6 +913,121 @@ bool Game::pauseSelfTest()
     return true;
 }
 
+bool Game::gadgetSelfTest()
+{
+    // Drives the real hotkey handlers (issue #339) against the real Mission, so
+    // the gate proves the keys are wired to the core gadgets, not merely that the
+    // core API works (which tests/test_mission.cpp already covers). The view must
+    // pick the selected agent and the core must spend the charge and apply the
+    // effect; a charge-less selection must be a safe no-op.
+    std::vector<std::size_t> players;
+    for (std::size_t i = 0; i < mission_.agents().size(); ++i)
+    {
+        if (mission_.agents()[i].isAlive() && mission_.agents()[i].team() == core::Team::Player)
+        {
+            players.push_back(i);
+        }
+    }
+    if (players.size() < 2)
+    {
+        std::fprintf(stderr, "gadget self-test: needs at least two player agents\n");
+        return false;
+    }
+    const std::size_t user = players[0];
+    const std::size_t ally = players[1];
+
+    // Medkit (H): a kit on the user heals the most-wounded ally in range and is
+    // spent; a second press with no kit left must not heal.
+    (void)mission_.agents()[ally].applyDamage(50.0f);
+    const float wounded = mission_.agents()[ally].health();
+    mission_.setMedikits(user, 1);
+    selectOnly(user);
+    useMedkitOnSelection();
+    if (mission_.medikits(user) != 0)
+    {
+        std::fprintf(stderr, "gadget self-test: medkit charge not consumed\n");
+        return false;
+    }
+    if (mission_.agents()[ally].health() <= wounded)
+    {
+        std::fprintf(stderr, "gadget self-test: medkit did not heal the ally\n");
+        return false;
+    }
+    const float healed = mission_.agents()[ally].health();
+    useMedkitOnSelection();
+    if (mission_.agents()[ally].health() != healed)
+    {
+        std::fprintf(stderr, "gadget self-test: medkit healed with no charge left\n");
+        return false;
+    }
+
+    // Shield (S): raises on the selected agent and spends a charge; an uncharged
+    // agent cannot raise one (and the other player's shield state is untouched).
+    mission_.setShields(user, 1);
+    selectOnly(user);
+    activateShieldOnSelection();
+    if (mission_.shields(user) != 0 || !mission_.shieldUp(user))
+    {
+        std::fprintf(stderr, "gadget self-test: shield not raised or not spent\n");
+        return false;
+    }
+    if (mission_.shieldUp(ally))
+    {
+        std::fprintf(stderr, "gadget self-test: shield raised on an unselected agent\n");
+        return false;
+    }
+    mission_.setShields(ally, 0);
+    selectOnly(ally);
+    activateShieldOnSelection();
+    if (mission_.shieldUp(ally))
+    {
+        std::fprintf(stderr, "gadget self-test: shield raised with no charge\n");
+        return false;
+    }
+
+    // Scanner (C): starts a timed pulse and spends a charge; an uncharged agent
+    // starts no pulse.
+    mission_.setScanners(user, 1);
+    selectOnly(user);
+    activateScannerOnSelection();
+    if (mission_.scanners(user) != 0 || mission_.scannerPulse(user) <= 0.0f)
+    {
+        std::fprintf(stderr, "gadget self-test: scanner not started or not spent\n");
+        return false;
+    }
+    mission_.setScanners(ally, 0);
+    selectOnly(ally);
+    activateScannerOnSelection();
+    if (mission_.scannerPulse(ally) > 0.0f)
+    {
+        std::fprintf(stderr, "gadget self-test: scanner started with no charge\n");
+        return false;
+    }
+
+    // Performance drugs (B): starts a timed buff and spends a dose; an uncharged
+    // agent takes none.
+    mission_.setDrugs(user, 1);
+    selectOnly(user);
+    useDrugsOnSelection();
+    if (mission_.drugs(user) != 0 || mission_.drugsTimer(user) <= 0.0f)
+    {
+        std::fprintf(stderr, "gadget self-test: drugs not taken or not spent\n");
+        return false;
+    }
+    mission_.setDrugs(ally, 0);
+    selectOnly(ally);
+    useDrugsOnSelection();
+    if (mission_.drugsTimer(ally) > 0.0f)
+    {
+        std::fprintf(stderr, "gadget self-test: drugs taken with no dose\n");
+        return false;
+    }
+
+    // Leave a clean selection behind, like the other self-tests.
+    selectAllPlayers();
+    return true;
+}
+
 void Game::breachAllDestructibles()
 {
     for (int y = 0; y < grid_.height(); ++y)
@@ -1886,6 +2001,38 @@ void Game::freeSelectedFollowers()
     }
 }
 
+void Game::useMedkitOnSelection()
+{
+    for (const std::size_t index : selected_)
+    {
+        mission_.useMedikit(index);
+    }
+}
+
+void Game::activateShieldOnSelection()
+{
+    for (const std::size_t index : selected_)
+    {
+        mission_.activateShield(index);
+    }
+}
+
+void Game::activateScannerOnSelection()
+{
+    for (const std::size_t index : selected_)
+    {
+        mission_.activateScanner(index);
+    }
+}
+
+void Game::useDrugsOnSelection()
+{
+    for (const std::size_t index : selected_)
+    {
+        mission_.useDrugs(index);
+    }
+}
+
 void Game::fillDiamond(SDL_Surface* surface, int centerX, int centerY, float halfW, float halfH,
                        std::uint32_t color)
 {
@@ -2060,6 +2207,22 @@ void Game::handleEvents(bool& running)
                 break;
             case SDLK_f:
                 freeSelectedFollowers();
+                break;
+            case SDLK_h:
+                // Use a medikit on the selection (issue #339).
+                useMedkitOnSelection();
+                break;
+            case SDLK_s:
+                // Raise a shield on the selection (issue #339).
+                activateShieldOnSelection();
+                break;
+            case SDLK_c:
+                // Run a scanner pulse for the selection (issue #339).
+                activateScannerOnSelection();
+                break;
+            case SDLK_b:
+                // Take performance drugs on the selection (issue #339).
+                useDrugsOnSelection();
                 break;
             case SDLK_1:
             case SDLK_2:

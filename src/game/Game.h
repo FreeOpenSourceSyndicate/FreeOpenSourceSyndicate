@@ -189,6 +189,13 @@ public:
     // round-trip. Returns false on a broken invariant. Used by game_pause.
     bool pauseSelfTest();
 
+    // Headless guard for the gadget hotkeys (issue #339): each handler must
+    // consume a charge and produce its effect on a selected agent, a charge-less
+    // selection must be a safe no-op, and the selected agent must be the one that
+    // acts. Exercises the real handlers, not the core API directly. Returns false
+    // on a broken invariant. Used by game_gadgets.
+    bool gadgetSelfTest();
+
     // Headless guard for breached-tile rendering (issue #218): a destructible
     // wall must bake as the destructible art, then as the rubble tile once it is
     // breached — and the map must re-bake on the breach without a per-frame
@@ -343,6 +350,16 @@ private:
     void persuadeNearestCivilian();
     // Releases the followers of every selected agent.
     void freeSelectedFollowers();
+
+    // Gadget hotkeys (issue #339). Each iterates the current selection and calls
+    // the frozen `core::Mission` gadget API, which decides the effect and spends
+    // the charge: the view picks the agents, the core owns the rules (golden rule
+    // 1/4). A selection without a charge (or a civilian/dead agent) is a safe
+    // no-op. Keys: `H` medkit, `S` shield, `C` scanner, `B` drugs.
+    void useMedkitOnSelection();    // `H`: heal the most-wounded ally in range
+    void activateShieldOnSelection(); // `S`: absorb the next incoming hit
+    void activateScannerOnSelection(); // `C`: ping nearby enemies for a moment
+    void useDrugsOnSelection();     // `B`: temporary speed/accuracy boost
 
     core::Vec2 tileToScreen(const core::Vec2& tile) const;
     core::TilePos screenToTile(int screenX, int screenY) const;

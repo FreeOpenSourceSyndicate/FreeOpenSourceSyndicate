@@ -647,11 +647,25 @@ Do not start work outside the scope fence (ADR-0024).
 - **The control hints must match the bindings (issue #268):** the HUD
   (`hud.controls`) and title card (`title.controls.*`) once advertised a `L` key
   to move the squad that was **never bound** (the real key set is `ESC F11 SPACE
-  R A P F 1-8 ARROWS + -`). The labels were corrected to describe the real
+  R A P F H S C B 1-8 ARROWS + -`). The labels were corrected to describe the real
   controls (mouse click moves). When you add or change a hotkey, update the HUD
   and title strings (and the `tr()` fallbacks in `Hud.cpp`/`TitleCard.cpp`) in the
   same change; `test_tr_fallbacks_match_en_json` compares the fallbacks to
   `en.json`, so a text-only change to one file fails the guard.
+- **The tactical gadgets are usable in play (issue #339):** the four Milestone A
+  gadgets had complete, tested core logic and reached a deployed squad through the
+  loadout (`core::applyLoadout`, #311/#312), but **no hotkey activated them**, so
+  the feature was unreachable — the "capability landed but never wired in" trap of
+  #99/#101. `H` uses a medkit, `S` raises a shield, `C` runs a scanner pulse, `B`
+  takes performance drugs, each on the current selection. The handlers
+  (`Game::useMedkitOnSelection`/`activateShieldOnSelection`/
+  `activateScannerOnSelection`/`useDrugsOnSelection`) iterate `selected_` and call
+  the frozen `core::Mission` gadget API — the view picks the agents, the core
+  spends the charge and decides the effect (golden rule 1/4). No core change; a
+  charge-less (or civilian/dead) selection is a safe no-op. `--check-gadgets`
+  (ctest `game_gadgets`) drives the real handlers on the real `Mission` and fails
+  if a charge is not spent, the effect does not land, or the wrong agent acts. The
+  controls strings (`hud.controls`, `title.controls.gadgets`) advertise the keys.
 - **String-table values must stay ASCII — `en.json` included.** The embedded 5x7
   bitmap font draws only ASCII 32–126, so a non-ASCII glyph (e.g. an umlaut)
   renders blank. Write translations as ASCII transliterations (`AE`/`OE`/`UE`/`SS`)
@@ -929,7 +943,8 @@ Do not start work outside the scope fence (ADR-0024).
   `--headless --title --frames N`, `--headless --check-sprites`,
   `--headless --check-minimap`, `--headless --check-selection`,
   `--headless --check-waypoints`, `--headless --check-waypoint-path`,
-  `--headless --check-pause`, `--headless --check-campaign`,
+  `--headless --check-pause`, `--headless --check-gadgets`,
+  `--headless --check-campaign`,
   `--headless --check-deploy`,
   `--headless --check-objectives`,
   `--headless --check-scanner`,
@@ -938,8 +953,9 @@ Do not start work outside the scope fence (ADR-0024).
   `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
   `game_demo`, `game_low_spec`, `game_title`, `game_sprites`, `game_minimap`,
   `game_selection`, `game_waypoints`, `game_waypoint_path`, `game_pause`,
-  `game_pause_flag`, `game_campaign`, `game_deploy`, `game_map_flag`,
-  `game_objectives`, `game_scanner`, and `game_scanner_screenshot`
+  `game_pause_flag`, `game_gadgets`, `game_campaign`, `game_deploy`,
+  `game_map_flag`, `game_objectives`, `game_scanner`, and
+  `game_scanner_screenshot`
   cover the SDL layer
   headlessly.
 - **Queued-route overlay (issue #89):** the view draws a selected agent's

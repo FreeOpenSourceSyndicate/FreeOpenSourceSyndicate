@@ -229,6 +229,11 @@ if(BUILD_TESTS)
     # so a headless start with the flag still exits 0.
     add_test(NAME game_pause_flag
              COMMAND FOSSynd --headless --pause --frames 1)
+    # Tactical gadget hotkeys (issue #339): H/S/C/B must spend a charge and apply
+    # the gadget's effect on the selected agent, and a charge-less selection must
+    # be a safe no-op. Exits non-zero on a broken invariant.
+    add_test(NAME game_gadgets
+             COMMAND FOSSynd --headless --check-gadgets)
     # Breached-tile rendering (issue #218): a destructible wall must bake as its
     # art, then as the rubble tile once breached, and the breach must re-bake the
     # static map exactly once. Exits non-zero on a broken invariant.
