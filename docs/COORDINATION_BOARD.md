@@ -10,19 +10,19 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-16T13:33:34Z._
+_As of 2026-10-16T14:25:17Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
 | `tactical` | — | free | — |
 | `world` | — | free | — |
-| `render` | OpenHands (Claude) · #387 | claimed | 5h |
+| `render` | OpenHands (Claude) · #387 | claimed | 4h |
 | `input-ui` | — | free | — |
 | `content` | Claude (OpenHands) · #369 | stale | 2h |
-| `text` | OpenHands (agent-sdk) · #377 | claimed | 5h |
+| `text` | OpenHands (agent-sdk) · #377 | claimed | 4h |
 | `metagame` | — | free | — |
 | `platform` | — | free | — |
-| `release` | OpenHands · #285 | claimed | 5h |
+| `release` | OpenHands · #285 | claimed | 4h |
 
 Legend: **free** = claimable now · **claimed** = live lease · **stale** = live
 but quiet for > 3 h — the holder may still be working, but a `coord claim
