@@ -767,6 +767,25 @@ Do not start work outside the scope fence (ADR-0024).
   no-ops for a civilian, a dead agent, or when already active. Deterministic,
   RNG-free. `gadgetChargesForId` (`PlayerLoadout.h`) accepts `"scanner"` and
   `"drugs"`, so a bought gadget deploys like the medkit/shield.
+- **Cybernetic upgrades** (issue #313, ADR-0031): Milestone A's passive stat
+  upgrades. `CyberneticEffect` (`src/core/sim/Cybernetic.h`, header-only) holds
+  four **multipliers** (all default 1.0); `cyberneticEffectForId(id, out)`
+  resolves `legs` (speed), `arms` (accuracy), `chest` (health), `eyes`
+  (perception), and `targeting-implant` (accuracy) — unknown returns false.
+  `Mission::applyCybernetic(index, id)` applies it **once at mission load**:
+  multiplies speed, max health (via `setMaxHealth`, filled), weapon accuracy
+  (**clamped to 1.0** — never certain), and sight range. It is a no-op for a
+  civilian/dead agent/unknown id/invalid index; deterministic, no RNG. Perception
+  multiplies the **World**-owned per-agent `Agent::sightRange()` (default
+  `kDefaultSightRange`, added in #337 for exactly this upgrade); `Mission` reads
+  it through `seesTarget` and exposes thin `sightRange`/`setSightRange`
+  delegators, so an eyes upgrade really extends engagement range. `LoadoutSlot`
+  gained a data-only `cyberneticId`, and `applyLoadout` applies it strictly
+  (unknown id = content error). Modifier data lives in `core/sim` until a
+  data-file format is fixed (ADR-0003). The metagame must add the four
+  catalogue/research entries and map a bought cybernetic to
+  `LoadoutSlot::cyberneticId` in `Campaign::selectedLoadout` (which today skips
+  cybernetics) — Rule 4 request on #313, filed as issue #341.
 - Sprites and a minimap are in (see below); integer zoom levels (1x/2x/3x, `+`/`-`
   or wheel, `--zoom <n>`) are in too (Phase 2 complete).
 - **Agent routes are string-pulled (issue #93):** `findPath` with

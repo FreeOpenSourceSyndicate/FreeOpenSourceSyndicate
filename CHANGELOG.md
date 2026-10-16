@@ -10,6 +10,19 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **Cybernetic upgrades:** the last Milestone A tactical item lands in `core`,
+  alongside the gadgets. `CyberneticEffect` (`core/sim/Cybernetic.h`) maps a
+  `kind: "cybernetic"` id to permanent stat **multipliers** applied once at
+  mission load by `Mission::applyCybernetic`: `legs` (movement speed), `arms`
+  (weapon accuracy, clamped so a shot is never certain), `chest` (maximum
+  health, filled as a clean gain), `eyes` (sight range / perception), and the
+  already-shipped `targeting-implant` (accuracy). Perception is the per-agent
+  `Agent::sightRange()` that `seesTarget` reads (extended by the eyes upgrade),
+  so an eyes upgrade measurably extends a combatant's engagement range.
+  `LoadoutSlot` gained a data-only `cyberneticId`, so a bought upgrade deploys
+  through the same strict path as a weapon/gadget (an unknown id is a content
+  error). Engine-free, deterministic (ADR-0031). Issue #313.
+
 - **The equipment catalogue sells the scanner and performance drugs:** it now
   lists the two gadgets #314 added to `core`, so a player can actually buy and
   equip them from the R&D shop and they reach a deployed squad (they were

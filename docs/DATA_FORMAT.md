@@ -218,8 +218,9 @@ player agent is ignored:
 
 fossynd::core::PlayerLoadout loadout;
 loadout.slots.resize(2);
-loadout.slots[0].weaponId = "rifle";   // resolved against weapons.json
-loadout.slots[1].gadgetId = "medkit";  // "medkit" | "shield" | "scanner" | "drugs"
+loadout.slots[0].weaponId = "rifle";        // resolved against weapons.json
+loadout.slots[1].gadgetId = "medkit";       // "medkit" | "shield" | "scanner" | "drugs"
+loadout.slots[0].cyberneticId = "legs";     // "legs" | "arms" | "chest" | "eyes" | "targeting-implant"
 
 fossynd::core::WeaponCatalogue weapons;
 bool found = false;
@@ -232,13 +233,22 @@ if (!fossynd::core::applyLoadout(loadout, mission, weapons, error))
 }
 ```
 
-An empty `weaponId`/`gadgetId` (or a missing slot) keeps the mission's authored
-default, so a mission with no loadout is byte-for-byte unchanged. An id that is
-not in its catalogue is a **content error** (`applyLoadout` returns false), not a
-silent fallback. The gadget vocabulary is `medkit` (one heal), `shield` (one
-absorbed hit), `scanner` (one timed reveal of nearby enemies), and `drugs` (one
-timed speed/accuracy buff), matching the `kind: "gadget"` items in
+An empty `weaponId`/`gadgetId`/`cyberneticId` (or a missing slot) keeps the
+mission's authored default, so a mission with no loadout is byte-for-byte
+unchanged. An id that is not in its catalogue is a **content error**
+(`applyLoadout` returns false), not a silent fallback. The gadget vocabulary is
+`medkit` (one heal), `shield` (one absorbed hit), `scanner` (one timed reveal of
+nearby enemies), and `drugs` (one timed speed/accuracy buff), matching the
+`kind: "gadget"` items in
 `assets/data/world/equipment.json`.
+
+The cybernetic vocabulary (`CyberneticEffect`, `src/core/sim/Cybernetic.h`) maps
+a `kind: "cybernetic"` catalogue id to permanent stat **multipliers** applied
+once at load by `Mission::applyCybernetic`: `legs` (movement speed), `arms`
+(weapon accuracy), `chest` (maximum health), `eyes` (sight range / perception),
+and `targeting-implant` (accuracy). An upgrade is separate from the
+weapon/gadget loadout because it is a passive, permanent change rather than a
+deployable item (ADR-0031).
 
 ## Choosing which mission to load
 

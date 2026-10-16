@@ -14,9 +14,6 @@ namespace
 // How often an AI agent re-evaluates its target and path.
 constexpr float kThinkInterval = 0.4f;
 
-// Distance (in tiles) at which an enemy is considered "in sight" for chasing.
-constexpr float kSightRange = 12.0f;
-
 // Accuracy multiplier applied at maximum range; accuracy falls linearly from
 // full at point-blank to this fraction at max range.
 constexpr float kAccuracyAtMaxRange = 0.35f;
@@ -539,6 +536,67 @@ float Mission::drugsTimer(std::size_t index) const
     return index < drugsTimer_.size() ? drugsTimer_[index] : 0.0f;
 }
 
+bool Mission::applyCybernetic(std::size_t index, const std::string& id)
+{
+    if (index >= agents_.size())
+    {
+        return false;
+    }
+    CyberneticEffect effect;
+    if (!cyberneticEffectForId(id, effect))
+    {
+        return false;
+    }
+    Agent& agent = agents_[index];
+    if (!agent.isAlive() || !agent.isCombatant())
+    {
+        // A passive upgrade on a civilian or a dead agent is meaningless.
+        return false;
+    }
+    // Movement speed (legs). Multiplied in directly, as the drug buff does.
+    if (effect.speedMultiplier != 1.0f)
+    {
+        agent.setSpeed(agent.speed() * effect.speedMultiplier);
+    }
+    // Maximum health (chest). setMaxHealth refills to the new maximum, so the
+    // upgrade is a clean gain rather than a wound.
+    if (effect.healthMultiplier != 1.0f)
+    {
+        agent.setMaxHealth(agent.maxHealth() * effect.healthMultiplier);
+    }
+    // Hit chance (arms). Clamped to 1.0: an upgrade must never make a shot
+    // certain. The weapon is copied, not mutated in place, because `weapon()`
+    // returns a const reference (the Weapon is a value on the agent).
+    if (effect.accuracyMultiplier != 1.0f)
+    {
+        Weapon weapon = agent.weapon();
+        weapon.accuracy = std::min(1.0f, weapon.accuracy * effect.accuracyMultiplier);
+        agent.setWeapon(std::move(weapon));
+    }
+    // Sight range / perception (eyes). Delegates to the agent's own
+    // `sightRange()` (World's per-agent perception contract, added in #337 for
+    // this upgrade), so there is one source of truth for the stat.
+    if (effect.sightMultiplier != 1.0f)
+    {
+        agent.setSightRange(agent.sightRange() * effect.sightMultiplier);
+    }
+    return true;
+}
+
+float Mission::sightRange(std::size_t index) const
+{
+    return index < agents_.size() ? agents_[index].sightRange() : kDefaultSightRange;
+}
+
+void Mission::setSightRange(std::size_t index, float range)
+{
+    if (index >= agents_.size())
+    {
+        return;
+    }
+    agents_[index].setSightRange(range);
+}
+
 float Mission::damageAgent(std::size_t index, float amount)
 {
     if (index >= agents_.size())
@@ -676,7 +734,7 @@ TilePos Mission::firstWallOnLine(TilePos from, TilePos to, bool& found) const
 
 bool Mission::seesTarget(std::size_t observer, std::size_t target) const
 {
-    return distanceBetween(observer, target) <= kSightRange && hasClearShot(observer, target);
+    return distanceBetween(observer, target) <= sightRange(observer) && hasClearShot(observer, target);
 }
 
 int Mission::nearestEnemy(std::size_t self, Team enemyTeam) const

@@ -509,6 +509,21 @@ bool applyLoadout(const PlayerLoadout& loadout, Mission& mission, const WeaponCa
                 mission.setDrugs(i, charges);
             }
         }
+
+        if (!item.cyberneticId.empty())
+        {
+            // A cybernetic is a passive, permanent stat change: a known id is
+            // applied once here; an unknown one is a content error (a typo must
+            // not silently deploy an un-upgraded agent), matching the weapon and
+            // gadget strictness above (ADR-0027/ADR-0031).
+            if (!mission.applyCybernetic(i, item.cyberneticId))
+            {
+                error = "loadout slot " + std::to_string(slot - 1) + ": unknown cyberneticId '" +
+                        item.cyberneticId +
+                        "' (expected 'legs', 'arms', 'chest', 'eyes' or 'targeting-implant')";
+                return false;
+            }
+        }
     }
     return true;
 }
