@@ -97,7 +97,9 @@ Close out the 1993 tactical feature set (the tail of the old Phase 3).
       _Shield landed (#213); medikit and recruiter already done; scanner and
       performance drugs landed (#314) — `Mission::activateScanner`/`scanTargets`
       and `Mission::useDrugs`/`drugsTimer` (ADR-0028). The scanner's on-screen
-      ping is a `focus: render` follow-up (#218).
+      ping landed (#323): `Game::renderScannerPing` draws a ring at each
+      scanning agent and a crosshair on every revealed enemy, and the minimap
+      marks them.
 - [ ] **Vehicles**: cars/trains you can hijack, drive, and fire from.
 - [ ] **Destructible environment**: breachable walls (started in #185/#217).
 - [x] **Mission objectives**: complete the set — persuade, escort/retrieve,

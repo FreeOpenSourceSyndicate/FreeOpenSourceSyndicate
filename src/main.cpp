@@ -47,6 +47,7 @@ void printUsage()
         "      --fullscreen           Start in fullscreen (F11 toggles it).\n"
         "      --pause                Start paused (Space toggles it).\n"
         "      --breach               Breach all destructible walls before rendering.\n"
+        "      --scan                 Activate a scanner pulse on the squad before rendering.\n"
         "      --zoom <n>             Set the integer zoom level (1-3).\n"
         "      --headless             Run without a display.\n"
         "      --frames <n>           Run n frames, then exit.\n"
@@ -63,6 +64,7 @@ void printUsage()
         "      --check-fullscreen     Validate the fullscreen toggle.\n"
         "      --check-pause          Validate pause/resume.\n"
         "      --check-rubble         Validate breached-tile rubble rendering.\n"
+        "      --check-scanner        Validate the scanner ping overlay.\n"
         "      --check-objectives     Validate the objective banner for every kind.\n"
         "      --check-campaign       Validate the campaign management loop.\n"
         "      --check-deploy         Validate deploying a mission from the map.\n"
@@ -168,6 +170,7 @@ int main(int argc, char** argv)
     bool fullscreen = false;
     bool startPaused = false;
     bool breachWalls = false;
+    bool scanSquad = false;               // --scan
     bool checkSprites = false;
     bool checkMinimap = false;
     bool checkSelection = false;
@@ -179,6 +182,7 @@ int main(int argc, char** argv)
     bool checkFullscreen = false;
     bool checkPause = false;
     bool checkRubble = false;
+    bool checkScanner = false;
     bool checkObjectives = false;
     bool checkCampaign = false;
     bool checkDeploy = false;
@@ -245,6 +249,10 @@ int main(int argc, char** argv)
         {
             breachWalls = true;
         }
+        else if (std::strcmp(argv[i], "--scan") == 0)
+        {
+            scanSquad = true;
+        }
         else if (std::strcmp(argv[i], "--demo") == 0)
         {
             demo = true;
@@ -300,6 +308,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-rubble") == 0)
         {
             checkRubble = true;
+        }
+        else if (std::strcmp(argv[i], "--check-scanner") == 0)
+        {
+            checkScanner = true;
         }
         else if (std::strcmp(argv[i], "--check-objectives") == 0)
         {
@@ -516,6 +528,14 @@ int main(int argc, char** argv)
         game.breachAllDestructibles();
     }
 
+    // `--scan` fires a scanner pulse on the squad up front so a headless
+    // screenshot shows the ping overlay without a hotkey (the gadget is not yet
+    // bound to a key; see #323). Kept beside `--breach` as a demo hook.
+    if (scanSquad)
+    {
+        game.activateScannerForSquad();
+    }
+
     if (checkSprites)
     {
         // Headless guard for the sprite pipeline: the authored sheet must bake
@@ -635,6 +655,17 @@ int main(int argc, char** argv)
         // the breach must re-bake the static map. Used by the game_rubble ctest.
         const bool ok = game.rubbleSelfTest();
         std::printf(ok ? "rubble: ok\n" : "rubble: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkScanner)
+    {
+        // Headless guard for the scanner ping overlay (issue #323): no ping
+        // before a scan, then a ring at the scanning agent and a mark per
+        // revealed enemy, and no mark for a civilian scanner. Used by the
+        // game_scanner ctest.
+        const bool ok = game.scannerSelfTest();
+        std::printf(ok ? "scanner: ok\n" : "scanner: FAILED\n");
         return ok ? 0 : 1;
     }
 

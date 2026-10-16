@@ -238,6 +238,15 @@ if(BUILD_TESTS)
     # screenshot headlessly, so a rubble capture is a real artefact (issue #218).
     add_test(NAME game_rubble_screenshot
              COMMAND FOSSynd --headless --breach --screenshot rubble.bmp --frames 2)
+    # Scanner ping overlay (issue #323): no ping before a scan, then a ring at the
+    # scanning agent and a mark per revealed enemy, and no mark for a civilian
+    # scanner. Exits non-zero on a broken invariant.
+    add_test(NAME game_scanner
+             COMMAND FOSSynd --headless --check-scanner)
+    # `--scan` fires a squad pulse and must still render and write a screenshot
+    # headlessly, so a scanner capture is a real artefact (issue #323).
+    add_test(NAME game_scanner_screenshot
+             COMMAND FOSSynd --headless --scan --screenshot scanner.bmp --frames 2)
     # Objective banner (issue #281): every objective kind must render a non-empty,
     # distinct, fully substituted localised string. Exits non-zero on a broken
     # invariant (a kind that fell through to the default or left a placeholder).
