@@ -9,6 +9,7 @@
 #include "core/data/Json.h"
 #include "core/data/MissionSpecs.h"
 #include "core/sim/Weapon.h"
+#include "core/world/Vehicle.h"
 
 namespace fossynd::core
 {
@@ -32,6 +33,15 @@ struct AgentEntry
 {
     std::string id;
     AgentSpec spec;
+};
+
+// A vehicle template in the shared catalogue, referenced from missions by id.
+// Like `AgentEntry`, the spec's `x`/`y` are ignored for a template; a mission
+// supplies the placement.
+struct VehicleEntry
+{
+    std::string id;
+    VehicleSpec spec;
 };
 
 namespace detail
@@ -172,6 +182,51 @@ inline bool applyAgentCommon(const Json& node, AgentSpec& out, std::string& erro
     if (out.speed <= 0.0f || out.health <= 0.0f)
     {
         error = "agent 'speed' and 'health' must be positive";
+        return false;
+    }
+    return true;
+}
+
+// Parses a vehicle kind name ("car" | "train"). Returns false if unknown.
+inline bool parseVehicleKind(const std::string& value, VehicleKind& out)
+{
+    if (value == "car")
+    {
+        out = VehicleKind::Car;
+        return true;
+    }
+    if (value == "train")
+    {
+        out = VehicleKind::Train;
+        return true;
+    }
+    return false;
+}
+
+// Applies `name`, `kind`, `speed`, and `health` from `node` to `out` when
+// present; omitted fields keep their current (default or inherited) values.
+// The mounted weapon is applied separately (it is a `weapon` object or a
+// `weaponId` reference), so this stays the vehicle's shared field set.
+inline bool applyVehicleCommon(const Json& node, VehicleSpec& out, std::string& error)
+{
+    if (node.has("name"))
+    {
+        out.name = node["name"].asString();
+    }
+    if (node.has("kind"))
+    {
+        if (!parseVehicleKind(node["kind"].asString(), out.kind))
+        {
+            error = "unknown vehicle kind '" + node["kind"].asString() +
+                    "' (expected car or train)";
+            return false;
+        }
+    }
+    out.speed = node["speed"].asFloat(out.speed);
+    out.health = node["health"].asFloat(out.health);
+    if (out.speed <= 0.0f || out.health <= 0.0f)
+    {
+        error = "vehicle 'speed' and 'health' must be positive";
         return false;
     }
     return true;
@@ -383,9 +438,99 @@ private:
     std::vector<AgentEntry> entries_;
 };
 
+// The shared vehicle catalogue (`assets/data/vehicles.json`). Keyed by vehicle
+// id, so a designer can add a car/train kind (speed, health, mounted weapon)
+// without touching C++ (golden rule 7, ADR-0003). A vehicle template may itself
+// reference a weapon by `weaponId`, so loading one needs the weapon catalogue.
+class VehicleCatalogue
+{
+public:
+    const VehicleEntry* find(const std::string& id) const
+    {
+        return detail::findEntry(entries_, id);
+    }
+
+    bool empty() const { return entries_.empty(); }
+    std::size_t size() const { return entries_.size(); }
+    const std::vector<VehicleEntry>& entries() const { return entries_; }
+
+    bool loadFromJson(const Json& root, const WeaponCatalogue& weapons, std::string& error)
+    {
+        entries_.clear();
+        if (!root.isObject())
+        {
+            error = "vehicle catalogue root must be a JSON object";
+            return false;
+        }
+        if (!root.has("vehicles"))
+        {
+            return true;
+        }
+        const Json& array = root["vehicles"];
+        if (!array.isArray())
+        {
+            error = "'vehicles' must be an array";
+            return false;
+        }
+        for (std::size_t i = 0; i < array.size(); ++i)
+        {
+            const Json& node = array[i];
+            if (!node.isObject())
+            {
+                error = "each vehicle template must be an object";
+                return false;
+            }
+            VehicleEntry entry;
+            entry.id = node.has("id") ? node["id"].asString() : std::string();
+            if (!detail::acceptId(entries_, entry.id, "vehicle", error))
+            {
+                return false;
+            }
+            entry.spec.id = entry.id;
+            if (!detail::applyVehicleCommon(node, entry.spec, error))
+            {
+                error = "vehicle '" + entry.id + "': " + error;
+                return false;
+            }
+            // A mounted weapon is a `weapon` object or a `weaponId` reference;
+            // reuse the agent rule so both catalogues behave identically.
+            if (!AgentCatalogue::applyWeaponToAgent(node, weapons, entry.spec.weapon, error))
+            {
+                error = "vehicle '" + entry.id + "': " + error;
+                return false;
+            }
+            entries_.push_back(std::move(entry));
+        }
+        return true;
+    }
+
+    bool loadFromFile(const std::string& path, const WeaponCatalogue& weapons, bool& found,
+                      std::string& error)
+    {
+        found = false;
+        error.clear();
+        Json root;
+        if (!Json::parseFile(path, root, error))
+        {
+            if (detail::isMissingFileError(error))
+            {
+                error.clear();
+                return true;
+            }
+            return false;
+        }
+        found = true;
+        return loadFromJson(root, weapons, error);
+    }
+
+private:
+    std::vector<VehicleEntry> entries_;
+};
+
 // Default file names, resolved against a content directory by the engine layer.
 inline const char* const kWeaponsFileName = "weapons.json";
 inline const char* const kAgentsFileName = "agents.json";
+inline const char* const kVehiclesFileName = "vehicles.json";
 
 // Resolves a catalogue file name for a mission file. Missions live one level
 // below the content root (`assets/data/missions/<name>.json`), so the catalogue

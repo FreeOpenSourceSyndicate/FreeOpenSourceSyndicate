@@ -91,6 +91,17 @@ contains no original assets, code, names, or trademarks.
   the frozen map. Before this the end state was cosmetic: a finished campaign
   kept ticking and could still be deployed into. Issue #249.
 
+- **Shared vehicle catalogue (`assets/data/vehicles.json`):** vehicle kinds are
+  now data, not code (golden rule 7, ADR-0003). A `vehicles.json` catalogue adds
+  a `VehicleCatalogue`/`VehicleSpec` in `core/data`, mirroring
+  `weapons.json`/`agents.json`: each entry sets `name`, `kind` (`car`/`train`),
+  `speed`, `health`, and a mounted `weapon`/`weaponId`. A mission places vehicles
+  with an optional `vehicles` array, inheriting a template by `vehicleId` or
+  inlining one; the loader range-checks the fields and rejects an unknown id,
+  unknown kind, or an off-map/missing position, and `--check-content` validates
+  the shipped catalogue. The code defaults (`makeCar`/`makeTrain`) match the
+  catalogue's `car`/`train`, pinned by a test so the two cannot drift. Issue #319.
+
 - **The campaign can be won (frontier attacks):** a region is now a deploy
   target when the player owns it **or holds an adjacent region**
   (`Campaign::canDeployTo`), and a win claims it, so ownership spreads inward

@@ -70,6 +70,12 @@ A mission file describes one mission. Example:
       },
       "weaponId": "rifle"      // optional: reference weapons.json by id
     }
+  ],
+
+  "vehicles": [                // optional: hijackable cars/trains placed on the map
+    { "vehicleId": "car", "x": 3.5, "y": 4.5 },   // inherit a vehicles.json template
+    { "kind": "train", "x": 5.5, "y": 2.5,        // or inline a vehicle
+      "speed": 9.0, "health": 400, "weaponId": "rifle" }
   ]
 }
 ```
@@ -139,13 +145,25 @@ A mission file describes one mission. Example:
   template supplies `name`, `team`, `speed`, `health`, and the weapon; any field
   the mission also sets inline overrides the template. `x`/`y` always come from
   the mission (a template has no position). An unknown id is a readable error.
+- **`vehicles`** is optional and places hijackable cars/trains. Each entry needs
+  a numeric `x`/`y` **inside the map** (like an agent, §"Geometry must fit the
+  map"); an off-map or missing position is a readable error. A vehicle may:
+  - **`vehicleId`** reference a template in the shared vehicle catalogue
+    (`vehicles.json`), inheriting its `name`, `kind`, `speed`, `health`, and
+    mounted weapon; any field the mission also sets inline overrides it, or
+  - **inline** its own fields: `kind` is `"car"` or `"train"` (an unknown kind is
+    a readable error), `speed`/`health` must be positive (defaults: car 6/150,
+    train 9/400), and `weapon`/`weaponId` set the mounted weapon exactly as they
+    do for an agent. `x`/`y` always come from the mission. Omitting `vehicles`
+    entirely leaves a mission vehicle-free, exactly as before (golden rule 7).
 - Unknown keys are ignored, so the format can grow without breaking older files.
 
-## Shared catalogues (`weapons.json`, `agents.json`)
+## Shared catalogues (`weapons.json`, `agents.json`, `vehicles.json`)
 
-Weapons and agent templates that several missions share live in two catalogue
-files at the **content root** (`assets/data/`), so they can be edited once and
-referenced by id instead of copied into every mission (ADR-0003):
+Weapons, agent templates, and vehicle templates that several missions share live
+in catalogue files at the **content root** (`assets/data/`), so they can be
+edited once and referenced by id instead of copied into every mission
+(ADR-0003):
 
 ```jsonc
 // assets/data/weapons.json
@@ -175,17 +193,31 @@ referenced by id instead of copied into every mission (ADR-0003):
 }
 ```
 
+```jsonc
+// assets/data/vehicles.json
+{
+  "vehicles": [
+    { "id": "car",   "name": "Car",   "kind": "car",   "speed": 6, "health": 150, "weaponId": "uzi" },
+    { "id": "train", "name": "Train", "kind": "train", "speed": 9, "health": 400, "weaponId": "rifle" }
+  ]
+}
+```
+
 - Each entry needs a non-empty **`id`**, unique within its file; a duplicate or
   missing id is a readable error.
 - A weapon entry takes the same fields as an inline `weapon` object (plus `id`).
 - An agent entry takes the same fields as a mission agent (`id`, `name`, `team`,
   `speed`, `health`) plus `weapon` or `weaponId`; it has no `x`/`y`.
-- **Both are optional.** A mission that inlines everything (such as `demo.json`)
-  needs no catalogues and behaves exactly as before. A missing catalogue file is
-  not an error; the game still starts (AGENTS.md §1b).
+- A vehicle entry takes the same fields as a mission vehicle (`id`, `name`,
+  `kind`, `speed`, `health`) plus `weapon` or `weaponId`; it has no `x`/`y`.
+  `kind` is `"car"` or `"train"`, and `speed`/`health` must be positive.
+- **All catalogues are optional.** A mission that inlines everything (such as
+  `demo.json`) needs no catalogues and behaves exactly as before. A missing
+  catalogue file is not an error; the game still starts (AGENTS.md §1b).
 - A mission loaded from disk (`MissionData::loadFromFile`) automatically loads
   the catalogues **next to it**: a mission in `assets/data/missions/` finds
-  `assets/data/weapons.json` and `assets/data/agents.json`.
+  `assets/data/weapons.json`, `assets/data/agents.json`, and
+  `assets/data/vehicles.json`.
 
 ## Loading
 
@@ -294,9 +326,9 @@ The resolution logic lives in `core/data/Config.{h,cpp}` and the overlay in
 ## Validating content
 
 `core/data/ContentValidation.h` (header-only, engine-free, no new dependency)
-resolves every mission's `weaponId`/`agentId` references against the shared
-catalogues and reports readable problems, so bad content is caught in CI instead
-of at play time:
+resolves every mission's `weaponId`/`agentId`/`vehicleId` references against the
+shared catalogues and reports readable problems, so bad content is caught in CI
+instead of at play time:
 
 ```cpp
 #include "core/data/ContentValidation.h"
@@ -309,16 +341,18 @@ if (!report.ok())
 }
 ```
 
-- `validateContentDir(dataDir)` loads `weapons.json`/`agents.json` from `dataDir`
-  (missing files are fine) and checks every `*.json` in `dataDir/missions/`.
+- `validateContentDir(dataDir)` loads `weapons.json`/`agents.json`/`vehicles.json`
+  from `dataDir` (missing files are fine) and checks every `*.json` in
+  `dataDir/missions/`.
 - It collects **all** problems rather than stopping at the first, and each line
   names the file: `content: assets/data/missions/demo.json: unknown weaponId ...`.
-- It reports a missing `weaponId`/`agentId`, a duplicate catalogue `id`, an
-  out-of-range catalogue or inline weapon field (`damage`/`range`/`fireRate` ≤ 0,
-  `accuracy` outside `[0, 1]`, negative `areaRadius`), a bad `team`, off-map
-  mission geometry (a building, `blocked` tile, agent, or `reach` tile outside
-  the grid), a malformed mission, and a missing catalogue directory. Each message
-  names the file and the offending entry/field.
+- It reports a missing `weaponId`/`agentId`/`vehicleId`, a duplicate catalogue
+  `id`, an out-of-range catalogue or inline weapon field (`damage`/`range`/
+  `fireRate` ≤ 0, `accuracy` outside `[0, 1]`, negative `areaRadius`), a bad
+  `team`, an unknown vehicle `kind`, off-map mission geometry (a building,
+  `blocked` tile, agent, vehicle, or `reach` tile outside the grid), a malformed
+  mission, and a missing catalogue directory. Each message names the file and the
+  offending entry/field.
 - A `dataDir` with **no** catalogue files is reported, because then no mission
   reference could ever resolve — a likely misconfiguration.
 - The shipped content is covered by `tests/test_content_validation.cpp`
@@ -331,10 +365,11 @@ To add a mission, drop a new `assets/data/missions/<name>.json` file. Two agents
 can add missions in parallel without touching the same C++ file (AGENTS.md §4.7,
 "data over code"). Point the game at it with `--mission` or a config file.
 
-To add a weapon or a reusable agent template, append an entry to
-`assets/data/weapons.json` or `assets/data/agents.json` and reference it by
-`weaponId` / `agentId`. Two agents can add catalogue entries in parallel too:
-each entry is one array element, so edits rarely collide.
+To add a weapon, a reusable agent template, or a vehicle, append an entry to
+`assets/data/weapons.json`, `assets/data/agents.json`, or
+`assets/data/vehicles.json` and reference it by `weaponId` / `agentId` /
+`vehicleId`. Two agents can add catalogue entries in parallel too: each entry is
+one array element, so edits rarely collide.
 
 ## Not yet covered
 
