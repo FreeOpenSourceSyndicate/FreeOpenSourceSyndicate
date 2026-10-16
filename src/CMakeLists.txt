@@ -291,6 +291,12 @@ if(BUILD_TESTS)
     add_test(NAME game_deploy
              COMMAND FOSSynd --headless --check-deploy)
     set_tests_properties(game_deploy PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    # Map-screen key isolation (issue #364): a tactical hotkey must not act while
+    # the campaign management screen is up (the tactical board is frozen). Run
+    # from the repo root so the shipped campaign loads.
+    add_test(NAME game_campaign_keys
+             COMMAND FOSSynd --headless --check-campaign-keys)
+    set_tests_properties(game_campaign_keys PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     # `--map` starts on the management screen; it must render and exit cleanly
     # headlessly, so the world-map path is exercised, not just the flag.
     add_test(NAME game_map_flag

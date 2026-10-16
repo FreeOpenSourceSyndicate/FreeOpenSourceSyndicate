@@ -57,6 +57,57 @@ void setPixel(SDL_Surface* surface, int x, int y, std::uint32_t color)
     pixels[y * (surface->pitch / 4) + x] = color;
 }
 
+// The global bindings that still act while the campaign management screen is up
+// (issue #364). The screen's own keys (`B` shop, and shop navigation) are
+// consumed earlier by `CampaignScreen::handleKey`; this is the small allow-list
+// of *global* keys that make sense on the map. Every other tactical binding
+// (restart, pause, gadgets, select, pan) must be swallowed, because `update()`
+// freezes the tactical board while the map is visible — a key that acted would
+// mutate a board the player cannot see.
+bool mapScreenAllowsKey(int sym)
+{
+    switch (sym)
+    {
+    case SDLK_ESCAPE: // quit
+    case SDLK_F11:    // fullscreen
+    case SDLK_m:      // leave the map
+    case SDLK_d:      // deploy the selected territory
+    case SDLK_PLUS:
+    case SDLK_EQUALS:
+    case SDLK_KP_PLUS:
+    case SDLK_MINUS:
+    case SDLK_KP_MINUS:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// Queues a synthetic key-down so a headless self-test can drive the real
+// `handleEvents` dispatch path (issue #364). Returns false if SDL rejects it.
+bool pushKeyDown(int sym)
+{
+    SDL_Event event;
+    SDL_zero(event);
+    event.type = SDL_KEYDOWN;
+    event.key.type = SDL_KEYDOWN;
+    event.key.state = SDL_PRESSED;
+    event.key.keysym.sym = sym;
+    event.key.keysym.mod = KMOD_NONE;
+    return SDL_PushEvent(&event) == 1;
+}
+
+// Queues a synthetic mouse-wheel event (issue #364).
+bool pushWheel(int y)
+{
+    SDL_Event event;
+    SDL_zero(event);
+    event.type = SDL_MOUSEWHEEL;
+    event.wheel.type = SDL_MOUSEWHEEL;
+    event.wheel.y = y;
+    return SDL_PushEvent(&event) == 1;
+}
+
 } // namespace
 
 Game::~Game()
@@ -1432,6 +1483,152 @@ bool Game::deploySelfTest()
     return ok;
 }
 
+bool Game::campaignKeySelfTest()
+{
+    // The management screen freezes the tactical board (update() ticks the
+    // campaign instead), so a tactical hotkey must be swallowed while it is up
+    // (issue #364). This drives the *real* `handleEvents` dispatch with pushed
+    // SDL events, so it would catch a binding that bypasses the guard — not just
+    // re-assert the guard. The observable state is the board the key would touch.
+    if (!campaign_.valid())
+    {
+        std::fprintf(stderr, "campaign-keys self-test: no campaign loaded\n");
+        return false;
+    }
+
+    const bool savedVisible = campaign_.visible();
+    campaign_.setVisible(true);
+
+    const std::vector<std::size_t> savedSelection = selected_;
+    if (selected_.empty())
+    {
+        std::fprintf(stderr, "campaign-keys self-test: nothing is selected\n");
+        campaign_.setVisible(savedVisible);
+        return false;
+    }
+    // Narrow the selection to one agent so a leaked `A`/`1`-`8` changes its size
+    // (the board starts with the whole squad selected, which would hide that).
+    selectOnly(selected_.front());
+
+    // Give a selected agent a charge of each gadget so a leaked H/S/C would spend
+    // it: with no charge the core is a no-op and the leak would be invisible.
+    const std::size_t user = selected_.front();
+    mission_.setMedikits(user, 1);
+    mission_.setShields(user, 1);
+    mission_.setScanners(user, 1);
+    mission_.setDrugs(user, 1);
+
+    bool alive = true;
+
+    // Drop any events SDL queued during init, so the first pushed key is the only
+    // one dispatched and the fingerprint below reflects a quiescent board.
+    {
+        SDL_Event drain;
+        while (SDL_PollEvent(&drain) != 0)
+        {
+        }
+    }
+
+    // A fingerprint of every piece of board/view state a tactical key touches:
+    // the mission identity (R rebuilds it and re-seeds), pause, zoom, camera, the
+    // whole selection (so a leaked select-all or ordinal is caught, not just a
+    // size change), the selected agent's position, and the four gadget charges.
+    auto fingerprint = [&]() {
+        const core::Vec2 p = mission_.agents()[user].position();
+        std::string s;
+        char buf[192];
+        std::snprintf(buf, sizeof(buf), "%llu|%d|%d|%.2f|%.2f|%.2f,%.2f|%d%d%d%d",
+                      static_cast<unsigned long long>(seed_), paused_ ? 1 : 0, zoom_, cameraX_,
+                      cameraY_, p.x, p.y, mission_.medikits(user), mission_.shields(user),
+                      mission_.scanners(user), mission_.drugs(user));
+        s = buf;
+        for (std::size_t idx : selected_)
+        {
+            s += "," + std::to_string(idx);
+        }
+        return s;
+    };
+
+    const std::string before = fingerprint();
+
+    // Every tactical binding that must not act behind the map. Pushed one event
+    // at a time so a failure names the key, and the allow-list guard is the only
+    // thing that can stop it.
+    const int blockedKeys[] = {SDLK_r, SDLK_SPACE, SDLK_h, SDLK_s, SDLK_c, SDLK_a,
+                               SDLK_p, SDLK_f, SDLK_1,   SDLK_5,  SDLK_LEFT, SDLK_RIGHT,
+                               SDLK_UP, SDLK_DOWN};
+    for (int sym : blockedKeys)
+    {
+        if (!pushKeyDown(sym))
+        {
+            std::fprintf(stderr, "campaign-keys self-test: could not push a key event\n");
+            campaign_.setVisible(savedVisible);
+            return false;
+        }
+        handleEvents(alive);
+        if (!alive)
+        {
+            std::fprintf(stderr, "campaign-keys self-test: a tactical key quit the game\n");
+            campaign_.setVisible(savedVisible);
+            return false;
+        }
+        if (fingerprint() != before)
+        {
+            std::fprintf(stderr, "campaign-keys self-test: key sym %d leaked through the map\n",
+                         sym);
+            campaign_.setVisible(savedVisible);
+            return false;
+        }
+    }
+
+    // The mouse wheel zooms the tactical view; it must be inert on the map too.
+    // Pushed and checked one notch at a time so a single leak cannot be cancelled
+    // out by a second event.
+    for (int notch : {1, -1})
+    {
+        if (!pushWheel(notch))
+        {
+            std::fprintf(stderr, "campaign-keys self-test: could not push a wheel event\n");
+            campaign_.setVisible(savedVisible);
+            return false;
+        }
+        handleEvents(alive);
+        if (fingerprint() != before)
+        {
+            std::fprintf(stderr, "campaign-keys self-test: the wheel zoomed the frozen board\n");
+            campaign_.setVisible(savedVisible);
+            return false;
+        }
+    }
+
+    // The allowed keys must still act: `M` leaves the map (the fix must not make
+    // the screen unclosable). `D`/`+`/`-` are covered by the campaign/deploy
+    // self-tests.
+    if (!pushKeyDown(SDLK_m))
+    {
+        std::fprintf(stderr, "campaign-keys self-test: could not push the M key\n");
+        campaign_.setVisible(savedVisible);
+        return false;
+    }
+    handleEvents(alive);
+    if (campaign_.visible())
+    {
+        std::fprintf(stderr, "campaign-keys self-test: M no longer leaves the map\n");
+        campaign_.setVisible(savedVisible);
+        return false;
+    }
+    campaign_.setVisible(true);
+
+    // Leave the live state as it was found.
+    mission_.setMedikits(user, 0);
+    mission_.setShields(user, 0);
+    mission_.setScanners(user, 0);
+    mission_.setDrugs(user, 0);
+    selected_ = savedSelection;
+    campaign_.setVisible(savedVisible);
+    return true;
+}
+
 bool Game::languageSelfTest() const
 {
     // The table must have loaded (from the external file or the embedded copy).
@@ -2163,6 +2360,15 @@ void Game::handleEvents(bool& running)
             {
                 break;
             }
+            // While the map is up the tactical board is frozen (update() ticks the
+            // campaign instead), so swallow any tactical binding that does not make
+            // sense on the map (issue #364): a restart, pause, gadget use, selection
+            // or pan would otherwise mutate or replace the frozen board behind the
+            // player's back. `handleKey` above already took the screen's own keys.
+            if (campaign_.visible() && !mapScreenAllowsKey(event.key.keysym.sym))
+            {
+                break;
+            }
             switch (event.key.keysym.sym)
             {
             case SDLK_ESCAPE:
@@ -2301,8 +2507,13 @@ void Game::handleEvents(bool& running)
             }
             break;
         case SDL_MOUSEWHEEL:
-            // Wheel up zooms in, wheel down zooms out (issue #122).
-            applyZoom(event.wheel.y > 0 ? 1 : (event.wheel.y < 0 ? -1 : 0));
+            // Wheel up zooms in, wheel down zooms out (issue #122). Zoom is a
+            // tactical-view binding, so it must not act on the frozen board while
+            // the management screen is up (issue #364).
+            if (!campaign_.visible())
+            {
+                applyZoom(event.wheel.y > 0 ? 1 : (event.wheel.y < 0 ? -1 : 0));
+            }
             break;
         case SDL_MOUSEBUTTONDOWN:
             if (event.button.button == SDL_BUTTON_LEFT || event.button.button == SDL_BUTTON_RIGHT)
@@ -2354,6 +2565,13 @@ void Game::handleEvents(bool& running)
         case SDL_MOUSEBUTTONUP:
             if (dragging_ && event.button.button == SDL_BUTTON_LEFT)
             {
+                // A drag that spanned the `M` toggle must not resolve into a
+                // tactical box-select or move order on the frozen board (#364).
+                if (campaign_.visible())
+                {
+                    dragging_ = false;
+                    break;
+                }
                 const int x0 = dragStartX_;
                 const int y0 = dragStartY_;
                 // The button-up event carries the release point (dragCurrentX_/Y_

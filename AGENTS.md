@@ -974,6 +974,22 @@ Do not start work outside the scope fence (ADR-0024).
   and the first that exists wins; otherwise the embedded copy is used. Logic in
   `core/data/Config.*` and `core/data/ContentPaths.*` (SDL-free, unit-tested).
   Example: `assets/data/fossynd.conf.example`. Details: `docs/DATA_FORMAT.md`.
+- **Map-screen key isolation (issue #364):** while the campaign management
+  screen is up, `Game::update` freezes the tactical board and ticks the campaign
+  instead — so a tactical hotkey must not act, or it mutates a board the player
+  cannot see. `Game::handleEvents` lets `CampaignScreen::handleKey` take the
+  screen's own keys first, then a single allow-list
+  (`mapScreenAllowsKey`: `Esc`, `F11`, `M`, `D`, `+`/`-`) is the only thing that
+  may still act on the map; every other tactical binding is swallowed. The
+  mouse-wheel zoom is guarded the same way. `--headless --check-campaign-keys`
+  (ctest `game_campaign_keys`) pushes real SDL events through `handleEvents` and
+  fails if a tactical key (restart, pause, a gadget, select, pan, wheel) changes
+  the frozen board, or if `M` no longer leaves the map. When you add a new
+  tactical hotkey, it is covered automatically; when you add a new *map* key,
+  add it to `mapScreenAllowsKey` or it will be swallowed.
+- **`--check-deploy` (ctest `game_deploy`)** and **`--check-campaign-keys`**
+  (ctest `game_campaign_keys`) are the metagame input guards; both must run from
+  the repo root so the shipped campaign loads.
 - **Unknown CLI options fail fast (issue #248):** the `main` argument loop now
   ends in a trailing `else`, so an unrecognised option (a typo like `--pausee`)
   or a value flag missing its value (`--frames` with nothing after it) prints a
@@ -1006,6 +1022,7 @@ Do not start work outside the scope fence (ADR-0024).
   `--headless --check-pause`, `--headless --check-gadgets`,
   `--headless --check-campaign`,
   `--headless --check-deploy`,
+  `--headless --check-campaign-keys`,
   `--headless --check-objectives`,
   `--headless --check-scanner`,
   `--headless --check-vehicles`,
@@ -1016,6 +1033,7 @@ Do not start work outside the scope fence (ADR-0024).
   `game_demo`, `game_low_spec`, `game_title`, `game_sprites`, `game_minimap`,
   `game_selection`, `game_waypoints`, `game_waypoint_path`, `game_pause`,
   `game_pause_flag`, `game_gadgets`, `game_campaign`, `game_deploy`,
+  `game_campaign_keys`,
   `game_map_flag`, `game_objectives`, `game_scanner`,
   `game_scanner_screenshot`, `game_vehicles`, and
   `game_vehicles_screenshot`

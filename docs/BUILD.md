@@ -241,6 +241,7 @@ They flee when gunfire starts nearby. Civilian deaths you cause are counted as
 | `--check-content [DIR]` | Validate the mission `weaponId`/`agentId` references against the catalogues in `DIR` (default `assets/data`) and exit; non-zero on a dangling reference (ctest `game_content`) |
 | `--check-lang` | Run the UI string-table self-check headlessly and exit (ctest `game_lang`) |
 | `--check-gadgets` | Run the tactical gadget hotkey self-check (`H`/`S`/`C`/`B`) headlessly and exit (ctest `game_gadgets`) |
+| `--check-campaign-keys` | Headless guard: exit non-zero if a tactical hotkey leaks through the campaign map screen (ctest `game_campaign_keys`) |
 
 ### Core-only build (no SDL2 needed)
 

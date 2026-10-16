@@ -81,6 +81,15 @@ public:
     // the deployment state before returning. Used by the `game_deploy` ctest.
     bool deploySelfTest();
 
+    // Headless guard for the campaign-screen key isolation (issue #364). While
+    // the management screen is up the tactical board is frozen, so a tactical
+    // hotkey must not act. Drives the real `handleEvents` dispatch with pushed
+    // SDL events and fails if a tactical key (restart, pause, a gadget, a
+    // selection change, a camera pan, or the wheel zoom) mutates the frozen
+    // board, or if an allowed key (M to leave) no longer acts. Used by the
+    // `--check-campaign-keys` guard and the `game_campaign_keys` ctest.
+    bool campaignKeySelfTest();
+
     // Directory containing the executable, used to find an external language
     // file. May be empty (relative search paths are then tried). Call before
     // init().

@@ -71,6 +71,7 @@ void printUsage()
         "      --check-objectives     Validate the objective banner for every kind.\n"
         "      --check-campaign       Validate the campaign management loop.\n"
         "      --check-deploy         Validate deploying a mission from the map.\n"
+        "      --check-campaign-keys  Validate map-screen key isolation.\n"
         "      --check-lang [locale]  Validate the UI string table.\n"
         "      --check-content [dir]  Validate mission/catalogue references.\n",
         FOSSYND_VERSION);
@@ -192,6 +193,7 @@ int main(int argc, char** argv)
     bool checkObjectives = false;
     bool checkCampaign = false;
     bool checkDeploy = false;
+    bool checkCampaignKeys = false;
     bool showMap = false;                 // --map
     const char* checkLangLocale = nullptr; // --check-lang [<locale>]
     const char* checkContent = nullptr;   // --check-content [<dataDir>]
@@ -342,6 +344,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-deploy") == 0)
         {
             checkDeploy = true;
+        }
+        else if (std::strcmp(argv[i], "--check-campaign-keys") == 0)
+        {
+            checkCampaignKeys = true;
         }
         else if (std::strcmp(argv[i], "--map") == 0)
         {
@@ -753,6 +759,22 @@ int main(int argc, char** argv)
         }
         const bool ok = game.deploySelfTest();
         std::printf(ok ? "deploy: ok\n" : "deploy: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkCampaignKeys)
+    {
+        // Headless guard for map-screen key isolation (issue #364): while the
+        // management screen is up the tactical board is frozen, so a tactical
+        // hotkey must not act. Runs from the repo root so the shipped campaign
+        // loads. Used by the game_campaign_keys ctest.
+        if (!game.campaignValid())
+        {
+            std::fprintf(stderr, "campaign-keys: no campaign loaded (run from the repo root?)\n");
+            return 1;
+        }
+        const bool ok = game.campaignKeySelfTest();
+        std::printf(ok ? "campaign-keys: ok\n" : "campaign-keys: FAILED\n");
         return ok ? 0 : 1;
     }
 
