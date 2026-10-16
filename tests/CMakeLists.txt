@@ -77,6 +77,15 @@ if(Python3_Interpreter_FOUND)
     # drives the real script with hand-sized files; no build needed.
     add_test(NAME size_gate_tests
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_check_size.py)
+
+    # Packaging-gate regression (issue #372): scripts/check-package-contents.sh is
+    # the only thing that fails CI when a shipped asset does not reach the Linux
+    # package, and it is a shell script, so the C++ harness never touches it. A
+    # bug there is either a silently incomplete package or a spurious red
+    # packaging lane. Python because it drives the real script against synthetic
+    # tarballs; no build needed.
+    add_test(NAME package_contents_tests
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_check_package_contents.py)
 else()
     message(STATUS "Python3 not found: skipping coord_tests")
 endif()
