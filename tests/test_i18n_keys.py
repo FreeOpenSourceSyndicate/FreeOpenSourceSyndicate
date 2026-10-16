@@ -84,14 +84,7 @@ ALLOWED_ABSENT = {"no.such.key"}
 # comment names the issue that will remove the entry. This list is deliberately
 # NOT auto-rotting: a stale entry must not fail another area's PR (the fix lands
 # in a file this guard does not own), so review removes it by hand.
-ALLOWED_FALLBACK_DRIFT: set = {
-    # src/game/Hud.cpp and src/game/TitleCard.cpp are Render-owned; #390 (the
-    # render half of #377) syncs these two `tr()` fallbacks to the `assets/lang`
-    # values that landed in the same PR. Review removes these entries once it
-    # merges.
-    ("hud.controls", "src/game/Hud.cpp"),
-    ("title.controls.misc", "src/game/TitleCard.cpp"),
-}
+ALLOWED_FALLBACK_DRIFT: set = set()
 
 # The leading `tr("key",` of a call. The fallback is captured separately so a
 # `)` inside a literal (e.g. "({x},{y})") cannot end the call early.
