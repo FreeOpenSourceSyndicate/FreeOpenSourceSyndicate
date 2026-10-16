@@ -38,6 +38,11 @@ constexpr std::uint8_t kWaypointDot[3] = {60, 110, 220};
 // sweep against every terrain/agent colour.
 constexpr std::uint8_t kScannerPing[3] = {90, 235, 245};
 
+// Raised personal shield (issue #375): the translucent dome over a shielded
+// agent and the bright rim around it. A distinct blue so it does not read as
+// the cyan scanner sweep or the blue waypoint dots.
+constexpr std::uint8_t kShieldField[3] = {120, 185, 255};
+
 // Drag-box marquee (issue #94): the rectangle drawn while box-selecting.
 constexpr std::uint8_t kSelectionBox[3] = {120, 220, 255};
 

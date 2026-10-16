@@ -228,6 +228,7 @@ A shippable demo, deliberately original in code and art.
 - [x] Click-to-select individual agents (click, shift-add, `1`–`4`, `A` for all)
 - [x] Focus-fire attack orders (right-click / click an enemy)
 - [x] Control-group hotkeys and per-agent waypoint queue (shift-click appends)
+- [x] Raised personal shield drawn (translucent dome + absorb flash; `--shield`)
 
 **Deliverable:** the Phase 1 scenario playable with mouse/keyboard.
 

@@ -253,6 +253,15 @@ if(BUILD_TESTS)
     # headlessly, so a scanner capture is a real artefact (issue #323).
     add_test(NAME game_scanner_screenshot
              COMMAND FOSSynd --headless --scan --screenshot scanner.bmp --frames 2)
+    # Personal shield overlay (issue #375): no dome before a shield is raised,
+    # one dome on the shielded combatant, and the dome stays while a re-raise is
+    # a no-op. Exits non-zero on a broken invariant.
+    add_test(NAME game_shield
+             COMMAND FOSSynd --headless --check-shield)
+    # `--shield` raises a squad shield and must still render and write a
+    # screenshot headlessly, so a shield capture is a real artefact (issue #375).
+    add_test(NAME game_shield_screenshot
+             COMMAND FOSSynd --headless --shield --screenshot shield.bmp --frames 2)
     # Vehicle rendering (issue #363): every vehicle must yield a draw entry at its
     # tile with the right kind, and a destroyed vehicle must still draw as a
     # wreck. Exits non-zero on a broken invariant.

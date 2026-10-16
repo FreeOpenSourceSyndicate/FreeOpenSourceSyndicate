@@ -782,7 +782,14 @@ Do not start work outside the scope fence (ADR-0024).
   `Mission::damageAgent(index, amount)`** (from `resolveFire`, `applyAreaDamage`,
   and `applyStrayFire`); add new damage paths there, not by calling
   `Agent::applyDamage` directly, or a shield will not cover them. Deterministic,
-  RNG-free. The shield is not yet surfaced to the player (no UI/content field).
+  RNG-free. **The raised shield is now drawn** (issue #375): `Game::renderShield`
+  draws a translucent blue dome over each shielded agent
+  (`Game::shieldMarks()`, a pure read of `shieldUp`/`shields` shared with the
+  headless guard), and a short absorb burst — a raised shield has no timer, so a
+  drop means it took a hit, and `Game::updateShieldSnapshot` starts a fading
+  flash so the absorb leaves a visible cue instead of vanishing silently.
+  `--shield` raises a squad shield up front (a demo hook beside `--scan`). The
+  hotkey is `S` (Input/UI, issue #339).
 - **Scanner and performance-drug gadgets** (issue #314, ADR-0028): the last two
   Milestone A gadgets. `Mission::activateScanner(index)` spends a charge to start
   a `kScannerPulseSeconds` pulse; `scanTargets(index)` lists the living enemies
@@ -1026,8 +1033,10 @@ Do not start work outside the scope fence (ADR-0024).
   `--headless --check-campaign-keys`,
   `--headless --check-objectives`,
   `--headless --check-scanner`,
+  `--headless --check-shield`,
   `--headless --check-vehicles`,
   `--headless --scan [--screenshot out.bmp]`,
+  `--headless --shield [--screenshot out.bmp]`,
   `--headless --vehicle [--screenshot out.bmp]`,
   `--headless --map --frames N`, and
   `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
@@ -1037,7 +1046,7 @@ Do not start work outside the scope fence (ADR-0024).
   `game_campaign_keys`,
   `game_map_flag`, `game_objectives`, `game_scanner`,
   `game_scanner_screenshot`, `game_vehicles`, and
-  `game_vehicles_screenshot`
+  `game_vehicles_screenshot`, `game_shield`, and `game_shield_screenshot`
   cover the SDL layer
   headlessly.
 - **Queued-route overlay (issue #89):** the view draws a selected agent's

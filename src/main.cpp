@@ -48,6 +48,7 @@ void printUsage()
         "      --pause                Start paused (Space toggles it).\n"
         "      --breach               Breach all destructible walls before rendering.\n"
         "      --scan                 Activate a scanner pulse on the squad before rendering.\n"
+        "      --shield               Raise a shield on the squad before rendering.\n"
         "      --vehicle              Spawn a demo car and train before rendering.\n"
         "      --zoom <n>             Set the integer zoom level (1-3).\n"
         "      --headless             Run without a display.\n"
@@ -67,6 +68,7 @@ void printUsage()
         "      --check-gadgets        Validate the tactical gadget hotkeys.\n"
         "      --check-rubble         Validate breached-tile rubble rendering.\n"
         "      --check-scanner        Validate the scanner ping overlay.\n"
+        "      --check-shield         Validate the personal shield overlay.\n"
         "      --check-vehicles       Validate vehicle rendering.\n"
         "      --check-objectives     Validate the objective banner for every kind.\n"
         "      --check-campaign       Validate the campaign management loop.\n"
@@ -175,6 +177,7 @@ int main(int argc, char** argv)
     bool startPaused = false;
     bool breachWalls = false;
     bool scanSquad = false;               // --scan
+    bool shieldSquad = false;             // --shield
     bool spawnVehicles = false;           // --vehicle
     bool checkVehicles = false;           // --check-vehicles
     bool checkSprites = false;
@@ -190,6 +193,7 @@ int main(int argc, char** argv)
     bool checkGadgets = false;
     bool checkRubble = false;
     bool checkScanner = false;
+    bool checkShield = false;
     bool checkObjectives = false;
     bool checkCampaign = false;
     bool checkDeploy = false;
@@ -261,6 +265,10 @@ int main(int argc, char** argv)
         {
             scanSquad = true;
         }
+        else if (std::strcmp(argv[i], "--shield") == 0)
+        {
+            shieldSquad = true;
+        }
         else if (std::strcmp(argv[i], "--vehicle") == 0)
         {
             spawnVehicles = true;
@@ -328,6 +336,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-scanner") == 0)
         {
             checkScanner = true;
+        }
+        else if (std::strcmp(argv[i], "--check-shield") == 0)
+        {
+            checkShield = true;
         }
         else if (std::strcmp(argv[i], "--check-vehicles") == 0)
         {
@@ -560,6 +572,14 @@ int main(int argc, char** argv)
         game.activateScannerForSquad();
     }
 
+    // `--shield` raises a shield on every living player agent up front so a
+    // headless screenshot shows the shield dome without a hotkey (issue #375).
+    // Kept beside `--scan` as a demo hook.
+    if (shieldSquad)
+    {
+        game.raiseShieldForSquad();
+    }
+
     // `--vehicle` spawns a demo car and train so a headless screenshot shows the
     // vehicle art without a mission that ships one (#363). Kept beside `--breach`
     // and `--scan` as a demo hook.
@@ -708,6 +728,16 @@ int main(int argc, char** argv)
         // game_scanner ctest.
         const bool ok = game.scannerSelfTest();
         std::printf(ok ? "scanner: ok\n" : "scanner: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkShield)
+    {
+        // Headless guard for the personal shield overlay (issue #375): no dome
+        // before a shield is raised, one dome on the shielded combatant, and the
+        // dome stays while a re-raise is a no-op. Used by the game_shield ctest.
+        const bool ok = game.shieldSelfTest();
+        std::printf(ok ? "shield: ok\n" : "shield: FAILED\n");
         return ok ? 0 : 1;
     }
 
