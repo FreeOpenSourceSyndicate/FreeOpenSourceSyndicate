@@ -700,11 +700,14 @@ Do not start work outside the scope fence (ADR-0024).
 - **The control hints must match the bindings (issue #268):** the HUD
   (`hud.controls`) and title card (`title.controls.*`) once advertised a `L` key
   to move the squad that was **never bound** (the real key set is `ESC F11 SPACE
-  R A P F H S C B 1-8 ARROWS + -`). The labels were corrected to describe the real
+  R A P F H S C B E 1-8 ARROWS + -`). The labels were corrected to describe the real
   controls (mouse click moves). When you add or change a hotkey, update the HUD
   and title strings (and the `tr()` fallbacks in `Hud.cpp`/`TitleCard.cpp`) in the
   same change; `test_tr_fallbacks_match_en_json` compares the fallbacks to
-  `en.json`, so a text-only change to one file fails the guard.
+  `en.json`, so a text-only change to one file fails the guard. The `E` key
+  (hijack/exit vehicle, #373) is the most recent addition and drove a cross-area
+  sync (#377 text → #390 render) that is the pattern to follow: the `assets/lang`
+  values and the render-side `tr()` fallbacks must move together.
 - **The tactical gadgets are usable in play (issue #339):** the four Milestone A
   gadgets had complete, tested core logic and reached a deployed squad through the
   loadout (`core::applyLoadout`, #311/#312), but **no hotkey activated them**, so
