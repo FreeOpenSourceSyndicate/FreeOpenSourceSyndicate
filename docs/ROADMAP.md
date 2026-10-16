@@ -145,6 +145,8 @@ equipment,campaign}.cpp`) and are **playable** on the map screen
 a victory/defeat panel. What remains for Milestone B is per-region mission
 content, which is Tactical's (Milestone C).*
 
+Shipped in **v0.8.0 "Dominion"**.
+
 ### Milestone C — Content and finish
 
 Turn the systems into a game.

@@ -14,6 +14,7 @@ they describe the version even if you are reading `main` and not the tag.
 
 | Version | Title | File | Tag |
 |---------|-------|------|-----|
+| 0.8.0 | Dominion | [`v0.8.0-dominion.md`](v0.8.0-dominion.md) | `v0.8.0` |
 | 0.7.0 | Demolition | [`v0.7.0-demolition.md`](v0.7.0-demolition.md) | `v0.7.0` |
 | 0.6.0 | Firestorm | [`v0.6.0-firestorm.md`](v0.6.0-firestorm.md) | `v0.6.0` |
 | 0.5.0 | Recruitment | [`v0.5.0-recruitment.md`](v0.5.0-recruitment.md) | `v0.5.0` |

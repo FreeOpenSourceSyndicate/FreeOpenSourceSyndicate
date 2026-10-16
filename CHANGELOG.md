@@ -8,6 +8,16 @@ contains no original assets, code, names, or trademarks.
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-10-16 — "Dominion"
+
+The war now has a map. Above the tactical board sits a **management screen**: a
+world of territories you tax for income, a research tree you fund, an equipment
+shop you buy from, and a campaign you win by taking every region. Deploying sends
+the squad you *bought* into the mission you *picked*, and the result feeds back —
+win the map or lose it, and the end state is final. Milestone B (the metagame)
+lands in full, alongside the bound gadget keys, the complete mission-objective
+set, and breached-tile rubble.
+
 ### Added
 
 - **Hijackable vehicles reach play:** `Mission` now owns vehicle policy for the
@@ -39,6 +49,25 @@ contains no original assets, code, names, or trademarks.
   (`applyLoadout` rejects an unknown id), so the two ends cannot drift. Issue
   #341.
 
+- **Buying an upgrade actually deploys it:** the R&D shop used to `assign` a
+  purchase to the target slot, but a slot deploys at most one weapon and one
+  gadget (`Campaign::selectedLoadout` reads the first of each kind), so buying a
+  *second* weapon — the natural upgrade from the free pistol to a minigun — spent
+  the funds and then silently dropped the purchase at deploy time. The new
+  `Equipment::equip` replaces the slot's same-kind item (keeping the other kind),
+  and the shop uses it, skips the charge when the item is already equipped, and
+  says in the action line what it will replace (`REPLACE Pistol`) or that it is
+  already equipped. The `game_campaign` guard buys the minigun over a pistol
+  through the player keys and asserts the minigun is what deploys. Issue #346.
+
+- **Tactical gadget hotkeys:** the medikit, shield, scanner, and performance
+  drugs are now bound to **`H`**, **`S`**, **`C`**, and **`B`** on the tactical
+  board, each acting on the current selection (`Game::useMedkitOnSelection` et
+  al.). The four gadgets existed in `core` and reached a mission through a bought
+  loadout, but there was no key to use them in play — this is the player path.
+  Covered by the `game_gadgets` guard, which drives each key and checks the
+  effect. Issue #339.
+
 - **Cybernetic upgrades:** the last Milestone A tactical item lands in `core`,
   alongside the gadgets. `CyberneticEffect` (`core/sim/Cybernetic.h`) maps a
   `kind: "cybernetic"` id to permanent stat **multipliers** applied once at
@@ -51,17 +80,6 @@ contains no original assets, code, names, or trademarks.
   `LoadoutSlot` gained a data-only `cyberneticId`, so a bought upgrade deploys
   through the same strict path as a weapon/gadget (an unknown id is a content
   error). Engine-free, deterministic (ADR-0031). Issue #313.
-
-- **Buying an upgrade actually deploys it:** the R&D shop used to `assign` a
-  purchase to the target slot, but a slot deploys at most one weapon and one
-  gadget (`Campaign::selectedLoadout` reads the first of each kind), so buying a
-  *second* weapon — the natural upgrade from the free pistol to a minigun — spent
-  the funds and then silently dropped the purchase at deploy time. The new
-  `Equipment::equip` replaces the slot's same-kind item (keeping the other kind),
-  and the shop uses it, skips the charge when the item is already equipped, and
-  says in the action line what it will replace (`REPLACE Pistol`) or that it is
-  already equipped. The `game_campaign` guard buys the minigun over a pistol
-  through the player keys and asserts the minigun is what deploys. Issue #346.
 
 - **The equipment catalogue sells the scanner and performance drugs:** it now
   lists the two gadgets #314 added to `core`, so a player can actually buy and
@@ -101,6 +119,47 @@ contains no original assets, code, names, or trademarks.
   unknown kind, or an off-map/missing position, and `--check-content` validates
   the shipped catalogue. The code defaults (`makeCar`/`makeTrain`) match the
   catalogue's `car`/`train`, pinned by a test so the two cannot drift. Issue #319.
+
+- **The metagame: a world map, an economy, research, equipment, and a campaign.**
+  Milestone B's five engine-free systems land in `src/core/economy/` (ADR-0002),
+  data-driven from `assets/data/world/**` (ADR-0003):
+
+  - **World map with territories** — a validated territory graph with dense ids,
+    symmetric adjacency, and no self-loops; ownership queries and `setOwner` for
+    progression; a shipped six-territory `world.json` (issue #249).
+  - **Economy: income, taxation, and revolt** — a per-syndicate funds ledger with
+    a fixed-step tick that pays income from owned territories scaled by tax
+    level, `spend`/`canAfford`, and a revolt check that flips an over-taxed
+    territory back to neutral. Deterministic: the only randomness is the injected
+    `core::Rng` (issue #249).
+  - **Research tree, progress, and funding** — `assets/data/world/research.json`
+    (nodes with cost, time, prerequisites, unlocks) validated for unique ids,
+    resolvable prerequisites, and no prerequisite cycles; `Research::begin` gates
+    on availability, affordability, and idleness, and `tick` advances and
+    completes work (issue #249).
+  - **Equipment catalogue, purchase, and loadouts** — `equipment.json` items
+    (`weapon`/`gadget`/`cybernetic`) with a research gate; `buy` checks the gate
+    then funds and spends through the economy; per-syndicate four-slot squad
+    loadouts (issue #249).
+  - **Campaign composition and progression** — the top-level `Campaign` owns the
+    world, economy, research, and equipment; `selectMission` gates on ownership
+    and a valid slot list, `recordResult` claims on a win and evaluates the
+    `own-all-territories` win condition, and `tick` advances the economy and
+    research. `loadFromFile` grants the parsed `startingFunds` (issue #249).
+
+- **The campaign management screen.** The core systems were merged but nothing in
+  `src/game/` drove them, so a player could never reach the loop. A new
+  `game::CampaignScreen` (its own translation unit) renders the world map and
+  reads input; every rule stays in `core/economy/**`. `M` toggles the screen,
+  click selects a territory, `-`/`+` change its tax, and `D` deploys. While the
+  screen is up the tactical sim is frozen and the campaign clock ticks instead.
+  `--campaign <path>` picks a campaign file and `--map` starts on the screen
+  (issue #249, #289).
+
+- **Deploy a mission from the map, and feed the result back.** Deploying starts
+  the selected territory's mission on the tactical board with the *bought* squad
+  applied, and the mission's win/lose is recorded on the campaign so the map
+  advances — the loop closes (issue #312).
 
 - **The campaign can be won (frontier attacks):** a region is now a deploy
   target when the player owns it **or holds an adjacent region**
@@ -155,6 +214,31 @@ contains no original assets, code, names, or trademarks.
   New enemy carriers `breacher`/`sharpshooter`/`shocktrooper` reference them by
   id, so the weapons are mission-referenceable rather than inert. Guarded by
   `tests/test_content_validation.cpp`; `docs/DATA_FORMAT.md` updated. Issue #219.
+
+- **Breached tiles now render as rubble.** A destructible wall that has been
+  opened by fire is drawn as rubble instead of a plain floor cell, so the breach
+  a player makes is visible on the board (issue #218, part 1).
+
+- **`core::Vehicle` (hijackable cars and trains).** The engine-free entity the
+  vehicle feature builds on: a car or train with fractional tile position, the
+  same 8-way A* movement and render interpolation as `Agent`, health and
+  destruction (a wreck cannot be driven or fired from), single-agent occupancy,
+  and a mounted weapon. Policy-free — legality and damage belong to `Mission`.
+  Mission integration, the view, and the data catalogue are follow-ups
+  (issue #315, #320).
+
+### Changed
+
+- **Release codename** for this snapshot is `DOMINION` (the version stamp and the
+  title-card tagline follow it).
+- **The low-spec binary-size budget rose to 288 KiB** (from 256 KiB): the 256 KiB
+  cap had under 2 KiB of headroom on `main`, so any real feature busted it. The
+  metagame deploy wiring added ~8 KiB of engine code and needed the room; the
+  guard still fails loudly if the low-spec flags are dropped (issue #312).
+- **`--config`/`--campaign` fail fast** when an explicitly named file is missing
+  (a non-zero exit and a stderr message), rather than starting with defaults
+  (issue #248, #259). Unknown or incomplete options are likewise rejected, and
+  `--frames` must be a positive integer (issue #264).
 
 ## [0.7.0] — 2026-10-15 — "Demolition"
 
