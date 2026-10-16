@@ -42,7 +42,13 @@ public:
     // Uniform float in [0, 1).
     float nextFloat()
     {
-        return static_cast<float>(nextUint64() >> 11) * (1.0f / 9007199254740992.0f);
+        // A 53-bit draw scaled by 2^-53. The all-ones draw (2^53 - 1) rounds *up*
+        // to 2^53 when narrowed to `float`, which would return exactly 1.0f and
+        // break the half-open range. Clamp that single case to the largest float
+        // below 1; every other draw is bit-for-bit unchanged, so no existing seed
+        // shifts.
+        const float value = static_cast<float>(nextUint64() >> 11) * (1.0f / 9007199254740992.0f);
+        return value < 1.0f ? value : 0x1.fffffep-1f;
     }
 
     // True with probability `chance` (clamped to [0, 1]).
