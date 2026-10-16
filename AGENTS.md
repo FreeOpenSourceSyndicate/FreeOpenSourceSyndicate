@@ -884,9 +884,29 @@ Do not start work outside the scope fence (ADR-0024).
   does — `Mission` (Tactical) owns that, so the entity stays unit-testable
   (`tests/test_vehicle.cpp`). Movement does not require a driver, so a scripted
   or runaway vehicle can follow a path. Stats are in code (`makeCar`/`makeTrain`)
-  until an `assets/data` vehicles catalogue lands (Content). Not yet wired into
-  `Mission`/the view — that integration is follow-up work on #315; do not treat
-  the entity as "the feature" on its own.
+  until an `assets/data` vehicles catalogue lands (Content, #319).
+- **`Mission` owns vehicle policy (issue #318, ADR-0032):** the entity above is
+  reachable in play because `Mission` tracks it (`addVehicle`/`vehicles()`) and
+  decides everything. `orderHijack(vehicle, agent)` takes the wheel for a living
+  **combatant** within `kHijackRadius` (1.5 tiles) of an intact, undriven
+  vehicle; the driver's position is folded onto the vehicle's and `syncDrivers`
+  keeps them identical each `update`, so the driver rides along. `ejectVehicle`
+  puts the driver out on the vehicle's tile; `orderDrive` gates on an occupied,
+  intact vehicle before calling `Vehicle::driveTo`. **Mounted fire**
+  (`resolveVehicleFire`) honours an explicit `orderVehicleAttack` target or
+  auto-acquires the nearest living enemy, with the same range/line-of-sight rules
+  as an agent, and funnels damage through `Mission::damageAgent`/`applyAreaDamage`
+  (so a shield still covers the hit). **A driver fires only the mounted gun**:
+  `isDriving` skips it in `updateAI` and `resolveFire`, so there is one fire
+  source per vehicle. An agent's personal weapon never targets a vehicle;
+  explosives do — `applyAreaDamage` funnels blast damage into `damageVehicle`, and
+  a vehicle **wrecked by a blast detonates**, hurting agents within
+  `kVehicleWreckRadius` (a car is cover that can backfire). All deterministic,
+  no RNG. The parallel `vehicleTargets_` vector (explicit target per vehicle, -1
+  = auto) is kept in step with `vehicles_`, exactly as `medikits_`/`shields_` are.
+  Render (draw vehicles + wrecks) and Input/UI (hijack/drive keys) are the
+  follow-ups; there is nothing to read until `Mission` exposes them, which it now
+  does. `tests/test_mission.cpp` covers the whole surface.
 - **The minimap is `game/Minimap.*` (Phase 2):** a whole-board overview panel in
   the top-right HUD corner. The static terrain is baked once into a one-texel-
   per-tile texture (`Minimap::init`), and only per-agent blips are drawn each

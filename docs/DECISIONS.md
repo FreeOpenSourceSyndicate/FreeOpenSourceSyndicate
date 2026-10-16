@@ -1686,3 +1686,86 @@ for reassignment by a coordinator.
   - The interface is additive and frozen: `CyberneticEffect`/`cyberneticEffectForId`,
     `Mission::applyCybernetic`/`sightRange`/`setSightRange`, and
     `LoadoutSlot::cyberneticId` are the surface the metagame builds against.
+
+## ADR-0032 — `Mission` owns vehicle policy; the entity stays policy-free
+
+- **Status:** Accepted (2026-10-15)
+- **Date:** 2026-10-15
+- **Context:** Milestone A's hijackable vehicles reached a fork. `focus: world`
+  landed `core::Vehicle` (#320): position, A* movement (`driveTo`), health /
+  destruction, single-agent occupancy (`hijack`/`eject`/`driver`), and a mounted
+  `Weapon` (`canFire`/`beginFireCooldown`). The entity is **deliberately
+  policy-free** — it records *who* holds the wheel and *what* the driver may
+  fire, but decides nothing about legality or damage. The follow-up (#318,
+  tactical) had to give the feature a home: who may hijack, how a drive order is
+  gated, and where mounted fire lands. Two kinds of question had to be answered,
+  and neither should bloat the frozen entity:
+
+  1. **Authority:** does `Vehicle` grow the policy, or does `Mission`?
+  2. **Outcomes:** does a vehicle's gun bypass the agent damage funnel
+     (`Mission::damageAgent`, where a shield absorbs a hit, ADR-0028/0031), or go
+     through it? And can an agent's weapon destroy a vehicle at all?
+
+- **Options:**
+  1. **Add hijack/order/damage policy to `core::Vehicle`.** Rejected: the entity
+     is frozen and unit-tested on its own, and it has no access to the agent list
+     or the grid's occupants — policy there would need a back-reference to
+     `Mission`, an inversion of ownership, and would duplicate combat rules.
+  2. **A new `VehicleController` layer beside `Mission`.** Rejected: it would own
+     a second copy of the agents, the grid, and the RNG, and the sim would have
+     two owners of the same world — exactly the duplication the boundary avoids.
+  3. **`Mission` owns vehicle policy; the entity stays policy-free.** Chosen: it
+     mirrors how `Mission` already owns all agent combat policy over the pure
+     `Agent`, keeps one damage funnel, and leaves `core::Vehicle` untouched.
+
+- **Decision:** **Option 3.**
+  - `Mission` tracks vehicles (`addVehicle`/`vehicles()`) and a parallel
+    `vehicleTargets_` vector (an explicit mounted-fire target per vehicle, or -1
+    for auto-acquire), kept in step exactly as `medikits_`/`shields_` are.
+  - **Hijack (`orderHijack(vehicle, agent)`)**: legal only for a living,
+    non-driving **combatant** within `kHijackRadius` (1.5) tiles of the vehicle's
+    tile, and only for an intact, undriven vehicle. On success the agent becomes
+    the driver and its position is **folded onto the vehicle's** — the driver
+    rides along, and `syncDrivers` keeps the two identical each update. An
+    explicit order (not auto-on-enter) because it matches the player's
+    move/attack orders and keeps the outcome deterministic and surprise-free.
+  - **Drive orders (`orderDrive`)**: gated on an occupied, intact vehicle (its
+    driver issues the order), then delegated to `Vehicle::driveTo`. An empty or
+    wrecked car ignores a drive order.
+  - **Mounted fire (`resolveVehicleFire`)**: a vehicle's own gun honours an
+    explicit `orderVehicleAttack` target or auto-acquires the nearest living
+    enemy, and uses the same range + line-of-sight rules as an agent. Its damage
+    goes through **`damageAgent`/`applyAreaDamage`**, so a shield still covers
+    the hit; killing a player/enemy through a mounted weapon updates the same
+    kill tallies, and a stray mounted shot can still panic / kill civilians.
+  - **A driver does not also fire a personal weapon or act on its own**
+    (`isDriving` skips it in `updateAI` and `resolveFire`): the mounted gun is
+    its only weapon while at the wheel, so there is exactly one fire source per
+    vehicle and no double-damage.
+  - **Agent-vs-vehicle damage**: an agent's personal weapon never targets a
+    vehicle (vehicles are not in the agent target loop). A vehicle is damaged by
+    **explosives**: `applyAreaDamage` funnels blast damage into a private
+    `damageVehicle`, and a vehicle **wrecked by a blast detonates**, hurting
+    agents within `kVehicleWreckRadius` for a fraction of its maximum health.
+    That makes a car cover that can backfire, and keeps both entity kinds on one
+    damage funnel each.
+  - `Vehicle::applyDamage` still stops a wreck and ejects the driver; `Mission`
+    owns what the agent does next (nothing until the next order).
+
+- **Consequences:**
+  - `core::Vehicle` is unchanged — the policy-free boundary holds, and the entity
+    keeps its own tests.
+  - Milestone A's vehicles item is now reachable in play: `Mission` owns the
+    policy, so Render and Input/UI have something to read and drive (their
+    follow-ups). The interface is additive and frozen:
+    `addVehicle`/`vehicles`, `orderHijack`/`ejectVehicle`/`orderDrive`/
+    `orderVehicleAttack`, and `vehicleDriver`/`vehicleOf`/`isDriving`.
+  - Vehicle stats remain in code (`makeCar`/`makeTrain`) until
+    `assets/data/vehicles.json` lands (`focus: content`, #319, golden rule 7);
+    moving them to data is then a local change.
+  - The wreck-detonation rule is a balance constant in `core/sim`
+    (`kVehicleWreckRadius`/`kVehicleWreckDamageScale`) until a data format is
+    fixed (ADR-0003).
+  - Follow-ups: render (draw vehicles + the wreck) and input/UI (hijack/drive
+    keys) are unblocked once this lands; a driver's queued-move and attack orders
+    are currently not offered (the view drives the vehicle, not the agent).

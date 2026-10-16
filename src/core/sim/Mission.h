@@ -11,6 +11,7 @@
 #include "core/sim/Objective.h"
 #include "core/util/Rng.h"
 #include "core/world/TileGrid.h"
+#include "core/world/Vehicle.h"
 
 namespace fossynd::core
 {
@@ -204,6 +205,56 @@ public:
     // `AgentSpec`) and tests.
     void setSightRange(std::size_t index, float range);
 
+    // --- vehicles ------------------------------------------------------------
+    //
+    // The `core::Vehicle` entity (`core/world/Vehicle.h`, World area) is
+    // deliberately policy-free: it knows how to drive a path and fire a mounted
+    // weapon, but not who may take the wheel or what a hit does. `Mission` owns
+    // that policy here, mirroring how it owns combat for `Agent`.
+
+    // Adds a vehicle and returns its index (mirrors `addAgent`).
+    std::size_t addVehicle(Vehicle vehicle);
+
+    // The vehicles in this mission.
+    std::vector<Vehicle>& vehicles() { return vehicles_; }
+    const std::vector<Vehicle>& vehicles() const { return vehicles_; }
+
+    // Orders the agent at `agentIndex` to hijack the vehicle at `vehicleIndex`.
+    // Legal only for a living, non-driving combatant standing within
+    // `kHijackRadius` tiles of the vehicle's tile (so "enter the tile" and
+    // "adjacent" both count); the vehicle must be intact and undriven. On
+    // success the agent becomes the driver and its position is folded onto the
+    // vehicle's (the driver rides along). Returns false and changes nothing
+    // otherwise. Deterministic; no RNG.
+    bool orderHijack(std::size_t vehicleIndex, std::size_t agentIndex);
+
+    // Ejects the driver of the vehicle at `vehicleIndex` (if any) and places it
+    // on the vehicle's tile. A no-op for an invalid index or an empty vehicle.
+    void ejectVehicle(std::size_t vehicleIndex);
+
+    // Orders the vehicle at `vehicleIndex` to drive to `goal` via
+    // `Vehicle::driveTo`. Only an occupied, intact vehicle may be driven (its
+    // driver issues the order); returns false and changes nothing otherwise.
+    bool orderDrive(std::size_t vehicleIndex, TilePos goal);
+
+    // Orders the vehicle at `vehicleIndex` to focus its mounted fire on the
+    // agent at `targetIndex` (any living agent; typically an enemy). Any target
+    // may be named, matching `orderAttack`. A no-op for an invalid vehicle.
+    void orderVehicleAttack(std::size_t vehicleIndex, std::size_t targetIndex);
+
+    // Index of the agent driving the vehicle at `vehicleIndex`, or -1 when it is
+    // unoccupied or the index is invalid.
+    int vehicleDriver(std::size_t vehicleIndex) const;
+
+    // Index of the vehicle whose tile holds the agent at `agentIndex`, or -1
+    // when it is not in a vehicle.
+    int vehicleOf(std::size_t agentIndex) const;
+
+    // True when the agent at `agentIndex` is currently driving a vehicle. A
+    // driving agent is carried by its vehicle: it is skipped by AI and personal
+    // fire, and only the vehicle's mounted weapon fires.
+    bool isDriving(std::size_t agentIndex) const;
+
     // Index of the nearest living agent on `enemyTeam` to (x, y) in tile space,
     // or -1 if none. Used by the view to pick a target under the cursor.
     int nearestEnemyTo(float tileX, float tileY, Team enemyTeam) const;
@@ -252,6 +303,27 @@ private:
     bool findCoverTile(std::size_t index, std::size_t attacker, TilePos& out) const;
     void updateFollower(std::size_t index);
     void resolveFire();
+
+    // Advances every vehicle, then folds each driver's position onto its
+    // vehicle so the driver rides along. Called once per update. Deterministic.
+    void updateVehicles(float dt);
+
+    // The driver's own position follows its vehicle; an agent whose vehicle was
+    // destroyed (and which is therefore no longer driving) is left where the
+    // wreck stopped.
+    void syncDrivers();
+
+    // Mounted fire for every intact, occupied vehicle: honours an explicit
+    // `vehicleTargets_` order or auto-acquires the nearest living enemy, applies
+    // the same range/line-of-sight rules as an agent, and funnels damage through
+    // `damageAgent`/`applyAreaDamage` (so a shield still covers the hit).
+    // Deterministic; no RNG beyond the shared hit-chance roll.
+    void resolveVehicleFire();
+
+    // The single point where weapon damage reaches a vehicle (from an explosive
+    // blast; an agent's own weapon never targets a vehicle). Returns the damage
+    // dealt. Kept beside `damageAgent` so both entity kinds have one funnel.
+    float damageVehicle(std::size_t index, float amount);
 
     // Starts the agent's next queued waypoint when it has no active path.
     // Called once per update for every agent. Deterministic; no RNG.
@@ -317,6 +389,12 @@ private:
 
     TileGrid* grid_ = nullptr;
     std::vector<Agent> agents_;
+    std::vector<Vehicle> vehicles_;
+    // Explicit mounted-fire target per vehicle (agent index, or -1 for
+    // auto-acquire), kept in step with `vehicles_`. Parallel to how an agent's
+    // `orderedTarget` works, but held on the Mission so `core::Vehicle` stays
+    // policy-free.
+    std::vector<int> vehicleTargets_;
     std::vector<int> medikits_;
     std::vector<int> shields_;   // charges carried, sized to agents_
     std::vector<bool> shieldUp_; // raised shield per agent, sized to agents_
