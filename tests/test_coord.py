@@ -85,6 +85,12 @@ class CoordTestCase(unittest.TestCase):
                               cwd=self.remote, stdout=subprocess.PIPE, text=True)
         return [l.strip() for l in proc.stdout.splitlines() if l.strip()]
 
+    def _stub_issues(self, mapping):
+        """Stub the GitHub issue lookup so `next` runs with no network."""
+        self._orig = coord._open_issues_by_area
+        coord._open_issues_by_area = lambda: dict(mapping)
+        self.addCleanup(setattr, coord, "_open_issues_by_area", self._orig)
+
     def push_raw_lease_ref(self, ref, lease):
         """Write an arbitrary lease ref out of band, as an outdated client might.
 
@@ -165,6 +171,88 @@ class TestLeaseBasics(CoordTestCase):
         lease = coord.read_lease("refs/coord/leases/content")
         self.assertEqual(lease.state, "blocked")
         self.assertEqual(lease.note, "waiting on #120")
+
+
+class TestSameNameIdentity(CoordTestCase):
+    """Two workspaces running the same model share the `--agent` string.
+
+    A lease records only that string, so `next` must not claim a peer's lease as
+    yours, and renew/release must not let you free it. The recorded branch is the
+    tiebreaker (issue #365).
+    """
+
+    def _on_branch(self, name):
+        git(self.work, "checkout", "--quiet", "-b", name)
+
+    def test_next_does_not_claim_a_same_named_peer_lease(self):
+        self.run_coord("claim", "--area", "release", "--issue", 350,
+                       "--agent", "OpenHands", "--branch", "release/v0.8.0-dominion")
+        self._on_branch("platform/size-budget")
+        self._stub_issues({})
+        out, _ = self.run_coord("next", "--agent", "OpenHands")
+        # It must not say we hold it, and it must name the peer's branch.
+        self.assertNotIn("You hold", out)
+        self.assertIn("release/v0.8.0-dominion", out)
+        self.assertIn("not this workspace", out)
+
+    def test_next_still_reports_your_own_lease_by_branch(self):
+        self.run_coord("claim", "--area", "platform", "--issue", 365,
+                       "--agent", "OpenHands", "--branch", "coord/lease-identity")
+        self._on_branch("coord/lease-identity")
+        self._stub_issues({})
+        out, _ = self.run_coord("next", "--agent", "OpenHands")
+        self.assertIn("You hold platform / #365", out)
+
+    def test_release_of_a_same_named_peer_lease_is_refused(self):
+        self.run_coord("claim", "--area", "release", "--issue", 350,
+                       "--agent", "OpenHands", "--branch", "release/v0.8.0-dominion")
+        self._on_branch("platform/size-budget")
+        _, err = self.run_coord("release", "--area", "release", "--issue", 350,
+                                "--agent", "OpenHands", expect=2)
+        self.assertIn("release/v0.8.0-dominion", err)
+        # The peer's lease must still be there.
+        self.assertEqual(self.remote_refs(), ["refs/coord/leases/release"])
+
+    def test_renew_of_a_same_named_peer_lease_is_refused(self):
+        self.run_coord("claim", "--area", "release", "--issue", 350,
+                       "--agent", "OpenHands", "--branch", "release/v0.8.0-dominion")
+        before = coord.read_lease("refs/coord/leases/release").epoch
+        self._on_branch("platform/size-budget")
+        self._set_now(self.now + 60)
+        self.run_coord("renew", "--area", "release", "--issue", 350,
+                       "--agent", "OpenHands", expect=2)
+        self.assertEqual(coord.read_lease("refs/coord/leases/release").epoch, before)
+
+    def test_force_still_frees_a_same_named_peer_lease(self):
+        self.run_coord("claim", "--area", "release", "--issue", 350,
+                       "--agent", "OpenHands", "--branch", "release/v0.8.0-dominion")
+        self._on_branch("platform/size-budget")
+        out, _ = self.run_coord("release", "--area", "release", "--issue", 350,
+                                "--agent", "OpenHands", "--force")
+        self.assertIn("released release", out)
+        self.assertEqual(self.remote_refs(), [])
+
+    def test_explicit_branch_releases_your_lease_from_anywhere(self):
+        # An agent on another branch names the branch its lease records.
+        self.run_coord("claim", "--area", "platform", "--issue", 365,
+                       "--agent", "OpenHands", "--branch", "coord/lease-identity")
+        self._on_branch("some/other-branch")
+        out, _ = self.run_coord("release", "--area", "platform", "--issue", 365,
+                                "--agent", "OpenHands", "--branch", "coord/lease-identity")
+        self.assertIn("released platform", out)
+        self.assertEqual(self.remote_refs(), [])
+
+    def test_branchless_lease_still_matches_by_name(self):
+        # Legacy / no --branch: nothing to compare, so name alone still matches
+        # (the pre-#365 behaviour, kept so existing leases do not break).
+        self.run_coord("claim", "--area", "text", "--issue", 142, "--agent", "OpenHands")
+        self._on_branch("any/branch")
+        self._stub_issues({})
+        out, _ = self.run_coord("next", "--agent", "OpenHands")
+        self.assertIn("You hold text / #142", out)
+        out, _ = self.run_coord("release", "--area", "text", "--issue", 142,
+                                "--agent", "OpenHands")
+        self.assertIn("released text", out)
 
 
 class TestExpiryAndSweep(CoordTestCase):
@@ -291,11 +379,6 @@ class TestNextAction(CoordTestCase):
     These tests stub the GitHub calls (`_open_issues_by_area`) so they run with
     no network, which is also the real fallback path.
     """
-
-    def _stub_issues(self, mapping):
-        self._orig = coord._open_issues_by_area
-        coord._open_issues_by_area = lambda: dict(mapping)
-        self.addCleanup(setattr, coord, "_open_issues_by_area", self._orig)
 
     def test_next_returns_your_own_lease_first(self):
         self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "a")

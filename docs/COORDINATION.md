@@ -75,6 +75,15 @@ scripts/coord claim --area <area> --issue <n> --agent "<model>" --branch <branch
   live lease is allowed (the holder may have paused); taking over a **stale** one
   (> 3 h quiet) is expected.
 
+**Identity is agent *and* branch** (ADR-0034). `--agent` is your *model* name,
+which is not unique — two workspaces on the same model share it. So a lease
+counts as **yours** only when the `agent` matches **and** the `branch` it records
+is the branch you are on; `next` will not report a same-named peer's lease as
+yours, and `renew`/`release` will not let you free it. A lease with no `--branch`
+(legacy) still matches by name alone. If you must renew or release from a
+different branch, name the branch explicitly (`--branch <branch>`), or use
+`--force`.
+
 ### Keep it alive
 
 ```bash
