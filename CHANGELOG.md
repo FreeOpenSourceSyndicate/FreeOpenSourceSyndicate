@@ -34,6 +34,15 @@ set, and breached-tile rubble.
   agents — a car is cover that can backfire. Engine-free, deterministic
   (ADR-0032). Issue #318.
 
+- **Hijackable vehicles are drawn.** The view now renders a live vehicle and its
+  wreck in the same depth-sorted pass as agents and props, at their interpolated
+  position, so an agent beside a car overlaps correctly; a destroyed vehicle is
+  still drawn as a wreck because a wreck stays on the board. The art is authored
+  text baked with a neutral steel palette, so a hijacked vehicle does not
+  recolour with its driver. No mission ships a vehicle yet, so `--vehicle` spawns
+  a demo car and train for a headless capture and `--check-vehicles` (ctest
+  `game_vehicles`) drives the real draw decision. Issue #366.
+
 - **Cybernetic upgrades are purchasable and deploy:** the tactical side of
   cybernetics landed in #313 (`CyberneticEffect`, `Mission::applyCybernetic`, a
   data-only `LoadoutSlot::cyberneticId`), but the metagame had no catalogue or
@@ -231,10 +240,12 @@ set, and breached-tile rubble.
 
 - **Release codename** for this snapshot is `DOMINION` (the version stamp and the
   title-card tagline follow it).
-- **The low-spec binary-size budget rose to 288 KiB** (from 256 KiB): the 256 KiB
+- **The low-spec binary-size budget rose to 320 KiB** (from 256 KiB): the 256 KiB
   cap had under 2 KiB of headroom on `main`, so any real feature busted it. The
-  metagame deploy wiring added ~8 KiB of engine code and needed the room; the
-  guard still fails loudly if the low-spec flags are dropped (issue #312).
+  metagame deploy wiring added ~8 KiB of engine code and needed the room, and the
+  third shared catalogue (`assets/data/vehicles.json`, #319/#342) left only
+  ~2 KiB again, so the cap was raised once more (issue #312, #356); the guard
+  still fails loudly if the low-spec flags are dropped.
 - **`--config`/`--campaign` fail fast** when an explicitly named file is missing
   (a non-zero exit and a stderr message), rather than starting with defaults
   (issue #248, #259). Unknown or incomplete options are likewise rejected, and

@@ -46,8 +46,8 @@ old hardware, that is a bug — please report it.
 
 The whole point of the profile is a **small** binary, so CI enforces a cap on it
 (issue #222, AGENTS.md §1b, ADR-0008): the **stripped low-spec binary must be
-<= 320 KiB**. As measured today, the low-spec build is ~286 KiB and the default
-Release build is ~418 KiB, so the budget leaves ~1.1x headroom while still
+<= 320 KiB**. As measured today, the low-spec build is ~287 KiB and the default
+Release build is ~655 KiB, so the budget leaves ~1.1x headroom while still
 failing loudly if the profile flags are ever dropped or a heavy dependency
 sneaks in. The cap was raised from 288 KiB when the third shared catalogue
 (`assets/data/vehicles.json`, #319/#342) left only ~2 KiB of headroom, so the
@@ -278,6 +278,7 @@ They flee when gunfire starts nearby. Civilian deaths you cause are counted as
 | `--zoom N` | Set the initial integer zoom level (1–3) |
 | `--breach` | Breach every destructible wall before rendering (for rubble screenshots) |
 | `--scan` | Fire a scanner pulse on the squad before rendering (for scanner screenshots) |
+| `--vehicle` | Spawn a demo car and train before rendering (for vehicle screenshots) |
 | `--headless` | Use the dummy video driver (no display needed) |
 | `--frames N` | Run N frames then exit (must be a positive integer) |
 | `--screenshot PATH` | Render one frame to a BMP and exit (with `--frames` first, simulates then captures) |
@@ -312,6 +313,7 @@ wired into `ctest`.
 | `--check-content [DIR]` | Validate the mission `weaponId`/`agentId` references against the catalogues in `DIR` (default `assets/data`) and exit; non-zero on a dangling reference (ctest `game_content`) |
 | `--check-gadgets` | Run the tactical gadget hotkey self-check (`H`/`S`/`C`/`B`) headlessly and exit (ctest `game_gadgets`) |
 | `--check-campaign-keys` | Headless guard: exit non-zero if a tactical hotkey leaks through the campaign map screen (ctest `game_campaign_keys`) |
+| `--check-vehicles` | Exit non-zero if a live vehicle or a wreck fails to draw (ctest `game_vehicles`) |
 
 ### Core-only build (no SDL2 needed)
 
