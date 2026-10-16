@@ -92,7 +92,13 @@ A mission file describes one mission. Example:
   movement**, so the interior stays walkable. `width`/`height` are in tiles and
   must be positive. The whole rectangle must lie inside the map.
 - **`blocked`** marks single tiles as impassable (in addition to buildings). Each
-  tile must be inside the map.
+  tile must be inside the map. A tile may also set `"destructible": true` (an
+  optional boolean, default `false`) to make it a cracked wall: weapon fire that
+  lands on it chips its hit points and, at zero, opens it (the tile becomes
+  walkable and is remembered as rubble). An explosive weapon's blast — and a
+  vehicle wreck's detonation — breach every destructible tile within the blast
+  radius, not just the tile a shot lands on. A solid (non-destructible) wall is
+  never breached.
 - **Geometry must fit the map** (issue #212). A building, a `blocked` tile, an
   agent position, or a `reach` objective tile that falls outside
   `[0, width) × [0, height)` is a readable error rather than being silently

@@ -117,7 +117,15 @@ Close out the 1993 tactical feature set (the tail of the old Phase 3).
       _Entity `core::Vehicle` (#320, World); `Mission` policy — hijack, drive,
       mounted fire, blast-wreck — landed (#318, ADR-0032). The player-facing
       render and input/UI slices follow._
-- [ ] **Destructible environment**: breachable walls (started in #185/#217).
+- [x] **Destructible environment**: breachable walls (started in #185/#217).
+      _`TileGrid` destructible blocked tiles (#157/#162) chip under fire and open
+      at zero HP; a blocked shot lands on the wall in its line (#163), a breached
+      tile is remembered as rubble (#217/#234) and drawn as such (#262), and the
+      enemy AI uses the openings. Blast breaching landed (#411): an explosive
+      weapon's area damage — and a vehicle wreck's detonation — now breach every
+      destructible tile in the blast radius via `Mission::breachTilesInBlast`, so
+      a rocket opens a room, not just the one tile a point shot lands on. A solid
+      wall stays unbreakable._
 - [x] **Mission objectives**: complete the set — persuade, escort/retrieve,
       destroy (eliminate and reach are done). _Done in #281: `ObjectiveSpec`
       gained `Escort`, `Destroy`, and `Persuade`, parsed from mission JSON and

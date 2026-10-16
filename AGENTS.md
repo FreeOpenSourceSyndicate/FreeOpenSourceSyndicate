@@ -813,6 +813,14 @@ Do not start work outside the scope fence (ADR-0024).
   parsed from a weapon JSON object (ADR-0003), so an explosive ships by data
   alone. Deterministic (no RNG). Keep the field defaulted — it is additive to the
   frozen `Weapon` contract (Rule 3).
+- **Explosions breach destructible walls (issue #411).** `Mission::applyAreaDamage`
+  calls the private `breachTilesInBlast(impact, radius, damage)`, which chips
+  every destructible tile whose centre is within `radius` of the impact and opens
+  the ones whose hit points run out (so the launcher opens a room, not just the
+  one tile a blocked shot lands on). A vehicle wreck's detonation breaches walls
+  in its own blast too (`kVehicleWreckRadius`). A solid wall is never breached.
+  Deterministic; no RNG. Add new area-damage paths through `applyAreaDamage`, not
+  by chipping tiles directly, so a blast always breaches consistently.
 - **Compliance Beacon followers** are civilians recruited by a player agent
   (`core::Agent::followerLeader()`, `Mission::persuade`/`freeFollowersOf`/
   `followerCount`). A follower keeps `Team::Civilian`, so the existing combat

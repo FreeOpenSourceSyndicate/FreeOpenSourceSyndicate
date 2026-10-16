@@ -1313,6 +1313,76 @@ FOSSYND_TEST(Mission, FireLeavesANonDestructibleWallIntact)
     FOSSYND_CHECK_NEAR(mission.agents()[1].health(), 100.0f);
 }
 
+// --- explosives breach walls (issue #185) ----------------------------------
+//
+// An explosive weapon's blast damages everything within its area radius. It also
+// opens destructible walls in that radius, so a rocket can breach a room the way
+// a blocked shot chips the one tile it lands on. `breachTilesInBlast` bounds the
+// chip to the blast radius, so a wall outside it is left standing.
+
+FOSSYND_TEST(Mission, ExplosiveBlastBreachesWallsInItsRadius)
+{
+    TileGrid grid(30, 30);
+    // The target stands in the open at (5,2); destructible walls flank the
+    // impact at (5,1) and (6,2) (1 tile away, inside a 2.0 radius) and at (4,3)
+    // (1.4 tiles away). A far wall at (5,6) is well outside the blast.
+    grid.setWalkable(5, 1, false);
+    grid.setDestructible(5, 1, true, 20);
+    grid.setWalkable(6, 2, false);
+    grid.setDestructible(6, 2, true, 20);
+    grid.setWalkable(4, 3, false);
+    grid.setDestructible(4, 3, true, 20);
+    grid.setWalkable(5, 6, false);
+    grid.setDestructible(5, 6, true, 20); // outside the radius
+
+    Mission mission(grid, 61u);
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 500.0f,
+                               Weapon{"Boom", 40.0f, 20.0f, 10.0f, 1.0f, 2.0f}));
+    mission.addAgent(makeAgent(5.0f, 2.0f, Team::Enemy, 100.0f)); // primary target
+
+    mission.update(0.05f);
+
+    FOSSYND_CHECK(grid.isWalkable(5, 1));  // in radius
+    FOSSYND_CHECK(grid.isWalkable(6, 2));  // in radius
+    FOSSYND_CHECK(grid.isWalkable(4, 3));  // in radius (diagonal)
+    FOSSYND_CHECK(!grid.isWalkable(5, 6)); // outside the blast: untouched
+    FOSSYND_CHECK(grid.isDestructible(5, 6));
+}
+
+FOSSYND_TEST(Mission, ExplosiveBlastLeavesASolidWallStanding)
+{
+    TileGrid grid(30, 30);
+    grid.setWalkable(5, 2, false); // solid wall: never marked destructible
+    Mission mission(grid, 62u);
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 500.0f,
+                               Weapon{"Boom", 40.0f, 20.0f, 10.0f, 1.0f, 2.0f}));
+    mission.addAgent(makeAgent(5.0f, 2.0f, Team::Enemy, 100.0f));
+
+    mission.update(0.05f);
+
+    FOSSYND_CHECK(!grid.isWalkable(5, 2)); // a blast cannot open solid rock
+    FOSSYND_CHECK(!grid.isDestructible(5, 2));
+}
+
+FOSSYND_TEST(Mission, ExplosiveBlastBreachesWallEvenWhenTargetIsInTheOpen)
+{
+    // The old direct-shot path only chipped a wall on the firing line; an
+    // explosion must breach a wall beside the impact even with a clear shot to
+    // the target.
+    TileGrid grid(30, 30);
+    grid.setWalkable(5, 3, false);
+    grid.setDestructible(5, 3, true, 10);
+    Mission mission(grid, 63u);
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 500.0f,
+                               Weapon{"Boom", 40.0f, 20.0f, 10.0f, 1.0f, 2.0f}));
+    mission.addAgent(makeAgent(5.0f, 2.0f, Team::Enemy, 100.0f)); // clear line
+
+    mission.update(0.05f);
+
+    FOSSYND_CHECK(grid.isWalkable(5, 3));
+    FOSSYND_CHECK(!grid.isDestructible(5, 3));
+}
+
 // --- shield gadget (issue #211) --------------------------------------------
 //
 // The shield lives on the Mission (like the medikit), so the World-owned Agent

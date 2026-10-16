@@ -1746,7 +1746,8 @@ for reassignment by a coordinator.
     vehicle (vehicles are not in the agent target loop). A vehicle is damaged by
     **explosives**: `applyAreaDamage` funnels blast damage into a private
     `damageVehicle`, and a vehicle **wrecked by a blast detonates**, hurting
-    agents within `kVehicleWreckRadius` for a fraction of its maximum health.
+    agents within `kVehicleWreckRadius` for a fraction of its maximum health and
+    breaching destructible walls in that radius (`breachTilesInBlast`, #411).
     That makes a car cover that can backfire, and keeps both entity kinds on one
     damage funnel each.
   - `Vehicle::applyDamage` still stops a wreck and ejects the driver; `Mission`
