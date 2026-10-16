@@ -72,6 +72,16 @@ public:
     // out-of-range slot, an empty id, or an item already in the slot.
     void assign(int syndicate, int slot, const std::string& itemId);
 
+    // Equips a *catalogue* item in the slot, respecting the deployed-loadout rule:
+    // a slot deploys at most one weapon, one gadget, and one cybernetic
+    // (LoadoutSlot), so a new item replaces the slot's item of the same kind. This
+    // is what the shop uses, so buying a better weapon actually replaces the old
+    // one instead of being appended and then silently ignored at deploy time.
+    // Returns false (no change) for an unknown syndicate or slot, an empty id, or
+    // an id not in `catalogue`.
+    bool equip(int syndicate, int slot, const std::string& itemId,
+               const EquipmentCatalogue& catalogue);
+
     // Empties the slot's loadout. A no-op for an unknown syndicate or slot.
     void clear(int syndicate, int slot);
 

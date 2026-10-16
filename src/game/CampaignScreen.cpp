@@ -436,10 +436,16 @@ bool CampaignScreen::handleKey(int sym)
             {
                 const std::size_t index = static_cast<std::size_t>(shopRow_) - researchCount;
                 const std::string& id = campaign_.catalogue().items()[index].id;
-                if (campaign_.equipment().buy(player, id, campaign_.catalogue(),
+                // Skip the purchase when the exact item is already in the target
+                // slot: equip() would replace it with itself, so charging again
+                // would take funds for nothing.
+                const std::vector<std::string> slot =
+                    campaign_.equipment().loadout(player, shopSlot_);
+                if (std::find(slot.begin(), slot.end(), id) == slot.end() &&
+                    campaign_.equipment().buy(player, id, campaign_.catalogue(),
                                               campaign_.research(), campaign_.economy()))
                 {
-                    campaign_.equipment().assign(player, shopSlot_, id);
+                    campaign_.equipment().equip(player, shopSlot_, id, campaign_.catalogue());
                 }
             }
             return true;
@@ -569,7 +575,31 @@ void CampaignScreen::renderShop(SDL_Renderer* renderer, const BitmapFont& font, 
     }
     else
     {
-        action += "BUY + ASSIGN TO SLOT " + std::to_string(shopSlot_ + 1) + " (LEFT/RIGHT)";
+        // Say what Enter would do: name the same-kind item this purchase replaces
+        // (a slot deploys one weapon and one gadget), or that it is already there
+        // so Enter is a no-op.
+        const core::EquipmentItem& item =
+            items[static_cast<std::size_t>(shopRow_) - nodes.size()];
+        const std::vector<std::string> slot =
+            campaign_.equipment().loadout(player, shopSlot_);
+        if (std::find(slot.begin(), slot.end(), item.id) != slot.end())
+        {
+            action += "ALREADY EQUIPPED IN SLOT " + std::to_string(shopSlot_ + 1);
+        }
+        else
+        {
+            action += "BUY + EQUIP TO SLOT " + std::to_string(shopSlot_ + 1);
+            for (const std::string& equippedId : slot)
+            {
+                const core::EquipmentItem* equipped = campaign_.catalogue().find(equippedId);
+                if (equipped != nullptr && equipped->kind == item.kind)
+                {
+                    action += " (REPLACE " + equipped->name + ")";
+                    break;
+                }
+            }
+            action += " (LEFT/RIGHT)";
+        }
     }
     font.draw(renderer, margin, y, action, hudstyle::kHudDim);
     y += lineH;
@@ -984,6 +1014,25 @@ bool CampaignScreen::selfTest()
     }
     shopOk = shopOk && handleKey(SDLK_RETURN) &&
              !campaign_.equipment().loadout(player, shopSlot_).empty();
+    // The upgrade path (issue #346): a second weapon bought into a slot must
+    // replace the first, so the squad deploys the better gun instead of the funds
+    // being spent and the purchase silently dropped at deploy time. Seed slot 1
+    // with the free pistol, then buy the minigun into it through the shop key.
+    campaign_.equipment().equip(player, 1, "pistol", campaign_.catalogue());
+    shopSlot_ = 1;
+    shopOk = shopOk && handleKey(SDLK_RETURN);
+    int upgradedWeapons = 0;
+    bool upgradedToMinigun = false;
+    for (const std::string& equippedId : campaign_.equipment().loadout(player, 1))
+    {
+        const core::EquipmentItem* equipped = campaign_.catalogue().find(equippedId);
+        if (equipped != nullptr && equipped->kind == core::EquipmentKind::Weapon)
+        {
+            ++upgradedWeapons;
+            upgradedToMinigun = equippedId == "minigun";
+        }
+    }
+    shopOk = shopOk && upgradedWeapons == 1 && upgradedToMinigun;
     // A finished campaign cannot open the shop.
     campaign_ = campaign; // the won copy from step 7
     shopOpen_ = false;
