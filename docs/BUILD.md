@@ -312,6 +312,7 @@ wired into `ctest`.
 | `--check-lang [LOCALE]` | Run the UI string-table self-check and exit (ctest `game_lang`) |
 | `--check-content [DIR]` | Validate the mission `weaponId`/`agentId` references against the catalogues in `DIR` (default `assets/data`) and exit; non-zero on a dangling reference (ctest `game_content`) |
 | `--check-gadgets` | Run the tactical gadget hotkey self-check (`H`/`S`/`C`/`B`) headlessly and exit (ctest `game_gadgets`) |
+| `--check-vehicle-input` | Run the vehicle input self-check (`E` hijack/exit, drive, mounted fire) headlessly and exit (ctest `game_vehicle_input`) |
 | `--check-campaign-keys` | Headless guard: exit non-zero if a tactical hotkey leaks through the campaign map screen (ctest `game_campaign_keys`) |
 | `--check-vehicles` | Exit non-zero if a live vehicle or a wreck fails to draw (ctest `game_vehicles`) |
 

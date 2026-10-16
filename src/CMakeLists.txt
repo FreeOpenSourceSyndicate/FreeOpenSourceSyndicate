@@ -271,6 +271,12 @@ if(BUILD_TESTS)
     # screenshot headlessly, so a vehicle capture is a real artefact (issue #363).
     add_test(NAME game_vehicles_screenshot
              COMMAND FOSSynd --headless --vehicle --screenshot vehicles.bmp --frames 2)
+    # Vehicle input (issue #373): E must hijack a nearby vehicle and eject it
+    # again, a move order from a driver must steer the vehicle (not walk the
+    # carried agent), and an attack order from a driver must aim the mounted
+    # weapon. Exits non-zero on a broken invariant.
+    add_test(NAME game_vehicle_input
+             COMMAND FOSSynd --headless --check-vehicle-input)
     # Objective banner (issue #281): every objective kind must render a non-empty,
     # distinct, fully substituted localised string. Exits non-zero on a broken
     # invariant (a kind that fell through to the default or left a placeholder).

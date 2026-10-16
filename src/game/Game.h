@@ -230,6 +230,14 @@ public:
     // on a broken invariant. Used by game_vehicles.
     bool vehicleSelfTest();
 
+    // Headless guard for the vehicle input bindings (issue #373): `E` must
+    // hijack a nearby vehicle for the selected agent and eject it again, a move
+    // order from a driver must steer the *vehicle* (not walk the carried agent),
+    // and an attack order from a driver must aim the mounted weapon (not the
+    // agent's personal gun). Exercises the real handlers, not the core API
+    // directly. Returns false on a broken invariant. Used by game_vehicle_input.
+    bool vehicleInputSelfTest();
+
     // Spawns one car and one train on the board (issue #363). A demo/verification
     // hook (like `--breach`/`--scan`): no mission in assets/data ships a vehicle
     // yet (that is a Tactical fragment), so `--vehicle` makes the art visible for
@@ -381,6 +389,14 @@ private:
     void assignControlGroup(int slot);
     void recallControlGroup(int slot);
     void orderAttackOn(int targetIndex);
+    // Hijack / eject (issue #373). `E` board a nearby hijackable vehicle with the
+    // selected agent (the nearest one in range), or step out if the selected agent
+    // is already driving. The view picks the vehicle; the core decides range and
+    // eligibility (golden rule 1/4).
+    void toggleVehicleOnSelection();
+    // Index of the hijackable vehicle nearest the agent at `agentIndex` within
+    // `radius` tiles, or -1. View-only read of core state (golden rule 4).
+    int nearestVehicleForAgent(std::size_t agentIndex, float radius) const;
     // Orders the current selection to move to `goal`. A shift-click appends the
     // goal to each agent's waypoint queue instead of replacing its order, so a
     // squad can be walked along a path (issue #75).

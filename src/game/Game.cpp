@@ -91,6 +91,12 @@ bool mapScreenAllowsKey(int sym)
     }
 }
 
+// How close (tiles) a selected agent must be to a vehicle for `E` to offer the
+// hijack (issue #373). Must match Mission's own `kHijackRadius`, which is what
+// actually decides the order; keeping them equal means the view never picks a
+// vehicle the core would reject, and never skips one it would accept.
+constexpr float kHijackRange = 1.5f;
+
 // Queues a synthetic key-down so a headless self-test can drive the real
 // `handleEvents` dispatch path (issue #364). Returns false if SDL rejects it.
 bool pushKeyDown(int sym)
@@ -2172,7 +2178,18 @@ void Game::orderAttackOn(int targetIndex)
     const std::size_t target = static_cast<std::size_t>(targetIndex);
     for (const std::size_t index : selected_)
     {
-        mission_.orderAttack(index, target);
+        // A driver fires the vehicle's mounted weapon, not its personal gun
+        // (issue #373). The core owns that routing; the view just names the
+        // vehicle the selected agent is in.
+        const int vehicle = mission_.vehicleOf(index);
+        if (vehicle >= 0)
+        {
+            mission_.orderVehicleAttack(static_cast<std::size_t>(vehicle), target);
+        }
+        else
+        {
+            mission_.orderAttack(index, target);
+        }
     }
 }
 
@@ -2186,6 +2203,16 @@ void Game::orderSelectedMove(const core::TilePos& goal, bool append)
     // 2-wide formation so agents do not stack on one another.
     for (std::size_t i = 0; i < selected_.size(); ++i)
     {
+        // A driver steers the vehicle, not the carried agent (issue #373): a
+        // walk order would otherwise move the (hidden) agent off the vehicle.
+        // The core owns the drive; the view names the vehicle. There is no drive
+        // queue, so a shift-click drives to the point rather than appending.
+        const int vehicle = mission_.vehicleOf(selected_[i]);
+        if (vehicle >= 0)
+        {
+            mission_.orderDrive(static_cast<std::size_t>(vehicle), goal);
+            continue;
+        }
         core::TilePos target = goal;
         if (selected_.size() > 1)
         {
@@ -2205,6 +2232,64 @@ void Game::orderSelectedMove(const core::TilePos& goal, bool append)
             mission_.orderMove(selected_[i], target);
         }
     }
+}
+
+void Game::toggleVehicleOnSelection()
+{
+    // `E` (issue #373): board the nearest hijackable vehicle in range with the
+    // selection, or step out if the selected agent is already driving. The core
+    // (`orderHijack`/`ejectVehicle`) decides range and eligibility; the view
+    // only picks the vehicle (golden rule 1/4).
+    for (const std::size_t index : selected_)
+    {
+        if (!mission_.agents()[index].isAlive())
+        {
+            continue;
+        }
+        const int driving = mission_.vehicleOf(index);
+        if (driving >= 0)
+        {
+            // Already aboard: step out. Only an intact vehicle keeps a driver, so
+            // this is also how a player leaves a wreck.
+            mission_.ejectVehicle(static_cast<std::size_t>(driving));
+            continue;
+        }
+        const int vehicle = nearestVehicleForAgent(index, kHijackRange);
+        if (vehicle >= 0)
+        {
+            mission_.orderHijack(static_cast<std::size_t>(vehicle), index);
+        }
+    }
+}
+
+int Game::nearestVehicleForAgent(std::size_t agentIndex, float radius) const
+{
+    if (agentIndex >= mission_.agents().size())
+    {
+        return -1;
+    }
+    const core::Vec2 from = mission_.agents()[agentIndex].position();
+    int best = -1;
+    float bestDistance = 0.0f;
+    const std::vector<core::Vehicle>& vehicles = mission_.vehicles();
+    for (std::size_t v = 0; v < vehicles.size(); ++v)
+    {
+        // Skip a wreck and an already-driven vehicle: the core would reject the
+        // order anyway, and picking one would shadow a usable vehicle nearby.
+        if (!vehicles[v].isAlive() || vehicles[v].isOccupied())
+        {
+            continue;
+        }
+        const float distance = core::length(vehicles[v].position() - from);
+        if (distance <= radius && (best < 0 || distance < bestDistance))
+        {
+            // Strictly nearer wins; ties keep the first (lowest index), so the
+            // pick is deterministic and RNG-free.
+            bestDistance = distance;
+            best = static_cast<int>(v);
+        }
+    }
+    return best;
 }
 
 void Game::persuadeNearestCivilian()
@@ -2454,6 +2539,11 @@ void Game::handleEvents(bool& running)
             case SDLK_b:
                 // Take performance drugs on the selection (issue #339).
                 useDrugsOnSelection();
+                break;
+            case SDLK_e:
+                // Hijack a nearby vehicle with the selection, or step out if the
+                // selected agent is already driving (issue #373).
+                toggleVehicleOnSelection();
                 break;
             case SDLK_1:
             case SDLK_2:
@@ -3553,6 +3643,142 @@ bool Game::vehicleSelfTest()
         std::fprintf(stderr, "vehicle self-test: destroyed vehicle not flagged as a wreck\n");
         return false;
     }
+    return true;
+}
+
+bool Game::vehicleInputSelfTest()
+{
+    // Drives the real input handlers (issue #373) against the real Mission, so
+    // the gate proves the keys are wired to the core vehicle API, not merely that
+    // the core works (tests/test_mission.cpp covers that). The view must pick the
+    // vehicle and the core must decide eligibility and effect.
+    std::size_t user = mission_.agents().size();
+    std::size_t enemy = mission_.agents().size();
+    for (std::size_t i = 0; i < mission_.agents().size(); ++i)
+    {
+        const core::Agent& a = mission_.agents()[i];
+        if (a.isAlive() && a.team() == core::Team::Player && user == mission_.agents().size())
+        {
+            user = i;
+        }
+        if (a.isAlive() && a.team() == core::Team::Enemy && enemy == mission_.agents().size())
+        {
+            enemy = i;
+        }
+    }
+    if (user == mission_.agents().size() || enemy == mission_.agents().size())
+    {
+        std::fprintf(stderr, "vehicle-input self-test: needs a living player and enemy\n");
+        return false;
+    }
+
+    // Put the agent and a car on the same walkable tile so the hijack is in range
+    // by definition, and the drive path starts from a walkable tile.
+    int wx = -1;
+    int wy = -1;
+    for (int y = 1; y < grid_.height() - 1 && wx < 0; ++y)
+    {
+        for (int x = 1; x < grid_.width() - 1; ++x)
+        {
+            if (grid_.isWalkable(x, y))
+            {
+                wx = x;
+                wy = y;
+                break;
+            }
+        }
+    }
+    if (wx < 0)
+    {
+        std::fprintf(stderr, "vehicle-input self-test: no walkable tile\n");
+        return false;
+    }
+    mission_.agents()[user].stop();
+    mission_.agents()[user].clearMoveQueue();
+    mission_.agents()[user].setPosition(static_cast<float>(wx) + 0.5f,
+                                        static_cast<float>(wy) + 0.5f);
+    const std::size_t vehicle =
+        mission_.addVehicle(core::makeCar(static_cast<float>(wx) + 0.5f,
+                                          static_cast<float>(wy) + 0.5f));
+
+    // E hijacks: the selected agent becomes the vehicle's driver.
+    selectOnly(user);
+    toggleVehicleOnSelection();
+    if (mission_.vehicleOf(user) != static_cast<int>(vehicle))
+    {
+        std::fprintf(stderr, "vehicle-input self-test: E did not hijack the vehicle\n");
+        return false;
+    }
+
+    // A move order from the driver must steer the vehicle, not walk the carried
+    // agent (which would leave the vehicle behind).
+    int gx = -1;
+    int gy = -1;
+    for (int y = 0; y < grid_.height() && gx < 0; ++y)
+    {
+        for (int x = 0; x < grid_.width(); ++x)
+        {
+            if (grid_.isWalkable(x, y) && std::abs(x - wx) + std::abs(y - wy) >= 4)
+            {
+                gx = x;
+                gy = y;
+                break;
+            }
+        }
+    }
+    if (gx < 0)
+    {
+        std::fprintf(stderr, "vehicle-input self-test: no drive goal\n");
+        return false;
+    }
+    orderSelectedMove(core::TilePos{gx, gy}, false);
+    if (!mission_.vehicles()[vehicle].hasPath())
+    {
+        std::fprintf(stderr, "vehicle-input self-test: move order did not drive the vehicle\n");
+        return false;
+    }
+    if (mission_.agents()[user].hasPath())
+    {
+        std::fprintf(stderr, "vehicle-input self-test: a driver was walked by a move order\n");
+        return false;
+    }
+
+    // An attack order from the driver must aim the mounted weapon: the agent's
+    // personal target stays unset (a personal order would have set it).
+    orderAttackOn(static_cast<int>(enemy));
+    if (mission_.agents()[user].orderedTarget() != -1)
+    {
+        std::fprintf(stderr, "vehicle-input self-test: driver attack aimed the personal gun\n");
+        return false;
+    }
+
+    // E again ejects: the driver is out and the vehicle is free.
+    toggleVehicleOnSelection();
+    if (mission_.vehicleOf(user) != -1 || mission_.vehicles()[vehicle].driver() != -1)
+    {
+        std::fprintf(stderr, "vehicle-input self-test: E did not eject the driver\n");
+        return false;
+    }
+
+    // A walking agent must still walk and still take personal attack orders, so
+    // the driver routing did not leak onto agents on foot.
+    mission_.agents()[user].setPosition(static_cast<float>(wx) + 0.5f,
+                                        static_cast<float>(wy) + 0.5f);
+    orderSelectedMove(core::TilePos{gx, gy}, false);
+    if (!mission_.agents()[user].hasPath())
+    {
+        std::fprintf(stderr, "vehicle-input self-test: an agent on foot stopped walking\n");
+        return false;
+    }
+    orderAttackOn(static_cast<int>(enemy));
+    if (mission_.agents()[user].orderedTarget() != static_cast<int>(enemy))
+    {
+        std::fprintf(stderr, "vehicle-input self-test: an agent on foot lost its attack order\n");
+        return false;
+    }
+
+    // Leave a clean selection behind, like the other self-tests.
+    selectAllPlayers();
     return true;
 }
 
