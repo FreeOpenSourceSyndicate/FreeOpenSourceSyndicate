@@ -714,5 +714,126 @@ class TestConcurrency(CoordTestCase):
         self.assertIn("free areas: (none)", out)
 
 
+class TestPushAuthDiagnosis(CoordTestCase):
+    """A credential failure must not be reported as a lost lease race."""
+
+    def test_push_hint_recognizes_credential_failures(self):
+        for text in ("fatal: Authentication failed for 'https://github.com/x'",
+                     "fatal: could not read Username for 'https://github.com'",
+                     "remote: Invalid username or password.",
+                     "Permission denied (publickey)."):
+            self.assertIsNotNone(coord._push_hint(text), text)
+
+    def test_push_hint_ignores_a_plain_non_fast_forward(self):
+        detail = ("! [rejected] refs/coord/leases/world -> refs/coord/leases/world "
+                  "(stale info)")
+        self.assertIsNone(coord._push_hint(detail))
+
+    def test_auth_failure_raises_auth_error_not_a_race(self):
+        orig = coord._commit_leases
+
+        def boom(*a, **k):
+            raise coord.CoordAuthError("authentication failed")
+
+        coord._commit_leases = boom
+        self.addCleanup(setattr, coord, "_commit_leases", orig)
+        args = coord.build_parser().parse_args(
+            ["claim", "--area", "world", "--issue", "1", "--agent", "a"])
+        with self.assertRaises(coord.CoordAuthError):
+            coord.cmd_claim(args)
+
+    def test_auth_error_is_reported_verbatim_by_claim(self):
+        orig = coord._commit_leases
+
+        def boom(*a, **k):
+            raise coord.CoordAuthError("could not publish: fix your credentials")
+
+        coord._commit_leases = boom
+        self.addCleanup(setattr, coord, "_commit_leases", orig)
+        _, err = self.run_coord("claim", "--area", "world", "--issue", 1,
+                                "--agent", "a", expect=2)
+        self.assertIn("fix your credentials", err)
+        self.assertNotIn("ledger moved", err)
+        self.assertNotIn("lost the race", err)
+
+
+class TestNotes(CoordTestCase):
+    """Notes are cross-cycle handoff: they outlive the lease that wrote them."""
+
+    def test_note_appends_and_reads_back(self):
+        self.run_coord("note", "--area", "platform", "--agent", "a", "--text", "hello")
+        self.run_coord("note", "--area", "platform", "--agent", "b", "--text", "world")
+        notes = coord.read_notes("platform")
+        self.assertEqual([n.text for n in notes], ["hello", "world"])
+        self.assertEqual([n.agent for n in notes], ["a", "b"])
+
+    def test_notes_survive_the_lease_being_released(self):
+        self.run_coord("claim", "--area", "platform", "--issue", 347, "--agent", "a")
+        self.run_coord("note", "--area", "platform", "--agent", "a",
+                       "--text", "auth is broken")
+        self.run_coord("release", "--area", "platform", "--issue", 347, "--agent", "a")
+        self.assertNotIn("refs/coord/leases/platform", self.remote_refs())
+        self.assertIn("refs/coord/notes/platform", self.remote_refs())
+        self.assertEqual([n.text for n in coord.read_notes("platform")],
+                         ["auth is broken"])
+
+    def test_notes_are_pushed_to_the_remote(self):
+        self.run_coord("note", "--area", "text", "--agent", "a", "--text", "x")
+        self.assertIn("refs/coord/notes/text", self.remote_refs())
+
+    def test_notes_are_capped_to_the_most_recent(self):
+        for i in range(coord.MAX_NOTES + 5):
+            self.run_coord("note", "--area", "world", "--agent", "a", "--text", f"n{i}")
+        notes = coord.read_notes("world")
+        self.assertEqual(len(notes), coord.MAX_NOTES)
+        self.assertEqual(notes[0].text, "n5")
+        self.assertEqual(notes[-1].text, f"n{coord.MAX_NOTES + 4}")
+
+    def test_notes_command_lists_every_area(self):
+        self.run_coord("note", "--area", "world", "--agent", "a", "--text", "w-note")
+        self.run_coord("note", "--area", "render", "--agent", "b", "--text", "r-note")
+        out, _ = self.run_coord("notes", "--offline")
+        self.assertIn("[world]", out)
+        self.assertIn("w-note", out)
+        self.assertIn("[render]", out)
+        self.assertIn("r-note", out)
+
+    def test_notes_command_reports_when_empty(self):
+        out, _ = self.run_coord("notes", "--offline")
+        self.assertIn("no notes", out)
+
+    def test_notes_json_is_machine_readable(self):
+        self.run_coord("note", "--area", "text", "--agent", "a", "--text", "j")
+        out, _ = self.run_coord("notes", "--area", "text", "--json", "--offline")
+        payload = json.loads(out)
+        self.assertEqual(payload["text"][0]["text"], "j")
+
+    def test_board_shows_handoff_notes(self):
+        self.run_coord("note", "--area", "platform", "--agent", "a",
+                       "--text", "read me first")
+        content = coord.render_board()
+        self.assertIn("## Handoff notes", content)
+        self.assertIn("read me first", content)
+
+    def test_board_omits_the_notes_section_when_there_are_none(self):
+        self.assertNotIn("## Handoff notes", coord.render_board())
+
+    def test_a_note_does_not_create_or_hold_a_lease(self):
+        self.run_coord("note", "--area", "metagame", "--agent", "a", "--text", "fyi")
+        self.assertNotIn("refs/coord/leases/metagame", self.remote_refs())
+        self.run_coord("check")
+
+    def test_concurrent_appends_do_not_lose_a_note(self):
+        """Two agents appending to one area both keep their note."""
+        first = coord.Note(agent="a", area="text", text="one", epoch=self.now)
+        coord._write_notes("text", [first])
+        # A second writer that saw the empty log races: its first push would
+        # clobber, so append_note must re-read and merge.
+        coord.append_note("text", "b", "two")
+        texts = [n.text for n in coord.read_notes("text")]
+        self.assertIn("one", texts)
+        self.assertIn("two", texts)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
