@@ -1200,12 +1200,52 @@ class TestNotes(CoordTestCase):
         """Two agents appending to one area both keep their note."""
         first = coord.Note(agent="a", area="text", text="one", epoch=self.now)
         coord._write_notes("text", [first])
-        # A second writer that saw the empty log races: its first push would
-        # clobber, so append_note must re-read and merge.
+        # A second writer that saw the empty log races: its push must not
+        # clobber, so append_note re-reads and merges under the compare-and-swap.
         coord.append_note("text", "b", "two")
         texts = [n.text for n in coord.read_notes("text")]
         self.assertIn("one", texts)
         self.assertIn("two", texts)
+
+    def _second_clone(self):
+        """A second clone of the same ledger, as a peer agent would have."""
+        work2 = os.path.join(self.tmp, "work2")
+        git(self.tmp, "clone", "--quiet", self.remote, work2)
+        git(work2, "config", "user.email", "t2@example.com")
+        git(work2, "config", "user.name", "Test2")
+        return work2
+
+    def test_a_stale_append_is_refused_not_clobbered(self):
+        """A peer whose snapshot predates our push must not overwrite it.
+
+        A plain `--force` never conflicts, so it silently drops the note the
+        other clone just pushed. The per-ref compare-and-swap refuses instead.
+        """
+        work2 = self._second_clone()
+        # The peer reads the empty log and sees the remote ref is absent.
+        coord.fetch_notes(cwd=work2)
+        self.assertEqual(coord.read_notes("text", cwd=work2), [])
+        expect = coord._local_ref_sha(coord.notes_ref_for("text"), cwd=work2)
+        self.assertIsNone(expect)
+        # We land a note in the meantime.
+        self.run_coord("note", "--area", "text", "--agent", "a", "--text", "one")
+        # The peer's write, built on the now-stale snapshot, must be refused
+        # rather than overwrite our note.
+        stale = coord.Note(agent="b", area="text", text="two", epoch=self.now)
+        with self.assertRaises(coord.CoordError):
+            coord._write_notes("text", [stale], cwd=work2, expect=expect)
+        self.assertEqual([n.text for n in coord.read_notes("text")], ["one"])
+
+    def test_a_racing_append_from_a_second_clone_merges(self):
+        """End to end: two clones append to one area; both notes survive."""
+        work2 = self._second_clone()
+        self.run_coord("note", "--area", "text", "--agent", "a", "--text", "one")
+        # The peer appends without having seen our note; append_note re-reads
+        # and merges under the compare-and-swap.
+        coord.append_note("text", "b", "two", cwd=work2)
+        coord.fetch_notes()  # pick up the peer's push through the shared remote
+        texts = [n.text for n in coord.read_notes("text")]
+        self.assertEqual(sorted(texts), ["one", "two"])
 
 
 if __name__ == "__main__":
