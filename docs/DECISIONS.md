@@ -1862,3 +1862,26 @@ for reassignment by a coordinator.
   - Covered by `tests/test_coord.py` (`TestNotes`, `TestPushAuthDiagnosis`),
     which exercise the real CLI against a throwaway bare remote.
 
+### Legacy comment-claim reader: retained, not retired
+
+The coordination review asked whether to delete the legacy `CLAIM:` / `LEASE:` /
+`TAKEOVER:` comment reader outright. It is **kept**, but **demoted**, for three
+reasons:
+
+- It is no longer on any live path. `LEGACY_CLAIM_RE` / `LEGACY_LEASE_RE` /
+  `LEGACY_TAKEOVER_RE` are referenced only inside `cmd_migrate`
+  (`scripts/coord`), the documented one-off import tool
+  (`docs/COORDINATION_MIGRATION.md`). Nothing reads a comment to decide whether
+  an area is taken: `list_refs`/`read_lease` read git refs, and the board is
+  rendered from the ledger. The mechanism of record is already the ref.
+- Deleting it would delete the only written record of how the pre-ADR-0021
+  protocol mapped onto the ledger, which a future reader migrating an old hub
+  issue needs. It costs a handful of lines and never runs unless invoked.
+- Historical data may stay: the guardrail for this work is to preserve the
+  history (as with ADR-0021), not to rewrite it.
+
+The decision is therefore **no code change**: the reader stays as a migration
+artifact, and the flat ref-based scheme is the only live mechanism. If the fleet
+ever wants it gone, the delete is a self-contained removal of the three regexes,
+`cmd_migrate`, and the `migrate` help text — no other caller exists.
+
