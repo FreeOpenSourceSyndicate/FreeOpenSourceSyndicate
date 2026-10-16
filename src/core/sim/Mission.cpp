@@ -74,6 +74,14 @@ constexpr float kDrugDurationSeconds = 8.0f;
 constexpr float kDrugSpeedMultiplier = 1.5f;
 constexpr float kDrugAccuracyMultiplier = 1.35f;
 
+// Vehicles: how close (tiles) an agent must be to a vehicle's tile to hijack it,
+// so both "stand on the tile" and "step up to it" work. A destroyed vehicle is
+// a wreck (occupants are thrown clear), so it damages agents within this blast
+// radius by a fraction of its maximum health.
+constexpr float kHijackRadius = 1.5f;
+constexpr float kVehicleWreckRadius = 1.5f;
+constexpr float kVehicleWreckDamageScale = 0.5f;
+
 // The opposing combatant team for a given team. Civilians have no enemy.
 Team opposingTeam(Team team)
 {
@@ -104,6 +112,13 @@ std::size_t Mission::addAgent(Agent agent)
     drugs_.push_back(0);
     drugsTimer_.push_back(0.0f);
     return agents_.size() - 1;
+}
+
+std::size_t Mission::addVehicle(Vehicle vehicle)
+{
+    vehicles_.push_back(std::move(vehicle));
+    vehicleTargets_.push_back(-1);
+    return vehicles_.size() - 1;
 }
 
 void Mission::orderMove(std::size_t index, TilePos goal)
@@ -597,6 +612,110 @@ void Mission::setSightRange(std::size_t index, float range)
     agents_[index].setSightRange(range);
 }
 
+// --- vehicles ---------------------------------------------------------------
+
+int Mission::vehicleOf(std::size_t agentIndex) const
+{
+    for (std::size_t v = 0; v < vehicles_.size(); ++v)
+    {
+        if (vehicles_[v].driver() == static_cast<int>(agentIndex))
+        {
+            return static_cast<int>(v);
+        }
+    }
+    return -1;
+}
+
+bool Mission::isDriving(std::size_t agentIndex) const
+{
+    return vehicleOf(agentIndex) >= 0;
+}
+
+int Mission::vehicleDriver(std::size_t vehicleIndex) const
+{
+    if (vehicleIndex >= vehicles_.size())
+    {
+        return -1;
+    }
+    return vehicles_[vehicleIndex].driver();
+}
+
+bool Mission::orderHijack(std::size_t vehicleIndex, std::size_t agentIndex)
+{
+    if (vehicleIndex >= vehicles_.size() || agentIndex >= agents_.size())
+    {
+        return false;
+    }
+    Vehicle& vehicle = vehicles_[vehicleIndex];
+    Agent& agent = agents_[agentIndex];
+    // Only a living combatant can drive, and only one vehicle at a time.
+    if (!agent.isAlive() || !agent.isCombatant() || isDriving(agentIndex))
+    {
+        return false;
+    }
+    // The agent must be at the vehicle (its tile or an adjacent one).
+    if (length(agent.position() - vehicle.position()) > kHijackRadius)
+    {
+        return false;
+    }
+    if (!vehicle.hijack(static_cast<int>(agentIndex)))
+    {
+        return false;
+    }
+    // The driver rides in the vehicle: fold its position onto the vehicle's so
+    // the two never drift apart. `updateVehicles` keeps them in step.
+    agent.stop();
+    agent.clearMoveQueue();
+    agent.clearOrderedTarget();
+    agent.setPosition(vehicle.position().x, vehicle.position().y);
+    return true;
+}
+
+void Mission::ejectVehicle(std::size_t vehicleIndex)
+{
+    if (vehicleIndex >= vehicles_.size())
+    {
+        return;
+    }
+    Vehicle& vehicle = vehicles_[vehicleIndex];
+    const int driver = vehicle.driver();
+    if (driver < 0)
+    {
+        return;
+    }
+    vehicle.eject();
+    if (static_cast<std::size_t>(driver) < agents_.size())
+    {
+        agents_[static_cast<std::size_t>(driver)].setPosition(vehicle.position().x,
+                                                             vehicle.position().y);
+    }
+}
+
+bool Mission::orderDrive(std::size_t vehicleIndex, TilePos goal)
+{
+    if (vehicleIndex >= vehicles_.size() || grid_ == nullptr)
+    {
+        return false;
+    }
+    Vehicle& vehicle = vehicles_[vehicleIndex];
+    // Only an occupied, intact vehicle can be driven (its driver is at the
+    // wheel). An empty or wrecked vehicle ignores a drive order.
+    if (!vehicle.isAlive() || !vehicle.isOccupied())
+    {
+        return false;
+    }
+    return vehicle.driveTo(*grid_, goal);
+}
+
+void Mission::orderVehicleAttack(std::size_t vehicleIndex, std::size_t targetIndex)
+{
+    if (vehicleIndex >= vehicles_.size() || targetIndex >= agents_.size())
+    {
+        return;
+    }
+    vehicleTargets_[vehicleIndex] = static_cast<int>(targetIndex);
+}
+
 float Mission::damageAgent(std::size_t index, float amount)
 {
     if (index >= agents_.size())
@@ -800,6 +919,8 @@ void Mission::update(float dt)
         advanceMoveQueue(i);
     }
     resolveFire();
+    updateVehicles(dt);
+    resolveVehicleFire();
     evaluateOutcome();
 }
 
@@ -810,6 +931,12 @@ void Mission::updateAI(float dt)
     {
         Agent& agent = agents_[i];
         if (!agent.isAlive())
+        {
+            continue;
+        }
+        // A driver is carried by its vehicle: it does not walk or decide for
+        // itself, and the vehicle's mounted weapon is its only gun.
+        if (isDriving(i))
         {
             continue;
         }
@@ -1239,6 +1366,12 @@ void Mission::resolveFire()
         {
             continue;
         }
+        // A driver fires the mounted weapon instead (resolveVehicleFire), not a
+        // personal one.
+        if (isDriving(i))
+        {
+            continue;
+        }
         // A wounded enemy breaks off and holds fire until it recovers (see
         // Mission::updateCombatantAI). Keyed off health, not aiState, so it also
         // applies on the first tick before the staggered AI has run.
@@ -1369,6 +1502,35 @@ void Mission::applyAreaDamage(std::size_t attacker, std::size_t target, float da
             }
         }
     }
+
+    // An explosive blast also wrecks vehicles caught in it. A destroyed vehicle
+    // ejects its driver (handled by Vehicle::applyDamage) and throws a secondary
+    // blast that hurts nearby agents, so a car is cover that can backfire.
+    for (std::size_t v = 0; v < vehicles_.size(); ++v)
+    {
+        Vehicle& vehicle = vehicles_[v];
+        if (!vehicle.isAlive() || length(vehicle.position() - impact) > radius)
+        {
+            continue;
+        }
+        const float maxHealth = vehicle.maxHealth();
+        if (damageVehicle(v, damage) <= 0.0f || vehicle.isAlive())
+        {
+            continue;
+        }
+        // The wreck detonates: agents near it take a fraction of its size in
+        // damage. Deterministic; no RNG.
+        for (std::size_t i = 0; i < agents_.size(); ++i)
+        {
+            Agent& agent = agents_[i];
+            if (!agent.isAlive() ||
+                length(agent.position() - vehicle.position()) > kVehicleWreckRadius)
+            {
+                continue;
+            }
+            damageAgent(i, maxHealth * kVehicleWreckDamageScale);
+        }
+    }
 }
 
 void Mission::applyStrayFire(std::size_t attacker, std::size_t target, float damage)
@@ -1389,6 +1551,130 @@ void Mission::applyStrayFire(std::size_t attacker, std::size_t target, float dam
         if (!bystander.isAlive() && agents_[attacker].team() == Team::Player)
         {
             ++civilianKills_;
+        }
+    }
+}
+
+void Mission::updateVehicles(float dt)
+{
+    for (Vehicle& vehicle : vehicles_)
+    {
+        vehicle.update(dt);
+    }
+    syncDrivers();
+}
+
+void Mission::syncDrivers()
+{
+    for (const Vehicle& vehicle : vehicles_)
+    {
+        const int driver = vehicle.driver();
+        if (driver < 0 || static_cast<std::size_t>(driver) >= agents_.size())
+        {
+            continue;
+        }
+        Agent& agent = agents_[static_cast<std::size_t>(driver)];
+        // The driver rides in the vehicle, so its position is the vehicle's.
+        agent.setPosition(vehicle.position().x, vehicle.position().y);
+    }
+}
+
+float Mission::damageVehicle(std::size_t index, float amount)
+{
+    if (index >= vehicles_.size())
+    {
+        return 0.0f;
+    }
+    // `Vehicle::applyDamage` stops a wreck and puts the driver out; Mission owns
+    // what the agent does next, which is nothing until the next order.
+    return vehicles_[index].applyDamage(amount);
+}
+
+void Mission::resolveVehicleFire()
+{
+    for (std::size_t v = 0; v < vehicles_.size(); ++v)
+    {
+        Vehicle& vehicle = vehicles_[v];
+        const int driver = vehicle.driver();
+        if (!vehicle.isAlive() || !vehicle.canFire())
+        {
+            continue;
+        }
+        if (driver < 0 || static_cast<std::size_t>(driver) >= agents_.size())
+        {
+            continue;
+        }
+        const Agent& gunner = agents_[static_cast<std::size_t>(driver)];
+        const Team enemyTeam = opposingTeam(gunner.team());
+
+        // Honour an explicit mounted-fire order if it still points at a living
+        // agent on the opposing team; otherwise auto-acquire the nearest enemy.
+        int target = -1;
+        const int ordered = vehicleTargets_[v];
+        if (ordered >= 0 && static_cast<std::size_t>(ordered) < agents_.size())
+        {
+            const Agent& candidate = agents_[static_cast<std::size_t>(ordered)];
+            if (candidate.isAlive() && candidate.team() == enemyTeam)
+            {
+                target = ordered;
+            }
+        }
+        if (target < 0)
+        {
+            // Reuse the agent acquisition, but from the vehicle's tile.
+            target = nearestEnemyTo(vehicle.position().x, vehicle.position().y, enemyTeam);
+        }
+        if (target < 0)
+        {
+            continue;
+        }
+
+        const std::size_t targetIndex = static_cast<std::size_t>(target);
+        // A vehicle needs a clear line to its target, exactly as an agent does.
+        if (grid_ != nullptr &&
+            !hasLineOfSight(*grid_, vehicle.tile(), agents_[targetIndex].tile()))
+        {
+            continue;
+        }
+        const float distance = length(agents_[targetIndex].position() - vehicle.position());
+        const float range = vehicle.mountedWeapon().range;
+        if (distance > range)
+        {
+            continue;
+        }
+
+        vehicle.beginFireCooldown();
+
+        const float falloff = 1.0f - (distance / range);
+        const float hitChance =
+            vehicle.mountedWeapon().accuracy *
+            (kAccuracyAtMaxRange + (1.0f - kAccuracyAtMaxRange) * falloff);
+        if (!rng_.chance(hitChance))
+        {
+            applyStrayFire(static_cast<std::size_t>(driver), targetIndex,
+                           vehicle.mountedWeapon().damage);
+            continue;
+        }
+
+        Agent& victim = agents_[targetIndex];
+        damageAgent(targetIndex, vehicle.mountedWeapon().damage);
+        if (!victim.isAlive())
+        {
+            if (victim.team() == Team::Enemy)
+            {
+                ++playerKills_;
+            }
+            else if (victim.team() == Team::Player)
+            {
+                ++enemyKills_;
+            }
+        }
+
+        const float areaRadius = vehicle.mountedWeapon().areaRadius;
+        if (areaRadius > 0.0f)
+        {
+            applyAreaDamage(static_cast<std::size_t>(driver), targetIndex,
+                            vehicle.mountedWeapon().damage, areaRadius);
         }
     }
 }

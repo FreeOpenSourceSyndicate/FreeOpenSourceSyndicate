@@ -5,6 +5,7 @@
 #include "core/sim/PlayerLoadout.h"
 #include "core/world/LineOfSight.h"
 #include "core/world/Pathfinding.h"
+#include "core/world/Vehicle.h"
 
 using namespace fossynd::core;
 
@@ -2060,3 +2061,251 @@ FOSSYND_TEST(Mission, LoadoutRejectsUnknownCybernetic)
     // Nothing was applied: the stat is intact.
     FOSSYND_CHECK_NEAR(mission.agents()[0].speed(), baseSpeed);
 }
+
+// --- vehicles (Milestone A, issue #318) ---------------------------------------
+
+FOSSYND_TEST(Mission, AddVehicleAndQueryDriver)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 3u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player));
+    const std::size_t car = mission.addVehicle(makeCar(5.0f, 5.0f));
+
+    FOSSYND_CHECK_EQ(mission.vehicles().size(), 1u);
+    FOSSYND_CHECK_EQ(mission.vehicleOf(hero), -1);
+    FOSSYND_CHECK(!mission.isDriving(hero));
+    FOSSYND_CHECK_EQ(mission.vehicleDriver(car), -1);
+}
+
+FOSSYND_TEST(Mission, HijackRequiresProximity)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 3u);
+    // The hero starts far from the car: the hijack is refused.
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player));
+    const std::size_t car = mission.addVehicle(makeCar(10.0f, 10.0f));
+
+    FOSSYND_CHECK(!mission.orderHijack(car, hero));
+    FOSSYND_CHECK_EQ(mission.vehicleDriver(car), -1);
+    FOSSYND_CHECK(!mission.isDriving(hero));
+}
+
+FOSSYND_TEST(Mission, HijackTakesTheWheelAndFoldsPosition)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 3u);
+    // The hero stands next to the car (within the hijack radius).
+    const std::size_t hero = mission.addAgent(makeAgent(4.0f, 4.0f, Team::Player));
+    const std::size_t car = mission.addVehicle(makeCar(5.0f, 5.0f));
+
+    FOSSYND_CHECK(mission.orderHijack(car, hero));
+    FOSSYND_CHECK(mission.isDriving(hero));
+    FOSSYND_CHECK_EQ(mission.vehicleOf(hero), static_cast<int>(car));
+    FOSSYND_CHECK_EQ(mission.vehicleDriver(car), static_cast<int>(hero));
+    // The driver rides in the car: its position is folded onto the vehicle's.
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].position().x, 5.0f);
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].position().y, 5.0f);
+}
+
+FOSSYND_TEST(Mission, HijackIsSingleDriverAndEjectFreesTheAgent)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 3u);
+    const std::size_t hero = mission.addAgent(makeAgent(4.0f, 4.0f, Team::Player));
+    const std::size_t mate = mission.addAgent(makeAgent(5.0f, 5.0f, Team::Player));
+    const std::size_t car = mission.addVehicle(makeCar(5.0f, 5.0f));
+
+    FOSSYND_CHECK(mission.orderHijack(car, hero));
+    // A second agent cannot take a car that is already driven.
+    FOSSYND_CHECK(!mission.orderHijack(car, mate));
+    FOSSYND_CHECK_EQ(mission.vehicleDriver(car), static_cast<int>(hero));
+
+    mission.ejectVehicle(car);
+    FOSSYND_CHECK_EQ(mission.vehicleDriver(car), -1);
+    FOSSYND_CHECK(!mission.isDriving(hero));
+    // The ejected driver is placed on the vehicle's tile.
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].position().x, 5.0f);
+
+    // Now the mate may take it.
+    FOSSYND_CHECK(mission.orderHijack(car, mate));
+    FOSSYND_CHECK_EQ(mission.vehicleDriver(car), static_cast<int>(mate));
+}
+
+FOSSYND_TEST(Mission, OrderHijackRejectsCivilianAndInvalid)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 3u);
+    const std::size_t bystander = mission.addAgent(makeAgent(5.0f, 5.0f, Team::Civilian));
+    const std::size_t hero = mission.addAgent(makeAgent(1.0f, 1.0f, Team::Player));
+    const std::size_t car = mission.addVehicle(makeCar(5.0f, 5.0f));
+
+    // A civilian cannot drive, even standing on the car.
+    FOSSYND_CHECK(!mission.orderHijack(car, bystander));
+    // Invalid indices are rejected rather than crashing.
+    FOSSYND_CHECK(!mission.orderHijack(99, hero));
+    FOSSYND_CHECK(!mission.orderHijack(car, 99));
+}
+
+FOSSYND_TEST(Mission, OrderDriveRequiresADriver)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 3u);
+    const std::size_t car = mission.addVehicle(makeCar(3.0f, 3.0f));
+
+    // No driver: the drive order is refused, so an empty car stays put.
+    FOSSYND_CHECK(!mission.orderDrive(car, TilePos{15, 15}));
+    FOSSYND_CHECK(!mission.vehicles()[car].hasPath());
+
+    const std::size_t hero = mission.addAgent(makeAgent(3.0f, 3.0f, Team::Player));
+    FOSSYND_CHECK(mission.orderHijack(car, hero));
+    FOSSYND_CHECK(mission.orderDrive(car, TilePos{15, 15}));
+    FOSSYND_CHECK(mission.vehicles()[car].hasPath());
+}
+
+FOSSYND_TEST(Mission, DrivingCarriesTheDriver)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 3u);
+    const std::size_t hero = mission.addAgent(makeAgent(3.0f, 3.0f, Team::Player));
+    const std::size_t car = mission.addVehicle(makeCar(3.0f, 3.0f));
+    // A distant enemy keeps the default `eliminate` objective from completing on
+    // the first update (which would stop the mission and freeze the car).
+    mission.addAgent(makeAgent(1.0f, 18.0f, Team::Enemy, 100000.0f));
+    FOSSYND_CHECK(mission.orderHijack(car, hero));
+    FOSSYND_CHECK(mission.orderDrive(car, TilePos{15, 3}));
+
+    for (int i = 0; i < 60; ++i)
+    {
+        mission.update(0.05f);
+    }
+    // The car moved and the driver went with it: their positions are identical.
+    FOSSYND_CHECK(mission.vehicles()[car].position().x > 5.0f);
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].position().x,
+                       mission.vehicles()[car].position().x);
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].position().y,
+                       mission.vehicles()[car].position().y);
+}
+
+FOSSYND_TEST(Mission, MountedFireHitsEnemy)
+{
+    TileGrid grid(30, 5);
+    Mission mission(grid, 11u);
+    // High health so neither side ends the mission during the sample.
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 1000.0f));
+    const std::size_t foe = mission.addAgent(makeAgent(6.0f, 2.0f, Team::Enemy, 100000.0f));
+    const std::size_t car = mission.addVehicle(makeCar(2.0f, 2.0f));
+    FOSSYND_CHECK(mission.orderHijack(car, hero));
+
+    for (int i = 0; i < 200; ++i)
+    {
+        mission.update(0.05f);
+    }
+    // The driver did not fire a personal weapon, but the mounted uzi did: the
+    // enemy took damage from the car.
+    FOSSYND_CHECK(mission.agents()[foe].health() < 100000.0f);
+}
+
+FOSSYND_TEST(Mission, DriverDoesNotFirePersonalWeapon)
+{
+    // A driver fires only the vehicle's mounted weapon, never a personal one.
+    // The same fight on foot (identical personal weapon) must deal clearly more
+    // damage than the driver's weak mounted gun, which is only possible if the
+    // driver's personal weapon is suppressed.
+    const Weapon strong{"Test", 40.0f, 20.0f, 10.0f, 1.0f};
+
+    TileGrid gridA(30, 5);
+    Mission onFoot(gridA, 11u);
+    onFoot.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 1000.0f, strong));
+    const std::size_t foeA = onFoot.addAgent(makeAgent(6.0f, 2.0f, Team::Enemy, 100000.0f));
+
+    TileGrid gridB(30, 5);
+    Mission driven(gridB, 11u);
+    const std::size_t heroB = driven.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 1000.0f, strong));
+    const std::size_t foeB = driven.addAgent(makeAgent(6.0f, 2.0f, Team::Enemy, 100000.0f));
+    const std::size_t car = driven.addVehicle(makeCar(2.0f, 2.0f));
+    FOSSYND_CHECK(driven.orderHijack(car, heroB));
+
+    for (int i = 0; i < 200; ++i)
+    {
+        onFoot.update(0.05f);
+        driven.update(0.05f);
+    }
+    const float footDamage = 100000.0f - onFoot.agents()[foeA].health();
+    const float drivenDamage = 100000.0f - driven.agents()[foeB].health();
+    FOSSYND_CHECK(drivenDamage > 0.0f);      // the mounted uzi still fires
+    FOSSYND_CHECK(footDamage > drivenDamage); // personal fire is suppressed in the car
+}
+
+FOSSYND_TEST(Mission, VehicleAttackOrderFocusesFire)
+{
+    TileGrid grid(30, 5);
+    Mission mission(grid, 21u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 1000.0f));
+    // Two enemies in mounted-weapon range: `near` is closer, `far` is the
+    // explicitly ordered target.
+    const std::size_t near = mission.addAgent(makeAgent(5.0f, 2.0f, Team::Enemy, 100000.0f));
+    const std::size_t far = mission.addAgent(makeAgent(6.0f, 2.0f, Team::Enemy, 100000.0f));
+    const std::size_t car = mission.addVehicle(makeCar(2.0f, 2.0f));
+    FOSSYND_CHECK(mission.orderHijack(car, hero));
+    mission.orderVehicleAttack(car, far);
+
+    for (int i = 0; i < 200; ++i)
+    {
+        mission.update(0.05f);
+    }
+    // The ordered target took the damage, not the auto-acquired nearer one.
+    FOSSYND_CHECK(mission.agents()[far].health() < 100000.0f);
+    FOSSYND_CHECK_NEAR(mission.agents()[near].health(), 100000.0f);
+}
+
+FOSSYND_TEST(Mission, WreckEjectsDriverAndStopsTheVehicle)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 3u);
+    const std::size_t hero = mission.addAgent(makeAgent(3.0f, 3.0f, Team::Player));
+    const std::size_t car = mission.addVehicle(makeCar(3.0f, 3.0f));
+    FOSSYND_CHECK(mission.orderHijack(car, hero));
+    FOSSYND_CHECK(mission.orderDrive(car, TilePos{15, 3}));
+    mission.update(0.05f);
+    FOSSYND_CHECK(mission.vehicles()[car].hasPath());
+
+    // Destroy the car directly.
+    mission.vehicles()[car].applyDamage(100000.0f);
+    FOSSYND_CHECK(mission.vehicles()[car].isDestroyed());
+    FOSSYND_CHECK(!mission.vehicles()[car].hasPath());
+    FOSSYND_CHECK(!mission.isDriving(hero));
+    FOSSYND_CHECK_EQ(mission.vehicleDriver(car), -1);
+}
+
+FOSSYND_TEST(Mission, ExplosionWrecksVehicleAndHurtsNeighbours)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 3u);
+    // An enemy shooter with an explosive weapon, a stationary *player* target
+    // (player agents never move on their own), a car beside the target, and a
+    // second player agent far enough to be outside the blast but within the
+    // wreck's own radius. The small blast radius (1.0) keeps the neighbour out
+    // of the direct explosion, so the damage it takes can only come from the
+    // wreck detonating.
+    const std::size_t shooter =
+        mission.addAgent(makeAgent(1.0f, 5.0f, Team::Enemy, 100000.0f,
+                                   Weapon{"Boom", 50.0f, 30.0f, 10.0f, 1.0f, /*areaRadius=*/1.0f}));
+    const std::size_t target = mission.addAgent(makeAgent(7.0f, 5.0f, Team::Player, 100000.0f));
+    const std::size_t neighbour = mission.addAgent(makeAgent(5.0f, 5.0f, Team::Player, 100.0f));
+    const std::size_t car = mission.addVehicle(makeCar(6.0f, 5.0f));
+    // Force fire on the far target so the shot (and its blast) lands at (7,5)
+    // rather than on the nearer neighbour the enemy would auto-acquire.
+    mission.orderAttack(shooter, target);
+
+    for (int i = 0; i < 60 && mission.vehicles()[car].isAlive(); ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK(mission.vehicles()[car].isDestroyed());
+    // The neighbour was outside the blast (2 tiles from the impact) but inside
+    // the wreck radius (1 tile from the car): only the detonation could hurt it.
+    FOSSYND_CHECK(mission.agents()[neighbour].health() < 100.0f);
+    (void)shooter;
+    (void)target;
+}
+

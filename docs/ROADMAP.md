@@ -110,7 +110,10 @@ Close out the 1993 tactical feature set (the tail of the old Phase 3).
       ping landed (#323): `Game::renderScannerPing` draws a ring at each
       scanning agent and a crosshair on every revealed enemy, and the minimap
       marks them.
-- [ ] **Vehicles**: cars/trains you can hijack, drive, and fire from.
+- [x] **Vehicles**: cars/trains you can hijack, drive, and fire from.
+      _Entity `core::Vehicle` (#320, World); `Mission` policy — hijack, drive,
+      mounted fire, blast-wreck — landed (#318, ADR-0032). The player-facing
+      render and input/UI slices follow._
 - [ ] **Destructible environment**: breachable walls (started in #185/#217).
 - [x] **Mission objectives**: complete the set — persuade, escort/retrieve,
       destroy (eliminate and reach are done). _Done in #281: `ObjectiveSpec`
@@ -233,7 +236,10 @@ A shippable demo, deliberately original in code and art.
 - [ ] Gadgets: Compliance Beacon ✅, medikit ✅, shield ✅; scanner pending →
       Milestone A
 - [x] Cybernetic upgrades (speed, accuracy, health, perception) → Milestone A
-- [ ] Vehicles: cars/trains, hijacking, mounted weapons → Milestone A
+- [x] Vehicles: cars/trains, hijacking, mounted weapons → Milestone A
+      _`core::Vehicle` landed (#320, World); `Mission` now owns the policy
+      (#318) — track, hijack, drive, and mounted fire routed through the agent
+      damage funnel (ADR-0032). Render/Input-UI draw and drive them next._
 - [x] Destructible environment (cracked walls: weapon fire opens them; enemies use cover)
 - [x] Enemy AI: engage (basic chase + fire)
 - [x] Enemy AI: take cover when under fire (steps behind walls; flank to dislodge)

@@ -10,6 +10,20 @@ contains no original assets, code, names, or trademarks.
 
 ### Added
 
+- **Hijackable vehicles reach play:** `Mission` now owns vehicle policy for the
+  `core::Vehicle` entity (`focus: world`, #320), so cars and trains are actually
+  reachable in a mission. `Mission::addVehicle`/`vehicles()` track them;
+  `orderHijack` lets a living combatant within `kHijackRadius` take the wheel
+  (its position then rides with the vehicle), `ejectVehicle` puts the driver out,
+  and `orderDrive` drives an occupied vehicle via the entity's A* movement.
+  Mounted fire (`orderVehicleAttack` or auto-acquire) uses the same range and
+  line-of-sight rules as an agent and funnels damage through
+  `Mission::damageAgent`/`applyAreaDamage`, so a shield still covers the hit; a
+  driver fires only the mounted gun (no personal weapon while at the wheel). An
+  explosive blast also wrecks vehicles, and a wreck detonates, hurting nearby
+  agents — a car is cover that can backfire. Engine-free, deterministic
+  (ADR-0032). Issue #318.
+
 - **Cybernetic upgrades are purchasable and deploy:** the tactical side of
   cybernetics landed in #313 (`CyberneticEffect`, `Mission::applyCybernetic`, a
   data-only `LoadoutSlot::cyberneticId`), but the metagame had no catalogue or
