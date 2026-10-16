@@ -11,7 +11,7 @@
   "hud.objective.escort": "OBJECTIVE: ESCORT {name} TO ({x},{y})",
   "hud.objective.destroy": "OBJECTIVE: DESTROY ({x},{y})",
   "hud.objective.persuade": "OBJECTIVE: RECRUIT {count} FOLLOWERS",
-  "hud.controls": "[SHIFT+CLICK] QUEUE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   [P] PERSUADE   [F] FREE   [H] MEDKIT   [S] SHIELD   [C] SCAN   [B] DRUGS   [R] RESTART",
+  "hud.controls": "[SHIFT+CLICK] QUEUE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   [P] PERSUADE   [F] FREE   [H] MEDKIT   [S] SHIELD   [C] SCAN   [B] DRUGS   [E] HIJACK   [R] RESTART",
   "hud.followers": "FOLLOWERS: {count}",
   "hud.collateral": "COLLATERAL: {count}",
   "hud.squad": "SQUAD",
@@ -29,7 +29,7 @@
   "title.controls.attack": "RIGHT-CLICK  FOCUS FIRE",
   "title.controls.select": "1-4 RECALL  CTRL+1-4 SET  A  ALL",
   "title.controls.gadgets": "H  MEDKIT   S  SHIELD   C  SCAN   B  DRUGS",
-  "title.controls.misc": "ARROWS  SCROLL   SPACE  PAUSE   R  RESTART   ESC  QUIT",
+  "title.controls.misc": "ARROWS  SCROLL   SPACE  PAUSE   R  RESTART   E  HIJACK   ESC  QUIT",
   "title.footer": "FOSSYND v{version}  -  FREE OPEN SOURCE SYNDICATE",
 
   "mission.demo.name": "Downtown Sweep",

@@ -11,7 +11,7 @@
   "hud.objective.escort": "ZIEL: {name} NACH ({x},{y}) GELEITEN",
   "hud.objective.destroy": "ZIEL: ({x},{y}) ZERSTOEREN",
   "hud.objective.persuade": "ZIEL: {count} GEFOLGTE ANWERBEN",
-  "hud.controls": "[SHIFT+KLICK] REIHEN   [KLICK FEIND/RECHTS] ANGRIFF   [1-4] GRUPPE   [A]LLE   [P] UEBERZEUGEN   [F] FREI   [H] MEDIKIT   [S] SCHILD   [C] SCAN   [B] DROGEN   [R] NEUSTART",
+  "hud.controls": "[SHIFT+KLICK] REIHEN   [KLICK FEIND/RECHTS] ANGRIFF   [1-4] GRUPPE   [A]LLE   [P] UEBERZEUGEN   [F] FREI   [H] MEDIKIT   [S] SCHILD   [C] SCAN   [B] DROGEN   [E] ENTERN   [R] NEUSTART",
   "hud.followers": "GEFOLGTE: {count}",
   "hud.collateral": "KOLLATERAL: {count}",
   "hud.squad": "TRUPPE",
@@ -29,7 +29,7 @@
   "title.controls.attack": "RECHTSKLICK  ZIELFEUER",
   "title.controls.select": "1-4 ABRUF  STRG+1-4 SETZEN  A  ALLE",
   "title.controls.gadgets": "H  MEDIKIT   S  SCHILD   C  SCAN   B  DROGEN",
-  "title.controls.misc": "PFEILE  SCROLLEN   LEER  PAUSE   R  NEUSTART   ESC  BEENDEN",
+  "title.controls.misc": "PFEILE  SCROLLEN   LEER  PAUSE   R  NEUSTART   E  ENTERN   ESC  BEENDEN",
   "title.footer": "FOSSYND v{version}  -  FREIES OPEN-SOURCE-SYNDIKAT",
 
   "mission.demo.name": "Innenstadt-Saeuberung",
