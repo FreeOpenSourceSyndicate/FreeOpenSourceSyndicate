@@ -47,6 +47,14 @@ constexpr std::uint32_t kGridLine = rgba(24, 27, 24);
 constexpr std::uint32_t kTileRubble = rgba(66, 58, 48);
 constexpr std::uint32_t kBackground = rgba(12, 13, 12);
 
+// Raised personal shield overlay (issue #375). The dome is a half-alpha fill at
+// the agent's tile; the rim is a brighter outline so it reads as a field. The
+// absorb burst holds for this long, so a shield that does its job leaves a
+// visible cue instead of vanishing on the hit.
+constexpr int kShieldFieldAlpha = 70;
+constexpr int kShieldRimAlpha = 200;
+constexpr float kShieldAbsorbFlashSeconds = 0.3f;
+
 void setPixel(SDL_Surface* surface, int x, int y, std::uint32_t color)
 {
     if (x < 0 || y < 0 || x >= surface->w || y >= surface->h)
@@ -1150,6 +1158,23 @@ void Game::activateScannerForSquad()
     }
 }
 
+void Game::raiseShieldForSquad()
+{
+    for (std::size_t i = 0; i < mission_.agents().size(); ++i)
+    {
+        const core::Agent& agent = mission_.agents()[i];
+        if (!agent.isAlive() || agent.team() != core::Team::Player)
+        {
+            continue;
+        }
+        if (mission_.shields(i) <= 0)
+        {
+            mission_.setShields(i, 1);
+        }
+        mission_.activateShield(i);
+    }
+}
+
 bool Game::scannerSelfTest()
 {
     // Headless guard for the scanner ping overlay (issue #323): before any scan
@@ -2057,7 +2082,7 @@ void Game::fillDiamond(SDL_Surface* surface, int centerX, int centerY, float hal
 }
 
 void Game::fillDiamondWorld(const core::Vec2& worldCenter, float radius, std::uint8_t r,
-                            std::uint8_t g, std::uint8_t b)
+                            std::uint8_t g, std::uint8_t b, std::uint8_t alpha)
 {
     // A small isometric diamond footprint, drawn as a few horizontal spans.
     // `worldCenter` is already in world pixels (tileToWorld output), so apply the
@@ -2067,7 +2092,7 @@ void Game::fillDiamondWorld(const core::Vec2& worldCenter, float radius, std::ui
     const float halfH = radius * (kTileHeight * 0.5f) * z;
     const core::Vec2 screen = core::Vec2{(worldCenter.x + mapOffsetX_ - cameraX_) * z,
                                          (worldCenter.y + mapOffsetY_ - cameraY_) * z};
-    SDL_SetRenderDrawColor(renderer_, r, g, b, 255);
+    SDL_SetRenderDrawColor(renderer_, r, g, b, alpha);
     const int minY = static_cast<int>(screen.y - halfH);
     const int maxY = static_cast<int>(screen.y + halfH);
     for (int py = minY; py <= maxY; ++py)
@@ -2088,7 +2113,7 @@ void Game::fillDiamondWorld(const core::Vec2& worldCenter, float radius, std::ui
 }
 
 void Game::strokeDiamondWorld(const core::Vec2& worldCenter, float radius, std::uint8_t r,
-                              std::uint8_t g, std::uint8_t b)
+                              std::uint8_t g, std::uint8_t b, std::uint8_t alpha)
 {
     // A hollow isometric diamond outline (the scanner pulse ring). For each
     // screen row across the diamond, draw the two edge pixels instead of the
@@ -2098,7 +2123,7 @@ void Game::strokeDiamondWorld(const core::Vec2& worldCenter, float radius, std::
     const float halfH = radius * (kTileHeight * 0.5f) * z;
     const core::Vec2 screen = core::Vec2{(worldCenter.x + mapOffsetX_ - cameraX_) * z,
                                          (worldCenter.y + mapOffsetY_ - cameraY_) * z};
-    SDL_SetRenderDrawColor(renderer_, r, g, b, 235);
+    SDL_SetRenderDrawColor(renderer_, r, g, b, alpha);
     const int minY = static_cast<int>(screen.y - halfH);
     const int maxY = static_cast<int>(screen.y + halfH);
     for (int py = minY; py <= maxY; ++py)
@@ -2472,6 +2497,7 @@ void Game::update(float frameSeconds)
         buildMapTexture();
     }
     updateAgentViews(frameSeconds);
+    updateShieldSnapshot(frameSeconds);
 }
 
 void Game::updateAgentViews(float dt)
@@ -3082,6 +3108,150 @@ std::vector<Game::ScannerMark> Game::scannerMarks() const
     return marks;
 }
 
+void Game::renderShield()
+{
+    // Raised personal shield overlay (issue #375): a translucent dome over each
+    // agent with a shield up, with a brighter rim and a flash while the absorb
+    // burst is fading. View-only: it reads `Mission::shieldUp` and never writes
+    // it (golden rule 4).
+    const std::vector<ShieldMark> marks = shieldMarks();
+    if (marks.empty())
+    {
+        return;
+    }
+
+    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
+    for (const ShieldMark& mark : marks)
+    {
+        const bool absorbing = mark.absorbing;
+        const int field = absorbing ? 150 : kShieldFieldAlpha;
+        fillDiamondWorld(mark.world, 0.5f, hudstyle::kShieldField[0], hudstyle::kShieldField[1],
+                         hudstyle::kShieldField[2], static_cast<std::uint8_t>(field));
+        strokeDiamondWorld(mark.world, 0.5f, hudstyle::kShieldField[0], hudstyle::kShieldField[1],
+                           hudstyle::kShieldField[2],
+                           static_cast<std::uint8_t>(absorbing ? 255 : kShieldRimAlpha));
+    }
+}
+
+std::vector<Game::ShieldMark> Game::shieldMarks() const
+{
+    // The shield marks the overlay should draw, from the live mission state
+    // (issue #375). A dome only for a raised shield; `absorbing` is true while
+    // the per-agent absorb burst is still fading, so a shield that did its job
+    // leaves a visible cue. View-only: pure read of core (golden rule 4).
+    std::vector<ShieldMark> marks;
+    const auto& agents = mission_.agents();
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        const bool up = mission_.shieldUp(i);
+        const bool flash = i < shieldAbsorbFlash_.size() && shieldAbsorbFlash_[i] > 0.0f;
+        if (!up && !flash)
+        {
+            continue;
+        }
+        const core::Vec2 position = agents[i].interpolatedPosition(clock_.alpha());
+        const core::Vec2 world =
+            core::tileToWorld(position.x, position.y, kTileWidth, kTileHeight);
+        marks.push_back(ShieldMark{i, world, flash});
+    }
+    return marks;
+}
+
+void Game::updateShieldSnapshot(float dt)
+{
+    // Spot the frame a raised personal shield absorbs a hit (issue #375): the
+    // shield has no timer, so the only way it leaves `shieldUp` is by absorbing
+    // a hit. When that happens, start a short burst so the dome flashes instead
+    // of vanishing silently. View-only; it never feeds the simulation.
+    const auto& agents = mission_.agents();
+    if (shieldAbsorbFlash_.size() != agents.size())
+    {
+        shieldAbsorbFlash_.assign(agents.size(), 0.0f);
+        shieldUpPrev_.assign(agents.size(), 0);
+        shieldSnapshotValid_ = false;
+    }
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (shieldAbsorbFlash_[i] > 0.0f)
+        {
+            shieldAbsorbFlash_[i] = std::max(0.0f, shieldAbsorbFlash_[i] - dt);
+        }
+        const bool up = mission_.shieldUp(i);
+        if (shieldSnapshotValid_ && shieldUpPrev_[i] != 0 && !up)
+        {
+            shieldAbsorbFlash_[i] = kShieldAbsorbFlashSeconds;
+        }
+        shieldUpPrev_[i] = up ? 1 : 0;
+    }
+    shieldSnapshotValid_ = true;
+}
+
+bool Game::shieldSelfTest()
+{
+    // Headless guard for the shield overlay (issue #375): drive the shared
+    // shieldMarks() decision the render pass uses, and prove the invariants a
+    // broken overlay would violate — no dome before a shield is raised, one dome
+    // on the shielded combatant, and the dome staying while a re-raise is a
+    // no-op. The absorb burst (a raised shield that drops) is covered by the
+    // core absorb tests and the `--shield` screenshot, not here.
+    const auto& agents = mission_.agents();
+
+    // No shield up yet: the overlay must draw nothing. Take the snapshot first so
+    // `absorbing` cannot leak from the initial state.
+    updateShieldSnapshot(0.0f);
+    if (!shieldMarks().empty())
+    {
+        std::fprintf(stderr, "shield self-test: a dome was drawn with no shield up\n");
+        return false;
+    }
+
+    std::size_t user = agents.size();
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (agents[i].isAlive() && agents[i].team() == core::Team::Player)
+        {
+            user = i;
+            break;
+        }
+    }
+    if (user == agents.size())
+    {
+        std::fprintf(stderr, "shield self-test: no living player agent\n");
+        return false;
+    }
+
+    // Raise a shield on a living combatant: exactly one dome, not absorbing.
+    mission_.setShields(user, 1);
+    if (!mission_.activateShield(user))
+    {
+        std::fprintf(stderr, "shield self-test: could not raise a shield\n");
+        return false;
+    }
+    updateShieldSnapshot(0.0f);
+    std::vector<ShieldMark> marks = shieldMarks();
+    if (marks.size() != 1 || marks[0].index != user)
+    {
+        std::fprintf(stderr, "shield self-test: expected one dome on the shielded agent\n");
+        return false;
+    }
+    if (marks[0].absorbing)
+    {
+        std::fprintf(stderr, "shield self-test: a freshly raised shield read as absorbing\n");
+        return false;
+    }
+
+    // A charge spent on an already-raised shield is a no-op, so the dome stays.
+    mission_.setShields(user, 1);
+    mission_.activateShield(user);
+    if (shieldMarks().size() != 1)
+    {
+        std::fprintf(stderr, "shield self-test: a second raise removed the dome\n");
+        return false;
+    }
+
+    return true;
+}
+
 std::vector<Game::VehicleDraw> Game::vehicleDraws() const
 {
     // The draw decision for every vehicle in the mission (issue #363). A
@@ -3306,6 +3476,7 @@ void Game::render()
     renderAgents();
     renderWaypointPath();
     renderScannerPing();
+    renderShield();
     renderSelectionBox();
     if (titleCardActive_)
     {

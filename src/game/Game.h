@@ -208,6 +208,13 @@ public:
     // a broken invariant. Used by game_scanner.
     bool scannerSelfTest();
 
+    // Headless guard for the personal shield overlay (issue #375): no dome
+    // before a shield is raised, one dome on the shielded combatant, and the
+    // dome stays while a re-raise is a no-op. Drives the shared shieldMarks()
+    // decision the render pass uses. Returns false on a broken invariant. Used by
+    // game_shield.
+    bool shieldSelfTest();
+
     // Headless guard for vehicle rendering (issue #363): every vehicle in the
     // mission must yield a draw entry at its interpolated tile with the right
     // kind, and a destroyed vehicle must still draw (as a wreck). Returns false
@@ -226,6 +233,13 @@ public:
     // fires a gadget yet, so `--scan` makes the ping visible for a headless
     // screenshot. Not a gameplay rule — the charge/scan rules stay in core.
     void activateScannerForSquad();
+
+    // Raises a shield on every living player agent, granting one charge first
+    // when the squad has none (issue #375). A demo/verification hook (like
+    // `--breach`): `--shield` makes the dome visible for a headless screenshot
+    // without a hotkey. Not a gameplay rule — the charge/shield rules stay in
+    // core.
+    void raiseShieldForSquad();
 
     // Headless guard for the objective banner (issue #281): every objective kind
     // must render a non-empty, kind-specific, localised banner with no unsubstituted
@@ -320,6 +334,10 @@ private:
     // and a highlight on each enemy its scan reveals. Presentation-only; it reads
     // the mission and never writes it (golden rule 4).
     void renderScannerPing();
+    // Raised personal shield overlay (issue #375): a translucent dome over each
+    // agent with a shield up. Presentation-only; it reads `Mission::shieldUp` and
+    // never writes it (golden rule 4).
+    void renderShield();
     void renderSelectionBox();
     void renderHud();
     void renderMinimap();
@@ -411,6 +429,36 @@ private:
     // enemy). View-only: pure read of core (golden rule 4).
     std::vector<ScannerMark> scannerMarks() const;
 
+    // One shield the overlay draws (issue #375): a dome over an agent with a
+    // shield raised. `absorbing` is true while the absorb burst is still fading,
+    // so the dome flashes — the same idea as `Agent::hitFlash`, for the absorb.
+    struct ShieldMark
+    {
+        std::size_t index = 0;
+        core::Vec2 world{0.0f, 0.0f};
+        bool absorbing = false;
+    };
+
+    // The shield marks the overlay should draw, from the live mission state.
+    // Shared by renderShield() and shieldSelfTest() so the guard checks the real
+    // decision (a dome for a raised shield; a fading burst after an absorb).
+    // View-only: pure read of core (golden rule 4).
+    std::vector<ShieldMark> shieldMarks() const;
+
+    // Per-agent absorb burst, in seconds left (issue #375). A raised shield drops
+    // the instant it takes a hit, so without this the dome would vanish with no
+    // cue that it did its job. View-only; never feeds the simulation.
+    std::vector<float> shieldAbsorbFlash_;
+    // Per-agent raised-shield flag at the previous update, so update() can spot
+    // the drop that means an absorb (the personal shield has no timer).
+    std::vector<char> shieldUpPrev_;
+    bool shieldSnapshotValid_ = false;
+
+    // Advances the shield snapshot and decays the absorb burst (issue #375).
+    // Called from update(), so shieldMarks() can tell an absorb (a raised shield
+    // that dropped) from a shield that was simply never raised.
+    void updateShieldSnapshot(float dt);
+
     // One vehicle the depth-sorted pass draws (issue #363): its screen position,
     // its sheet frame, and whether it is a wreck. Shared by renderAgents() and
     // vehicleSelfTest() so the guard checks the real draw decision.
@@ -432,13 +480,16 @@ private:
                      std::uint32_t color);
 
     // World-space filled diamond for the renderer (agents, selection, health).
+    // `alpha` enables a translucent fill (the shield dome, issue #375); the
+    // default is opaque so existing calls are unchanged.
     void fillDiamondWorld(const core::Vec2& worldCenter, float radius, std::uint8_t r, std::uint8_t g,
-                          std::uint8_t b);
+                          std::uint8_t b, std::uint8_t alpha = 255);
 
     // World-space hollow diamond outline for the renderer (the scanner pulse
     // ring, issue #323): four 1px edges, so it reads as a sweep and not a blob.
+    // `alpha` enables a fainter/brighter rim (the shield, issue #375).
     void strokeDiamondWorld(const core::Vec2& worldCenter, float radius, std::uint8_t r,
-                            std::uint8_t g, std::uint8_t b);
+                            std::uint8_t g, std::uint8_t b, std::uint8_t alpha = 235);
 
     SDL_Window* window_ = nullptr;
     SDL_Renderer* renderer_ = nullptr;
