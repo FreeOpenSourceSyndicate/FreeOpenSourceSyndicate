@@ -7,6 +7,14 @@
     { "id": "longshot", "name": "Longshot Rifle", "cost": 700, "time": 75,
       "requires": ["minigun"], "unlocks": "longshot" },
     { "id": "railgun", "name": "Railgun", "cost": 1600, "time": 150,
-      "requires": ["gauss", "longshot"], "unlocks": "railgun" }
+      "requires": ["gauss", "longshot"], "unlocks": "railgun" },
+    { "id": "legs", "name": "Leg Cybernetics", "cost": 600, "time": 60,
+      "requires": [], "unlocks": "legs" },
+    { "id": "arms", "name": "Arm Cybernetics", "cost": 600, "time": 60,
+      "requires": [], "unlocks": "arms" },
+    { "id": "chest", "name": "Chest Cybernetics", "cost": 700, "time": 75,
+      "requires": [], "unlocks": "chest" },
+    { "id": "eyes", "name": "Eye Cybernetics", "cost": 500, "time": 45,
+      "requires": [], "unlocks": "eyes" }
   ]
 }

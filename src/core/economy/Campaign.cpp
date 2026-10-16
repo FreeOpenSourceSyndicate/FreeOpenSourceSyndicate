@@ -233,9 +233,15 @@ PlayerLoadout Campaign::selectedLoadout() const
             {
                 entry.gadgetId = item->id;
             }
-            // A cybernetic is a passive upgrade, not a loadout item; anything
-            // already set (a second weapon/gadget in a slot) is ignored, because
-            // R1's LoadoutSlot carries at most one of each.
+            else if (item->kind == EquipmentKind::Cybernetic && entry.cyberneticId.empty())
+            {
+                // A cybernetic is a passive upgrade, but it still deploys: R1's
+                // LoadoutSlot carries one `cyberneticId`, which applyLoadout applies
+                // once at mission load (issue #341, ADR-0031).
+                entry.cyberneticId = item->id;
+            }
+            // Anything already set (a second weapon/gadget/cybernetic in a slot) is
+            // ignored, because R1's LoadoutSlot carries at most one of each.
         }
         loadout.slots.push_back(std::move(entry));
     }
