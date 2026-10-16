@@ -73,10 +73,12 @@ it speculatively.
 
 ## The critical path
 
-Work is ordered by **dependency**, not by how fun it is to build. The long pole is
-the **metagame** (Milestone B): it is the largest missing block, it is entirely
-unstarted, and the campaign cannot finish without it. Start it **in parallel**
-with the tactical finish, not after it.
+Work is ordered by **dependency**, not by how fun it is to build. The long pole
+was the **metagame** (Milestone B): the largest missing block, and the campaign
+could not finish without it. Its systems have now landed and the loop is playable
+on the map screen (`src/core/economy/**` + `game::CampaignScreen`); what remains
+for it is per-region mission content, which is Milestone C. Milestone A (the
+tactical finish) continues in parallel.
 
 ```
   Milestone A  (finish the tactical layer)  ─┐
@@ -113,15 +115,22 @@ The management half of the original, and the biggest gap. New, engine-free
 `src/core/` systems plus one map screen in `game/`. Tracked and claimed at
 **issue #249** — the first PR there is the interface contract.
 
-- [ ] **World map with territories** (a graph of regions; which are owned).
-- [ ] **Economy**: income from owned territories; tax level per region;
+- [x] **World map with territories** (a graph of regions; which are owned).
+- [x] **Economy**: income from owned territories; tax level per region;
       over-taxation risks revolt.
-- [ ] **Research & development**: a tree of weapons/cybernetics, cost and time.
-- [ ] **Equipment purchase**: spend money on weapons, gadgets, cybernetics.
-- [ ] **Mission selection & deployment**: pick a mission from the map, choose
+- [x] **Research & development**: a tree of weapons/cybernetics, cost and time.
+- [x] **Equipment purchase**: spend money on weapons, gadgets, cybernetics.
+- [x] **Mission selection & deployment**: pick a mission from the map, choose
       which agents (up to four) to send.
-- [ ] **Campaign progression**: missions unlock regions; an end state and a
+- [x] **Campaign progression**: missions unlock regions; an end state and a
       victory screen.
+
+*All six landed (`src/core/economy/**`, `tests/test_{worldmap,economy,research,
+equipment,campaign}.cpp`) and are **playable** on the map screen
+(`game::CampaignScreen`): `M` toggles it, `-`/`+` tax, `B` opens the R&D shop
+(fund research, buy + assign gear), `D` deploys, and a win/loss is terminal with
+a victory/defeat panel. What remains for Milestone B is per-region mission
+content, which is Tactical's (Milestone C).*
 
 ### Milestone C — Content and finish
 
@@ -223,13 +232,13 @@ A shippable demo, deliberately original in code and art.
 - [x] Civilian/persuasion behaviour (recruiter recruitment)
 - [x] Mission objectives + win/lose (data-driven: eliminate all enemies, reach a tile, survive)
 
-## Phase 4 — Metagame (0% → **Milestone B**)
+## Phase 4 — Metagame (**Milestone B** — done)
 
-- [ ] World map with territories → Milestone B
-- [ ] Research tree and R&D time → Milestone B
-- [ ] Economy: income from territories, agent/equipment costs → Milestone B
-- [ ] Mission selection and deployment → Milestone B
-- [ ] Campaign progression → Milestone B
+- [x] World map with territories → Milestone B
+- [x] Research tree and R&D time → Milestone B
+- [x] Economy: income from territories, agent/equipment costs → Milestone B
+- [x] Mission selection and deployment → Milestone B
+- [x] Campaign progression → Milestone B
 
 ## Phase 5 — Content, polish, tooling (partial → **Milestone C**)
 
