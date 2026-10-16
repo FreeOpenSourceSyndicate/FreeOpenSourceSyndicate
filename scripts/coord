@@ -97,6 +97,14 @@ AREAS = (
 BOARD_PATH = "docs/COORDINATION_BOARD.md"
 BOARD_MARKER = "<!-- coord:board -->"
 
+# The board is published by committing on top of `main` and pushing non-forced.
+# The scheduled sweep checks out `main` at run start, so any PR merged while the
+# sweep ran makes that push a non-fast-forward; it is retried on the fresh main
+# rather than forced, so a concurrent merge is never discarded (issue #381).
+BOARD_BRANCH = "main"
+BOARD_COMMIT_MSG = "chore(coord): regenerate the coordination board [skip ci]"
+BOARD_PUSH_ATTEMPTS = 3
+
 # The well-known empty tree id, so ledger/note commits need no mktree stdin.
 _EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
@@ -1457,8 +1465,34 @@ def _comment_already_posted(lease: Lease) -> bool:
                for c in comments)
 
 
+def _board_identity_args() -> list[str]:
+    """``-c`` flags supplying an author when the environment has none.
+
+    A fresh CI checkout has no ``user.name``/``user.email``, so ``git commit``
+    fails with "Author identity unknown" - and because the old code ignored the
+    result, the board was silently never committed while the push (a no-op
+    against an unchanged ``main``) still reported success (issue #381).
+    """
+    email = git("config", "user.email", check=False)
+    if email.returncode == 0 and email.stdout.strip():
+        return []
+    return [
+        "-c", "user.name=github-actions[bot]",
+        "-c", "user.email=41898282+github-actions[bot]@users.noreply.github.com",
+    ]
+
+
 def _commit_board(path: str) -> None:
-    """Commit + push the regenerated board (used by the scheduled workflow)."""
+    """Commit + push the regenerated board (used by the scheduled workflow).
+
+    The board is generated from the ledger and published on ``main``. A plain
+    ``push HEAD:main`` from the run's checkout is a non-fast-forward whenever a
+    PR merged while the sweep ran, so it is retried on a freshly fetched
+    ``main``. It is never forced: a concurrent merge is real work and must not
+    be discarded. The commit and push results are both checked, so the sweep
+    fails loudly instead of printing success while the board stays stale
+    (issue #381, ADR-0033).
+    """
     if not os.path.exists(path):
         return
     git("add", path, check=False)
@@ -1466,9 +1500,37 @@ def _commit_board(path: str) -> None:
     if diff.returncode == 0:
         print("board unchanged; nothing to commit")
         return
-    git("commit", "-m", "chore(coord): regenerate the coordination board [skip ci]", check=False)
-    git("push", "origin", "HEAD:refs/heads/main", check=False)
-    print("board committed and pushed")
+
+    identity = _board_identity_args()
+    commit = git(*identity, "commit", "-m", BOARD_COMMIT_MSG, check=False)
+    if commit.returncode != 0:
+        detail = (commit.stderr or commit.stdout or "").strip()
+        raise CoordError(f"could not commit {path}: {detail}")
+
+    last = None
+    for _ in range(BOARD_PUSH_ATTEMPTS):
+        git("fetch", "--prune", "--force", "origin",
+            f"+refs/heads/{BOARD_BRANCH}:refs/remotes/origin/{BOARD_BRANCH}",
+            check=False)
+        # Re-apply the board on the current tip so the push is a fast-forward.
+        rebase = git(*identity, "rebase", f"origin/{BOARD_BRANCH}", check=False)
+        if rebase.returncode != 0:
+            git("rebase", "--abort", check=False)
+            last = (rebase.stderr or rebase.stdout or "").strip()
+            continue
+        push = git("push", "origin",
+                   f"HEAD:refs/heads/{BOARD_BRANCH}", check=False)
+        if push.returncode == 0:
+            print("board committed and pushed")
+            return
+        last = (push.stderr or push.stdout or "").strip()
+
+    hint = _push_hint(last or "")
+    detail = hint or last or "unknown error"
+    raise CoordError(
+        f"could not publish {path} after {BOARD_PUSH_ATTEMPTS} attempts "
+        f"(the board on {BOARD_BRANCH} may be stale): {detail}"
+    )
 
 
 # --------------------------------------------------------------------------- #

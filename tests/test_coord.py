@@ -958,6 +958,114 @@ class TestPushAuthDiagnosis(CoordTestCase):
         self.assertNotIn("lost the race", err)
 
 
+class TestBoardPublish(CoordTestCase):
+    """The sweep must publish the board or fail loudly - never green and stale."""
+
+    BOARD = "docs/COORDINATION_BOARD.md"
+
+    def _write_board(self, text):
+        os.makedirs(os.path.dirname(self.BOARD), exist_ok=True)
+        with open(self.BOARD, "w", encoding="utf-8") as fh:
+            fh.write(text)
+
+    def _remote_show(self, path):
+        return subprocess.run(
+            ["git", "--git-dir", self.remote, "show", f"main:{path}"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+    def _remote_main(self):
+        return subprocess.run(
+            ["git", "--git-dir", self.remote, "rev-parse", "main"],
+            stdout=subprocess.PIPE, text=True).stdout.strip()
+
+    def _advance_remote_main(self):
+        """A commit on main this checkout has not seen - a concurrent merge."""
+        other = os.path.join(self.tmp, "other")
+        git(self.tmp, "clone", "--quiet", "--branch", "main", self.remote, other)
+        git(other, "config", "user.email", "o@example.com")
+        git(other, "config", "user.name", "Other")
+        with open(os.path.join(other, "MERGED.txt"), "w") as fh:
+            fh.write("a PR merged while the sweep ran\n")
+        git(other, "add", "MERGED.txt")
+        git(other, "commit", "--quiet", "-m", "feat: a concurrent merge")
+        git(other, "push", "--quiet", "origin", "main")
+
+    def test_commit_board_publishes_to_main(self):
+        self._write_board("board v1\n")
+        coord._commit_board(self.BOARD)
+        shown = self._remote_show(self.BOARD)
+        self.assertEqual(shown.returncode, 0, shown.stderr)
+        self.assertEqual(shown.stdout, "board v1\n")
+
+    def test_commit_board_uses_the_documented_message(self):
+        self._write_board("board v1\n")
+        coord._commit_board(self.BOARD)
+        proc = subprocess.run(
+            ["git", "--git-dir", self.remote, "log", "-1", "--format=%s", "main"],
+            stdout=subprocess.PIPE, text=True)
+        self.assertEqual(proc.stdout.strip(), coord.BOARD_COMMIT_MSG)
+
+    def test_unchanged_board_makes_no_commit(self):
+        self._write_board("board v1\n")
+        coord._commit_board(self.BOARD)
+        before = self._remote_main()
+        # The board on main already matches the file, so a second sweep is a no-op.
+        coord._commit_board(self.BOARD)
+        self.assertEqual(before, self._remote_main())
+
+    def test_commit_board_retries_past_a_concurrent_merge(self):
+        # main advances after this checkout was taken, so a plain push is a
+        # non-fast-forward. The board must still land, on top of the merge - and
+        # the concurrent merge must survive (no force).
+        self._advance_remote_main()
+        self._write_board("board v2\n")
+        coord._commit_board(self.BOARD)
+        shown = self._remote_show(self.BOARD)
+        self.assertEqual(shown.returncode, 0, shown.stderr)
+        self.assertEqual(shown.stdout, "board v2\n")
+        merged = self._remote_show("MERGED.txt")
+        self.assertEqual(merged.returncode, 0, merged.stderr)
+
+    def test_rejected_push_raises_instead_of_reporting_success(self):
+        # Every push is rejected. The old code swallowed this and printed
+        # "board committed and pushed" while main stayed stale (issue #381).
+        hook = os.path.join(self.remote, "hooks", "pre-receive")
+        with open(hook, "w") as fh:
+            fh.write("#!/bin/sh\nexit 1\n")
+        os.chmod(hook, 0o755)
+        self._write_board("board v1\n")
+        with self.assertRaises(coord.CoordError) as ctx:
+            coord._commit_board(self.BOARD)
+        self.assertIn("could not publish", str(ctx.exception))
+        self.assertNotEqual(self._remote_show(self.BOARD).returncode, 0)
+
+    def test_commit_board_supplies_identity_when_environment_has_none(self):
+        # A fresh CI checkout has no user.email/user.name. The commit must not be
+        # silently skipped, which is how the board stopped landing (issue #381).
+        orig_global = os.environ.pop("GIT_CONFIG_GLOBAL", None)
+        orig_system = os.environ.pop("GIT_CONFIG_SYSTEM", None)
+
+        def restore():
+            for key, value in (("GIT_CONFIG_GLOBAL", orig_global),
+                               ("GIT_CONFIG_SYSTEM", orig_system)):
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+        self.addCleanup(restore)
+        os.environ["GIT_CONFIG_GLOBAL"] = os.devnull
+        os.environ["GIT_CONFIG_SYSTEM"] = os.devnull
+        git(self.work, "config", "--unset", "user.email")
+        git(self.work, "config", "--unset", "user.name")
+        self.assertIsNone(coord.git("config", "user.email", check=False).stdout.strip() or None)
+        self._write_board("board v3\n")
+        coord._commit_board(self.BOARD)
+        shown = self._remote_show(self.BOARD)
+        self.assertEqual(shown.returncode, 0, shown.stderr)
+        self.assertEqual(shown.stdout, "board v3\n")
+
+
 class TestNotes(CoordTestCase):
     """Notes are cross-cycle handoff: they outlive the lease that wrote them."""
 
