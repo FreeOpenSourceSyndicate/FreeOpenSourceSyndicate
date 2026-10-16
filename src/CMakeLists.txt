@@ -262,6 +262,15 @@ if(BUILD_TESTS)
     # screenshot headlessly, so a shield capture is a real artefact (issue #375).
     add_test(NAME game_shield_screenshot
              COMMAND FOSSynd --headless --shield --screenshot shield.bmp --frames 2)
+    # Performance-drug aura (issue #387): no aura before a dose, one aura on the
+    # dosed combatant, no aura for a civilian dose, and the aura clearing once the
+    # buff expires. Exits non-zero on a broken invariant.
+    add_test(NAME game_drugs
+             COMMAND FOSSynd --headless --check-drugs)
+    # `--drugs` doses the squad and must still render and write a screenshot
+    # headlessly, so a drug-aura capture is a real artefact (issue #387).
+    add_test(NAME game_drugs_screenshot
+             COMMAND FOSSynd --headless --drugs --screenshot drugs.bmp --frames 2)
     # Vehicle rendering (issue #363): every vehicle must yield a draw entry at its
     # tile with the right kind, and a destroyed vehicle must still draw as a
     # wreck. Exits non-zero on a broken invariant.

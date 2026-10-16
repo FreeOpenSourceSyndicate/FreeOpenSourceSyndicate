@@ -824,6 +824,15 @@ Do not start work outside the scope fence (ADR-0024).
   no-ops for a civilian, a dead agent, or when already active. Deterministic,
   RNG-free. `gadgetChargesForId` (`PlayerLoadout.h`) accepts `"scanner"` and
   `"drugs"`, so a bought gadget deploys like the medkit/shield.
+  **The performance-drug buff is now drawn** (issue #387):
+  `Game::renderDrugAura` draws a hollow amber diamond rim around each agent
+  whose `Mission::drugsTimer` is live, fading as the dose runs out — the buff is
+  a *timed* state, so the fade itself is the expiry cue. The overlay decision is
+  `Game::drugMarks()` (a pure read of `drugsTimer`, shared with the headless
+  guard), and `Game::updateDrugSnapshot` tracks each agent's peak timer so the
+  fraction can be shown without core exposing `kDrugDurationSeconds` (core-private).
+  `--drugs` doses the squad up front (a demo hook beside `--shield`). The hotkey
+  is `B` (Input/UI, issue #339).
 - **Cybernetic upgrades** (issue #313, ADR-0031): Milestone A's passive stat
   upgrades. `CyberneticEffect` (`src/core/sim/Cybernetic.h`, header-only) holds
   four **multipliers** (all default 1.0); `cyberneticEffectForId(id, out)`
@@ -1073,9 +1082,11 @@ Do not start work outside the scope fence (ADR-0024).
   `--headless --check-objectives`,
   `--headless --check-scanner`,
   `--headless --check-shield`,
+  `--headless --check-drugs`,
   `--headless --check-vehicles`,
   `--headless --scan [--screenshot out.bmp]`,
   `--headless --shield [--screenshot out.bmp]`,
+  `--headless --drugs [--screenshot out.bmp]`,
   `--headless --vehicle [--screenshot out.bmp]`,
   `--headless --map --frames N`, and
   `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
@@ -1085,7 +1096,8 @@ Do not start work outside the scope fence (ADR-0024).
   `game_campaign_keys`,
   `game_map_flag`, `game_objectives`, `game_scanner`,
   `game_scanner_screenshot`, `game_vehicles`, and
-  `game_vehicles_screenshot`, `game_shield`, and `game_shield_screenshot`
+  `game_vehicles_screenshot`, `game_shield`, and `game_shield_screenshot`,
+  `game_drugs`, and `game_drugs_screenshot`
   cover the SDL layer
   headlessly.
 - **Queued-route overlay (issue #89):** the view draws a selected agent's

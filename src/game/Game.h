@@ -224,6 +224,13 @@ public:
     // game_shield.
     bool shieldSelfTest();
 
+    // Headless guard for the performance-drug aura (issue #387): no aura before
+    // a dose, one aura on the dosed combatant, no aura for a civilian dose, and
+    // the aura clearing once the buff expires through the real update path.
+    // Drives the shared drugMarks() decision the render pass uses. Returns false
+    // on a broken invariant. Used by game_drugs.
+    bool drugsSelfTest();
+
     // Headless guard for vehicle rendering (issue #363): every vehicle in the
     // mission must yield a draw entry at its interpolated tile with the right
     // kind, and a destroyed vehicle must still draw (as a wreck). Returns false
@@ -257,6 +264,12 @@ public:
     // without a hotkey. Not a gameplay rule — the charge/shield rules stay in
     // core.
     void raiseShieldForSquad();
+
+    // Gives every living player agent a drug dose and takes it, granting one dose
+    // first when the squad has none (issue #387). A demo/verification hook (like
+    // `--shield`): `--drugs` makes the aura visible for a headless screenshot
+    // without a hotkey. Not a gameplay rule — the dose rules stay in core.
+    void takeDrugsForSquad();
 
     // Headless guard for the objective banner (issue #281): every objective kind
     // must render a non-empty, kind-specific, localised banner with no unsubstituted
@@ -355,6 +368,10 @@ private:
     // agent with a shield up. Presentation-only; it reads `Mission::shieldUp` and
     // never writes it (golden rule 4).
     void renderShield();
+    // Performance-drug aura overlay (issue #387): an amber rim around each agent
+    // with a live drug buff, fading as the dose runs out. Presentation-only; it
+    // reads `Mission::drugsTimer` and never writes it (golden rule 4).
+    void renderDrugAura();
     void renderSelectionBox();
     void renderHud();
     void renderMinimap();
@@ -469,6 +486,31 @@ private:
     // decision (a dome for a raised shield; a fading burst after an absorb).
     // View-only: pure read of core (golden rule 4).
     std::vector<ShieldMark> shieldMarks() const;
+
+    // One drug aura the overlay draws (issue #387): a rim around an agent with a
+    // live performance-drug buff. `fraction` is the remaining dose (1 just taken,
+    // 0 just expired), so the aura can fade as it runs out.
+    struct DrugMark
+    {
+        std::size_t index = 0;
+        core::Vec2 world{0.0f, 0.0f};
+        float fraction = 0.0f;
+    };
+
+    // The drug auras the overlay should draw, from the live mission state. Shared
+    // by renderDrugAura() and drugsSelfTest() so the guard checks the real
+    // decision (an aura only while the buff runs). View-only: pure read of core
+    // (golden rule 4).
+    std::vector<DrugMark> drugMarks() const;
+
+    // Per-agent peak drug timer observed while its buff runs, so drugMarks() can
+    // report the remaining fraction without core exposing the buff's full
+    // duration (issue #387). View-only; never feeds the simulation.
+    std::vector<float> drugPeak_;
+
+    // Records each agent's peak drug timer and clears it on expiry (issue #387).
+    // Called from update(), so the aura fades as the dose runs out.
+    void updateDrugSnapshot();
 
     // Per-agent absorb burst, in seconds left (issue #375). A raised shield drops
     // the instant it takes a hit, so without this the dome would vanish with no
