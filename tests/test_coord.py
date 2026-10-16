@@ -1066,6 +1066,70 @@ class TestBoardPublish(CoordTestCase):
         self.assertEqual(shown.stdout, "board v3\n")
 
 
+class TestReleaseHonesty(CoordTestCase):
+    """A release that does not land must not report success (issue #392)."""
+
+    def _reject_all_pushes(self):
+        hook = os.path.join(self.remote, "hooks", "pre-receive")
+        with open(hook, "w") as fh:
+            fh.write("#!/bin/sh\nexit 1\n")
+        os.chmod(hook, 0o755)
+
+    def test_release_reports_success_only_when_the_ref_is_gone(self):
+        self.run_coord("claim", "--area", "platform", "--issue", 387,
+                       "--agent", "a", "--branch", "b")
+        self.assertEqual(self.remote_refs(), ["refs/coord/leases/platform"])
+        self.run_coord("release", "--area", "platform", "--issue", 387,
+                       "--agent", "a", "--branch", "b")
+        self.assertEqual(self.remote_refs(), [])
+
+    def test_release_raises_when_the_delete_push_is_rejected(self):
+        self.run_coord("claim", "--area", "platform", "--issue", 387,
+                       "--agent", "a", "--branch", "b")
+        self._reject_all_pushes()
+        _, err = self.run_coord("release", "--area", "platform", "--issue", 387,
+                                "--agent", "a", "--branch", "b", expect=2)
+        self.assertIn("could not delete", err)
+        self.assertNotIn("released platform", err)
+        # The lease is still held on the remote - the area is NOT free.
+        self.assertEqual(self.remote_refs(), ["refs/coord/leases/platform"])
+
+    def test_release_reports_a_credential_failure_as_auth_not_a_race(self):
+        self.run_coord("claim", "--area", "platform", "--issue", 387,
+                       "--agent", "a", "--branch", "b")
+        orig = coord._delete_lease_ref
+
+        def boom(ref, cwd=None):
+            raise coord.CoordAuthError("could not delete " + ref)
+
+        coord._delete_lease_ref = boom
+        self.addCleanup(setattr, coord, "_delete_lease_ref", orig)
+        _, err = self.run_coord("release", "--area", "platform", "--issue", 387,
+                                "--agent", "a", "--branch", "b", expect=2)
+        self.assertIn("could not delete", err)
+        self.assertNotIn("lost the race", err)
+
+    def test_delete_refs_for_area_raises_if_the_remote_refuses(self):
+        self.run_coord("claim", "--area", "world", "--issue", 1,
+                       "--agent", "a", "--branch", "b")
+        self._reject_all_pushes()
+        with self.assertRaises(coord.CoordError):
+            coord.delete_refs_for_area("world")
+        self.assertEqual(self.remote_refs(), ["refs/coord/leases/world"])
+
+    def test_sweep_aborts_when_an_expired_ref_cannot_be_deleted(self):
+        # An expired lease is swept by deleting its ref; if that delete is
+        # refused the sweep must fail, not print "swept 1" while the ref lives on.
+        self.run_coord("claim", "--area", "platform", "--issue", 387,
+                       "--agent", "a", "--branch", "b")
+        self._set_now(self.now + coord.DEFAULT_TTL + 1)
+        self._reject_all_pushes()
+        _, err = self.run_coord("sweep", "--no-board", expect=2)
+        self.assertIn("could not delete", err)
+        self.assertNotIn("swept 1 expired", err)
+        self.assertEqual(self.remote_refs(), ["refs/coord/leases/platform"])
+
+
 class TestNotes(CoordTestCase):
     """Notes are cross-cycle handoff: they outlive the lease that wrote them."""
 
