@@ -133,6 +133,7 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/assets/data/world/"
 install(FILES
             "${CMAKE_SOURCE_DIR}/assets/data/weapons.json"
             "${CMAKE_SOURCE_DIR}/assets/data/agents.json"
+            "${CMAKE_SOURCE_DIR}/assets/data/vehicles.json"
         DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd)
 install(FILES "${CMAKE_SOURCE_DIR}/assets/data/fossynd.conf.example"
         DESTINATION ${CMAKE_INSTALL_DATADIR}/fossynd)

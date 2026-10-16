@@ -68,8 +68,15 @@ for file in assets/lang/*.json; do
     require "${file}" "share/fossynd/lang/$(basename "${file}")"
 done
 
-require assets/data/weapons.json share/fossynd/weapons.json
-require assets/data/agents.json share/fossynd/agents.json
+# Every shared catalogue at the top of assets/data/ must be in the package too.
+# Derived from the tree, like missions/world/lang above, so adding a catalogue
+# (e.g. vehicles.json, #343) cannot silently ship without it: the install list in
+# src/CMakeLists.txt and this check both have to be updated, and this check is
+# what fails CI if the install list is forgotten.
+for file in assets/data/*.json; do
+    require "${file}" "share/fossynd/$(basename "${file}")"
+done
+
 require assets/data/fossynd.conf.example share/fossynd/fossynd.conf.example
 require LICENSE share/doc/fossynd/LICENSE
 require README.md share/doc/fossynd/README.md
