@@ -283,10 +283,11 @@ FOSSYND_TEST(ContentValidation, ShippedContentPasses)
     const ValidationReport report = validateContentDir(dataDir);
     FOSSYND_CHECK(report.ok());
     FOSSYND_CHECK(report.missionsChecked >= static_cast<std::size_t>(2));
-    // 7 weapons (the #124 tiers included) + 7 agent templates (the #160 carriers
-    // included). Pinned exactly so a tier or template cannot silently vanish from
-    // the shipped catalogue; bump it when content is added on purpose.
-    FOSSYND_CHECK_EQ(report.cataloguesChecked, static_cast<std::size_t>(14));
+    // 10 weapons (the #124 tiers and the #219 additions) + 10 agent templates
+    // (the #160 carriers included). Pinned exactly so a tier or template cannot
+    // silently vanish from the shipped catalogue; bump it when content is added
+    // on purpose.
+    FOSSYND_CHECK_EQ(report.cataloguesChecked, static_cast<std::size_t>(20));
 }
 
 // The Phase 3 weapon tiers (issue #124) must be present in the shipped catalogue
@@ -332,4 +333,118 @@ FOSSYND_TEST(ContentValidation, ShippedWeaponTiersLoad)
     FOSSYND_CHECK(laser->damage > minigun->damage);
     FOSSYND_CHECK(laser->damage > flamethrower->damage);
     FOSSYND_CHECK(laser->fireRate < rifle->fireRate);
+}
+
+// The #219 weapon additions (shotgun, sniper, gauss) must be present in the
+// shipped catalogue and parse to their intended niches. Like the #124 guard,
+// this pins each weapon's relationship to the rifle so a mis-edit (e.g. a
+// non-positive fire rate) cannot slip through.
+FOSSYND_TEST(ContentValidation, ShippedNewWeaponFamiliesLoad)
+{
+    const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/weapons.json";
+    WeaponCatalogue catalogue;
+    bool found = false;
+    std::string error;
+    FOSSYND_CHECK(catalogue.loadFromFile(path, found, error));
+    FOSSYND_CHECK(found);
+
+    const Weapon* rifle = catalogue.find("rifle");
+    const Weapon* shotgun = catalogue.find("shotgun");
+    const Weapon* sniper = catalogue.find("sniper");
+    const Weapon* gauss = catalogue.find("gauss");
+    FOSSYND_CHECK(rifle != nullptr);
+    FOSSYND_CHECK(shotgun != nullptr);
+    FOSSYND_CHECK(sniper != nullptr);
+    FOSSYND_CHECK(gauss != nullptr);
+    if (rifle == nullptr || shotgun == nullptr || sniper == nullptr || gauss == nullptr)
+    {
+        return;
+    }
+
+    FOSSYND_CHECK_EQ(shotgun->name, std::string("Shotgun"));
+    FOSSYND_CHECK_EQ(sniper->name, std::string("Sniper"));
+    FOSSYND_CHECK_EQ(gauss->name, std::string("Gauss"));
+
+    // Shotgun: close range, heavy single shot, slow.
+    FOSSYND_CHECK(shotgun->range < rifle->range);
+    FOSSYND_CHECK(shotgun->damage > rifle->damage);
+    FOSSYND_CHECK(shotgun->fireRate < rifle->fireRate);
+
+    // Sniper: the longest range in the catalogue and the hardest single shot,
+    // but the slowest rate.
+    FOSSYND_CHECK(sniper->range > rifle->range);
+    FOSSYND_CHECK(sniper->damage > shotgun->damage);
+    FOSSYND_CHECK(sniper->fireRate < rifle->fireRate);
+
+    // Gauss: a mid-range, high-rate, high-accuracy slug between the rifle and
+    // the sniper. Its low per-shot damage is the compensating weakness: the
+    // high rate must not buy strict dominance, so its sustained output stays
+    // inside the catalogue band (below the flamethrower, the highest-DPS gun)
+    // and its per-shot damage sits below the rifle's (tactical vet, #294).
+    FOSSYND_CHECK(gauss->range > rifle->range);
+    FOSSYND_CHECK(gauss->range < sniper->range);
+    FOSSYND_CHECK(gauss->fireRate > rifle->fireRate);
+    FOSSYND_CHECK(gauss->accuracy > rifle->accuracy);
+
+    const Weapon* flamethrower = catalogue.find("flamethrower");
+    FOSSYND_CHECK(flamethrower != nullptr);
+    if (flamethrower != nullptr)
+    {
+        const auto dps = [](const Weapon& w) { return w.damage * w.fireRate * w.accuracy; };
+        FOSSYND_CHECK(gauss->damage < rifle->damage);
+        FOSSYND_CHECK(dps(*gauss) > dps(*rifle));
+        FOSSYND_CHECK(dps(*gauss) < dps(*flamethrower));
+    }
+
+    // Every catalogue entry satisfies the schema's required-field ranges, so
+    // validation accepts the shipped file (it already loaded above, but assert
+    // the invariant directly too).
+    for (const WeaponEntry& entry : catalogue.entries())
+    {
+        FOSSYND_CHECK(entry.weapon.damage > 0.0f);
+        FOSSYND_CHECK(entry.weapon.range > 0.0f);
+        FOSSYND_CHECK(entry.weapon.fireRate > 0.0f);
+        FOSSYND_CHECK(entry.weapon.accuracy >= 0.0f && entry.weapon.accuracy <= 1.0f);
+        FOSSYND_CHECK(entry.weapon.areaRadius >= 0.0f);
+    }
+}
+
+// The #219 weapons are carried by agent templates (#219), so they are
+// referenceable from a mission rather than inert. Each new template's
+// `weaponId` must resolve to the intended weapon.
+FOSSYND_TEST(ContentValidation, ShippedNewWeaponCarriersLoad)
+{
+    const std::string dir = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/";
+    WeaponCatalogue weapons;
+    bool found = false;
+    std::string error;
+    FOSSYND_CHECK(weapons.loadFromFile(dir + "weapons.json", found, error));
+    FOSSYND_CHECK(found);
+
+    AgentCatalogue agents;
+    FOSSYND_CHECK(agents.loadFromFile(dir + "agents.json", weapons, found, error));
+    FOSSYND_CHECK(found);
+    FOSSYND_CHECK(error.empty());
+
+    struct Carrier
+    {
+        const char* agentId;
+        const char* weaponId;
+        const char* weaponName;
+    };
+    const Carrier carriers[] = {
+        {"breacher", "shotgun", "Shotgun"},
+        {"sharpshooter", "sniper", "Sniper"},
+        {"shocktrooper", "gauss", "Gauss"},
+    };
+    for (const Carrier& carrier : carriers)
+    {
+        const AgentEntry* agent = agents.find(carrier.agentId);
+        FOSSYND_CHECK(agent != nullptr);
+        FOSSYND_CHECK(weapons.find(carrier.weaponId) != nullptr);
+        if (agent != nullptr)
+        {
+            FOSSYND_CHECK_EQ(agent->spec.weapon.name, std::string(carrier.weaponName));
+        }
+    }
 }

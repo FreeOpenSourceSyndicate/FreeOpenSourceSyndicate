@@ -231,7 +231,8 @@ A shippable demo, deliberately original in code and art.
 
 ## Phase 3 — Game systems (in progress → **Milestone A**)
 
-- [x] Weapons: pistol, uzi, minigun, flamethrower, rocket launcher, laser
+- [x] Weapons: pistol, uzi, minigun, flamethrower, rocket launcher, laser,
+      shotgun, sniper, gauss
       (catalogue is data-driven; the launcher does area damage)
 - [ ] Gadgets: Compliance Beacon ✅, medikit ✅, shield ✅; scanner pending →
       Milestone A

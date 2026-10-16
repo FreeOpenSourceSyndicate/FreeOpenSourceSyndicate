@@ -136,6 +136,15 @@ contains no original assets, code, names, or trademarks.
   (escort DELTA to the exfil tile alive), and the HUD banner reads a per-kind
   string. Issue #281.
 
+- **More weapon families (content-only):** `weapons.json` gains **shotgun**
+  (close, heavy, slow), **sniper** (longest range, hardest single shot, slowest),
+  and **gauss** (mid-range, high-rate, accurate slug with low per-shot damage as
+  its compensating weakness) — original numbers, no engine change, so designers
+  can tune them without recompiling (golden rule 7).
+  New enemy carriers `breacher`/`sharpshooter`/`shocktrooper` reference them by
+  id, so the weapons are mission-referenceable rather than inert. Guarded by
+  `tests/test_content_validation.cpp`; `docs/DATA_FORMAT.md` updated. Issue #219.
+
 ## [0.7.0] — 2026-10-15 — "Demolition"
 
 The battlefield is now destructible and legible. Weapon fire opens cracked walls

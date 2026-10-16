@@ -157,7 +157,10 @@ referenced by id instead of copied into every mission (ADR-0003):
       "accuracy": 0.85, "areaRadius": 2.0 },
     { "id": "minigun", "name": "Minigun", "damage": 4, "range": 6, "fireRate": 16, "accuracy": 0.5 },
     { "id": "flamethrower", "name": "Flamethrower", "damage": 7, "range": 4, "fireRate": 8, "accuracy": 0.6 },
-    { "id": "laser", "name": "Laser", "damage": 22, "range": 12, "fireRate": 1, "accuracy": 0.9 }
+    { "id": "laser", "name": "Laser", "damage": 22, "range": 12, "fireRate": 1, "accuracy": 0.9 },
+    { "id": "shotgun", "name": "Shotgun", "damage": 18, "range": 3.5, "fireRate": 1, "accuracy": 0.65 },
+    { "id": "sniper", "name": "Sniper", "damage": 35, "range": 15, "fireRate": 0.5, "accuracy": 0.95 },
+    { "id": "gauss", "name": "Gauss", "damage": 7, "range": 11, "fireRate": 5, "accuracy": 0.8 }
   ]
 }
 ```
