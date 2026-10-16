@@ -24,7 +24,8 @@ The metagame is the **management half** of the original: a world map of
 territories, income and taxation, research & development, equipment purchase,
 mission selection, and campaign progression. It is the largest missing block and
 the long pole to a finished v1.0.0 (`docs/ROADMAP.md` → *The critical path*,
-ADR-0024). It is entirely unstarted.
+ADR-0024). It is now **built and playable** — the core systems are in and the map
+screen drives the whole loop; see §8.
 
 **In scope (this milestone):** the five systems below and the one map /
 management screen that drives them.
@@ -532,13 +533,22 @@ Smallest useful first, so each PR is small and reviewable:
 5. **Mission selection & deployment** — `Campaign` + the map screen skeleton
    (needs R1); the first slice that touches `src/game/**`. *(landed:
    `game::CampaignScreen` + `--map`/`--check-campaign`; R1 landed in #311
-   (`PlayerLoadout`/`applyLoadout`), the engine-side deploy wiring is #312)*
+   (`PlayerLoadout`/`applyLoadout`) and the engine-side deploy wiring in #312, so
+   **`D` now starts the mission with the bought squad**)*
 6. **Campaign progression** — attack the frontier, end state, victory screen.
    *(landed: the frontier attack rule + `Campaign::canDeployTo`, so a win claims
    an adjacent region and the map can actually be won — ADR-0029. The end state is
    now terminal: `Campaign::finished()` freezes deployment, results, and the clock,
    and the map screen shows a centred victory/defeat panel over the frozen board —
    `game::CampaignScreen::render`; `--check-campaign` guards it)*
+7. **In-play research and purchase** — the R&D shop (follow-up to slice 4). *(landed:
+   `B` on the map opens a modal shop over the research tree + equipment catalogue;
+   Up/Down move, Left/Right pick the squad slot, Enter funds research or buys and
+   assigns gear. Before it, `Research::begin`/`Equipment::buy` were called only from
+   `selfTest`, so slice 5's loop was not actually complete. #330)*
+8. **Sell the new gadgets** — catalogue entries for the scanner and performance
+   drugs #314 added to `core`, so they buy and deploy. *(landed: #334; the
+   shipped-catalogue guard now asserts every gadget is in the deploy vocabulary)*
 
 Each lands as its own PR under the `focus: metagame` lease (`AGENTS.md` §3,
 "one task = one branch = one PR"). The issue's checkboxes are ticked as they merge.
