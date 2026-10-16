@@ -20,6 +20,7 @@ import tempfile
 import time
 import unittest
 from contextlib import redirect_stdout, redirect_stderr
+from datetime import datetime, timezone
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COORD_PATH = os.path.join(REPO_ROOT, "scripts", "coord")
@@ -90,6 +91,12 @@ class CoordTestCase(unittest.TestCase):
         self._orig = coord._open_issues_by_area
         coord._open_issues_by_area = lambda: dict(mapping)
         self.addCleanup(setattr, coord, "_open_issues_by_area", self._orig)
+
+    def _stub_prs(self, rows):
+        """Stub the PR lookup; default empty so `next` never reaches the network."""
+        self._orig_prs = coord._drainable_prs
+        coord._drainable_prs = lambda *a, **k: list(rows)
+        self.addCleanup(setattr, coord, "_drainable_prs", self._orig_prs)
 
     def push_raw_lease_ref(self, ref, lease):
         """Write an arbitrary lease ref out of band, as an outdated client might.
@@ -376,9 +383,14 @@ class TestStatusAndBoard(CoordTestCase):
 class TestNextAction(CoordTestCase):
     """`coord next` must always print an actionable next step - never nothing.
 
-    These tests stub the GitHub calls (`_open_issues_by_area`) so they run with
-    no network, which is also the real fallback path.
+    These tests stub the GitHub calls (`_open_issues_by_area`, `_drainable_prs`)
+    so they run with no network, which is also the real fallback path.
     """
+
+    def setUp(self):
+        super().setUp()
+        # No drainable PR unless a test says otherwise, so rungs 3-5 are reached.
+        self._stub_prs([])
 
     def test_next_returns_your_own_lease_first(self):
         self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "a")
@@ -440,6 +452,112 @@ class TestNextAction(CoordTestCase):
             self._stub_issues(mapping)
             out, _ = self.run_coord("next", "--agent", "a")
             self.assertTrue(out.strip(), f"empty output for {mapping}")
+
+    def test_next_drains_a_green_pr_before_claiming_plain_work(self):
+        # A non-critical area has claimable work, but a green PR has waited: the
+        # finished work one step from landing is offered first (ADR-0035).
+        self._stub_issues({"world": [(157, False)]})
+        self._stub_prs([{"number": 336, "title": "test(i18n): guard ...",
+                         "headRefName": "test/text-x", "_age": 3600}])
+        out, _ = self.run_coord("next", "--agent", "a")
+        self.assertIn("Merge queue: PR #336", out)
+        self.assertIn("gh pr merge 336", out)
+        self.assertNotIn("claim world / #157", out)
+
+    def test_next_does_not_drain_before_the_critical_path(self):
+        # The critical path still wins: a free critical-path issue outranks the
+        # merge queue, so the release is never starved by draining.
+        self._stub_issues({"metagame": [(249, False)]})
+        self._stub_prs([{"number": 336, "title": "x", "_age": 3600}])
+        out, _ = self.run_coord("next", "--agent", "a")
+        self.assertIn("metagame / #249", out)
+        self.assertNotIn("Merge queue", out)
+
+    def test_next_drains_before_a_free_areas_plain_work(self):
+        # No critical-path work; a free area has work and a PR has waited.
+        self.run_coord("claim", "--area", "metagame", "--issue", 249, "--agent", "x")
+        self.run_coord("claim", "--area", "tactical", "--issue", 311, "--agent", "x")
+        self._stub_issues({"world": [(157, False)]})
+        self._stub_prs([{"number": 342, "title": "feat: vehicles", "_age": 7200}])
+        out, _ = self.run_coord("next", "--agent", "a")
+        self.assertIn("Merge queue: PR #342", out)
+
+    def test_next_reaches_claims_when_the_queue_is_empty(self):
+        self._stub_issues({"world": [(157, False)]})
+        self._stub_prs([])
+        out, _ = self.run_coord("next", "--agent", "a")
+        self.assertIn("world / #157", out)
+        self.assertNotIn("Merge queue", out)
+
+    def test_next_keeps_your_own_lease_ahead_of_the_merge_queue(self):
+        # Rung 1 is absolute: you finish your own lease before adopting a PR.
+        self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "a")
+        self._stub_issues({})
+        self._stub_prs([{"number": 336, "title": "x", "_age": 3600}])
+        out, _ = self.run_coord("next", "--agent", "a")
+        self.assertIn("You hold world / #157", out)
+        self.assertNotIn("Merge queue", out)
+
+
+class TestDrainablePrs(CoordTestCase):
+    """`_drainable_prs` filters to green, non-draft, waited PRs and orders FIFO."""
+
+    def _stub_gh_prs(self, rows):
+        def fake_gh(*args, **kwargs):
+            if args[:2] == ("pr", "list"):
+                return subprocess.CompletedProcess(
+                    args, 0, stdout=json.dumps(rows), stderr="")
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+        orig = coord.gh
+        coord.gh = fake_gh
+        self.addCleanup(setattr, coord, "gh", orig)
+
+    def _pr(self, number, *, draft=False, state="CLEAN", age=3600, title="t"):
+        created = self.now - age
+        stamp = datetime.fromtimestamp(created, timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        return {"number": number, "title": title, "isDraft": draft,
+                "mergeStateStatus": state, "createdAt": stamp,
+                "headRefName": f"b/{number}"}
+
+    def test_draft_prs_are_not_drainable(self):
+        self._stub_gh_prs([self._pr(1, draft=True)])
+        self.assertEqual(coord._drainable_prs(), [])
+
+    def test_non_clean_prs_are_not_drainable(self):
+        for state in ("UNSTABLE", "DIRTY", "BLOCKED", "BEHIND"):
+            self._stub_gh_prs([self._pr(1, state=state)])
+            self.assertEqual(coord._drainable_prs(), [], state)
+
+    def test_young_prs_are_not_drainable_yet(self):
+        self._stub_gh_prs([self._pr(1, age=coord.MERGE_DRAIN_MIN_AGE - 1)])
+        self.assertEqual(coord._drainable_prs(), [])
+
+    def test_waited_clean_pr_is_drainable(self):
+        self._stub_gh_prs([self._pr(1, age=coord.MERGE_DRAIN_MIN_AGE + 1)])
+        got = coord._drainable_prs()
+        self.assertEqual([p["number"] for p in got], [1])
+
+    def test_oldest_pr_is_offered_first(self):
+        self._stub_gh_prs([self._pr(1, age=3600), self._pr(2, age=9000),
+                           self._pr(3, age=6000)])
+        got = coord._drainable_prs()
+        self.assertEqual([p["number"] for p in got], [2, 3, 1])
+
+    def test_iso_epoch_parses_z_and_rejects_junk(self):
+        self.assertEqual(coord._iso_epoch("1970-01-01T00:01:00Z"), 60)
+        self.assertIsNone(coord._iso_epoch(""))
+        self.assertIsNone(coord._iso_epoch("not-a-date"))
+
+    def test_gh_failure_yields_no_prs(self):
+        def failing(*a, **k):
+            return subprocess.CompletedProcess(a, 1, stdout="", stderr="boom")
+
+        orig = coord.gh
+        coord.gh = failing
+        self.addCleanup(setattr, coord, "gh", orig)
+        self.assertEqual(coord._drainable_prs(), [])
 
 
 class TestClaimableIssueRouting(CoordTestCase):
