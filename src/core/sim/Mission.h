@@ -7,6 +7,7 @@
 
 #include "core/math/Vec2.h"
 #include "core/sim/Agent.h"
+#include "core/sim/Cybernetic.h"
 #include "core/sim/Objective.h"
 #include "core/util/Rng.h"
 #include "core/world/TileGrid.h"
@@ -175,6 +176,33 @@ public:
 
     // Remaining seconds of the agent's active drug buff (0 when none).
     float drugsTimer(std::size_t index) const;
+
+    // --- cybernetic upgrades -------------------------------------------------
+
+    // Applies a cybernetic upgrade to the agent at `index`: its `effect`
+    // multiplies the agent's movement speed, weapon hit chance, and maximum
+    // health, and sets its sight range. Applied once at mission load, so a
+    // bought upgrade is a permanent, passive stat change (Milestone A). Returns
+    // false (no change) for an invalid index, a civilian, or an unknown id; the
+    // caller is `applyLoadout` (plus tests). Deterministic; no RNG.
+    //
+    // The accuracy multiplier is clamped to 1.0 so an upgrade can never make a
+    // shot certain, and health is applied via `Agent::setMaxHealth` (which also
+    // fills the extra health, so the upgrade is a clean gain, not a wound).
+    bool applyCybernetic(std::size_t index, const std::string& id);
+
+    // How far (tiles) the agent at `index` can see an enemy to acquire it. This
+    // is the perception stat the eyes upgrade raises; it delegates to the agent's
+    // `Agent::sightRange()` (World's contract, default `kDefaultSightRange`).
+    // Returns `kDefaultSightRange` for an invalid index. Read by `seesTarget`;
+    // presentation never uses it.
+    float sightRange(std::size_t index) const;
+
+    // Sets the agent's sight range (tiles), delegating to
+    // `Agent::setSightRange` (negatives clamp to 0). A no-op for an invalid
+    // index. Used by mission setup (an author who sets `sightRange` on an
+    // `AgentSpec`) and tests.
+    void setSightRange(std::size_t index, float range);
 
     // Index of the nearest living agent on `enemyTeam` to (x, y) in tile space,
     // or -1 if none. Used by the view to pick a target under the cursor.

@@ -1605,3 +1605,84 @@ for reassignment by a coordinator.
     so the sweep ignores it, exactly as it ignores a Rule 4 request today.
   - A block whose blocker never closes still waits forever by design — the sweep
     only ever *lifts* a block, never creates or extends one.
+## ADR-0031 — Cybernetics apply as one-shot stat multipliers at mission load
+
+- **Status:** Accepted (2026-10-15)
+- **Date:** 2026-10-15
+- **Context:** Milestone A's last unstarted item is **cybernetic upgrades**
+  (legs/arms/chest/eyes) — permanent, passive stat changes bought in the
+  metagame (docs/ROADMAP.md). `EquipmentKind::Cybernetic` and a catalogue entry
+  (`targeting-implant`) already exist, but nothing applied a cybernetic to a
+  combat stat, so it is purchasable and inert. Three questions had to be settled:
+
+  1. **Where does a cybernetic's effect live?** The catalogue item is only
+     `{id, kind, name, cost}`; the modifier (how much speed/accuracy/health/sight
+     it grants) needs a home.
+  2. **How is it represented — as a delta or a multiplier?** A flat `+2 speed`
+     or a `×1.2`? And what does it modify: the agent's base stat, or a separate
+     buff layer?
+  3. **Perception had no field.** Accuracy lives on `Weapon`, health and speed on
+     `Agent`, and there was **no sight-range field at all** — so "eyes" has
+     nothing to change. `Agent` is owned by `focus: world` (FOCUS_AREAS §2.1), so
+     this needed a world contract, not a tactical edit to `Agent`.
+
+- **Options:**
+  1. **Put the modifiers on `Agent`/`Weapon` and apply them there.** Rejected:
+     an upgrade is metagame content, and adding four modifier fields to the
+     frozen `Agent`/`Weapon` contracts (Rule 3) for a passive, load-time-only
+     change would bloat the interfaces every other area builds against.
+  2. **A separate runtime buff layer the sim consults each tick** (mirroring the
+     drug buff). Rejected: a cybernetic is **permanent**, so a per-tick layer is
+     needless per-frame work on the critical path (AGENTS.md §1b) and a second
+     path for every stat to flow through.
+  3. **A data-only `CyberneticEffect` of multipliers in `core/sim`, applied once
+     by `Mission::applyCybernetic` at mission load, with perception delegated to
+     the per-agent `Agent::sightRange()` that `focus: world` landed for this
+     upgrade (#337).** Chosen: it matches the loadout pattern (`PlayerLoadout` is
+     data-only, applied once by `applyLoadout`, ADR-0027), keeps the `Agent`
+     modifier surface to the single field World authored, and puts the upgrade
+     logic where the sim already owns the agents.
+
+- **Decision:** **Option 3.**
+  - `CyberneticEffect` (`src/core/sim/Cybernetic.h`, header-only, engine-free)
+    holds four **multipliers** — `speedMultiplier`, `accuracyMultiplier`,
+    `healthMultiplier`, `sightMultiplier` — all defaulting to 1.0. A multiplier
+    scales with the agent's authored stat, so a chest upgrade raises a 100-health
+    agent and a 200-health one proportionally.
+  - `cyberneticEffectForId(id, out)` is the closed vocabulary of the equipment
+    catalogue's `kind: "cybernetic"` items: `legs` (speed), `arms` (accuracy),
+    `chest` (health), `eyes` (perception), and the already-shipped
+    `targeting-implant` (accuracy). An unknown id returns false, so a typo is
+    rejected rather than silently deploying an un-upgraded agent.
+  - `Mission::applyCybernetic(index, id)` applies the effect once: multiplies
+    speed, multiplies max health (via `Agent::setMaxHealth`, which also fills the
+    extra health, so the upgrade is a clean gain not a wound), multiplies weapon
+    accuracy **clamped to 1.0** (an upgrade must never make a shot certain), and
+    multiplies sight range. Deterministic; no RNG. It is a no-op for a civilian,
+    a dead agent, an unknown id, or an invalid index.
+  - **Perception** multiplies the agent's per-agent `Agent::sightRange()`
+    (default `kDefaultSightRange`, the world contract landed for this upgrade in
+    #337); `Mission::seesTarget` reads it, so an eyes upgrade measurably extends
+    the range at which a combatant acquires a target — a real behavioural effect,
+    not just a getter. `Mission::sightRange`/`setSightRange` are thin delegators
+    for mission setup and tests.
+  - `LoadoutSlot` gains a third data-only id, `cyberneticId`, and `applyLoadout`
+    applies it through the same strict path as a weapon/gadget: an unknown id is
+    a content error.
+
+- **Consequences:**
+  - Milestone A's cybernetics item is done: a cybernetic measurably changes its
+    stat, is data-driven (one arm here + one catalogue entry, no schema change),
+    and is unit-tested.
+  - The modifier data lives in `core/sim` (Tactical) until a data file format for
+    cybernetic modifiers is fixed (ADR-0003); moving it to `assets/data` is then
+    a small, local change.
+  - `focus: metagame` must add the `legs`/`arms`/`chest`/`eyes` catalogue (and
+    research) entries **and** map a bought cybernetic to
+    `LoadoutSlot::cyberneticId` in `Campaign::selectedLoadout`, which today
+    deliberately skips cybernetics as "not a loadout item". Until that lands, a
+    cybernetic is fully usable via `applyLoadout` but not yet purchasable through
+    the campaign UI (Rule 4 request filed on #313).
+  - The interface is additive and frozen: `CyberneticEffect`/`cyberneticEffectForId`,
+    `Mission::applyCybernetic`/`sightRange`/`setSightRange`, and
+    `LoadoutSlot::cyberneticId` are the surface the metagame builds against.

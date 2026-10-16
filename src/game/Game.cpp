@@ -1260,7 +1260,7 @@ bool Game::deploySelfTest()
     // demo squad does not carry it, so the weapon on the first player agent
     // proves applyLoadout ran.
     core::PlayerLoadout loadout;
-    loadout.slots.push_back(core::LoadoutSlot{"minigun", ""});
+    loadout.slots.push_back(core::LoadoutSlot{"minigun", "", ""});
     startDeployedMission(missionFile, loadout);
     if (campaign_.visible())
     {

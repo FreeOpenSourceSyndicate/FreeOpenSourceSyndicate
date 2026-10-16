@@ -28,6 +28,14 @@ struct LoadoutSlot
     // (`assets/data/world/equipment.json`): "medkit", "shield", "scanner" or
     // "drugs". Empty keeps the slot's authored (zero) gadget count.
     std::string gadgetId;
+
+    // Cybernetic upgrade id, from the equipment catalogue's `kind: "cybernetic"`
+    // items: "legs" (speed), "arms" (accuracy), "chest" (health), "eyes"
+    // (perception), or "targeting-implant" (accuracy). Empty applies no upgrade,
+    // so a passive upgrade is optional per slot. Unlike a weapon/gadget, a
+    // cybernetic is a permanent stat change applied once at load
+    // (`Mission::applyCybernetic`).
+    std::string cyberneticId;
 };
 
 // How many charges of a gadget a slot carries when it is equipped. Gadgets are

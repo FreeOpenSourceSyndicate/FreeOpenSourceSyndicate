@@ -1890,3 +1890,173 @@ FOSSYND_TEST(Mission, DrugsRaiseHitChance)
     const float plainDamage = 100000.0f - plain.agents()[dummy2].health();
     FOSSYND_CHECK(buffedDamage > plainDamage);
 }
+
+// --- cybernetic upgrades (Milestone A, issue #313) ---------------------------
+
+FOSSYND_TEST(Mission, CyberneticVocabularyRejectsUnknown)
+{
+    CyberneticEffect effect;
+    FOSSYND_CHECK(cyberneticEffectForId("legs", effect));
+    FOSSYND_CHECK_NEAR(effect.speedMultiplier, 1.20f);
+    FOSSYND_CHECK(cyberneticEffectForId("arms", effect));
+    FOSSYND_CHECK_NEAR(effect.accuracyMultiplier, 1.15f);
+    FOSSYND_CHECK(cyberneticEffectForId("chest", effect));
+    FOSSYND_CHECK_NEAR(effect.healthMultiplier, 1.25f);
+    FOSSYND_CHECK(cyberneticEffectForId("eyes", effect));
+    FOSSYND_CHECK_NEAR(effect.sightMultiplier, 1.30f);
+    FOSSYND_CHECK(cyberneticEffectForId("targeting-implant", effect));
+    FOSSYND_CHECK_NEAR(effect.accuracyMultiplier, 1.10f);
+    FOSSYND_CHECK(!cyberneticEffectForId("jetpack", effect));
+    FOSSYND_CHECK(!cyberneticEffectForId("", effect));
+}
+
+FOSSYND_TEST(Mission, CyberneticLegsArmsChestChangeStats)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 72u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    const float baseSpeed = mission.agents()[hero].speed();
+    const float baseAccuracy = mission.agents()[hero].weapon().accuracy;
+    const float baseHealth = mission.agents()[hero].maxHealth();
+
+    FOSSYND_CHECK(mission.applyCybernetic(hero, "legs"));
+    FOSSYND_CHECK(mission.applyCybernetic(hero, "arms"));
+    FOSSYND_CHECK(mission.applyCybernetic(hero, "chest"));
+
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].speed(), baseSpeed * 1.20f);
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].weapon().accuracy, baseAccuracy * 1.15f);
+    // A chest upgrade raises the maximum *and* fills the extra health, so it is
+    // a clean gain, not a wound.
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].maxHealth(), baseHealth * 1.25f);
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].health(), baseHealth * 1.25f);
+}
+
+FOSSYND_TEST(Mission, CyberneticEyesRaiseSightRange)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 71u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+
+    // A mission's authored sight range is the default until an eyes upgrade.
+    FOSSYND_CHECK_NEAR(mission.sightRange(hero), kDefaultSightRange);
+    FOSSYND_CHECK(mission.applyCybernetic(hero, "eyes"));
+    FOSSYND_CHECK_NEAR(mission.sightRange(hero), kDefaultSightRange * 1.30f);
+
+    // The setter lets an author seed a different base for a mission.
+    mission.setSightRange(hero, 20.0f);
+    FOSSYND_CHECK_NEAR(mission.sightRange(hero), 20.0f);
+}
+
+FOSSYND_TEST(Mission, CyberneticEyesExtendEngagementRange)
+{
+    // An enemy 13 tiles off is beyond the default 12-tile sight, so it never
+    // acquires the player and stays put; with an eyes upgrade (1.3x -> 15.6) it
+    // engages and closes in. This is the behavioural proof the perception stat
+    // feeds `seesTarget`, not just the getter.
+    const float far = 13.0f;
+    {
+        TileGrid grid(20, 2);
+        Mission mission(grid, 75u);
+        mission.addAgent(makeAgent(1.0f, 1.0f, Team::Player, 1000.0f, Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+        const std::size_t foe = mission.addAgent(
+            makeAgent(1.0f + far, 1.0f, Team::Enemy, 1000.0f, Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+        for (int i = 0; i < 40; ++i)
+        {
+            mission.update(0.05f);
+        }
+        FOSSYND_CHECK_EQ(mission.agents()[foe].aiState(), AiState::Idle);
+    }
+    {
+        TileGrid grid(20, 2);
+        Mission mission(grid, 75u);
+        mission.addAgent(makeAgent(1.0f, 1.0f, Team::Player, 1000.0f, Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+        const std::size_t foe = mission.addAgent(
+            makeAgent(1.0f + far, 1.0f, Team::Enemy, 1000.0f, Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+        FOSSYND_CHECK(mission.applyCybernetic(foe, "eyes"));
+        bool engaged = false;
+        for (int i = 0; i < 40 && !engaged; ++i)
+        {
+            mission.update(0.05f);
+            engaged = mission.agents()[foe].aiState() == AiState::Engage;
+        }
+        FOSSYND_CHECK(engaged);
+    }
+}
+
+FOSSYND_TEST(Mission, CyberneticAccuracyIsClampedToCertain)
+{
+    // An accuracy upgrade must never make a shot certain: a 0.95 base times 1.15
+    // would be 1.09, so it is clamped to 1.0.
+    TileGrid grid(20, 20);
+    Mission mission(grid, 74u);
+    const std::size_t hero =
+        mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f, Weapon{"Sure", 10.0f, 10.0f, 1.0f, 0.95f}));
+    FOSSYND_CHECK(mission.applyCybernetic(hero, "arms"));
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].weapon().accuracy, 1.0f);
+}
+
+FOSSYND_TEST(Mission, CyberneticNoOpForCivilianUnknownOrInvalid)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 73u);
+
+    // A civilian cannot take a passive combat upgrade.
+    const std::size_t bystander = mission.addAgent(makeAgent(3.0f, 2.0f, Team::Civilian, 20.0f));
+    const float civilianSpeed = mission.agents()[bystander].speed();
+    FOSSYND_CHECK(!mission.applyCybernetic(bystander, "legs"));
+    FOSSYND_CHECK_NEAR(mission.agents()[bystander].speed(), civilianSpeed);
+
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    const float heroSpeed = mission.agents()[hero].speed();
+    FOSSYND_CHECK(!mission.applyCybernetic(hero, "jetpack")); // unknown id
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].speed(), heroSpeed);
+    FOSSYND_CHECK(!mission.applyCybernetic(hero, ""));        // empty id
+    FOSSYND_CHECK(!mission.applyCybernetic(999, "legs"));     // invalid index
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].speed(), heroSpeed);
+}
+
+FOSSYND_TEST(Mission, LoadoutGrantsCybernetic)
+{
+    // A bought cybernetic reaches the deployed agent through the same loadout
+    // path as a weapon/gadget: a permanent stat change on the mapped slot.
+    const MissionData data = loadoutFixture();
+    TileGrid grid = buildGrid(data);
+    Mission mission(grid, 5u);
+    populateMission(data, mission);
+
+    const float baseSpeed = mission.agents()[0].speed();
+    const float baseHealth = mission.agents()[1].maxHealth();
+
+    PlayerLoadout loadout;
+    loadout.slots.resize(2);
+    loadout.slots[0].cyberneticId = "legs";
+    loadout.slots[1].cyberneticId = "chest";
+
+    std::string error;
+    const WeaponCatalogue weapons = loadoutWeapons();
+    FOSSYND_CHECK(applyLoadout(loadout, mission, weapons, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_NEAR(mission.agents()[0].speed(), baseSpeed * 1.20f);
+    FOSSYND_CHECK_NEAR(mission.agents()[1].maxHealth(), baseHealth * 1.25f);
+}
+
+FOSSYND_TEST(Mission, LoadoutRejectsUnknownCybernetic)
+{
+    const MissionData data = loadoutFixture();
+    TileGrid grid = buildGrid(data);
+    Mission mission(grid, 5u);
+    populateMission(data, mission);
+
+    const float baseSpeed = mission.agents()[0].speed();
+
+    PlayerLoadout loadout;
+    loadout.slots.resize(1);
+    loadout.slots[0].cyberneticId = "wings";
+
+    std::string error;
+    const WeaponCatalogue weapons = loadoutWeapons();
+    FOSSYND_CHECK(!applyLoadout(loadout, mission, weapons, error));
+    FOSSYND_CHECK(!error.empty());
+    // Nothing was applied: the stat is intact.
+    FOSSYND_CHECK_NEAR(mission.agents()[0].speed(), baseSpeed);
+}

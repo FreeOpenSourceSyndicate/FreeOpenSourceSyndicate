@@ -94,7 +94,15 @@ Milestone C needs both.
 
 Close out the 1993 tactical feature set (the tail of the old Phase 3).
 
-- [ ] **Cybernetics** (speed, accuracy, health, perception) as agent upgrades.
+- [x] **Cybernetics** (speed, accuracy, health, perception) as agent upgrades.
+      _Done in #313: `CyberneticEffect` (`core/sim/Cybernetic.h`) maps a
+      `kind: "cybernetic"` id to permanent stat multipliers applied once at
+      mission load by `Mission::applyCybernetic` — `legs` (speed), `arms`
+      (accuracy), `chest` (health), `eyes` (sight/perception). `LoadoutSlot`
+      gained a `cyberneticId`, so a bought upgrade deploys through the same path
+      as a weapon/gadget. Perception multiplies the per-agent `Agent::sightRange`
+      feeding `seesTarget` (ADR-0031). The metagame catalogue/deploy wiring for
+      the four new ids is a `focus: metagame` follow-up (Rule 4 request on #313)._
 - [x] **Gadgets**: scanner (and any remaining gadget from the DoD list).
       _Shield landed (#213); medikit and recruiter already done; scanner and
       performance drugs landed (#314) — `Mission::activateScanner`/`scanTargets`
@@ -224,7 +232,7 @@ A shippable demo, deliberately original in code and art.
       (catalogue is data-driven; the launcher does area damage)
 - [ ] Gadgets: Compliance Beacon ✅, medikit ✅, shield ✅; scanner pending →
       Milestone A
-- [ ] Cybernetic upgrades (speed, accuracy, health, perception) → Milestone A
+- [x] Cybernetic upgrades (speed, accuracy, health, perception) → Milestone A
 - [ ] Vehicles: cars/trains, hijacking, mounted weapons → Milestone A
 - [x] Destructible environment (cracked walls: weapon fire opens them; enemies use cover)
 - [x] Enemy AI: engage (basic chase + fire)
