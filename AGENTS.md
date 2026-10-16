@@ -721,6 +721,13 @@ Do not start work outside the scope fence (ADR-0024).
   *move*); `NoPath` only when `start` is invalid or nothing else is reachable.
   The bounded BFS reuses the same node cap (ADR-0008) and corner rule as
   `findPath`. Consumer side (engine/input) is Input/UI's — a follow-up.
+- **`Rng::nextFloat()` is truly half-open `[0, 1)` (issue #383):** the old
+  mapping `float(nextUint64() >> 11) * 2^-53` narrowed the all-ones 53-bit draw
+  *up* to `2^53`, so it returned exactly `1.0f` about once in 50M draws — outside
+  the documented range and a latent determinism trap. `nextFloat()` now clamps
+  that single case to `0x1.fffffep-1f` (largest float < 1); every other draw is
+  bit-for-bit unchanged, so no existing seed or test outcome shifts. `Rng` is
+  world-owned (`src/core/util/Rng.h`); use it, never `<random>`/`rand()`, in core.
 - **Reachability primitive (issue #188):** `core::reachableTiles` returns every
   walkable tile reachable from a start (in stable row-major order, start
   included), and `core::areConnected` is a thin wrapper asking whether one tile

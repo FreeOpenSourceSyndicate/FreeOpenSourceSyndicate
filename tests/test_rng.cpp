@@ -50,6 +50,18 @@ FOSSYND_TEST(Rng, NextFloatInUnitRange)
     }
 }
 
+// The 53-bit draw whose float-narrowing rounds up to 2^53 would return exactly
+// 1.0f and break the documented [0, 1) range. Pinned so the clamp cannot regress
+// (issue #383); a plain 1000-draw loop never reaches this state.
+FOSSYND_TEST(Rng, NextFloatNeverReachesOne)
+{
+    Rng rng(1u);
+    rng.setState(3437049264879337801ull);
+    const float value = rng.nextFloat();
+    FOSSYND_CHECK(value < 1.0f);
+    FOSSYND_CHECK(value >= 0.0f);
+}
+
 FOSSYND_TEST(Rng, ChanceIsDeterministicPerSeed)
 {
     Rng a(42u);
