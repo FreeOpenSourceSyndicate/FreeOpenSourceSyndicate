@@ -365,7 +365,18 @@ public:
   visible, `Game::update` freezes the tactical simulation (the player is on the
   map, not the board) and calls `CampaignScreen::update(realDt)`, which ticks
   economy + research. `M` toggles the screen; `-`/`+` change the selected
-  territory's tax; `D` deploys.
+  territory's tax; `D` deploys; `B` opens the R&D shop.
+- **The R&D shop is in play (the middle of the loop).** `B` toggles
+  `CampaignScreen::shopOpen()`: one list of the research nodes followed by the
+  equipment items, navigated with Up/Down, a squad slot chosen with Left/Right,
+  and Enter funding research or buying + assigning gear. It is the *player* path
+  for the tax → research → buy → deploy loop, which before this was reachable
+  only from `selfTest` (the screen could tax and deploy, but never research or
+  buy). While open the shop is modal — `CampaignScreen::handleKey` swallows every
+  key (Esc/`B` closes) so a management binding cannot fire behind it — and it
+  refuses to open once `finished()`. Every rule (cost, prerequisites, the
+  research gate, funds) stays in `core/economy/**`; the shop only reads the
+  campaign and forwards the action (golden rule 4).
 - **The end state is terminal and has its own panel.** Once `Campaign::finished()`
   is true (won or lost), `canDeployTo`, `recordResult`, and `tick` all become
   no-ops, so the board the player sees is frozen; the screen also refuses to
@@ -376,9 +387,10 @@ public:
 - **Headless guard.** `--check-campaign` (ctest `game_campaign`) runs
   `CampaignScreen::selfTest`, which on a *copy* of the shipped campaign exercises
   starting funds → tax → income → research → buy → assign → attack the frontier
-  → win through the real core systems. It wins by *deploying and claiming* each
-  remaining region, so a data file that leaves the campaign unwinnable fails the
-  guard instead of a playtest. `--map` (ctest `game_map_flag`) starts on the
+  → win through the real core systems, then drives the R&D shop through the
+  player keys (`B`/Enter/Down) and draws it. It wins by *deploying and claiming*
+  each remaining region, so a data file that leaves the campaign unwinnable fails
+  the guard instead of a playtest. `--map` (ctest `game_map_flag`) starts on the
   screen so the render path is exercised headlessly.
 
 Deployment records the selection (`Campaign::selectMission` with the four fixed
@@ -539,11 +551,13 @@ follow-up issue.
 
 From the tracking issue (#249):
 
-- [ ] Each system is engine-free and unit-tested in `tests/` (ADR-0002).
-- [ ] The whole loop works without a config file or debug flag: start a
+- [x] Each system is engine-free and unit-tested in `tests/` (ADR-0002).
+- [x] The whole loop works without a config file or debug flag: start a
       corporation → tax → research → buy → deploy → win/lose → progress.
-- [ ] Data-driven content (`assets/data/world/**`), not hard-coded constants.
-- [ ] No new warnings; `ctest` green; docs/ADRs updated.
+      *(the R&D shop, `B` on the map, is the in-play path for research and
+      purchase; before it those verbs existed only in `selfTest`.)*
+- [x] Data-driven content (`assets/data/world/**`), not hard-coded constants.
+- [x] No new warnings; `ctest` green; docs/ADRs updated.
 
 ## 10. Open questions (to settle as the work lands)
 

@@ -69,9 +69,10 @@ public:
 
     // Headless guard for the campaign management loop (Milestone B): on a copy of
     // the loaded campaign, exercises tax -> income -> research -> buy -> deploy ->
-    // win through the real core systems. Returns false on a broken invariant.
+    // win through the real core systems, and draws the R&D shop overlay so its
+    // render path is exercised too. Returns false on a broken invariant.
     // Used by the `game_campaign` ctest.
-    bool campaignSelfTest() { return campaign_.selfTest(); }
+    bool campaignSelfTest();
 
     // Headless guard for deploying from the map onto the tactical board (issue
     // #312): the deployed mission must start with the chosen loadout applied to

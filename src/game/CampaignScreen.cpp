@@ -373,6 +373,90 @@ core::CampaignState CampaignScreen::recordDeployResult(bool won)
     return campaign_.state();
 }
 
+void CampaignScreen::toggleShop()
+{
+    if (campaign_.finished())
+    {
+        return; // the end state is terminal: no further spending
+    }
+    shopOpen_ = !shopOpen_;
+    if (shopOpen_)
+    {
+        shopRow_ = 0;
+        shopScroll_ = 0;
+    }
+}
+
+bool CampaignScreen::handleKey(int sym)
+{
+    // The shop owns the screen while it is open: navigation and the buy/begin
+    // action. Every other key falls through to the global bindings, so Esc still
+    // quits the game from the map (the shop consumes Esc to close instead).
+    if (shopOpen_)
+    {
+        // The shop is modal: it consumes every key so a management binding (M, D,
+        // -/+) cannot fire behind it.
+        if (sym == SDLK_ESCAPE || sym == SDLK_b)
+        {
+            shopOpen_ = false;
+            return true;
+        }
+        const int rows = static_cast<int>(campaign_.researchTree().size() +
+                                          campaign_.catalogue().size());
+        if (rows <= 0)
+        {
+            return true; // an empty catalogue: swallow nav, nothing to move over
+        }
+        switch (sym)
+        {
+        case SDLK_UP:
+            shopRow_ = (shopRow_ - 1 + rows) % rows;
+            return true;
+        case SDLK_DOWN:
+            shopRow_ = (shopRow_ + 1) % rows;
+            return true;
+        case SDLK_LEFT:
+            shopSlot_ = (shopSlot_ - 1 + core::Equipment::kSquadSlots) % core::Equipment::kSquadSlots;
+            return true;
+        case SDLK_RIGHT:
+            shopSlot_ = (shopSlot_ + 1) % core::Equipment::kSquadSlots;
+            return true;
+        case SDLK_RETURN:
+        case SDLK_KP_ENTER:
+        {
+            const int player = core::Campaign::kPlayerSyndicate;
+            const std::size_t researchCount = campaign_.researchTree().size();
+            if (static_cast<std::size_t>(shopRow_) < researchCount)
+            {
+                const std::string& id = campaign_.researchTree().nodes()[static_cast<std::size_t>(shopRow_)].id;
+                campaign_.research().begin(player, id, campaign_.researchTree(),
+                                           campaign_.economy());
+            }
+            else
+            {
+                const std::size_t index = static_cast<std::size_t>(shopRow_) - researchCount;
+                const std::string& id = campaign_.catalogue().items()[index].id;
+                if (campaign_.equipment().buy(player, id, campaign_.catalogue(),
+                                              campaign_.research(), campaign_.economy()))
+                {
+                    campaign_.equipment().assign(player, shopSlot_, id);
+                }
+            }
+            return true;
+        }
+        default:
+            return true; // modal: swallow everything else
+        }
+    }
+
+    if (sym == SDLK_b)
+    {
+        toggleShop();
+        return true;
+    }
+    return false;
+}
+
 std::string CampaignScreen::resolveMissionFile(const std::string& missionId) const
 {
     if (missionId.empty())
@@ -387,6 +471,111 @@ std::string CampaignScreen::resolveMissionFile(const std::string& missionId) con
         }
     }
     return {};
+}
+
+void CampaignScreen::renderShop(SDL_Renderer* renderer, const BitmapFont& font, int w, int h) const
+{
+    const int lineH = font.lineHeight();
+    const int margin = 12;
+    const int player = core::Campaign::kPlayerSyndicate;
+
+    // Full-screen dim so the list reads as a modal over the frozen map.
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 190);
+    SDL_Rect full{0, 0, w, h};
+    SDL_RenderFillRect(renderer, &full);
+
+    const auto& nodes = campaign_.researchTree().nodes();
+    const auto& items = campaign_.catalogue().items();
+    const int rowCount = static_cast<int>(nodes.size() + items.size());
+
+    // Keep the selected row on screen. Rows are one line each; reserve the top two
+    // lines (title + header) and the bottom two (selection detail + hint).
+    const int visibleRows = std::max(1, (h - lineH * 5) / lineH);
+    if (shopRow_ < shopScroll_)
+    {
+        shopScroll_ = shopRow_;
+    }
+    if (shopRow_ >= shopScroll_ + visibleRows)
+    {
+        shopScroll_ = shopRow_ - visibleRows + 1;
+    }
+    shopScroll_ = std::max(0, std::min(shopScroll_, std::max(0, rowCount - visibleRows)));
+
+    int y = margin;
+    font.draw(renderer, margin, y, "R&D - UP/DOWN MOVE, ENTER ACT, ESC CLOSE", hudstyle::kHudText);
+    y += lineH * 2;
+
+    const core::ResearchState& research = campaign_.research().state(player);
+    for (int row = shopScroll_; row < rowCount && y < h - lineH * 2; ++row)
+    {
+        const bool selected = row == shopRow_;
+        const std::string marker = selected ? "> " : "  ";
+        std::string text;
+        SDL_Color color = hudstyle::kHudDim;
+
+        if (row < static_cast<int>(nodes.size()))
+        {
+            const core::ResearchNode& node = nodes[static_cast<std::size_t>(row)];
+            const bool done = research.isCompleted(node.id);
+            const bool inProgress = research.inProgress == node.id;
+            text = marker + "R&D " + node.name + "  " + std::to_string(static_cast<int>(node.cost));
+            if (done)
+            {
+                text += "  DONE";
+                color = hudstyle::kHudGood;
+            }
+            else if (inProgress)
+            {
+                text += "  " + std::to_string(static_cast<int>(research.remainingSeconds + 0.999f)) + "s";
+                color = hudstyle::kHudText;
+            }
+            else if (!campaign_.researchTree().isAvailable(node.id, research))
+            {
+                text += "  LOCKED";
+            }
+            else if (campaign_.economy().canAfford(player, node.cost))
+            {
+                color = hudstyle::kHudText;
+            }
+        }
+        else
+        {
+            const core::EquipmentItem& item =
+                items[static_cast<std::size_t>(row) - nodes.size()];
+            const bool unlocked =
+                item.requiresResearch.empty() || research.isCompleted(item.requiresResearch);
+            text = marker + "BUY " + item.name + "  " + std::to_string(static_cast<int>(item.cost));
+            if (!unlocked)
+            {
+                text += "  NEEDS " + item.requiresResearch;
+            }
+            else if (campaign_.economy().canAfford(player, item.cost))
+            {
+                color = hudstyle::kHudText;
+            }
+        }
+
+        font.draw(renderer, margin, y, text, selected ? hudstyle::kHudText : color);
+        y += lineH;
+    }
+
+    // Selection detail: the action Enter would take, and the target slot.
+    y = h - lineH * 2;
+    std::string action = "ENTER: ";
+    if (shopRow_ < static_cast<int>(nodes.size()))
+    {
+        action += "FUND RESEARCH";
+    }
+    else
+    {
+        action += "BUY + ASSIGN TO SLOT " + std::to_string(shopSlot_ + 1) + " (LEFT/RIGHT)";
+    }
+    font.draw(renderer, margin, y, action, hudstyle::kHudDim);
+    y += lineH;
+    font.draw(renderer, margin, y,
+              "FUNDS: " + std::to_string(static_cast<int>(campaign_.economy().funds(player))),
+              hudstyle::kHudGood);
 }
 
 void CampaignScreen::render(SDL_Renderer* renderer, const BitmapFont& font, int w, int h) const
@@ -524,7 +713,17 @@ void CampaignScreen::render(SDL_Renderer* renderer, const BitmapFont& font, int 
     font.draw(renderer, margin, y, researchLine, hudstyle::kHudText);
     y += lineH * 2;
 
-    font.draw(renderer, margin, y, "[M] TACTICAL   [-/+] TAX   [D] DEPLOY", hudstyle::kHudDim);
+    font.draw(renderer, margin, y, "[M] TACTICAL   [-/+] TAX   [D] DEPLOY   [B] R&D",
+              hudstyle::kHudDim);
+
+    // R&D shop overlay (Milestone B): the research tree and the equipment
+    // catalogue in one list, so a player can fund research and buy gear — the
+    // middle of the loop, previously reachable only from the self-test. Every
+    // rule is in core; this only reads it and forwards the action.
+    if (shopOpen_ && !campaign_.finished())
+    {
+        renderShop(renderer, font, w, h);
+    }
 
     // End-state panel: once the campaign is won or lost the map is frozen
     // (Campaign::tick/recordResult/canDeployTo all refuse), so this is the final
@@ -584,6 +783,7 @@ bool CampaignScreen::selfTest()
 
     // Work on a copy so the live campaign the player sees is untouched.
     core::Campaign campaign = campaign_;
+    const core::Campaign pristine = campaign_; // for the shop step below
     core::Rng rng(0xC0FFEEu); // local stream: the self-test must not disturb rng_
     const int player = core::Campaign::kPlayerSyndicate;
 
@@ -742,6 +942,63 @@ bool CampaignScreen::selfTest()
                      "campaign self-test: the end state did not freeze the screen "
                      "(deploy=%d tax=%d)\n",
                      refusedDeploy ? 1 : 0, refusedTax ? 1 : 0);
+        return false;
+    }
+
+    // 8. The R&D shop drives research and purchase through the *player* keys, not
+    // just the direct core calls above. This is the middle of the loop, so it must
+    // be reachable from the screen (previously only the self-test called it). Do
+    // it on the pristine copy: `B` opens, Enter funds the first research row, the
+    // campaign clock completes it, then Enter on the minigun item buys and assigns
+    // it to the selected slot. A finished campaign cannot open the shop.
+    const core::Campaign savedCampaign2 = campaign_;
+    const bool savedShopOpen = shopOpen_;
+    const int savedShopRow = shopRow_;
+    const int savedShopSlot = shopSlot_;
+    campaign_ = pristine;
+    campaign_.economy().addFunds(player, 100000.0f);
+    shopOpen_ = false;
+    shopRow_ = 0;
+    shopSlot_ = 0;
+
+    bool shopOk = handleKey(SDLK_b) && shopOpen();
+    // Row 0 is the first research node (the tree lists before the catalogue).
+    shopOk = shopOk && handleKey(SDLK_RETURN) &&
+             campaign_.research().state(player).inProgress ==
+                 campaign_.researchTree().nodes().front().id;
+    for (int i = 0; i < 30 && !campaign_.research().completed(player, "minigun"); ++i)
+    {
+        campaign_.tick(10.0f, rng);
+    }
+    // Move down to the minigun catalogue row (research nodes come first) and buy.
+    const std::size_t minigunRow =
+        campaign_.researchTree().size() +
+        static_cast<std::size_t>(std::distance(
+            campaign_.catalogue().items().begin(),
+            std::find_if(campaign_.catalogue().items().begin(),
+                         campaign_.catalogue().items().end(),
+                         [](const core::EquipmentItem& item) { return item.id == "minigun"; })));
+    while (static_cast<std::size_t>(shopRow_) < minigunRow)
+    {
+        handleKey(SDLK_DOWN);
+    }
+    shopOk = shopOk && handleKey(SDLK_RETURN) &&
+             !campaign_.equipment().loadout(player, shopSlot_).empty();
+    // A finished campaign cannot open the shop.
+    campaign_ = campaign; // the won copy from step 7
+    shopOpen_ = false;
+    const bool shopRefusedWhenFinished = handleKey(SDLK_b) && !shopOpen();
+
+    campaign_ = savedCampaign2;
+    shopOpen_ = savedShopOpen;
+    shopRow_ = savedShopRow;
+    shopSlot_ = savedShopSlot;
+    if (!shopOk || !shopRefusedWhenFinished)
+    {
+        std::fprintf(stderr,
+                     "campaign self-test: the R&D shop did not fund/buy through the "
+                     "screen keys (ok=%d frozen=%d)\n",
+                     shopOk ? 1 : 0, shopRefusedWhenFinished ? 1 : 0);
         return false;
     }
 

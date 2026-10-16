@@ -535,7 +535,10 @@ landed**: `game::CampaignScreen` (`src/game/CampaignScreen.{h,cpp}`, its own
 translation unit — do not grow the shared `Game.cpp`) owns a `core::Campaign`,
 renders the world map (deterministic, view-only BFS-ring layout), and drives the
 loop: **`M`** toggles the screen, **click** a territory to select, **`-`/`+`**
-change its tax, **`D`** deploys the mission. `--campaign <path>` picks a campaign
+change its tax, **`B`** opens the **R&D shop** (one list of research nodes +
+equipment items: Up/Down to move, Left/Right for the squad slot, Enter to fund
+research or buy+assign; modal while open, and refused once the campaign is
+finished), **`D`** deploys the mission. `--campaign <path>` picks a campaign
 file and `--map` starts on the screen. While it is up, `Game::update` freezes the
 tactical sim and ticks the campaign clock instead (economy + research).
 `--check-campaign` (ctest `game_campaign`) runs the real loop on a copy of the
@@ -550,7 +553,9 @@ could never progress. A `missionId` may now be shared by several regions (the
 original reuses city maps), and `CampaignScreen::selfTest` wins by attacking, so
 unwinnable data fails `game_campaign` instead of a playtest.
 What remains for Milestone B: the per-region mission content (Tactical); the
-campaign loop itself is now closed end to end. The mission round-trip landed
+campaign loop itself is now **playable end to end with no debug flag** (the last
+acceptance criterion) — tax on the map, fund research and buy gear in the R&D
+shop (`B`), deploy with `D`, win/lose, and progress. The mission round-trip landed
 (issue #312): `D` on the map starts the territory's mission on the tactical board
 with the bought squad (R1's `applyLoadout`), and the mission's win/lose is fed
 back to `Campaign::recordResult` and returns the player to the map. The **end
