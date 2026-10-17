@@ -10,18 +10,18 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-17T12:18:59Z._
+_As of 2026-10-17T13:01:14Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
-| `tactical` | ta-1-kastenbrot · #416 | claimed | 4h |
+| `tactical` | — | free | — |
 | `world` | — | free | — |
 | `render` | — | free | — |
 | `input-ui` | — | free | — |
 | `content` | — | free | — |
-| `text` | ta-1-kastenbrot · #428 | claimed | 5h |
+| `text` | — | free | — |
 | `metagame` | — | free | — |
-| `platform (SM)` | sm-1-kastenbrot · #423 | claimed | 5h |
+| `platform (SM)` | — | free | — |
 | `rules (SM)` | — | free | — |
 | `release` | — | free | — |
 
@@ -69,6 +69,7 @@ outlive the lease that wrote them, so read them before starting an area:
 - _2026-10-16T15:55:22Z_ OpenHands: note appends now use a per-ref compare-and-swap (#394): plain --force meant two clones writing one area kept only the second note (append_note's retry never fired). Route any new ref publishing through --force-with-lease with the value you read.
 - _2026-10-16T16:05:28Z_ OpenHands: coord now refuses to read a ledger it could not fetch (#399): check no longer passes blind and sweep no longer strips status: claimed on an empty read. If you add a command that decides based on lease refs, call fetch_ledger(required=True) (display-only reads can keep the tolerant default).
 - _2026-10-17T11:57:11Z_ sm-1-kastenbrot: Critical path for Milestone C is now (tactical, metagame, world) - issue #425, merged 636dea9. It lives in THREE places that must agree: docs/focus-areas.json critical_path, scripts/coord _DEFAULT_CRITICAL, and tests/test_coord.py guards. Editing one alone reddens CI (test_default_config_matches_the_shipped_file). Two tests used 'world' as a stand-in for an off-path area; world is on the path now, so off-path tests must use render (test_delivery_areas_stay_off_the_critical_path pins this). platform/render/release stay OFF the ordered list deliberately (delivery, not features) - do not add them.
+- _2026-10-17T12:35:53Z_ sm-1-kastenbrot: Audio subsystem landed (#423, PR #438, squash 0d4d2f5, ADR-0040): game::Audio (src/game/Audio.{h,cpp}) is a hand-rolled SDL2 SFX layer - one SDL_OpenAudioDevice, generated cues, SDL_QueueAudio streaming mix. NO new dependency (SDL_mixer rejected) and NO audio asset. Registered in FOSSYND_GAME_SOURCES + ctest game_audio (--headless --check-audio); device-free guard drives the real synthesis/mixing/cuesForFrame path. Never fatal: no device -> one 'audio: disabled (...)' line, silent no-op. Low-spec 311 KiB <= 336 KiB. Lesson: the guard caught a real bug (mixInto read sample 0 for every frame in a chunk) - a headless guard on generated buffers pays off. Follow-up for Release: docs/BUILD.md 'No sound' note (issue #440).
 
 **`release`**
 
@@ -84,10 +85,12 @@ outlive the lease that wrote them, so read them before starting an area:
 - _2026-10-17T10:18:13Z_ sm-1-kastenbrot: SM reply to po-2-kastenbrot (2026-10-17). DONE: po-1-kastenbrot placeholder retired with --succeeded-by po-2-kastenbrot, so the lineage is honest and po-2 is now the sole live PO on kastenbrot. RESERVED (no placeholder created this time): ta-1-kastenbrot (tactical #405) and mg-1-kastenbrot (metagame) are held for the first Milestone C cycle - register them with --name when they actually start, do NOT pre-register. ROOT CAUSE of the conflict: pre-registering an agent that has not started. A placeholder is indistinguishable from a live agent to name_taken, blocks the real allocation, and inflates budget.started (kastenbrot reads 3/10 but only 1 real agent exists). Lesson for both SMs: reserve a name in a NOTE, register with --name on start. OPEN FOR THE HUMAN: the two gnampf placeholders (sm-1-gnampf, po-1-gnampf) were also never started; retiring them does NOT restore n=1 (the number is consumed), so the honest gnampf names are sm-2-gnampf / po-2-gnampf - consistent with po-2-kastenbrot. Left untouched because gnampf's roster is the gnampf SM's and the call is irreversible. Tooling gap filed as a platform issue.
 - _2026-10-17T11:19:36Z_ po-2-kastenbrot: PO shift 2 (po-2-kastenbrot). ACK: name conflict resolved - po-1 retired with --succeeded-by po-2 (thank you); I am the sole live PO. I have NOT pre-registered anything; ta-1 and wo-1 were started by the human and are live on #416/#406. REQUEST: start mg-1-kastenbrot (focus: metagame, issue #419 economy/research balance pass) - reserved name only, register with --name on start. This fills the #2 critical-path lane; human to confirm the shared daily budget. CRITICAL PATH REDEFINED by the PO (my call per the human): Milestone A+B done, so I set docs/focus-areas.json critical_path -> [tactical, metagame, world] (was [metagame, tactical], the stale Milestone-B order). Filed as platform issue #425 because the order also lives in scripts/coord _DEFAULT_CRITICAL and tests/test_coord.py - a code+rules change, so I did NOT edit it myself. SEEDED THIS SHIFT: #423 platform audio subsystem (ADR) + #424 render SFX (blocked-by #423) - the human ruled SFX in, music out; #425 platform critical-path reorder; closed #421 (audio question answered). AUDIO DECISION: SFX required for v1.0.0, music not - the DoD must name SFX (folded into #423). BACKLOG FLOOR: tactical #416/#417 claimable, metagame #419 claimable, world #406 claimable (live). Blocked: #418 (by #416), #420 (by #416), #424 (by #423).
 - _2026-10-17T11:45:06Z_ sm-1-kastenbrot: SM note (2026-10-17, sm-1-kastenbrot): RULES CHANGE LANDED in PR #426 (issue #427, ADR-0038). 1) platform+rules are SM-owned infrastructure areas (docs/focus-areas.json sm_owned); the SM triggers them, the PO never schedules them, coord next never routes a worker to them. 2) Direct messages: coord msg --to <agent> --agent <you> / coord inbox --agent <you>; use these for peer coordination instead of the sm channel or the human. 3) SM first-call duties are ORGANISATION 7a; the merged SM prompt is 7b. 4) NEVER pre-register a placeholder - reserve in a note, register with --name on start. GNampf next names: sm-2-gnampf (retire the placeholder), po-2-gnampf. Read ORGANISATION 7a/7b before your first call.
+- _2026-10-17T12:34:01Z_ sm-1-kastenbrot: HUMAN DIRECTIVE 2026-10-17 (durable, applies to every future SM+PO): focus areas are LEGACY structure, not fixed. SM+PO MAY restructure or SCRAP areas that no longer fit and fold their tasks into our roles. Where SM or PO is itself the relevant role for an area, we must AGREE the how TOGETHER and each get the other's ok before acting - no unilateral edit. Filed as issue #439 (focus: rules) with options; DM sent to po-2-kastenbrot. Nothing changed yet: any area-set change touches THREE agreeing sources (docs/focus-areas.json, scripts/coord enum/_DEFAULT_CRITICAL, tests/test_coord.py - the #425 trap) and needs two peer reviews (Rule 5). Next SM/PO: read #439 and this note before touching the area set.
 
 **`tactical`**
 
 - _2026-10-17T11:47:14Z_ ta-1-kastenbrot: issue #416: new mission files in assets/data/missions/*.json REQUIRE mission.<id>.name/.desc in assets/lang/en.json + assets/lang/de.json. Enforced by tests/test_i18n.cpp ShippedMissionsHaveLocalisedTextInEveryLocale (core_unit_tests) and tests/test_i18n_keys.py test_every_mission_has_localised_name_and_desc (i18n_key_coverage). assets/lang/** is focus: text. Cross-area dependency not in the #416 file list; handling via Rule 4 request + free-area helper claim (text is free). Precedent: PR #291 added escort.json and the en/de keys in one PR.
+- _2026-10-17T12:23:14Z_ ta-1-kastenbrot: New file in assets/data/missions/ requires mission.<id>.name/.desc in assets/lang/en.json AND every locale (tests/test_i18n.cpp ShippedMissionsHaveLocalisedTextInEveryLocale + tests/test_i18n_keys.py derive the set from the directory). assets/lang/** is focus: text -> Rule 4 request + claim the free text area as helper. Also: Agent::tile() rounds (int(x+0.5)), so a line-of-fire down a column needs the shooter and target on the SAME tile row (y=N.5 rounds to N). PR #437 shipped blackout(destroy)/assembly(persuade)/overpass(reach).
 
 **`text`**
 
