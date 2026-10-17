@@ -1398,6 +1398,79 @@ class TestAgentNames(CoordTestCase):
         self.assertEqual(roster.budget["started"], 2)
         self.assertEqual(roster.budget["date"], coord.iso(self.now)[:10])
 
+    def test_reserve_records_a_placeholder_without_spending_budget(self):
+        # Issue #422: the SM reserves a name the PO requested before the human
+        # starts the agent. It must be taken, but not be a live agent and not
+        # count against the daily budget.
+        out, _ = self.run_coord("agent", "--reserve", "--host", "kastenbrot",
+                                "--role", "po", "--name", "po-1-kastenbrot")
+        self.assertIn("reserved po-1-kastenbrot", out)
+        roster = coord.read_roster("kastenbrot")
+        entry = roster.find("po-1-kastenbrot")
+        self.assertEqual(entry.status, "reserved")
+        self.assertEqual(entry.since, 0)
+        self.assertEqual(roster.active(), [])
+        self.assertNotIn("started", roster.budget or {})
+
+    def test_a_plain_register_skips_a_reserved_name_and_says_so(self):
+        # The real bug: `po-1` reserved, a plain register silently allocated
+        # `po-2`. It must still allocate po-2 (numbers are never reused) but warn.
+        self.run_coord("agent", "--reserve", "--host", "kastenbrot",
+                       "--role", "po", "--name", "po-1-kastenbrot")
+        out, err = self.run_coord("agent", "--register", "--host", "kastenbrot",
+                                  "--role", "po")
+        self.assertIn("registered po-2-kastenbrot", out)
+        self.assertIn("reserved po-1-kastenbrot", err)
+        self.assertIn("allocated po-2-kastenbrot", err)
+
+    def test_registering_a_reserved_name_promotes_it(self):
+        self.run_coord("agent", "--reserve", "--host", "kastenbrot",
+                       "--role", "po", "--name", "po-1-kastenbrot")
+        out, _ = self.run_coord("agent", "--register", "--host", "kastenbrot",
+                                "--role", "po", "--name", "po-1-kastenbrot",
+                                "--model", "Claude Sonnet 4.5")
+        self.assertIn("registered po-1-kastenbrot", out)
+        roster = coord.read_roster("kastenbrot")
+        entry = roster.find("po-1-kastenbrot")
+        self.assertEqual(entry.status, "active")
+        self.assertEqual(entry.model, "Claude Sonnet 4.5")
+        self.assertNotEqual(entry.since, 0)
+        self.assertEqual([a.name for a in roster.active()], ["po-1-kastenbrot"])
+        # Promotion is the one event that spends budget.
+        self.assertEqual(roster.budget["started"], 1)
+        # The reservation is not duplicated.
+        self.assertEqual(len([a for a in roster.agents
+                              if a.name == "po-1-kastenbrot"]), 1)
+
+    def test_registering_an_active_or_retired_name_is_still_refused(self):
+        self.run_coord("agent", "--register", "--host", "kastenbrot",
+                       "--role", "po", "--name", "po-1-kastenbrot")
+        _, err = self.run_coord("agent", "--register", "--host", "kastenbrot",
+                                "--role", "po", "--name", "po-1-kastenbrot",
+                                expect=2)
+        self.assertIn("names are never reused", err)
+        self.run_coord("agent", "--retire", "po-1-kastenbrot", "--host", "kastenbrot")
+        _, err = self.run_coord("agent", "--register", "--host", "kastenbrot",
+                                "--role", "po", "--name", "po-1-kastenbrot",
+                                expect=2)
+        self.assertIn("names are never reused", err)
+
+    def test_reserve_without_a_name_allocates_the_next_free_number(self):
+        self.run_coord("agent", "--register", "--host", "kastenbrot", "--role", "ta")
+        out, _ = self.run_coord("agent", "--reserve", "--host", "kastenbrot",
+                                "--role", "ta")
+        self.assertIn("reserved ta-2-kastenbrot", out)
+        roster = coord.read_roster("kastenbrot")
+        self.assertEqual([a.name for a in roster.active()], ["ta-1-kastenbrot"])
+        self.assertEqual([a.name for a in roster.reserved()], ["ta-2-kastenbrot"])
+
+    def test_the_board_marks_a_reserved_name_as_not_started(self):
+        self.run_coord("agent", "--reserve", "--host", "kastenbrot",
+                       "--role", "mg", "--name", "mg-1-kastenbrot")
+        content = coord.render_board(at=self.now)
+        self.assertIn("reserved (not started)", content)
+        self.assertIn("mg-1-kastenbrot", content)
+
     def test_a_foreign_host_roster_is_separate(self):
         self.run_coord("agent", "--register", "--host", "kastenbrot", "--role", "ta")
         self.run_coord("agent", "--register", "--host", "gnampf", "--role", "ta")

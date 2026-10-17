@@ -100,6 +100,7 @@ refs/coord/roster/<host>      # JSON: host, agents[], budget, updated
 
 ```bash
 scripts/coord agent --register --host kastenbrot --role ta --model "Claude Sonnet 4.5"
+scripts/coord agent --reserve --host kastenbrot --role ta --name ta-1-kastenbrot
 scripts/coord agent --retire ta-1-kastenbrot --host kastenbrot --succeeded-by ta-2-kastenbrot
 scripts/coord agent --list                 # every host
 scripts/coord agent --host kastenbrot      # one host
@@ -108,6 +109,31 @@ scripts/coord agent --host kastenbrot      # one host
 It is **one ref per host**, so a PO sees only its own computer's agents. The
 generated board (`docs/COORDINATION_BOARD.md`) prints a **Roster** section, and
 `scripts/coord status` prints each host's active names.
+
+### Reserve, then promote
+
+An agent status is `reserved`, `active`, or `retired`. When the PO requests an
+agent by name **before the human has started it**, the SM **reserves** the name
+rather than registering it (issue #422):
+
+```bash
+# The PO asks for ta-1-kastenbrot; the chat does not exist yet.
+scripts/coord agent --reserve --host kastenbrot --role ta --name ta-1-kastenbrot
+# ... the human starts the chat and it takes the name ...
+scripts/coord agent --register --host kastenbrot --role ta --name ta-1-kastenbrot \
+    --model "Claude Sonnet 4.5"      # promotes the reservation to active
+```
+
+- A **reserved** name is **taken** (a later allocation cannot hand it to someone
+  else) but is **not** a live agent: it does not count against the daily budget
+  and is not listed as active. The board shows it as `reserved (not started)`.
+- Registering a reserved name **promotes** it — `since` becomes the real start,
+  and the promotion is the one event that spends budget. Registering an
+  `active` or `retired` name is still **refused**: names are never reused.
+- A plain `--register` that auto-allocates past a reserved name **says so** on
+  stderr (`reserved ta-1-kastenbrot; allocated ta-2-kastenbrot`), so a `po-2`
+  allocation is explained instead of silent. A reserved name still consumes its
+  number, so the honest allocation is the next one.
 
 ### The daily agent budget
 
@@ -142,11 +168,14 @@ Channels are the four above, printed on the board. For a one-to-one exchange use
 named recipient. Reach for a channel only when the *whole role* (both SMs, both
 POs) or everyone should see it.
 
-**Never pre-register a placeholder.** To hold a name before an agent starts, record
-it in a **note**; register with `--name` only when the agent actually starts. A
-placeholder entry is indistinguishable from a live agent: it blocks the real
-allocation (the first PO was pushed from `po-1` to `po-2` this way) and inflates
-the per-host `budget.started` estimate. The tooling gap is issue #422.
+**Reserve a name; never pre-register it as active.** To hold a name before an
+agent starts, `coord agent --reserve` (§4, "Reserve, then promote"). A reserved
+entry is taken (so the name is kept for the agent that will own it) but is
+**not** a live agent: it is not counted against the budget and does not inflate
+the per-host `budget.started` estimate — the failure that made an *active*
+placeholder push the first PO from `po-1` to `po-2`. The allocation a plain
+`--register` makes past a reservation is now printed, so the `po-2` case is
+explained rather than silent (issue #422).
 
 ```bash
 scripts/coord note  --area sm --agent sm-1-kastenbrot --text "handoff: nothing in flight; #405/#406 seeded"
@@ -342,8 +371,9 @@ brings the host up. On its **first call** it must:
 
 1. **Reconcile the roster.** Retire any never-started placeholder and register
    itself with its real model (`coord agent --retire … --succeeded-by …`, then
-   `coord agent --register --role sm --name sm-<n>-<host>`). Fix the host's
-   `budget.started` estimate if it counts a placeholder (issue #422).
+   `coord agent --register --role sm --name sm-<n>-<host>`). A placeholder is now
+   a `reserved` entry, so prefer reserving over registering an active
+   never-started name (issue #422).
 2. **Generate the PO's initial prompt.** Write the prompt that will start the
    host's Product Owner (`po-<n>-<host>`) and give it to the human: read the
    roster for the free `po` number, read the `po` channel and the ledger for the
@@ -379,9 +409,9 @@ On this, your first call:
 1. Register yourself once:
    COORD_HOST=<host> scripts/coord agent --register --role sm --name
    sm-<n>-<host> --model "<your model>"
-   If the roster already holds a placeholder for you, retire it first
-   (scripts/coord agent --retire ... --succeeded-by sm-<n>-<host>) so no
-   never-started name blocks a real allocation (issue #422).
+   If the roster already holds a `reserved` entry for you, register with its
+   exact name to promote it (do not retire it) so no never-started name blocks
+   a real allocation (issue #422).
 2. Read the handoff: scripts/coord notes --area sm; scripts/coord notes --area
    po; scripts/coord status; scripts/coord takeover. Start from the last state,
    not from scratch.
