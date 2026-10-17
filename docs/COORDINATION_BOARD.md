@@ -25,18 +25,50 @@ _As of 2026-10-17T08:54:27Z._
 | `release` | — | free | — |
 
 Legend: **free** = claimable now · **claimed** = live lease · **stale** = live
-but quiet for > 3 h — the holder may still be working, but a `coord claim
---takeover` (or letting the TTL run out) is fair game · **blocked** /
+but quiet for > 2h — the holder may still be working, but a
+`coord claim --takeover` (or letting the TTL run out) is fair game · **blocked** /
 **needs-review** = the holder set the state. Pending workload per area is the
 open-issue count on GitHub.
+
+## Handoff notes
+
+Cross-cycle notes left by earlier processes (`refs/coord/notes/*`). These
+outlive the lease that wrote them, so read them before starting an area:
+
+**`platform`**
+
+- _2026-10-16T09:48:12Z_ OpenHands: Size cap raised 288->320 KiB (#356) so data-only catalogues do not fail spuriously; vehicles.json is now packaged (#357). Adding a catalogue to assets/data/*.json requires BOTH src/CMakeLists.txt install() and scripts/check-package-contents.sh to see it; the latter derives from the tree and fails CI if not.
+- _2026-10-16T10:16:54Z_ OpenHands: game_version now asserts the exact project() version (FOSSynd ${PROJECT_VERSION}), not just shape (#361) - catches a forgotten release stamp. The low-spec budget is 320 KiB (#356).
+- _2026-10-16T10:30:09Z_ OpenHands: Leases are now identified by agent AND branch (ADR-0034, #365): coord next/renew/release require the recorded --branch to match your current branch, so two same-model workspaces no longer collide. A branchless lease still matches by name. Pass --branch to renew/release from elsewhere; --force overrides.
+- _2026-10-16T11:51:54Z_ OpenHands: scripts/check-package-contents.sh now has unit tests (tests/test_check_package_contents.py, ctest target package_contents_tests, #372): synthetic tarballs derived from the real tree cover rc 0/1/2, incl. missing bin/mission/world/locale/catalogue/conf/LICENSE and corrupt-tarball. Next untested CI-only gate to consider: none obvious; coord + i18n + cmake-registration + size + package-contents all covered.
+- _2026-10-16T12:17:10Z_ OpenHands: CI now runs scripts/build.sh (new build-script lane, #376) and asserts the CMakeCache profile matches what the script requested, plus the artifact it reports exists. Found+fixed a real bug there: core-only build.sh printed a Binary: path for a binary it never built. Lesson: a lane that calls cmake directly does not test the documented entry point; drift in a -D name is silent.
+- _2026-10-16T12:29:27Z_ OpenHands: Board sweep fixed (#381): _commit_board now fetches+rebases with retry (never force), checks commit+push results, and supplies a bot identity when CI has none - two silent false-success paths (non-ff rejection swallowed; commit failing under no identity then a no-op push returning 0). Lesson: a bare `git"...", check=False` followed by an unconditional success print will lie. Always check the code that must succeed.
+- _2026-10-16T12:56:02Z_ OpenHands: Registration guard now covers the Python suite (#386): a tests/test_*.py with no add_test target never ran and CI stayed green - the #298 hole one level down. If you add a Python gate, the guard now reddens until you wire it into tests/CMakeLists.txt.
+- _2026-10-16T15:49:10Z_ OpenHands: coord now fails loudly if a release's ref-delete does not land (#392) - before, 'released <area>' printed and rc 0 even when the lease ref survived on the remote, stranding the area until TTL. Same silent-success class as #381 (board) and ADR-0033 (claim). If you add a ref deletion, route it through _delete_lease_ref so it is checked.
+- _2026-10-16T15:55:22Z_ OpenHands: note appends now use a per-ref compare-and-swap (#394): plain --force meant two clones writing one area kept only the second note (append_note's retry never fired). Route any new ref publishing through --force-with-lease with the value you read.
+- _2026-10-16T16:05:28Z_ OpenHands: coord now refuses to read a ledger it could not fetch (#399): check no longer passes blind and sweep no longer strips status: claimed on an empty read. If you add a command that decides based on lease refs, call fetch_ledger(required=True) (display-only reads can keep the tolerant default).
+
+**`release`**
+
+- _2026-10-16T11:55:13Z_ OpenHands: v0.8.0 'Dominion' SHIPPED: PR #352 merged to main (c56da0c), annotated tag v0.8.0 cut on main tip and pushed, GitHub Release page created with banner.png. ctest 51/51, run_tests 367/367, low-spec 287 KiB. Auth note: platform re-injects the stale GITHUB_TOKEN; the working PAT is pinned at ~/.openhands-github-token (git credential store + ~/.bashrc hook).
+- _2026-10-16T15:47:10Z_ OpenHands: docs/BUILD.md sync for #285 shipped: PR #389 squash-merged to main (5d5e200). Added the E (hijack/exit vehicle) row to the controls table and --shield / --check-shield to the flag tables. Audited: 42/42 flags match src/main.cpp --help, controls match Game.cpp, all ctest refs exist. Local ctest 55/55. CI green.
+- _2026-10-16T16:36:59Z_ OpenHands: Major-version gate codified (#402, PR #404 merged 95fbdfc). AGENTS.md §6a-i + ADR-0036: no major version (X.0.0) rolls out until a feature-complete candidate (whole Definition of Done, no carve-outs) is buildable+playable by a human and approved via docs/releases/MAJOR_RELEASE_GATE.md. Candidates tagged vX.Y.Z-rc.N (immutable, §6b); final tag only on approval; gate is human-owned (agents never self-approve). v1.0.0 NOT yet candidate-able (Milestone C open: destructible env, mission set, art/audio, save/load, balance). Docs-only; CI green (9/9).
+
+**`text`**
+
+- _2026-10-16T11:48:43Z_ OpenHands (agent-sdk): v0.8.0 text stamp DONE: app.tagline en=DOMINION de=HERRSCHAFT (PR #371, merged 5d395af). Re-audited on 5d395af: lexicon vs shipped data clean (LORE Vantage Combine vs data Riverside Combine is the open #282 alone); no unkeyed user-facing literal in src/game beyond the documented ADR-0024 set; all title-card/HUD literals are tr() fallbacks (rule 3 covers them); objective P<->key mapping correct; de.json is sound placeholder-wise. Both open text issues await a maintainer call and are not text-file edits: #282 rename (misplaced in campaign.json/METAGAME.md, metagame-owned + needs naming decision), #270 proper-noun-vs-localise (doc decision; recommend documenting as proper nouns for v1.0.0, key scheme as a v2 item). Tooling trap: ctest coord_tests fails (81 setUp errors) if GIT_CONFIG_* env vars leak into the shell (e.g. a GIT_CONFIG_COUNT/pushurl override for a tokenised push) - unset them before running the suite; not a real regression. Re-check #282 first before touching it - the data lives in assets/data/world/**, not assets/lang/**.
+- _2026-10-16T15:41:26Z_ OpenHands (agent-sdk): #377 DONE (text half): E (hijack/exit vehicle) added to hud.controls + title.controls.misc in en/de (PR #391, squash 8224466). Cross-area render half filed as #390: sync the tr() fallbacks in src/game/Hud.cpp + src/game/TitleCard.cpp and delete the two ALLOWED_FALLBACK_DRIFT entries in tests/test_i18n_keys.py. Until #390 lands those fallbacks are one token behind (cosmetic; en.json correct). Pattern used: render live-leased so Rule 1 forbade editing its files - the ALLOWED_FALLBACK_DRIFT deferral is exactly the #243 mechanism ('src/game/TitleCard.cpp is Render-owned; #238 syncs it'). On main (8224466): guards 9/9, ctest 6/6 core-only, en/de parity 31/31, no new unkeyed src/game literal since 5d395af. Open text issues #282/#270 still maintainer-blocked. Verify on main before new work; re-check #282 first (data is in assets/data/world/**, metagame-owned).
+- _2026-10-16T16:38:07Z_ OpenHands (agent-sdk): #377 COMPLETE (both halves). Text half: #391 -> 8224466. Render half: #390 -> PR #401 -> 2719dc3, which synced the hud.controls/title.controls.misc tr() fallbacks in Hud.cpp/TitleCard.cpp and emptied ALLOWED_FALLBACK_DRIFT. On main the guard is 9/9 with an empty allow-list; full engine build (SDL2) + ctest 57/57 incl. game_smoke; binary runs headless. NOTE: after I released the render lease, a peer (agent label 'OpenHands (Claude)') re-claimed render/#390 at 2026-10-16T16:37:34Z on the already-deleted branch fix/render-hint-fallback-sync - it is degenerate (#390 closed+merged); left it untouched per no-stomp, it will expire via sweep. Text lane has no actionable unblocked work: only maintainer-blocked #282 and #270 remain.
+
+Add one with `scripts/coord note --area <area> --agent "<role>-<n>-<host>" --text "..."`.
 
 ## How to take an area
 
 ```bash
-scripts/coord claim --area world --issue 157 --agent "<model>" --branch feat/world-xyz
+scripts/coord claim --area world --issue 157 --agent "<role>-<n>-<host>" --branch feat/world-xyz
 # ... work ... then either:
-scripts/coord renew  --area world --issue 157 --agent "<model>"
-scripts/coord release --area world --issue 157 --agent "<model>"
+scripts/coord renew  --area world --issue 157 --agent "<role>-<n>-<host>"
+scripts/coord release --area world --issue 157 --agent "<role>-<n>-<host>"
 ```
 
 See `docs/COORDINATION.md` for the full protocol.

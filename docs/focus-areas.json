@@ -1,0 +1,31 @@
+{
+  "//": "AI/LLM-generated file. Do not treat as human-written source documentation.",
+  "version": 1,
+  "note": "Data-driven focus areas, role codes, and coordination channels. scripts/coord reads this so the Product Owner can redesign the area set WITHOUT a code change (docs/ORGANISATION.md section 9). If this file is missing or corrupt, coord falls back to its built-in defaults (the same nine areas) so coordination never breaks. Keep docs/FOCUS_AREAS.md in sync; a change here is a rules change (two peer reviews, or the sole-account self-review).",
+  "agent_name": {
+    "format": "<role>-<n>-<host>",
+    "hosts": ["kastenbrot", "gnampf"],
+    "note": "A role is a 2-letter area code (below) for a worker, or 'sm' / 'po' for the process roles. <n> is a positive integer, unique per (role, host) and NEVER reused: a replacement worker is a new entity with a new number. Host is lowercase."
+  },
+  "channels": {
+    "sm": "Scrum master <-> scrum master handoff (one SM per computer).",
+    "po": "Product owner <-> product owner handoff (one PO per computer).",
+    "takeover": "Takeover requests: a live agent asks the fleet to take over an area whose holder has gone quiet."
+  },
+  "roles": {
+    "sm": { "code": "sm", "label": "Scrum master", "focus": null },
+    "po": { "code": "po", "label": "Product owner", "focus": null }
+  },
+  "critical_path": ["metagame", "tactical"],
+  "areas": {
+    "tactical": { "code": "ta", "label": "Tactical / Mission" },
+    "world": { "code": "wo", "label": "World / Simulation" },
+    "render": { "code": "re", "label": "Render / Engine" },
+    "input-ui": { "code": "ui", "label": "Input / UI / UX" },
+    "content": { "code": "co", "label": "Content / Data" },
+    "text": { "code": "tx", "label": "Text / i18n / Lore" },
+    "metagame": { "code": "mg", "label": "Metagame / Campaign" },
+    "platform": { "code": "pf", "label": "Build / CI / Tooling" },
+    "release": { "code": "rl", "label": "Release / Playtest" }
+  }
+}

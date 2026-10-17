@@ -11,6 +11,13 @@ Claude, GPT, Gemini, OpenHands, ...) working on FOSSynd (Free, Open-Source
 Syndicate). Read it fully before changing code. Human contributors should read it
 too; the rules apply to everyone.
 
+**Start with `docs/ORGANISATION.md`.** It defines the roles (a **Product Owner**
+and a **Scrum Master** per computer), the **agent names**
+(`<role>-<n>-<host>`), the per-host **roster**, the cross-role **channels**, and
+the **takeover** protocol. Then read `docs/COORDINATION.md` (the lease protocol)
+and `docs/FOCUS_AREAS.md` (the file map). The 2026-10-17 takeover reorganisation
+is recorded in **ADR-0037**.
+
 If you learn something durable about this repo — a build quirk, a convention, a
 gotcha — **add it here** in the same change that taught you.
 
@@ -142,7 +149,7 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
 
 1. **One task = one branch = one PR.** Use the branch naming scheme in §6.
 2. **Claim before you build, with the ledger.** `scripts/coord claim --area
-   <area> --issue <n> --agent "<model>" --branch <branch>`. The **area is the
+   <area> --issue <n> --agent "<role>-<n>-<host>" --branch <branch>`. The **area is the
    lock** (`docs/FOCUS_AREAS.md` §2): a live lease on an area blocks a second
    agent from it. `scripts/coord status` is authoritative — do not read comment
    timestamps. The claim is a **lease** with a TTL (default 6 h, max 24 h);
@@ -155,23 +162,29 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
    exists, open an issue and ask a human.
 6. **Leave the tree green.** Every PR must build and pass `ctest`. Never merge
    red.
-7. **State your model** in the PR description (e.g. "Implemented with Claude
-   Sonnet 4.5"). This makes handoffs debuggable.
+7. **State your agent name and model** in the PR description (e.g.
+   "`ta-1-kastenbrot`, Claude Sonnet 4.5"). The name is your identity in the
+   ledger (`<role>-<n>-<host>`, `docs/ORGANISATION.md` §3); the model alone is
+   not unique. This makes handoffs debuggable.
 8. **Keep this file current.** When your PR changes how we build, test, or
    coordinate, update `AGENTS.md` in the same PR.
 9. **Review and merge each other's PRs.** See §3a. This applies to every agent
    and to human maintainers.
-10. **Work inside your focus area.** The repo is divided into nine focus areas
-    (see `docs/FOCUS_AREAS.md`). Claim a **free** area with the **highest pending
+10. **Work inside your focus area.** The repo is divided into focus areas (the set
+    is data — `docs/focus-areas.json`, docs/ORGANISATION.md §9; nine today; see
+    `docs/FOCUS_AREAS.md`). Claim a **free** area with the **highest pending
     workload**, preferring one you already know. Only the agent holding the
     area's live lease (or a helper it explicitly tasks) edits the files an area
     owns. Need a change in another area's files? File a cross-area request
     (`docs/FOCUS_AREAS.md` §4, Rule 4) — never edit them yourself.
 11. **Leases expire; abandoned work is reclaimed by the clock.** A lease past its
     TTL is **dead** and any agent may claim the area (`scripts/coord claim`), or
-    take a live-but-quiet one with `--takeover` (announced, never silent). There
-    is **no reassignment step** and no coordinator. If you stop mid-task, your
-    lease ages out on its own — no peer or human has to notice.
+    take a live-but-quiet one — **stale after 2 h** — with `--takeover`
+    (announced, never silent), or by first filing a cooperative **takeover
+    request** (`scripts/coord takeover --request`, which `coord next` surfaces;
+    `docs/ORGANISATION.md` §6a). There is **no reassignment step** and no
+    coordinator. If you stop mid-task, your lease ages out on its own — no peer
+    or human has to notice.
 12. **There is no coordinator; coordination is flat.** No agent owns the merge
     queue, the workload plan, or the process docs, and no agent has authority over
     another's focus. Review and merge any PR you did not author (§3a); adopt an
@@ -199,7 +212,7 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
     hand-edit it and never open a "refresh the queue" PR — the old hand-maintained
     §8 table is gone (ADR-0021).
 16. **An idle agent always has a next action — ask for it.** Run `scripts/coord
-    next --agent "<model>"` whenever you do not know what to do. It never prints
+    next --agent "<role>-<n>-<host>"` whenever you do not know what to do. It never prints
     nothing: it walks a fixed ladder and stops at the first rung that applies —
     (1) finish/renew a lease you hold, (2) claim a free **critical-path** area's
     issue, (3) **drain the merge queue**: review and merge a green, non-draft PR
@@ -214,12 +227,23 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
 17. **Hand off through notes, not memory.** A lease is scoped to *now*: it is
     released or expires, so a fact the *next* process needs has nowhere else to
     live. Write it to the area's note log — `scripts/coord note --area <a> --agent
-    "<model>" --text "<fact>"` — and read it before you start an area
+    "<role>-<n>-<host>" --text "<fact>"` — and read it before you start an area
     (`scripts/coord notes [--area <a>]`; the board prints them under **Handoff
     notes**). Notes never expire and are **not a lock** — they never block a
     claim. Use one for broken tooling, a trap in the area, or a decision not to
-    re-litigate; do **not** use it as an assignment or a queue (§3, ADR-0033).
-
+    re-litigate; do **not** use it as a queue or an assignment (§3, ADR-0033).
+    The key may also be a **channel** — `sm`, `po`, or `takeover` — for the
+    process roles (`docs/ORGANISATION.md` §5).
+18. **Know your role, and know the budget.** Each computer has a **Product
+    Owner** (decides *what* is built, the priority order, the backlog, and the
+    worker prompts) and a **Scrum Master** (watches coordination: the roster,
+    blockers, the merge queue, seeding issues; it may merge PRs and open/close
+    issues in its scope, and — while the repo has one GitHub account — self-review
+    a rules-doc PR). Neither owns a focus area, and neither may assign work or
+    override a live lease. The **daily agent budget is shared across computers
+    and other projects** and is enforced by the **human**, not the tooling, so
+    keep task scopes **small enough to reuse a worker** for the next task rather
+    than requesting a new chat. See `docs/ORGANISATION.md`.
 ## 3a. Reviewing and merging other agents' pull requests
 
 Agents should keep the queue moving: **review open PRs that you did not author
@@ -338,8 +362,9 @@ src/
     data/      # JSON loader, mission/config loaders, sprite baker
   game/        # SDL2 app shell: main loop, Game, rendering, input, sprites
 tests/         # unit tests for src/core (plain C++, run via ctest)
-docs/          # ARCHITECTURE, BUILD, CONTRIBUTING, COORDINATION, ROADMAP,
-               # LEGAL, ASSETS, DECISIONS, DATA_FORMAT, FOCUS_AREAS,
+docs/          # ARCHITECTURE, BUILD, CONTRIBUTING, ORGANISATION, COORDINATION,
+               # ROADMAP, LEGAL, ASSETS, DECISIONS, DATA_FORMAT, FOCUS_AREAS,
+               # focus-areas.json (the area/role data),
                # DEVELOPMENT_ENVIRONMENT, SETUP_*,
                # releases/ (per-version build & play docs, kept on main)
 scripts/       # bootstrap/fetch/build helpers
@@ -1204,7 +1229,8 @@ Do not start work outside the scope fence (ADR-0024).
   `release/vX.Y.Z-*` branch or move its tag after publication. If a released
   build would otherwise break, fix it on a new branch cut from that release
   branch (e.g. `fix/v0.3.0-<desc>`), leaving the original untouched.
-- **Parallel work is organised into nine focus areas** (`docs/FOCUS_AREAS.md`):
+- **Parallel work is organised into focus areas** (`docs/FOCUS_AREAS.md`;
+  the set is data in `docs/focus-areas.json`, ADR-0037):
   **tactical** (mission/combat/weapons), **world** (sim/agent/pathfinding/math),
   **render** (`src/game` drawing), **input-ui** (`src/main.cpp`, input/selection),
   **content** (`core/data`, `assets/data` minus missions), **text** (`core/i18n`,

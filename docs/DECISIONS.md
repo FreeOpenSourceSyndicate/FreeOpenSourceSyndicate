@@ -2121,3 +2121,93 @@ ever wants it gone, the delete is a self-contained removal of the three regexes,
     open items (destructible environment, the mission set, original art/audio,
     save/load, balance). The gate makes that the explicit precondition rather
     than something an agent might discover late.
+
+---
+
+## ADR-0037 — Named roles, per-host rosters, and a two-role organisation (PO + SM)
+
+- **Status:** Accepted (2026-10-17)
+- **Date:** 2026-10-17
+- **Supersedes:** the *identity* half of ADR-0034 (agent-name tiebreaking) and the
+  "no role above the areas" reading of ADR-0019; the flat, lease-based
+  coordination itself is unchanged.
+- **Context:** The project is worked by LLM agents on **two computers**
+  (`kastenbrot`, `gnampf`), all sharing **one GitHub account**. The human
+  coordinates through a **Product Owner** per machine and wants a **Scrum
+  Master** per machine to watch coordination. Three problems the old scheme did
+  not solve:
+  1. **Identity.** A lease recorded a self-asserted *model* string. Two
+     same-model workspaces shared it, so the ledger could not tell them apart;
+     ADR-0034 bolted on the branch as a tiebreaker, which is fragile (the same
+     branch name can recur, and a branch is not an identity).
+  2. **Roles.** There was no PO and no SM. ADR-0019 deliberately has **no
+     coordinator**, and the human wants that authority model preserved — the SM
+     must be a *watcher*, not a commander.
+  3. **Cross-machine takeover.** Leftovers from an abandoned computer had no
+     protocol, and the stale window (3 h) was tuned before run lengths were
+     known.
+- **Options:**
+  1. **Keep model-string identity, add a `host` field.** Rejected: still not
+     unique (two workers on one host share a model), and the PO must be able to
+     *name* an agent to request it.
+  2. **Make the SM a coordinator with authority.** Rejected: the human
+     explicitly confirmed the flat model, and ADR-0019's failure analysis (an
+     authority role is a single point of failure) still holds.
+  3. **Named agents (`<role>-<n>-<host>`), a per-host roster, and PO/SM as
+     process roles with no focus area.** Chosen: the name is globally unique and
+     human-requestable, the roster is the durable "who exists" record, and the
+     two roles coordinate without owning any gameplay area.
+- **Decision:**
+  - **Agent names** are `<role>-<n>-<host>`: a 2-letter focus-area code for a
+    worker, or `sm`/`po`; `n` unique per `(role, host)` and **never reused** (a
+    replacement is a new entity with a new number). Names are recorded on the
+    lease, so the ledger now identifies an agent, not a model.
+  - **The roster** is one ref per host, `refs/coord/roster/<host>` (JSON:
+    agents, budget, updated), managed by `scripts/coord agent
+    --register/--retire/--list`. It is per host so a PO sees only its own
+    computer's agents — **a PO may only request agents on its host**.
+  - **The PO** is per host and owns *what* is built, the priority order, the
+    backlog, and the worker prompts. It requests agents from the human (naming
+    them) and notifies the human when it asks the SM for names.
+  - **The SM** is per host and owns coordination hygiene: the roster, the budget
+    estimate, blockers, the merge queue, and seeding issues. It **may** merge
+    PRs and open/close issues **in its scope**, and PR rules-doc changes; while
+    the repo has a single GitHub account, an **SM self-review satisfies the
+    review requirement**. It **may not** assign work, override a live lease, or
+    edit another area's files, and it has **no `focus:` label**.
+  - **Channels** are append-only note logs keyed by topic, extending notes with
+    the non-area topics `sm`, `po`, and `takeover`. `sm`/`po` carry cross-machine
+    handoff; `takeover` carries takeover requests.
+  - **Takeover requests** (`scripts/coord takeover --request`) are the
+    cooperative, low-cost reclamation signal: a request is posted for a quiet
+    holder and `coord next` offers it before draining the merge queue. A direct
+    `--takeover` remains allowed and is announced, never silent.
+  - **`STALE_AFTER` drops to 2 h** (from 3 h), below the 6 h default TTL. The SM
+    watches run lengths and takeover outcomes on the `sm` channel and tunes it:
+    raise it if false takeovers of active agents appear, lower it if genuine
+    stragglers sit too long.
+  - **Focus areas are data.** `docs/focus-areas.json` lists the areas, their
+    role codes, the roles, the channels, and the critical-path order; the code
+    falls back to built-in defaults if it is missing or corrupt. The PO may
+    redesign the set (add/remove/split/rename) by editing that file and
+    `docs/FOCUS_AREAS.md`; a redesign is a rules change and should precede the
+    initial agent request. No more than 2–3 new areas per day (a soft limit).
+  - **The daily agent budget** is shared across computers and other projects and
+    is enforced by the **human**, not the tooling. The roster carries a per-host
+    *estimate* only. Small scopes and worker **reuse** are the mitigation.
+- **Consequences:**
+  - The ledger is self-describing: `coord status` and the board show each host's
+    agents and today's budget estimate, so a fresh SM or PO starts informed.
+  - Two same-model workspaces are now distinguishable by name, and the PO can
+    request a specific agent; ADR-0034's branch tiebreaker remains as a backstop
+    but is no longer the primary identity.
+  - A dead agent's work is reclaimed cooperatively (a request) or by the clock
+    (stale/TTL), never by an authority; the SM only *watches*.
+  - Cross-machine switch has a written protocol (ORGANISATION.md §6b): the
+    outgoing SM/PO post handoff notes, the incoming ones read them and take over
+    only stale/expired leases.
+  - The nine areas are explicitly a **legacy number** and may be replaced; the
+    area set is no longer code.
+  - New surface (`agent`, `takeover` commands; the roster ref) is covered by
+    `tests/test_coord.py`; the coord fallback keeps coordination working if the
+    data file is broken.

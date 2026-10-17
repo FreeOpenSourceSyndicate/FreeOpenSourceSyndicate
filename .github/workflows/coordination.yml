@@ -26,6 +26,7 @@ on:
     paths:
       - "scripts/coord"
       - "docs/COORDINATION_BOARD.md"
+      - "docs/focus-areas.json"
   pull_request:
     branches: [main]
     paths:
@@ -35,6 +36,8 @@ on:
       - "docs/COORDINATION.md"
       - "docs/COORDINATION_MIGRATION.md"
       - "docs/FOCUS_AREAS.md"
+      - "docs/ORGANISATION.md"
+      - "docs/focus-areas.json"
       - "AGENTS.md"
 
 permissions:

@@ -1303,5 +1303,258 @@ class TestNotes(CoordTestCase):
         self.assertEqual(sorted(texts), ["one", "two"])
 
 
+class TestAgentNames(CoordTestCase):
+    """A name is `<role>-<n>-<host>` and is never reused (docs/focus-areas.json).
+
+    The name is what makes two same-model workspaces distinguishable, and what
+    the Product Owner requests by.  A replacement is a NEW name: a worker starts
+    with no memory of its predecessor, so inheriting the name would be a lie.
+    """
+
+    def test_parse_valid_and_legacy_names(self):
+        self.assertEqual(coord.parse_agent_name("ta-1-kastenbrot"),
+                         {"role": "ta", "n": 1, "host": "kastenbrot"})
+        self.assertEqual(coord.parse_agent_name("SM-2-Gnampf"),
+                         {"role": "sm", "n": 2, "host": "gnampf"})
+        # A legacy bare model string is not an agent name (no host).
+        self.assertIsNone(coord.parse_agent_name("OpenHands"))
+        self.assertIsNone(coord.parse_agent_name("Claude Sonnet 4.5"))
+        self.assertEqual(coord.agent_host("OpenHands"), "")
+        self.assertEqual(coord.agent_host("po-1-gnampf"), "gnampf")
+
+    def test_register_allocates_the_next_number_per_role_and_host(self):
+        out, _ = self.run_coord("agent", "--register", "--host", "kastenbrot",
+                                "--role", "ta", "--model", "m")
+        self.assertIn("registered ta-1-kastenbrot", out)
+        out, _ = self.run_coord("agent", "--register", "--host", "kastenbrot",
+                                "--role", "ta", "--model", "m")
+        self.assertIn("registered ta-2-kastenbrot", out)
+        # A different role numbers independently.
+        out, _ = self.run_coord("agent", "--register", "--host", "kastenbrot",
+                                "--role", "sm")
+        self.assertIn("registered sm-1-kastenbrot", out)
+        # A different host numbers independently, and keeps its own roster ref.
+        out, _ = self.run_coord("agent", "--register", "--host", "gnampf",
+                                "--role", "ta")
+        self.assertIn("registered ta-1-gnampf", out)
+        self.assertEqual(sorted(self.remote_refs()),
+                         ["refs/coord/roster/gnampf", "refs/coord/roster/kastenbrot"])
+
+    def test_a_name_is_never_reused(self):
+        self.run_coord("agent", "--register", "--host", "kastenbrot", "--role", "ta")
+        self.run_coord("agent", "--retire", "ta-1-kastenbrot", "--host", "kastenbrot",
+                       "--succeeded-by", "ta-2-kastenbrot")
+        # The next registration must NOT be ta-1 again (retired names stay taken).
+        out, _ = self.run_coord("agent", "--register", "--host", "kastenbrot",
+                                "--role", "ta")
+        self.assertIn("registered ta-2-kastenbrot", out)
+        # And pinning a taken name is refused.
+        _, err = self.run_coord("agent", "--register", "--host", "kastenbrot",
+                                "--role", "ta", "--name", "ta-1-kastenbrot",
+                                expect=2)
+        self.assertIn("never reused", err)
+
+    def test_a_name_for_another_host_is_refused(self):
+        _, err = self.run_coord("agent", "--register", "--host", "kastenbrot",
+                                "--role", "ta", "--name", "ta-1-gnampf", expect=2)
+        self.assertIn("names host 'gnampf'", err)
+
+    def test_retire_records_the_successor(self):
+        self.run_coord("agent", "--register", "--host", "gnampf", "--role", "ta",
+                       "--name", "ta-1-gnampf")
+        self.run_coord("agent", "--register", "--host", "gnampf", "--role", "ta",
+                       "--name", "ta-2-gnampf")
+        self.run_coord("agent", "--retire", "ta-1-gnampf", "--host", "gnampf",
+                       "--succeeded-by", "ta-2-gnampf")
+        roster = coord.read_roster("gnampf")
+        by_name = {a.name: a for a in roster.agents}
+        self.assertEqual(by_name["ta-1-gnampf"].status, "retired")
+        self.assertEqual(by_name["ta-1-gnampf"].succeeded_by, "ta-2-gnampf")
+        self.assertEqual([a.name for a in roster.active()], ["ta-2-gnampf"])
+
+    def test_hosts_may_carry_a_hyphen_or_dot(self):
+        self.assertEqual(coord.parse_agent_name("ta-1-work-2.local"),
+                         {"role": "ta", "n": 1, "host": "work-2.local"})
+        self.assertTrue(coord.valid_host("work-2.local"))
+        self.assertFalse(coord.valid_host(""))
+        self.assertFalse(coord.valid_host("bad/../host"))
+        _, err = self.run_coord("agent", "--register", "--host", "bad/../host",
+                                "--role", "ta", expect=2)
+        self.assertIn("not a valid host", err)
+
+    def test_the_host_defaults_to_coord_host_then_the_hostname(self):
+        os.environ["COORD_HOST"] = "Kastenbrot"
+        self.addCleanup(os.environ.pop, "COORD_HOST", None)
+        self.assertEqual(coord.default_host(), "kastenbrot")
+        out, _ = self.run_coord("agent", "--register", "--role", "ta")
+        self.assertIn("registered ta-1-kastenbrot", out)
+
+    def test_register_counts_against_the_daily_budget(self):
+        self.run_coord("agent", "--register", "--host", "kastenbrot", "--role", "ta")
+        self.run_coord("agent", "--register", "--host", "kastenbrot", "--role", "wo")
+        roster = coord.read_roster("kastenbrot")
+        self.assertEqual(roster.budget["started"], 2)
+        self.assertEqual(roster.budget["date"], coord.iso(self.now)[:10])
+
+    def test_a_foreign_host_roster_is_separate(self):
+        self.run_coord("agent", "--register", "--host", "kastenbrot", "--role", "ta")
+        self.run_coord("agent", "--register", "--host", "gnampf", "--role", "ta")
+        out, _ = self.run_coord("agent", "--host", "kastenbrot")
+        self.assertIn("ta-1-kastenbrot", out)
+        self.assertNotIn("gnampf", out)
+
+    def test_status_shows_the_roster(self):
+        self.run_coord("agent", "--register", "--host", "kastenbrot", "--role", "sm")
+        out, _ = self.run_coord("status")
+        self.assertIn("roster kastenbrot", out)
+        self.assertIn("sm-1-kastenbrot", out)
+
+    def test_board_renders_the_roster(self):
+        self.run_coord("agent", "--register", "--host", "kastenbrot", "--role", "ta")
+        content = coord.render_board(at=self.now)
+        self.assertIn("## Roster", content)
+        self.assertIn("ta-1-kastenbrot", content)
+
+    def test_a_sweep_keeps_the_roster_on_the_board(self):
+        # The sweep regenerates and *commits* the board, so it must read the
+        # roster refs too: a sweep that read only the leases would drop the
+        # Roster section and commit the loss.
+        self.run_coord("agent", "--register", "--host", "kastenbrot", "--role", "ta")
+        self.run_coord("note", "--area", "sm", "--agent", "sm-1-kastenbrot",
+                       "--text", "handoff")
+        self.run_coord("sweep", "--no-board")
+        content = coord.render_board(at=self.now)
+        self.assertIn("ta-1-kastenbrot", content)
+        self.assertIn("handoff", content)
+
+
+class TestAgentCommand(CoordTestCase):
+    def test_list_is_accepted(self):
+        self.run_coord("agent", "--register", "--host", "h", "--role", "ta")
+        out, _ = self.run_coord("agent", "--list")
+        self.assertIn("ta-1-h", out)
+
+    def test_an_unknown_role_code_fails_fast(self):
+        _, err = self.run_coord("agent", "--register", "--host", "h", "--role", "zz",
+                                expect=2)
+        self.assertIn("unknown role code", err)
+
+    def test_a_pinned_name_must_match_the_host(self):
+        _, err = self.run_coord("agent", "--register", "--host", "h1", "--role", "ta",
+                                "--name", "ta-9-h2", expect=2)
+        self.assertIn("names host 'h2'", err)
+
+    def test_a_pinned_name_is_never_reused(self):
+        self.run_coord("agent", "--register", "--host", "h", "--role", "ta",
+                       "--name", "ta-7-h")
+        _, err = self.run_coord("agent", "--register", "--host", "h", "--role", "ta",
+                                "--name", "ta-7-h", expect=2)
+        self.assertIn("never reused", err)
+
+
+class TestTakeoverRequests(CoordTestCase):
+    """A takeover request is the cooperative, low-cost reclamation signal."""
+
+    def test_request_is_recorded_on_the_channel(self):
+        self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "a")
+        out, _ = self.run_coord("takeover", "--request", "--area", "world",
+                                "--agent", "sm-1-kastenbrot")
+        self.assertIn("takeover requested for world", out)
+        out, _ = self.run_coord("takeover")
+        self.assertIn("TAKEOVER REQUEST", out)
+        self.assertIn("holder=a", out)
+
+    def test_request_on_a_free_area_is_a_noop(self):
+        out, _ = self.run_coord("takeover", "--request", "--area", "world",
+                                "--agent", "a")
+        self.assertIn("is free", out)
+
+    def test_next_surfaces_a_request_for_a_now_free_area(self):
+        # A request filed while held, whose holder then released: the next idle
+        # agent is told to pick the work up (the whole point of the channel).
+        self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "a")
+        self.run_coord("takeover", "--request", "--area", "world", "--agent", "sm-1-kastenbrot")
+        self.run_coord("release", "--area", "world", "--issue", 157, "--agent", "a")
+        self._stub_issues({})
+        self._stub_prs([])
+        out, _ = self.run_coord("next", "--agent", "b")
+        self.assertIn("Takeover request on 'world'", out)
+
+    def test_a_note_on_a_channel_is_not_a_lease(self):
+        self.run_coord("note", "--area", "sm", "--agent", "sm-1-kastenbrot",
+                       "--text", "handoff: nothing in flight")
+        self.assertEqual(self.remote_refs(), ["refs/coord/notes/sm"])
+        self.run_coord("check")
+        out, _ = self.run_coord("notes", "--area", "sm")
+        self.assertIn("nothing in flight", out)
+
+    def test_po_channel_is_available(self):
+        self.run_coord("note", "--area", "po", "--agent", "po-1-kastenbrot",
+                       "--text", "priority: #405 then #406")
+        out, _ = self.run_coord("notes", "--area", "po")
+        self.assertIn("priority: #405 then #406", out)
+
+
+class TestFocusConfig(CoordTestCase):
+    """Focus areas are data (docs/focus-areas.json); the code is only a fallback."""
+
+    def test_default_config_matches_the_shipped_file(self):
+        # The shipped file and the built-in fallback must agree, so a redesign
+        # that edits only one of them is caught.
+        self.assertEqual(tuple(coord.CONFIG.areas), tuple(coord._DEFAULT_AREAS))
+        self.assertEqual(coord.CONFIG.critical_path_areas, ("metagame", "tactical"))
+        for name, spec in coord._DEFAULT_AREAS.items():
+            self.assertEqual(coord.CONFIG.areas[name]["code"], spec["code"])
+
+    def test_role_codes_are_unique(self):
+        codes = [s["code"] for s in coord.CONFIG.areas.values()]
+        codes += [s["code"] for s in coord.CONFIG.roles.values()]
+        self.assertEqual(len(codes), len(set(codes)), f"duplicate role code in {codes}")
+
+    def test_a_missing_file_falls_back_without_raising(self):
+        cfg = coord.load_focus_config("/nonexistent/focus-areas.json")
+        self.assertEqual(tuple(cfg.areas), tuple(coord._DEFAULT_AREAS))
+        self.assertEqual(cfg.critical_path_areas, ("metagame", "tactical"))
+
+    def test_a_redesigned_file_changes_the_area_set(self):
+        path = os.path.join(self.tmp, "focus.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({
+                "areas": {"alpha": {"code": "al"}, "beta": {"code": "be"}},
+                "roles": {"sm": {"label": "Scrum master"}},
+                "channels": {"sm": "handoff"},
+                "critical_path": ["beta"],
+            }, fh)
+        cfg = coord.load_focus_config(path)
+        self.assertEqual(cfg.area_names, ("alpha", "beta"))
+        self.assertEqual(cfg.critical_path_areas, ("beta",))
+        self.assertEqual(cfg.code_for("beta"), "be")
+
+    def test_a_corrupt_file_falls_back_without_raising(self):
+        path = os.path.join(self.tmp, "focus.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("{not json")
+        cfg = coord.load_focus_config(path)
+        self.assertEqual(tuple(cfg.areas), tuple(coord._DEFAULT_AREAS))
+
+    def test_the_shipped_file_is_valid_json(self):
+        path = os.path.join(REPO_ROOT, "docs", "focus-areas.json")
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        self.assertIn("areas", data)
+        self.assertIn("critical_path", data)
+        self.assertIn("sm", data["roles"])
+        self.assertIn("po", data["roles"])
+
+    def test_the_critical_path_matches_the_roadmap(self):
+        # The critical path is data, but it is *not* free: it must agree with the
+        # roadmap's long pole, or a redesign silently reorders the fleet.
+        with open(os.path.join(REPO_ROOT, "docs", "ROADMAP.md"), encoding="utf-8") as fh:
+            roadmap = fh.read()
+        self.assertIn("Milestone B", roadmap)
+        self.assertIn("Milestone C", roadmap)
+        self.assertIn("metagame", coord.CONFIG.critical_path_areas)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
