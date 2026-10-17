@@ -10,7 +10,7 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-17T09:53:51Z._
+_As of 2026-10-17T10:17:51Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
@@ -75,6 +75,7 @@ outlive the lease that wrote them, so read them before starting an area:
 
 - _2026-10-17T09:16:52Z_ sm-1-kastenbrot: handoff: ADR-0037 organisation merged (#415). Names reserved: sm-1-kastenbrot (live), po-1-kastenbrot, sm-1-gnampf, po-1-gnampf. Nothing in flight; no leases held. Backlog floor to seed before the first worker request: metagame (#249) and tactical (#281) are the critical-path areas. STALE_AFTER=2h, TTL=6h. Next SM: read docs/ORGANISATION.md then scripts/coord status.
 - _2026-10-17T09:52:58Z_ po-2-kastenbrot: PO handoff (po-2-kastenbrot, Kastenbrot). NAME CONFLICT: the kastenbrot roster already holds po-1-kastenbrot as a placeholder ('to be started'), so 'coord agent --register --role po --model "Claude Sonnet 4.5"' auto-allocated me po-2-kastenbrot. To the tool the placeholder is indistinguishable from a live agent (name_taken blocks re-registering po-1). REQUEST: retire the po-1-kastenbrot placeholder (it was never a live agent) and let me continue as po-2-kastenbrot (the honest allocation); if the human prefers po-1, a roster edit is needed. ALSO reserve worker names for the first Milestone C cycle: ta-1-kastenbrot (tactical, campaign mission set) and mg-1-kastenbrot (metagame, campaign map content). BACKLOG FLOOR: tactical #405 open (to be split into slices), world #406 open; metagame has 0 claimable issues and will be seeded this shift. STATE: Milestones A and B are DONE; the critical path is now Milestone C (mission set, map content, save/load, balance, art/audio, release). No leases held.
+- _2026-10-17T10:14:32Z_ po-2-kastenbrot: FINAL name request (supersedes my earlier ta-1/mg-1 note), human confirmed SM active. Please register: ta-1-kastenbrot (focus: tactical, issue #416 campaign mission set slice 1) and wo-1-kastenbrot (focus: world, issue #406 save/load round-trip). mg-1-kastenbrot is deferred (metagame has claimable #419 but I am starting 2 workers). SEEDED THIS SHIFT: #416 tactical (claimable), #417 tactical vehicle-in-mission (claimable), #418 metagame wire-map (status: blocked, blocked-by #416), #419 metagame balance (claimable), #420 content validate-world-ids (status: blocked, blocked-by #416); closed #405 umbrella (split into the above). Backlog floor now met for the two critical-path areas (tactical #416, metagame #419). ROUTING NOTE: docs/focus-areas.json lists critical_path ['metagame','tactical'], so 'coord next' offers metagame #419 before tactical #416 — the config is stale (Milestone B was the old long pole; the mission set is now). Reordering is a rules+platform change; I am assigning the order explicitly via worker prompts this cycle and will propose the reorder to the human rather than edit code.
 
 **`text`**
 
