@@ -15,9 +15,10 @@ Be respectful, collaborative, and professional. This is an open-source community
 
 1. Read `AGENTS.md` and `docs/COORDINATION.md`.
 2. Find or open an issue for your task and claim its **area**:
-   `scripts/coord claim --area <area> --issue <n> --agent "<model>" --branch <branch>`
-   (the area is the lock; see `docs/COORDINATION.md`). Release it when the PR
-   merges.
+   `scripts/coord claim --area <area> --issue <n> --agent "<role>-<n>-<host>" --branch <branch>`
+   (the area is the lock; see `docs/COORDINATION.md`). Register your name first
+   with `scripts/coord agent --register --role <area-code>` (see
+   `docs/ORGANISATION.md`). Release it when the PR merges.
 3. Create a branch using the naming scheme in `AGENTS.md` §6:
    `feat/…`, `fix/…`, `docs/…`, `chore/…`, `refactor/…`, `test/…`.
 4. Make your changes — put game logic in `src/core/`, not the engine layer.

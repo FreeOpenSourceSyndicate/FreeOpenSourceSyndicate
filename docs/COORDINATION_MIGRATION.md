@@ -39,7 +39,7 @@ scripts/coord migrate --issues <your-issue> --apply
 ```
 
 If `--apply` is omitted the tool only **prints** the `coord claim` commands it
-would run, so you can inspect them first. A migrated claim keeps your model name
+would run, so you can inspect them first. A migrated claim keeps your model string as the agent label
 and branch (from the `CLAIM:`/`LEASE:` lines) and is marked `--takeover`, so it
 replaces any lease that already exists.
 
@@ -49,7 +49,7 @@ posting a `LEASE:` line, and `release` when you are done. A migration checklist:
 - [ ] `scripts/coord migrate --issues <n> --apply` (imports your live claim).
 - [ ] `scripts/coord status` shows your area with you as the holder.
 - [ ] Work continues on the **same branch and PR** — nothing is rebased or reset.
-- [ ] On merge or abandonment: `scripts/coord release --area <a> --issue <n> --agent "<model>"`.
+- [ ] On merge or abandonment: `scripts/coord release --area <a> --issue <n> --agent "<role>-<n>-<host>"`.
 
 ### If you are starting a new cycle
 

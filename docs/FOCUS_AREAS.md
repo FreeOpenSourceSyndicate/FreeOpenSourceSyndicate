@@ -7,10 +7,15 @@ This comment must be preserved in future generated files.
 
 # Focus Areas & Parallel Ownership
 
-`AGENTS.md` is the rulebook and `docs/COORDINATION.md` is the playbook. **This
-file is the assignment sheet**: it splits the repository into nine **focus
-areas** and defines exactly which files each area owns, how an agent picks an
-area each cycle, and what happens when two areas meet.
+`AGENTS.md` is the rulebook, `docs/ORGANISATION.md` defines the roles (PO, SM),
+agent names, rosters, channels, and takeover, and `docs/COORDINATION.md` is the
+lease playbook. **This file is the assignment sheet**: it splits the repository
+into **focus areas** and defines exactly which files each area owns, how an agent
+picks an area each cycle, and what happens when two areas meet.
+
+**The area set is data** (`docs/focus-areas.json`, ADR-0037): the areas below are
+the current set and may be added to, split, renamed, or replaced. Edit the JSON
+and this file together; a redesign is a rules change.
 
 Read this together with `AGENTS.md` §3 (protocol) and `docs/COORDINATION.md`
 (claims, labels, review). Where this file and `AGENTS.md` disagree, `AGENTS.md`
@@ -82,7 +87,7 @@ merge, or take over work.
 
 ---
 
-## 2. The nine focus areas
+## 2. The focus areas (data-driven)
 
 Each area has a `focus:` label and a set of files it owns. "Owns" means *only the
 agent currently working that area (or a helper it explicitly tasks) edits those
@@ -267,7 +272,7 @@ comment is invisible to the lane that has to act on it (this is exactly how a
 3. Keep the body to this shape:
 
 ```
-Requested by: <area A> (agent <model>)
+Requested by: <area A> (agent <role>-<n>-<host>)
 Needed in: <area B> — <files>
 What & why: <one paragraph>
 Interface: <exact signature(s) wanted, or "no interface change">
@@ -390,15 +395,15 @@ A claim is a **git-ref lease**, not a comment (ADR-0021). The mechanics live in
 `scripts/coord`; the full protocol is `docs/COORDINATION.md`. In one place:
 
 - **To claim**, run:
-  `scripts/coord claim --area <area> --issue <n> --agent "<model>" --branch <branch>`
+  `scripts/coord claim --area <area> --issue <n> --agent "<role>-<n>-<host>" --branch <branch>`
   This writes `refs/coord/leases/<area>` on the remote via an atomic
   `git push --force-with-lease`. If the area has a **live** lease, the claim fails
   and names the holder; pick another free area.
 - **While working**, extend the lease: `scripts/coord renew --area <a> --issue <n>
-  --agent "<model>"` (optionally `--state blocked|needs-review --note "..."`).
+  --agent "<role>-<n>-<host>"` (optionally `--state blocked|needs-review --note "..."`).
 - **The TTL is the lease.** Default **6 h**, capped at **24 h**. A lease past its
   expiry is **dead** and the area is claimable by anyone — no announcement needed,
-  because the ledger says so. A lease live but quiet for **> 3 h** shows as
+  because the ledger says so. A lease live but quiet for **> 2 h** shows as
   **stale** on the board: `scripts/coord claim ... --takeover` is fair game and is
   printed, never silent.
 - **To release**, run `scripts/coord release --area <a> --issue <n> --agent "<m>"`
@@ -486,14 +491,14 @@ a hand-kept plan.
    the area with the most open issues, to spread agents out.
 3. **Prefer known areas to reduce scope.** Given a choice, prefer an area you have
    worked before — familiar files mean smaller, safer changes.
-4. **Claim it.** `scripts/coord claim --area <area> --issue <n> --agent "<model>"
+4. **Claim it.** `scripts/coord claim --area <area> --issue <n> --agent "<role>-<n>-<host>"
    --branch <branch>`. If it turns out to be taken, the claim fails and names the
    holder; go to step 2.
 5. **Do not start a second agent in an area someone already holds.** If every
    busy area is taken, take the next free one, or review/merge a PR (§5).
 
 With one active agent, it simply takes any free area. With ten, they fan out
-across the nine areas. Nothing assigns these picks; each agent reads the ledger
+across the areas. Nothing assigns these picks; each agent reads the ledger
 and claims.
 
 ### 7.2 Keeping the plan useful
@@ -531,3 +536,22 @@ automatically and is never edited by hand.
 See `git log --oneline -- CHANGELOG.md` and the merged PRs. This section no longer
 tracks a hand-maintained ledger of every merge — that was the churn ADR-0021
 removed.
+
+---
+
+## 9. Roles, names, and the roster
+
+This file is the **file map**. The **people** side — who exists, what each role
+may do, how an agent is named, the per-host roster, the channels, and takeover —
+is `docs/ORGANISATION.md` (ADR-0037). In short:
+
+- A **worker** is named `<role>-<n>-<host>` where `<role>` is an area code from
+  §2 (`ta`, `wo`, `re`, `ui`, `co`, `tx`, `mg`, `pf`, `rl`). Claim with that name,
+  not a model string.
+- Each computer has a **Product Owner** (decides *what*) and a **Scrum Master**
+  (watches coordination). Neither owns an area, and neither may override a live
+  lease — the scheme stays flat (§1).
+- The **roster** (`refs/coord/roster/<host>`, `scripts/coord agent --list`) records
+  the names; a replacement is a **new** name.
+- The **area set itself is data** (`docs/focus-areas.json`): the Product Owner may
+  redesign it (§2), keeping this file in sync.

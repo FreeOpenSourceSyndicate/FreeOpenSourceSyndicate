@@ -60,11 +60,12 @@ import json
 import os
 import re
 import shlex
+import socket
 import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Iterable, Optional
 
 # --------------------------------------------------------------------------- #
@@ -77,22 +78,127 @@ MAX_TTL = 24 * 60 * 60             # never hold an area longer than a day.
 # working, but a --takeover is fair game.  This must stay below DEFAULT_TTL,
 # otherwise a lease expires before it can ever be flagged stale and the signal
 # is dead code (guarded by tests/test_coord.py).
-STALE_AFTER = 3 * 60 * 60          # 3 h: half a normal work cycle
+#
+# Lowered 3h -> 2h after the Kastenbrot/Gnampf takeover review: a work cycle is
+# short, and a holder quiet for 2h is more likely gone than thinking.  The SM
+# watches run lengths and takeover outcomes and tunes this (docs/COORDINATION.md
+# section 6a): raise it if false takeovers of active agents appear, lower it if
+# genuine stragglers sit too long.  `COORD_STALE_AFTER` overrides it at runtime.
+STALE_AFTER = int(os.environ.get("COORD_STALE_AFTER") or 2 * 60 * 60)  # 2 h
 REF_PREFIX = "refs/coord/leases"
 
-# The nine focus areas (docs/FOCUS_AREAS.md).  The area is the lock: a file has
-# exactly one owning area, so two agents collide only by holding the same area.
-AREAS = (
-    "tactical",
-    "world",
-    "render",
-    "input-ui",
-    "content",
-    "text",
-    "metagame",
-    "platform",
-    "release",
-)
+# Focus areas are DATA, not code: docs/focus-areas.json lists them (plus a
+# 2-letter role code and the critical-path flag), so the Product Owner can
+# redesign the area set without a Python change (docs/ORGANISATION.md section 9).
+# The constants below are the fallback used when that file is missing or
+# unreadable, so coordination never breaks on a bad edit.
+FOCUS_AREAS_PATH = "docs/focus-areas.json"
+_DEFAULT_AREAS = {
+    "tactical": {"code": "ta", "label": "Tactical / Mission"},
+    "world": {"code": "wo", "label": "World / Simulation"},
+    "render": {"code": "re", "label": "Render / Engine"},
+    "input-ui": {"code": "ui", "label": "Input / UI / UX"},
+    "content": {"code": "co", "label": "Content / Data"},
+    "text": {"code": "tx", "label": "Text / i18n / Lore"},
+    "metagame": {"code": "mg", "label": "Metagame / Campaign"},
+    "platform": {"code": "pf", "label": "Build / CI / Tooling"},
+    "release": {"code": "rl", "label": "Release / Playtest"},
+}
+# Critical-path order (docs/ROADMAP.md).  `coord next` prefers these so an idle
+# agent is steered at the work that unblocks the release, not just any free area.
+# The long pole (metagame) comes first.
+_DEFAULT_CRITICAL = ("metagame", "tactical")
+# Process roles (no focus area).  A role code names an agent: <role>-<n>-<host>.
+_DEFAULT_ROLES = {
+    "sm": {"code": "sm", "label": "Scrum master", "focus": None},
+    "po": {"code": "po", "label": "Product owner", "focus": None},
+}
+_DEFAULT_CHANNELS = {
+    "sm": "Scrum master <-> scrum master handoff (one SM per computer).",
+    "po": "Product owner <-> product owner handoff (one PO per computer).",
+    "takeover": "Takeover requests: a live agent asks the fleet to take over an "
+                "area whose holder has gone quiet.",
+}
+
+
+@dataclass(frozen=True)
+class FocusConfig:
+    """The focus-area + role + channel set, loaded from docs/focus-areas.json.
+
+    Kept as one object so a redesign is a single atomic reload rather than a
+    scatter of module globals (the tests patch ``coord.CONFIG``).
+    """
+    areas: dict
+    roles: dict
+    channels: dict
+    critical: tuple = ()
+
+    @property
+    def area_names(self) -> tuple:
+        return tuple(self.areas)
+
+    @property
+    def critical_path_areas(self) -> tuple:
+        """Critical-path areas, in the file's priority order, then the rest.
+
+        The ``critical_path`` list preserves the *order* (metagame before
+        tactical, so the long pole is picked first); any area marked
+        ``critical: true`` in its own spec is appended in area order, for a
+        redesign that prefers the per-area flag.
+        """
+        ordered = [a for a in self.critical if a in self.areas]
+        for name, spec in self.areas.items():
+            if spec.get("critical") and name not in ordered:
+                ordered.append(name)
+        return tuple(ordered)
+
+    def code_for(self, name: str) -> str:
+        """The 2-letter role code for an area, or '' if unknown."""
+        spec = self.areas.get(name) or self.roles.get(name)
+        return (spec or {}).get("code", "") or ("" if not spec else name[:2])
+
+    def name_for_code(self, code: str) -> Optional[str]:
+        for name, spec in {**self.areas, **self.roles}.items():
+            if spec.get("code") == code:
+                return name
+        return None
+
+
+def load_focus_config(path: Optional[str] = None) -> FocusConfig:
+    """Load docs/focus-areas.json, falling back to the built-in default set.
+
+    A missing or malformed file is never fatal: coordination must keep working
+    on a bad edit (a broken rules file would otherwise stall the whole fleet).
+    The environment variable ``COORD_FOCUS_AREAS`` overrides the path (tests).
+    """
+    path = path or os.environ.get("COORD_FOCUS_AREAS") or FOCUS_AREAS_PATH
+    areas = dict(_DEFAULT_AREAS)
+    roles = dict(_DEFAULT_ROLES)
+    channels = dict(_DEFAULT_CHANNELS)
+    critical = _DEFAULT_CRITICAL
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError, ValueError):
+        return FocusConfig(areas=areas, roles=roles, channels=channels,
+                           critical=critical)
+    if isinstance(data.get("areas"), dict) and data["areas"]:
+        areas = {str(k): dict(v or {}) for k, v in data["areas"].items()}
+    if isinstance(data.get("roles"), dict) and data["roles"]:
+        roles = {str(k): dict(v or {}) for k, v in data["roles"].items()}
+    if isinstance(data.get("channels"), dict) and data["channels"]:
+        channels = {str(k): str(v) for k, v in data["channels"].items()}
+    if isinstance(data.get("critical_path"), list):
+        critical = tuple(str(a) for a in data["critical_path"])
+    return FocusConfig(areas=areas, roles=roles, channels=channels,
+                       critical=critical)
+
+
+CONFIG = load_focus_config()
+AREAS = CONFIG.area_names
+CRITICAL_PATH_AREAS = CONFIG.critical_path_areas
+ROLES = tuple(CONFIG.roles)
+CHANNELS = tuple(CONFIG.channels)
 
 BOARD_PATH = "docs/COORDINATION_BOARD.md"
 BOARD_MARKER = "<!-- coord:board -->"
@@ -108,13 +214,22 @@ BOARD_PUSH_ATTEMPTS = 3
 # The well-known empty tree id, so ledger/note commits need no mktree stdin.
 _EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
-# Areas on the critical path (docs/ROADMAP.md).  `coord next` prefers these so an
-# idle agent is steered at the work that actually unblocks the release, not just
-# at any area that happens to be free.
-CRITICAL_PATH_AREAS = ("metagame", "tactical")
+# (CRITICAL_PATH_AREAS is derived from docs/focus-areas.json above.)
 
 # Unchecked roadmap items are the backlog seed when nothing is claimable.
 ROADMAP_PATH = "docs/ROADMAP.md"
+
+# Roster + agent-name conventions (docs/ORGANISATION.md sections 3-4).  An agent is
+# named <role>-<n>-<host>; the roster is one ref per host so the Product Owner
+# sees only its own computer's agents (a PO can only request agents on its host).
+ROSTER_PREFIX = "refs/coord/roster"
+# <role> is a code (no hyphen), <n> is digits, <host> may carry hyphens/dots.
+AGENT_NAME_RE = re.compile(
+    r"^(?P<role>[a-z0-9]+)-(?P<n>\d+)-(?P<host>[a-z0-9][a-z0-9.-]*)$")
+# The daily new-agent budget is SHARED across all computers and other projects
+# (the human's chat limit).  It is tracked per host as a *local* estimate only;
+# the human is the authority.  No hard cap is enforced here.
+DEFAULT_BUDGET_CAP = 10
 
 # A green, non-draft PR that has waited this long is *drainable*: merging it is
 # finished work one step from landing (near-zero marginal cost), so `next` offers
@@ -423,12 +538,17 @@ def read_notes(area: str, cwd: Optional[str] = None) -> list[Note]:
 
 
 def list_all_notes(cwd: Optional[str] = None) -> dict[str, list[Note]]:
-    """Every area's notes, keyed by area, oldest first."""
+    """Every topic's notes, keyed by topic, oldest first.
+
+    Topics are the focus areas *plus* the named channels (`sm`, `po`,
+    `takeover`), so the process roles get a durable log of their own that is
+    neither a focus area nor a lock (docs/ORGANISATION.md section 5).
+    """
     result: dict[str, list[Note]] = {}
-    for area in AREAS:
-        notes = read_notes(area, cwd=cwd)
+    for topic in tuple(AREAS) + tuple(CHANNELS):
+        notes = read_notes(topic, cwd=cwd)
         if notes:
-            result[area] = notes
+            result[topic] = notes
     return result
 
 
@@ -516,6 +636,271 @@ def append_note(area: str, agent: str, text: str, *, cwd: Optional[str] = None) 
             continue
     return note
 
+
+# --------------------------------------------------------------------------- #
+# Roster + agent names (docs/ORGANISATION.md sections 3-4)
+# --------------------------------------------------------------------------- #
+#
+# An agent is named "<role>-<n>-<host>" (e.g. ta-1-kastenbrot, sm-1-gnampf).  The
+# role is a 2-letter focus-area code for a worker, or "sm"/"po" for the process
+# roles.  The host makes the name globally unique in the shared repo, and the
+# number is unique per (role, host) and NEVER reused: a replacement agent is a
+# new entity with a new number (a worker starts with no memory of its
+# predecessor, so it must not inherit the name).  See docs/focus-areas.json.
+#
+# The roster is one ref per host (refs/coord/roster/<host>), so the Product Owner
+# of a computer sees only that computer's agents - a PO can only request agents
+# on its own host.  The roster also carries a per-host *estimate* of the daily
+# new-agent budget; the real limit is shared across computers and other projects
+# and is enforced by the human, not here.
+
+ROSTER_PREFIX = "refs/coord/roster"
+
+
+HOST_RE = re.compile(r"^[a-z0-9][a-z0-9.-]*$")
+
+
+def default_host() -> str:
+    """This computer's host token: ``COORD_HOST`` if set, else ``hostname``.
+
+    The host is what makes an agent name globally unique in the shared repo, so
+    it must be stable per computer and not left to memory.  ``COORD_HOST`` wins
+    (the human sets it to a friendly name like ``kastenbrot``); otherwise the
+    machine's hostname is used, sanitised to the ref-safe token grammar.
+    """
+    raw = os.environ.get("COORD_HOST") or socket.gethostname() or ""
+    token = re.sub(r"[^a-z0-9.-]+", "-", raw.strip().lower()).strip(".-")
+    return token if valid_host(token) else "localhost"
+
+
+def valid_host(host: str) -> bool:
+    """A host is a lowercase token; it is used verbatim in a git ref name.
+
+    Rejecting anything else (notably ``..`` and ``/``) keeps the roster ref well
+    formed, so a bad ``--host`` cannot write outside ``refs/coord/roster/``.
+    """
+    host = (host or "").strip().lower()
+    return bool(host) and bool(HOST_RE.match(host)) and ".." not in host
+
+
+def parse_agent_name(name: str) -> Optional[dict]:
+    """Split "<role>-<n>-<host>", or None if it is not that shape.
+
+    Legacy bare model strings ("OpenHands", "Claude Sonnet 4.5") are *not*
+    valid agent names; they are still accepted by the ledger for back-compat,
+    but they carry no host and so are invisible to the roster.
+    """
+    m = AGENT_NAME_RE.match((name or "").strip().lower())
+    if not m:
+        return None
+    return {"role": m.group("role"), "n": int(m.group("n")), "host": m.group("host")}
+
+
+def agent_host(name: str) -> str:
+    """The host part of an agent name, or '' for a legacy/bare name."""
+    parsed = parse_agent_name(name)
+    return parsed["host"] if parsed else ""
+
+
+def roster_ref_for(host: str) -> str:
+    return f"{ROSTER_PREFIX}/{host}"
+
+
+@dataclass
+class AgentEntry:
+    name: str
+    role: str
+    model: str = ""
+    status: str = "active"          # active | retired
+    since: int = 0
+    succeeded_by: str = ""
+    note: str = ""
+
+    def to_json(self) -> str:
+        return json.dumps({
+            "name": self.name, "role": self.role, "model": self.model,
+            "status": self.status, "since": self.since,
+            "succeeded_by": self.succeeded_by, "note": self.note,
+        }, sort_keys=True)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "AgentEntry":
+        return cls(
+            name=data.get("name", ""), role=data.get("role", ""),
+            model=data.get("model", ""), status=data.get("status", "active"),
+            since=int(data.get("since", 0)),
+            succeeded_by=data.get("succeeded_by", ""), note=data.get("note", ""),
+        )
+
+
+@dataclass
+class Roster:
+    host: str
+    agents: list = field(default_factory=list)
+    budget: dict = field(default_factory=dict)
+    updated: int = 0
+
+    def to_json(self) -> str:
+        return json.dumps({
+            "host": self.host,
+            "agents": [json.loads(a.to_json()) if isinstance(a, AgentEntry) else a
+                       for a in self.agents],
+            "budget": self.budget,
+            "updated": self.updated,
+        }, sort_keys=True, indent=2)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Roster":
+        return cls(
+            host=data.get("host", ""),
+            agents=[AgentEntry.from_dict(a) for a in data.get("agents", [])],
+            budget=dict(data.get("budget", {})),
+            updated=int(data.get("updated", 0)),
+        )
+
+    def active(self) -> list:
+        return [a for a in self.agents if a.status == "active"]
+
+    def name_taken(self, name: str) -> bool:
+        return any(a.name == name for a in self.agents)
+
+    def next_number(self, role: str) -> int:
+        used = [parse_agent_name(a.name)["n"] for a in self.agents
+                if parse_agent_name(a.name)
+                and parse_agent_name(a.name)["role"] == role]
+        return (max(used) + 1) if used else 1
+
+
+def read_roster(host: str, cwd: Optional[str] = None) -> Optional[Roster]:
+    """The roster for a host, or None if it does not exist / is corrupt."""
+    proc = git("log", "-1", "--format=%B", roster_ref_for(host), check=False, cwd=cwd)
+    if proc.returncode != 0:
+        return None
+    body = (proc.stdout or "").strip()
+    if not body:
+        return None
+    try:
+        return Roster.from_dict(json.loads(body))
+    except (ValueError, KeyError, json.JSONDecodeError):
+        return None
+
+
+def fetch_rosters(cwd: Optional[str] = None) -> None:
+    """Best-effort refresh of the remote roster refs."""
+    git("fetch", "--prune", "--force", "origin",
+        f"+{ROSTER_PREFIX}/*:{ROSTER_PREFIX}/*", check=False, cwd=cwd)
+
+
+def list_rosters(cwd: Optional[str] = None) -> dict:
+    """Every host's roster, keyed by host (missing/corrupt refs skipped)."""
+    proc = git("for-each-ref", "--format=%(refname)", ROSTER_PREFIX,
+               check=False, cwd=cwd)
+    result: dict = {}
+    for ref in (proc.stdout or "").splitlines():
+        ref = ref.strip()
+        if not ref:
+            continue
+        host = ref[len(ROSTER_PREFIX) + 1:]
+        roster = read_roster(host, cwd=cwd)
+        if roster is not None:
+            result[host] = roster
+    return result
+
+
+def _write_roster(host: str, roster: Roster, *, cwd: Optional[str] = None) -> None:
+    """Publish a roster ref with a compare-and-swap, retrying on a lost race.
+
+    A roster is a read-modify-write aggregate (like the notes log), so two
+    registrations racing would otherwise drop one.  Retry against the fresh
+    remote value; a credential failure is fatal (retrying cannot fix it).
+    """
+    for _ in range(5):
+        fetch_rosters(cwd=cwd)
+        ref = roster_ref_for(host)
+        expect = _local_ref_sha(ref, cwd=cwd)
+        commit = _empty_commit(roster.to_json(), cwd=cwd, env=_git_env())
+        lease = f"--force-with-lease={ref}:{expect or ''}"
+        proc = git("push", lease, "origin", f"{commit}:{ref}",
+                   check=False, cwd=cwd, env=_git_env())
+        if proc.returncode == 0:
+            git("update-ref", ref, commit, check=False, cwd=cwd)
+            return
+        detail = (proc.stderr or proc.stdout or "").strip()
+        hint = _push_hint(detail)
+        if hint is not None:
+            raise CoordAuthError(f"could not publish roster for {host}: "
+                                 f"{hint}\n{detail}")
+    raise CoordError(f"could not publish roster for {host}: the ref kept moving.")
+
+
+def register_agent(host: str, role: str, model: str = "", *, name: str = "",
+                   cwd: Optional[str] = None) -> AgentEntry:
+    """Register an agent on a host's roster, allocating the next free number.
+
+    ``name`` may be supplied to pin an exact name (the PO names the agent in its
+    prompt); otherwise the next free ``<role>-<n>-<host>`` is allocated.  A name
+    already on the roster is refused: names are never reused.
+    """
+    if not valid_host(host):
+        raise CoordError(f"'{host}' is not a valid host "
+                         f"(lowercase letters, digits, '.', '-' only).")
+    fetch_rosters(cwd=cwd)
+    roster = read_roster(host, cwd=cwd) or Roster(host=host)
+    if name:
+        parsed = parse_agent_name(name)
+        if not parsed:
+            raise CoordError(f"'{name}' is not a valid agent name "
+                             f"(<role>-<n>-<host>, e.g. ta-1-{host}).")
+        if parsed["host"] != host:
+            raise CoordError(f"agent name '{name}' names host '{parsed['host']}', "
+                             f"not '{host}'.")
+        if roster.name_taken(name):
+            raise CoordError(f"agent name '{name}' is already on {host}'s roster; "
+                             f"names are never reused.")
+    else:
+        name = f"{role}-{roster.next_number(role)}-{host}"
+    entry = AgentEntry(name=name, role=role, model=model, status="active",
+                       since=now())
+    roster.agents.append(entry)
+    _touch_budget(roster)
+    roster.updated = now()
+    _write_roster(host, roster, cwd=cwd)
+    return entry
+
+
+def retire_agent(host: str, name: str, *, succeeded_by: str = "",
+                 cwd: Optional[str] = None) -> AgentEntry:
+    """Mark an agent retired (dead / replaced), recording its successor.
+
+    Retirement is not deletion: the roster is the durable lineage a replacement
+    (or the other SM) reads, so a name that is gone from the active list is still
+    explained.
+    """
+    if not valid_host(host):
+        raise CoordError(f"'{host}' is not a valid host.")
+    fetch_rosters(cwd=cwd)
+    roster = read_roster(host, cwd=cwd)
+    if roster is None:
+        raise CoordError(f"no roster for host '{host}'.")
+    for entry in roster.agents:
+        if entry.name == name:
+            entry.status = "retired"
+            if succeeded_by:
+                entry.succeeded_by = succeeded_by
+            roster.updated = now()
+            _write_roster(host, roster, cwd=cwd)
+            return entry
+    raise CoordError(f"'{name}' is not on {host}'s roster.")
+
+
+def _touch_budget(roster: Roster) -> None:
+    """Count one new agent against today's per-host budget estimate."""
+    day = iso(now())[:10]
+    budget = roster.budget or {}
+    if budget.get("date") != day:
+        budget = {"date": day, "started": 0, "cap": budget.get("cap", DEFAULT_BUDGET_CAP)}
+    budget["started"] = int(budget.get("started", 0)) + 1
+    roster.budget = budget
 
 
 def _git_env() -> dict:
@@ -830,6 +1215,7 @@ def cmd_release(args: argparse.Namespace) -> int:
 def cmd_status(args: argparse.Namespace) -> int:
     if not args.offline:
         fetch_ledger(required=True)
+        fetch_rosters()
     at = now()
     leases = sorted(list_leases(), key=lambda l: (l.area, l.issue))
     if args.json:
@@ -846,8 +1232,10 @@ def cmd_status(args: argparse.Namespace) -> int:
     for l in live:
         flag = "STALE " if l.is_stale(at) else "      "
         state = "" if l.state == "claimed" else f"[{l.state}] "
+        host = agent_host(l.agent)
         print(f"  {flag}{l.area:<9} #{l.issue:<5} {state}{l.agent}  "
               f"expires {iso(l.expires)} ({human_delta(l.expires - at)} left)"
+              + (f"  host={host}" if host else "")
               + (f"  branch={l.branch}" if l.branch else ""))
     if expired:
         print("expired (a `sweep` will delete these):")
@@ -856,6 +1244,14 @@ def cmd_status(args: argparse.Namespace) -> int:
                   f"expired {iso(l.expires)} ({human_delta(at - l.expires)} ago)")
     free = [a for a in AREAS if area_holder(a, at) is None]
     print(f"free areas: {', '.join(free) if free else '(none)'}")
+    rosters = list_rosters()
+    for host in sorted(rosters):
+        roster = rosters[host]
+        budget = roster.budget or {}
+        spend = (f"  today {budget.get('started', 0)}/{budget.get('cap', '?')}"
+                 if budget.get("started") is not None else "")
+        active = ", ".join(a.name for a in roster.active()) or "(none)"
+        print(f"roster {host}: {active}{spend}")
     return 0
 
 
@@ -973,6 +1369,27 @@ def _iso_epoch(stamp: str) -> Optional[int]:
         return None
 
 
+def _takeover_requests() -> list:
+    """Open takeover requests on the `takeover` channel, newest first.
+
+    A takeover request is how a live agent asks the fleet to pick up an area
+    whose holder has gone quiet without silently displacing it
+    (docs/ORGANISATION.md section 6a).  ``next`` surfaces them so an agent that finds
+    itself idle claims the work instead of leaving the request unread.  Returns
+    ``[]`` on any failure: ``next`` must always answer.
+    """
+    try:
+        notes = read_notes("takeover")
+    except Exception:  # pragma: no cover - read_notes already swallows git errors
+        return []
+    return [n for n in notes if "TAKEOVER REQUEST" in n.text]
+
+
+def _requested_area(text: str) -> Optional[str]:
+    m = re.search(r"area=([a-z0-9-]+)", text or "")
+    return m.group(1) if m else None
+
+
 def _roadmap_gaps(limit: int = 3) -> list[str]:
     """The first unchecked roadmap items — the seed when the backlog is empty."""
     try:
@@ -1000,6 +1417,7 @@ def cmd_next(args: argparse.Namespace) -> int:
 
       1. you already hold a lease        -> renew / finish / release it
       2. a critical-path area is free    -> claim its next claimable issue
+      2b. a takeover request is open     -> pick up the quiet holder's work
       3. a green PR has waited           -> review and merge it (drain the queue)
       4. any free area has an issue      -> claim its next claimable issue
       5. any area is free but has no issue, or a live lease is stale
@@ -1023,9 +1441,10 @@ def cmd_next(args: argparse.Namespace) -> int:
     by_area = _open_issues_by_area()
 
     # 1. Do you already hold something?  Finish or renew it before taking more.
-    #    Match on agent *and* branch: the agent string is a model name, not a
-    #    unique id, so a same-named peer's lease must not be reported as yours
-    #    (issue #365).
+    #    Match on agent *and* branch: a legacy agent string is a model name, not
+    #    a unique id, so a same-named peer's lease must not be reported as yours
+    #    (issue #365).  A named agent (`<role>-<n>-<host>`) is unique, but the
+    #    branch check is kept for the legacy ledger.
     branch = getattr(args, "branch", None) or current_branch()
     mine = [l for l in leases if lease_is_mine(l, args.agent, branch)]
     if mine:
@@ -1064,6 +1483,21 @@ def cmd_next(args: argparse.Namespace) -> int:
         if area in free and by_area.get(area):
             return _emit_claim(area, by_area[area][0][0], critical=True)
 
+    # 2b. A takeover request another agent filed (the holder went quiet).  This
+    #     is cooperative, low-cost reclamation: the request is a *hint* on the
+    #     `takeover` channel, not an authority, so it is offered before draining
+    #     the queue but after the critical path (docs/ORGANISATION.md section 6a).
+    for req in _takeover_requests():
+        area = _requested_area(req.text)
+        if area and area in free:
+            print(f"Takeover request on '{area}' from {req.agent} "
+                  f"({human_delta(at - req.epoch)} ago):")
+            print(f"  {req.text}")
+            print("  -> the area is free; claim it:")
+            print(f"     scripts/coord claim --area {area} --issue <n> "
+                  f"--agent \"{args.agent}\" --branch <type>/{area}-<slug>")
+            return 0
+
     # 3. Drain the merge queue.  A green, non-draft PR that has waited is finished
     #    work one step from landing: merging it costs almost nothing and is worth
     #    more than *starting* new work, which commits a whole cycle and risks
@@ -1077,7 +1511,7 @@ def cmd_next(args: argparse.Namespace) -> int:
         print(f"Merge queue: PR #{pr['number']} is green, non-draft, and {age} old "
               f"(no author needed).")
         print(f"  {pr['title']}")
-        print(f"  -> review and merge it (AGENTS.md §3a):")
+        print("  -> review and merge it (AGENTS.md §3a):")
         print(f"     gh pr view {pr['number']} && gh pr merge {pr['number']} --squash")
         return 0
 
@@ -1092,7 +1526,7 @@ def cmd_next(args: argparse.Namespace) -> int:
         area = next((a for a in CRITICAL_PATH_AREAS if a in free), free[0])
         print(f"No open issue is claimable, but area '{area}' is free.")
         if gaps:
-            print(f"Seed it from the roadmap (docs/ROADMAP.md), e.g.:")
+            print("Seed it from the roadmap (docs/ROADMAP.md), e.g.:")
             for gap in gaps:
                 print(f"  - {gap}")
             print(f"  -> file an issue with a `focus: {area}` label, then claim it.")
@@ -1108,9 +1542,11 @@ def cmd_next(args: argparse.Namespace) -> int:
         l = stale[0]
         print(f"Every area is held; '{l.area}' (#{l.issue}, {l.agent}) is stale "
               f"({human_delta(at - l.epoch)} quiet).")
-        print(f"  -> takeover: scripts/coord claim --area {l.area} --issue {l.issue} "
-              f"--agent \"{args.agent}\" --takeover")
-        print(f"  -> or review its PR first if one is open.")
+        print(f"  -> request a takeover: scripts/coord takeover --request "
+              f"--area {l.area} --agent \"{args.agent}\"")
+        print(f"  -> or claim it directly: scripts/coord claim --area {l.area} "
+              f"--issue {l.issue} --agent \"{args.agent}\" --takeover")
+        print("  -> or review its PR first if one is open.")
         return 0
 
     print("Every area is held by a live, non-stale lease.")
@@ -1124,7 +1560,7 @@ def _emit_claim(area: str, issue: int, critical: bool = False) -> int:
     tag = " (critical path)" if critical else ""
     print(f"Next: claim {area} / #{issue}{tag}")
     print(f"  scripts/coord claim --area {area} --issue {issue} "
-          f"--agent \"<your model>\" --branch <type>/{area}-<slug>")
+          f"--agent \"<role>-<n>-<host>\" --branch <type>/{area}-<slug>")
     return 0
 
 
@@ -1170,7 +1606,7 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 
 def _board_rows(at: int) -> list[tuple[str, str, str, str]]:
-    """(area, holder, state, remaining) for each of the eight areas."""
+    """(area, holder, state, remaining) for each focus area."""
     leases = list_leases()
     rows = []
     for area in AREAS:
@@ -1211,12 +1647,46 @@ def render_board(at: Optional[int] = None) -> str:
     lines += [
         "",
         "Legend: **free** = claimable now · **claimed** = live lease · **stale** = live",
-        "but quiet for > 3 h — the holder may still be working, but a `coord claim",
-        "--takeover` (or letting the TTL run out) is fair game · **blocked** /",
+        f"but quiet for > {human_delta(STALE_AFTER)} — the holder may still be working, but a",
+        "`coord claim --takeover` (or letting the TTL run out) is fair game · **blocked** /",
         "**needs-review** = the holder set the state. Pending workload per area is the",
         "open-issue count on GitHub.",
         "",
     ]
+
+    rosters = list_rosters()
+    if rosters:
+        lines += [
+            "## Roster",
+            "",
+            "Named agents per host (`refs/coord/roster/<host>`, `scripts/coord agent "
+            "--list`). A name is `<role>-<n>-<host>` and is never reused. The daily "
+            "new-agent budget is shared across computers and other projects; the "
+            "`started/cap` figure here is a per-host estimate only.",
+            "",
+        ]
+        for host in sorted(rosters):
+            roster = rosters[host]
+            budget = roster.budget or {}
+            started, cap = budget.get("started"), budget.get("cap")
+            spend = f" — {started}/{cap} new agents today" if started is not None else ""
+            lines.append(f"**`{host}`**{spend}")
+            lines.append("")
+            for a in roster.active():
+                model = f" ({a.model})" if a.model else ""
+                lines.append(f"- `{a.name}`{model} — active")
+            if not roster.active():
+                lines.append("- _(no active agents)_")
+            for a in [a for a in roster.agents if a.status != "active"]:
+                succ = f" → `{a.succeeded_by}`" if a.succeeded_by else ""
+                lines.append(f"- `{a.name}` — retired{succ}")
+            lines.append("")
+        lines += [
+            "Register a new agent: `scripts/coord agent --register --host <host> "
+            "--role <area-code>`. Retire one: `scripts/coord agent --retire <name> "
+            "--host <host> --succeeded-by <name>`.",
+            "",
+        ]
     notes = list_all_notes()
     if notes:
         lines += [
@@ -1234,17 +1704,17 @@ def render_board(at: Optional[int] = None) -> str:
                 lines.append(f"- _{when}_ {n.agent}: {n.text}")
             lines.append("")
         lines += [
-            "Add one with `scripts/coord note --area <area> --agent \"<model>\" --text \"...\"`.",
+            "Add one with `scripts/coord note --area <area> --agent \"<role>-<n>-<host>\" --text \"...\"`.",
             "",
         ]
     lines += [
         "## How to take an area",
         "",
         "```bash",
-        "scripts/coord claim --area world --issue 157 --agent \"<model>\" --branch feat/world-xyz",
+        "scripts/coord claim --area world --issue 157 --agent \"<role>-<n>-<host>\" --branch feat/world-xyz",
         "# ... work ... then either:",
-        "scripts/coord renew  --area world --issue 157 --agent \"<model>\"",
-        "scripts/coord release --area world --issue 157 --agent \"<model>\"",
+        "scripts/coord renew  --area world --issue 157 --agent \"<role>-<n>-<host>\"",
+        "scripts/coord release --area world --issue 157 --agent \"<role>-<n>-<host>\"",
         "```",
         "",
         "See `docs/COORDINATION.md` for the full protocol.",
@@ -1256,6 +1726,8 @@ def render_board(at: Optional[int] = None) -> str:
 def cmd_board(args: argparse.Namespace) -> int:
     if not args.offline:
         fetch_ledger(required=True)
+        fetch_rosters()
+        fetch_notes()
     content = render_board()
     if args.stdout:
         print(content, end="")
@@ -1276,7 +1748,7 @@ def cmd_note(args: argparse.Namespace) -> int:
 
 
 def cmd_notes(args: argparse.Namespace) -> int:
-    """Print the notes for an area, or every area."""
+    """Print the notes for a topic, or every topic."""
     if not args.offline:
         fetch_notes()
     if args.area:
@@ -1300,9 +1772,118 @@ def cmd_notes(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_agent(args: argparse.Namespace) -> int:
+    """Register, retire, or list the named agents on a host's roster.
+
+    The roster is the durable record of *who* an agent is (name, role, model,
+    status, successor).  It exists because a name is not just a label: the
+    Product Owner requests agents by name, and a replacement must be a new name
+    (a worker starts with no memory of its predecessor).  One ref per host keeps
+    each computer's roster separate - a PO only ever sees its own host.
+    """
+    if args.register:
+        host = args.host or default_host()
+        role = args.role or ""
+        if not role:
+            raise CoordError("--register needs --role "
+                             "(a focus-area code, or 'sm' / 'po')")
+        if role not in CONFIG.roles and CONFIG.name_for_code(role) is None:
+            valid = sorted(set(CONFIG.roles) |
+                           {sp.get("code", "") for sp in CONFIG.areas.values()})
+            raise CoordError(f"unknown role code '{role}'; valid: "
+                             f"{', '.join(c for c in valid if c)}")
+        entry = register_agent(host, role, model=args.model or "",
+                               name=args.name or "")
+        print(f"registered {entry.name} ({entry.role}"
+              f"{', ' + entry.model if entry.model else ''})")
+        return 0
+    if args.retire:
+        host = args.host or default_host()
+        entry = retire_agent(host, args.retire,
+                             succeeded_by=args.succeeded_by or "")
+        succ = f" -> {entry.succeeded_by}" if entry.succeeded_by else ""
+        print(f"retired {entry.name} on {host}{succ}")
+        return 0
+    if args.host:
+        fetch_rosters()
+        roster = read_roster(args.host)
+        rosters = {args.host: roster} if roster else {}
+    else:
+        fetch_rosters()
+        rosters = list_rosters()
+    if args.json:
+        print(json.dumps({h: json.loads(r.to_json()) for h, r in rosters.items()},
+                         indent=2, sort_keys=True))
+        return 0
+    if not rosters:
+        print("no rosters.")
+        return 0
+    for host in sorted(rosters):
+        roster = rosters[host]
+        budget = roster.budget or {}
+        spend = (f"  today {budget.get('started', 0)}/{budget.get('cap', '?')} new agents"
+                 if budget.get("started") is not None else "")
+        print(f"[{host}]{spend}")
+        for a in roster.agents:
+            mark = "active " if a.status == "active" else "retired"
+            model = f"  ({a.model})" if a.model else ""
+            succ = f"  -> {a.succeeded_by}" if a.succeeded_by else ""
+            print(f"  {mark} {a.name}{model}{succ}")
+    return 0
+
+
+def cmd_takeover(args: argparse.Namespace) -> int:
+    """Post a takeover request, or list the open ones.
+
+    A takeover *request* is the low-cost, cooperative alternative to a silent
+    `--takeover`: a live agent whose peer has gone quiet posts a request on the
+    `takeover` channel, and any agent that later finds itself idle checks the
+    channel (`coord next` surfaces it) and picks the work up.  It is a request,
+    never an authority: the requester does not itself displace a live holder
+    (docs/ORGANISATION.md section 6a).
+    """
+    if args.request:
+        if not args.area:
+            raise CoordError("--request needs --area")
+        at = now()
+        lease = area_holder(args.area, at)
+        if lease is None:
+            print(f"{args.area} is free; nothing to take over.")
+            return 0
+        quiet = human_delta(at - lease.epoch)
+        text = (f"TAKEOVER REQUEST: area={args.area} issue=#{lease.issue} "
+                f"holder={lease.agent} quiet={quiet} "
+                f"requested_by={args.agent or 'unknown'}"
+                + (f" note={args.note}" if args.note else ""))
+        append_note("takeover", args.agent or "unknown", text)
+        print(f"takeover requested for {args.area} (holder {lease.agent}, "
+              f"quiet {quiet}).")
+        return 0
+    if not args.offline:
+        fetch_notes()
+    notes = read_notes("takeover")
+    open_requests = [n for n in notes if "TAKEOVER REQUEST" in n.text]
+    if args.json:
+        print(json.dumps([{"agent": n.agent, "text": n.text, "epoch": n.epoch}
+                          for n in open_requests], indent=2))
+        return 0
+    if not open_requests:
+        print("no takeover requests.")
+        return 0
+    for n in open_requests:
+        print(f"{iso(n.epoch)} {n.agent}: {n.text}")
+    return 0
+
+
 def cmd_sweep(args: argparse.Namespace) -> int:
     """Delete expired refs, sync issue labels/claims, rebuild the board."""
     fetch_ledger(required=True)
+    # The board it rebuilds below is rendered from all three ref families, so
+    # refresh the rosters and the notes too: a sweep that read only the leases
+    # would regenerate the board *without* its Roster and Handoff-notes sections
+    # and silently commit the loss.
+    fetch_rosters()
+    fetch_notes()
     at = now()
     leases = list_leases()
     expired = [l for l in leases if not l.is_live(at)]
@@ -1721,7 +2302,10 @@ def _comment_age_seconds(ts: str, at: int) -> Optional[int]:
 # --------------------------------------------------------------------------- #
 
 def _add_common(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--agent", required=True, help="your model / agent name, e.g. 'Claude Sonnet 4.5'")
+    p.add_argument("--agent", required=True,
+                   help="your agent name, '<role>-<n>-<host>' "
+                        "(e.g. ta-1-kastenbrot, sm-1-gnampf); a legacy model "
+                        "string is still accepted by the ledger")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1786,17 +2370,41 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--offline", action="store_true")
     p.set_defaults(func=cmd_board)
 
-    p = sub.add_parser("note", help="append a cross-cycle note to an area (survives release)")
+    p = sub.add_parser("note", help="append a cross-cycle note to a topic (survives release)")
     _add_common(p)
-    p.add_argument("--area", required=True, choices=AREAS)
+    p.add_argument("--area", required=True, choices=AREAS + CHANNELS,
+                   help="a focus area, or a channel: " + ", ".join(CHANNELS))
     p.add_argument("--text", required=True)
     p.set_defaults(func=cmd_note)
 
-    p = sub.add_parser("notes", help="print notes for an area, or all areas")
-    p.add_argument("--area", choices=AREAS, default=None)
+    p = sub.add_parser("notes", help="print notes for a topic, or every topic")
+    p.add_argument("--area", choices=AREAS + CHANNELS, default=None)
     p.add_argument("--json", action="store_true")
     p.add_argument("--offline", action="store_true")
     p.set_defaults(func=cmd_notes)
+
+    p = sub.add_parser("agent", help="register / retire / list named agents on a host roster")
+    p.add_argument("--register", action="store_true")
+    p.add_argument("--list", action="store_true",
+                   help="list the rosters (the default with no action flag)")
+    p.add_argument("--retire", default="", metavar="NAME")
+    p.add_argument("--host", default="",
+                   help="the computer; defaults to $COORD_HOST, else the hostname")
+    p.add_argument("--role", default="", help="a focus-area code, or 'sm' / 'po'")
+    p.add_argument("--model", default="", help="the LLM model behind this agent")
+    p.add_argument("--name", default="", help="pin an exact agent name (else auto-allocated)")
+    p.add_argument("--succeeded-by", default="", metavar="NAME")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_agent)
+
+    p = sub.add_parser("takeover", help="request, or list, a takeover of a quiet holder")
+    p.add_argument("--request", action="store_true")
+    p.add_argument("--area", default=None, choices=AREAS)
+    p.add_argument("--agent", default="", help="who is asking")
+    p.add_argument("--note", default="")
+    p.add_argument("--json", action="store_true")
+    p.add_argument("--offline", action="store_true")
+    p.set_defaults(func=cmd_takeover)
 
     p = sub.add_parser("sweep", help="delete expired refs, sync labels, rebuild board")
     p.add_argument("--gh", action="store_true", help="also sync issue labels/comments (needs gh)")

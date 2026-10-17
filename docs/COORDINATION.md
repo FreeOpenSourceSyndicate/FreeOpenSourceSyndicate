@@ -8,34 +8,46 @@ This comment must be preserved in future generated files.
 # Multi-Agent Coordination
 
 FOSSynd is developed by several AI agents (and humans) working in parallel. This
-page is the whole protocol. `AGENTS.md` is the rulebook; `docs/FOCUS_AREAS.md` is
-the assignment sheet (which files each of the nine focus areas owns).
+page is the **lease protocol**. `docs/ORGANISATION.md` is the top-level sheet
+(roles, agent names, per-host rosters, channels, takeover); `AGENTS.md` is the
+rulebook; `docs/FOCUS_AREAS.md` is the assignment sheet (which files each focus
+area owns). Read `docs/ORGANISATION.md` first, then this page.
 
 **There is no coordinator** (ADR-0019). Coordination is **flat**, and it is now
 **machine-checked**: a claim is a **git ref**, not a comment (ADR-0021). Read this
 page, run three commands, and you are coordinated.
 
+Agents are **named** `<role>-<n>-<host>` (e.g. `ta-1-kastenbrot`), recorded on a
+per-host **roster** (`scripts/coord agent --list`). Use your name — not a bare
+model string — as `--agent` (docs/ORGANISATION.md §3).
+
 ## TL;DR
 
 ```bash
-# 0. Not sure what to do? Ask. This never returns nothing.
-scripts/coord next --agent "Claude Sonnet 4.5"
+# 0. Register your name once per session (see docs/ORGANISATION.md §3-4).
+scripts/coord agent --register --role wo --model "Claude Sonnet 4.5"
+#    -> wo-1-<your host>   (the host defaults to $COORD_HOST, else the hostname)
+
+# 0b. Not sure what to do? Ask. This never returns nothing.
+scripts/coord next --agent "wo-1-kastenbrot"
 
 # 1. See what is taken and what is free.
 scripts/coord status
 
 # 2. Take a free area for one task. The area is the lock.
-scripts/coord claim --area world --issue 157 --agent "Claude Sonnet 4.5" --branch feat/world-destructible
+scripts/coord claim --area world --issue 157 --agent "wo-1-kastenbrot" --branch feat/world-destructible
 
 # 3. Work. If you are still going when the lease nears its TTL, extend it.
-scripts/coord renew  --area world --issue 157 --agent "Claude Sonnet 4.5"
+scripts/coord renew  --area world --issue 157 --agent "wo-1-kastenbrot"
 
-# 4. Done (merged or abandoned): give the area back early.
-scripts/coord release --area world --issue 157 --agent "Claude Sonnet 4.5"
+# 4. Done (merged or abandoned): give the area back early, then leave a note.
+scripts/coord release --area world --issue 157 --agent "wo-1-kastenbrot"
+scripts/coord note --area world --agent "wo-1-kastenbrot" --text "handoff: ..."
 ```
 
 That is the entire coordination overhead. No check-in, no hub comment, no one to
-ask.
+ask. Your **name** is `<role>-<n>-<host>` (`docs/ORGANISATION.md` §3) — not a
+model string — so two same-model workspaces are distinguishable.
 
 ## 1. The model in one paragraph
 
@@ -60,10 +72,12 @@ command talks to the shared remote `origin`; you never edit a file by hand.
 ### Claim an area
 
 ```bash
-scripts/coord claim --area <area> --issue <n> --agent "<model>" --branch <branch>
+scripts/coord claim --area <area> --issue <n> --agent "<role>-<n>-<host>" --branch <branch>
 ```
 
-- **`--area`** is one of the nine focus areas: `tactical`, `world`, `render`,
+- **`--area`** is a focus area from `docs/focus-areas.json` (or a channel: `sm`,
+  `po`, `takeover`). The set is data, not code (docs/ORGANISATION.md §9). Today:
+  `tactical`, `world`, `render`,
   `input-ui`, `content`, `text`, `metagame`, `platform`, `release`.
 - **One task = one branch = one PR.** Claim the area for the *task* you are about
   to do; the issue is what makes the claim legible.
@@ -73,7 +87,7 @@ scripts/coord claim --area <area> --issue <n> --agent "<model>" --branch <branch
 - **`--takeover`** claims anyway. Use it when the holder is gone — but it is
   *announced*, never silent: it prints whose lease you replaced. Taking over a
   live lease is allowed (the holder may have paused); taking over a **stale** one
-  (> 3 h quiet) is expected.
+  (> 2 h quiet) is expected.
 
 **Identity is agent *and* branch** (ADR-0034). `--agent` is your *model* name,
 which is not unique — two workspaces on the same model share it. So a lease
@@ -87,8 +101,8 @@ different branch, name the branch explicitly (`--branch <branch>`), or use
 ### Keep it alive
 
 ```bash
-scripts/coord renew --area <area> --issue <n> --agent "<model>"
-scripts/coord renew --area <area> --issue <n> --agent "<model>" --state blocked --note "waiting on #120"
+scripts/coord renew --area <area> --issue <n> --agent "<role>-<n>-<host>"
+scripts/coord renew --area <area> --issue <n> --agent "<role>-<n>-<host>" --state blocked --note "waiting on #120"
 ```
 
 Renewal is one ref update — cheap. Renew whenever you would otherwise cross the
@@ -99,7 +113,7 @@ drives the `status:` labels.
 ### Give it back
 
 ```bash
-scripts/coord release --area <area> --issue <n> --agent "<model>"
+scripts/coord release --area <area> --issue <n> --agent "<role>-<n>-<host>"
 ```
 
 Release as soon as your PR is **merged**, and also when you **abandon** the task.
@@ -132,7 +146,7 @@ breath.
 An agent that does not know what to do runs one command:
 
 ```bash
-scripts/coord next --agent "<model>"
+scripts/coord next --agent "<role>-<n>-<host>"
 ```
 
 It **never prints nothing**. It walks a fixed ladder and stops at the first rung
@@ -176,7 +190,7 @@ A lease is scoped to **now**: it is deleted on release and ages out on TTL, so a
 fact the *next* process needs has nowhere to live. Notes are that place.
 
 ```bash
-scripts/coord note  --area world --agent "<model>" \
+scripts/coord note  --area world --agent "<role>-<n>-<host>" \
     --text "push auth was stale; run gh auth setup-git first"
 scripts/coord notes --area world      # read one area
 scripts/coord notes                   # read every area
@@ -191,6 +205,40 @@ scripts/coord notes                   # read every area
 - Only the most recent `MAX_NOTES` (20) per area are kept.
 - The generated board prints every area's notes under **Handoff notes**, so a
   fresh process sees the handoff without running a command.
+
+**Channels.** The key is not only a focus area: the process roles have their own
+append-only topics (ADR-0037, docs/ORGANISATION.md §5):
+
+```bash
+scripts/coord note --area sm --agent sm-1-kastenbrot --text "handoff: ..."
+scripts/coord notes --area sm      # SM <-> SM, across hosts and over time
+scripts/coord notes --area po      # PO <-> PO
+scripts/coord takeover             # open takeover requests
+```
+
+`sm` and `po` carry the cross-machine handoff (docs/ORGANISATION.md §6b); the
+`takeover` channel carries takeover requests (§3c below). A channel note is
+exactly as harmless as an area note: never a lock, never an assignment.
+
+## 3c. Taking over a quiet holder
+
+A lease live but quiet for more than `STALE_AFTER` (**2 h**) is **stale** — its
+holder may still be working, so the clock, not a peer's judgement, decides. Two
+ways to reclaim it:
+
+```bash
+# Cooperative: ask the fleet to pick the area up (cheap, leaves a trail).
+scripts/coord takeover --request --area world --agent sm-1-kastenbrot
+scripts/coord takeover                  # any idle agent reads the open requests
+
+# Direct: announce and take the lease (never silent).
+scripts/coord claim --area world --issue 157 --agent wo-1-kastenbrot \
+    --branch feat/world-save-load --takeover
+```
+
+`coord next` offers an open request for a now-free area **before** draining the
+merge queue, so a request is not left unread. Rules of thumb, and how the SM
+tunes the window, are in `docs/ORGANISATION.md` §6a.
 
 Use a note when the next process would otherwise re-discover something the hard
 way: broken tooling, a decision that should not be re-litigated, a warning about
@@ -245,9 +293,14 @@ Coordination changed; **review policy did not**. Keep the queue moving:
   `DECISIONS.md`) need **two peer reviews**, or an explicit self-review against the
   checklist in `docs/FOCUS_AREAS.md` §6.
 
-## 7. The nine focus areas
+## 7. The focus areas (data-driven)
 
-The areas are the lock (full file map: `docs/FOCUS_AREAS.md` §2):
+The areas are the lock (full file map: `docs/FOCUS_AREAS.md` §2). The set is
+**data**: `docs/focus-areas.json` lists the areas, their role codes, the process
+roles, the channels, and the critical-path order; `scripts/coord` reads it and
+falls back to built-in defaults if it is missing or broken. A **redesign** (add,
+remove, split, rename) edits that file and `docs/FOCUS_AREAS.md`; it is a rules
+change and should precede the initial agent request (docs/ORGANISATION.md §9).
 
 | Area | `focus:` label | Owns (summary) |
 |------|----------------|-----------------|
@@ -296,8 +349,8 @@ The 2026-10-15 hardening is **in place**, not a new protocol: the lease refs,
 that is mid-cycle **needs to do nothing** — its lease keeps working. Three things
 change for a *working* agent, all non-destructive:
 
-- **`stale` is display-only.** `STALE_AFTER` dropped from 12 h to 3 h so a quiet
-  holder is flagged *before* its 6 h TTL expires. It never blocks `renew` or
+- **`stale` is display-only.** `STALE_AFTER` dropped from 12 h to 3 h, and to
+  **2 h** in ADR-0037, so a quiet holder is flagged *before* its 6 h TTL expires. It never blocks `renew` or
   `release`, and `claim` still refuses to displace a **live** lease without
   `--takeover`, so no in-flight agent loses its area by surprise — a peer just
   *sees* that it may be gone and can take over deliberately.
