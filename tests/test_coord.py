@@ -454,13 +454,14 @@ class TestNextAction(CoordTestCase):
     def test_next_drains_a_green_pr_before_claiming_plain_work(self):
         # A non-critical area has claimable work, but a green PR has waited: the
         # finished work one step from landing is offered first (ADR-0035).
-        self._stub_issues({"world": [(157, False)]})
+        # `render` is off the critical path (issue #425), so rung 2 cannot fire.
+        self._stub_issues({"render": [(157, False)]})
         self._stub_prs([{"number": 336, "title": "test(i18n): guard ...",
                          "headRefName": "test/text-x", "_age": 3600}])
         out, _ = self.run_coord("next", "--agent", "a")
         self.assertIn("Merge queue: PR #336", out)
         self.assertIn("gh pr merge 336", out)
-        self.assertNotIn("claim world / #157", out)
+        self.assertNotIn("claim render / #157", out)
 
     def test_next_does_not_drain_before_the_critical_path(self):
         # The critical path still wins: a free critical-path issue outranks the
@@ -473,9 +474,12 @@ class TestNextAction(CoordTestCase):
 
     def test_next_drains_before_a_free_areas_plain_work(self):
         # No critical-path work; a free area has work and a PR has waited.
-        self.run_coord("claim", "--area", "metagame", "--issue", 249, "--agent", "x")
+        # Hold every critical-path area (issue #425 order) and offer work only in
+        # an off-path area, so rung 4 (plain work) competes with the merge queue.
         self.run_coord("claim", "--area", "tactical", "--issue", 311, "--agent", "x")
-        self._stub_issues({"world": [(157, False)]})
+        self.run_coord("claim", "--area", "metagame", "--issue", 249, "--agent", "x")
+        self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "x")
+        self._stub_issues({"render": [(157, False)]})
         self._stub_prs([{"number": 342, "title": "feat: vehicles", "_age": 7200}])
         out, _ = self.run_coord("next", "--agent", "a")
         self.assertIn("Merge queue: PR #342", out)
@@ -1500,7 +1504,8 @@ class TestFocusConfig(CoordTestCase):
         # The shipped file and the built-in fallback must agree, so a redesign
         # that edits only one of them is caught.
         self.assertEqual(tuple(coord.CONFIG.areas), tuple(coord._DEFAULT_AREAS))
-        self.assertEqual(coord.CONFIG.critical_path_areas, ("metagame", "tactical"))
+        self.assertEqual(coord.CONFIG.critical_path_areas,
+                         ("tactical", "metagame", "world"))
         for name, spec in coord._DEFAULT_AREAS.items():
             self.assertEqual(coord.CONFIG.areas[name]["code"], spec["code"])
 
@@ -1512,7 +1517,8 @@ class TestFocusConfig(CoordTestCase):
     def test_a_missing_file_falls_back_without_raising(self):
         cfg = coord.load_focus_config("/nonexistent/focus-areas.json")
         self.assertEqual(tuple(cfg.areas), tuple(coord._DEFAULT_AREAS))
-        self.assertEqual(cfg.critical_path_areas, ("metagame", "tactical"))
+        self.assertEqual(cfg.critical_path_areas,
+                         ("tactical", "metagame", "world"))
 
     def test_a_redesigned_file_changes_the_area_set(self):
         path = os.path.join(self.tmp, "focus.json")
@@ -1552,6 +1558,17 @@ class TestFocusConfig(CoordTestCase):
         self.assertIn("Milestone B", roadmap)
         self.assertIn("Milestone C", roadmap)
         self.assertIn("metagame", coord.CONFIG.critical_path_areas)
+        # Milestone C: the mission set (tactical) is the long pole, so it leads
+        # (issue #425).  A redesign that puts a delivery area first would starve
+        # the feature lanes.
+        self.assertEqual(coord.CONFIG.critical_path_areas[0], "tactical")
+
+    def test_delivery_areas_stay_off_the_critical_path(self):
+        # platform/render/release "do delivery, not features" (FOCUS_AREAS §2):
+        # they stay claimable at rung 4 but must not absorb critical-path
+        # capacity from the feature lanes (issue #425).
+        for area in ("platform", "render", "release"):
+            self.assertNotIn(area, coord.CONFIG.critical_path_areas)
 
     def test_sm_owned_areas_are_real_areas_and_excluded_from_worker_routing(self):
         # The SM-owned areas are infrastructure, not game content: they must be

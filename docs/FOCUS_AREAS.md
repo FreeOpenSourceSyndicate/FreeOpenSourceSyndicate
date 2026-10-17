@@ -139,10 +139,10 @@ v1.0.0 is feature parity with the 1993 original. That makes some area capacity
   instead; only take `text` work that keeps existing strings correct.
 - **`focus: release` / `focus: platform`** do delivery, not features — valuable,
   but they do not add clone content, so do not let them absorb agent capacity
-  that could be building Milestone A or B.
-- **The critical path is Milestones A and B** in `docs/ROADMAP.md`: the tactical
-  finish (`tactical`, `world`, `render`, `input-ui`) and the metagame (new
-  `core/` systems). Point agents there.
+  that could be building Milestone C.
+- **The critical path for Milestone C** is `tactical`, `metagame`, `world`
+  (`docs/ROADMAP.md`, issue #425): the mission set is the long pole, then the
+  campaign map/balance, then save/load. Point agents there.
 
 ### 2.1 Interface surfaces an area must not silently change
 
