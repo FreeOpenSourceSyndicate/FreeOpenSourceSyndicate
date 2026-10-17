@@ -17,7 +17,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 from contextlib import redirect_stdout, redirect_stderr
 from datetime import datetime, timezone
@@ -364,7 +363,6 @@ class TestStatusAndBoard(CoordTestCase):
 
     def test_board_marks_stale_holders(self):
         self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "a", "--ttl", "30h")
-        lease = coord.read_lease("refs/coord/leases/world")
         content = coord.render_board(at=self.now + coord.STALE_AFTER + 1)
         self.assertIn("| stale |", content)
 

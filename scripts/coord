@@ -65,7 +65,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Iterable, Optional
 
 # --------------------------------------------------------------------------- #
@@ -1493,7 +1493,7 @@ def cmd_next(args: argparse.Namespace) -> int:
             print(f"Takeover request on '{area}' from {req.agent} "
                   f"({human_delta(at - req.epoch)} ago):")
             print(f"  {req.text}")
-            print(f"  -> the area is free; claim it:")
+            print("  -> the area is free; claim it:")
             print(f"     scripts/coord claim --area {area} --issue <n> "
                   f"--agent \"{args.agent}\" --branch <type>/{area}-<slug>")
             return 0
@@ -1511,7 +1511,7 @@ def cmd_next(args: argparse.Namespace) -> int:
         print(f"Merge queue: PR #{pr['number']} is green, non-draft, and {age} old "
               f"(no author needed).")
         print(f"  {pr['title']}")
-        print(f"  -> review and merge it (AGENTS.md §3a):")
+        print("  -> review and merge it (AGENTS.md §3a):")
         print(f"     gh pr view {pr['number']} && gh pr merge {pr['number']} --squash")
         return 0
 
@@ -1526,7 +1526,7 @@ def cmd_next(args: argparse.Namespace) -> int:
         area = next((a for a in CRITICAL_PATH_AREAS if a in free), free[0])
         print(f"No open issue is claimable, but area '{area}' is free.")
         if gaps:
-            print(f"Seed it from the roadmap (docs/ROADMAP.md), e.g.:")
+            print("Seed it from the roadmap (docs/ROADMAP.md), e.g.:")
             for gap in gaps:
                 print(f"  - {gap}")
             print(f"  -> file an issue with a `focus: {area}` label, then claim it.")
@@ -1546,7 +1546,7 @@ def cmd_next(args: argparse.Namespace) -> int:
               f"--area {l.area} --agent \"{args.agent}\"")
         print(f"  -> or claim it directly: scripts/coord claim --area {l.area} "
               f"--issue {l.issue} --agent \"{args.agent}\" --takeover")
-        print(f"  -> or review its PR first if one is open.")
+        print("  -> or review its PR first if one is open.")
         return 0
 
     print("Every area is held by a live, non-stale lease.")
