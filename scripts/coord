@@ -832,7 +832,7 @@ class AgentEntry:
     name: str
     role: str
     model: str = ""
-    status: str = "active"          # active | retired
+    status: str = "active"          # reserved | active | retired
     since: int = 0
     succeeded_by: str = ""
     note: str = ""
@@ -882,10 +882,23 @@ class Roster:
     def active(self) -> list:
         return [a for a in self.agents if a.status == "active"]
 
+    def reserved(self) -> list:
+        return [a for a in self.agents if a.status == "reserved"]
+
+    def find(self, name: str) -> Optional["AgentEntry"]:
+        for a in self.agents:
+            if a.name == name:
+                return a
+        return None
+
     def name_taken(self, name: str) -> bool:
+        # A *reserved* name is taken too: reserving exists precisely so the name
+        # cannot be handed to someone else before its agent starts (issue #422).
         return any(a.name == name for a in self.agents)
 
     def next_number(self, role: str) -> int:
+        # A reserved entry consumes its number: a reserve-then-promote flow must
+        # not later allocate the same <role>-<n> to a *different* agent.
         used = [parse_agent_name(a.name)["n"] for a in self.agents
                 if parse_agent_name(a.name)
                 and parse_agent_name(a.name)["role"] == role]
@@ -955,12 +968,20 @@ def _write_roster(host: str, roster: Roster, *, cwd: Optional[str] = None) -> No
 
 
 def register_agent(host: str, role: str, model: str = "", *, name: str = "",
-                   cwd: Optional[str] = None) -> AgentEntry:
-    """Register an agent on a host's roster, allocating the next free number.
+                   reserve: bool = False, cwd: Optional[str] = None) -> AgentEntry:
+    """Register (or reserve) an agent on a host's roster.
 
     ``name`` may be supplied to pin an exact name (the PO names the agent in its
-    prompt); otherwise the next free ``<role>-<n>-<host>`` is allocated.  A name
-    already on the roster is refused: names are never reused.
+    prompt); otherwise the next free ``<role>-<n>-<host>`` is allocated.
+
+    ``reserve=True`` records the name with status ``reserved`` instead of
+    ``active``: it is a *placeholder* the SM creates when the PO requests an
+    agent before the human has started it (issue #422).  A reserved name is
+    taken (so it cannot be allocated to someone else) but is **not** a live
+    agent, so it does not count against the daily budget and does not appear as
+    active on the board.  Registering the reserved name again with ``name=``
+    **promotes** it to active (``since`` becomes the real start) rather than
+    being refused.
     """
     if not valid_host(host):
         raise CoordError(f"'{host}' is not a valid host "
@@ -975,15 +996,42 @@ def register_agent(host: str, role: str, model: str = "", *, name: str = "",
         if parsed["host"] != host:
             raise CoordError(f"agent name '{name}' names host '{parsed['host']}', "
                              f"not '{host}'.")
-        if roster.name_taken(name):
-            raise CoordError(f"agent name '{name}' is already on {host}'s roster; "
-                             f"names are never reused.")
+        existing = roster.find(name)
+        if existing is not None:
+            # Promote a reservation to a real agent; never reuse a live/retired
+            # name (a worker starts with no memory of its predecessor).
+            if existing.status == "reserved" and not reserve:
+                existing.status = "active"
+                existing.since = now()
+                if model:
+                    existing.model = model
+                if role and not existing.role:
+                    existing.role = role
+                _touch_budget(roster)
+                roster.updated = now()
+                _write_roster(host, roster, cwd=cwd)
+                return existing
+            raise CoordError(f"agent name '{name}' is already on {host}'s roster "
+                             f"({existing.status}); names are never reused.")
     else:
-        name = f"{role}-{roster.next_number(role)}-{host}"
-    entry = AgentEntry(name=name, role=role, model=model, status="active",
-                       since=now())
+        number = roster.next_number(role)
+        name = f"{role}-{number}-{host}"
+        if not reserve:
+            # A reserved name for this role consumed a number, so the allocation
+            # skipped past it. Say so: silence is what let po-2 appear with no
+            # explanation (issue #422).
+            skipped = [a.name for a in roster.reserved()
+                       if parse_agent_name(a.name)
+                       and parse_agent_name(a.name)["role"] == role]
+            if skipped:
+                print(f"note: reserved {', '.join(sorted(skipped))}; "
+                      f"allocated {name}", file=sys.stderr)
+    entry = AgentEntry(name=name, role=role, model=model,
+                       status="reserved" if reserve else "active",
+                       since=0 if reserve else now())
     roster.agents.append(entry)
-    _touch_budget(roster)
+    if not reserve:
+        _touch_budget(roster)
     roster.updated = now()
     _write_roster(host, roster, cwd=cwd)
     return entry
@@ -1372,6 +1420,9 @@ def cmd_status(args: argparse.Namespace) -> int:
         spend = (f"  today {budget.get('started', 0)}/{budget.get('cap', '?')}"
                  if budget.get("started") is not None else "")
         active = ", ".join(a.name for a in roster.active()) or "(none)"
+        reserved = [a.name for a in roster.reserved()]
+        if reserved:
+            active += f"  (reserved: {', '.join(reserved)})"
         print(f"roster {host}: {active}{spend}")
     return 0
 
@@ -1826,13 +1877,19 @@ def render_board(at: Optional[int] = None) -> str:
                 lines.append(f"- `{a.name}`{model} — active")
             if not roster.active():
                 lines.append("- _(no active agents)_")
-            for a in [a for a in roster.agents if a.status != "active"]:
+            for a in roster.reserved():
+                lines.append(f"- `{a.name}` — reserved (not started)")
+            for a in [a for a in roster.agents
+                      if a.status not in ("active", "reserved")]:
                 succ = f" → `{a.succeeded_by}`" if a.succeeded_by else ""
                 lines.append(f"- `{a.name}` — retired{succ}")
             lines.append("")
         lines += [
             "Register a new agent: `scripts/coord agent --register --host <host> "
-            "--role <area-code>`. Retire one: `scripts/coord agent --retire <name> "
+            "--role <area-code>`. Hold a name before its agent starts: "
+            "`scripts/coord agent --reserve --host <host> --role <area-code> "
+            "--name <name>` (then `--register` the same name to promote it). "
+            "Retire one: `scripts/coord agent --retire <name> "
             "--host <host> --succeeded-by <name>`.",
             "",
         ]
@@ -1955,7 +2012,7 @@ def cmd_agent(args: argparse.Namespace) -> int:
     (a worker starts with no memory of its predecessor).  One ref per host keeps
     each computer's roster separate - a PO only ever sees its own host.
     """
-    if args.register:
+    if args.register or args.reserve:
         host = args.host or default_host()
         role = args.role or ""
         if not role:
@@ -1967,8 +2024,9 @@ def cmd_agent(args: argparse.Namespace) -> int:
             raise CoordError(f"unknown role code '{role}'; valid: "
                              f"{', '.join(c for c in valid if c)}")
         entry = register_agent(host, role, model=args.model or "",
-                               name=args.name or "")
-        print(f"registered {entry.name} ({entry.role}"
+                               name=args.name or "", reserve=args.reserve)
+        verb = "reserved" if entry.status == "reserved" else "registered"
+        print(f"{verb} {entry.name} ({entry.role}"
               f"{', ' + entry.model if entry.model else ''})")
         return 0
     if args.retire:
@@ -1999,7 +2057,8 @@ def cmd_agent(args: argparse.Namespace) -> int:
                  if budget.get("started") is not None else "")
         print(f"[{host}]{spend}")
         for a in roster.agents:
-            mark = "active " if a.status == "active" else "retired"
+            mark = {"active": "active ", "reserved": "reserved"}.get(a.status,
+                                                                   "retired")
             model = f"  ({a.model})" if a.model else ""
             succ = f"  -> {a.succeeded_by}" if a.succeeded_by else ""
             print(f"  {mark} {a.name}{model}{succ}")
@@ -2571,8 +2630,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--offline", action="store_true")
     p.set_defaults(func=cmd_inbox)
 
-    p = sub.add_parser("agent", help="register / retire / list named agents on a host roster")
-    p.add_argument("--register", action="store_true")
+    p = sub.add_parser("agent", help="register / reserve / retire / list named agents on a host roster")
+    action = p.add_mutually_exclusive_group()
+    action.add_argument("--register", action="store_true")
+    action.add_argument("--reserve", action="store_true",
+                        help="hold a name (status 'reserved') without starting an agent")
     p.add_argument("--list", action="store_true",
                    help="list the rosters (the default with no action flag)")
     p.add_argument("--retire", default="", metavar="NAME")
