@@ -35,5 +35,11 @@
   "mission.demo.name": "Downtown Sweep",
   "mission.demo.desc": "Sweep the downtown block: eliminate every enemy agent while keeping civilian casualties down.",
   "mission.escort.name": "Rooftop Exfil",
-  "mission.escort.desc": "Escort DELTA across the rooftops to the exfil tile; losing DELTA fails the run."
+  "mission.escort.desc": "Escort DELTA across the rooftops to the exfil tile; losing DELTA fails the run.",
+  "mission.blackout.name": "Blackout",
+  "mission.blackout.desc": "Breach the substation wall and destroy the relay before the grid comes back up.",
+  "mission.assembly.name": "Assembly",
+  "mission.assembly.desc": "Recruit the rally crowd with the Compliance Beacon and bring four of them under control.",
+  "mission.overpass.name": "Overpass",
+  "mission.overpass.desc": "Fight through the blockade and get a living agent to the far corner of the overpass."
 }
