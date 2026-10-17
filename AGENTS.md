@@ -1269,3 +1269,21 @@ Do not start work outside the scope fence (ADR-0024).
 - **Engine-layer test files:** `tests/test_mission.cpp` is owned by Tactical (it
   tests `src/core`); Content/Text add catalogue/lang assertions to their own test
   files, not this one.
+- **Save/load is a versioned progress overlay (ADR-0039, issue #406):**
+  `core::CampaignSave` (`src/core/util/CampaignSave.{h,cpp}`, **World** area)
+  serialises a Campaign's *progress* — per-territory ownership/tax, the funds
+  ledger, research progress, and squad loadouts — as plain-text JSON with a
+  mandatory `"format": "fossynd-save"` tag and an integer `"version"` (now `1`).
+  It is an **overlay**, not a full copy: topology (territory graph, research tree,
+  equipment catalogue) comes from the base `--campaign` file, so loading is "load
+  the base campaign, then `applyTo`". `parse` rejects a missing/wrong `format`
+  and an unsupported `version` *before* trusting any field; `applyTo` rejects a
+  territory the base campaign lacks (no silent drop). The persisted object is
+  **metagame-owned** (`core/economy/**`) — the helper only uses its frozen public
+  API. **Research progress is captured/serialised but not reapplied**: the frozen
+  `Research` API has no setter, so that needs a metagame accessor (a Rule 4
+  request). Floats are written with 9 significant digits so they round-trip
+  exactly. Tests: `tests/test_persistence.cpp` (ctest `core_unit_tests`). The
+  schema belongs in `docs/DATA_FORMAT.md` (**Content** area — a Rule 4 request,
+  not an edit from World). The `--save`/`--load` CLI wiring is **Input/UI**'s
+  (a separate request).
