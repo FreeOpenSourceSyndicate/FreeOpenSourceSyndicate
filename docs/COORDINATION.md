@@ -154,7 +154,8 @@ It **never prints nothing**. It walks a fixed ladder and stops at the first rung
 that applies, so there is always a next step:
 
 1. **You hold a lease** → finish it, or `renew`/`release` it.
-2. **A critical-path area is free** (`metagame`, `tactical`; `docs/ROADMAP.md`)
+2. **A critical-path area is free** (`tactical`, `metagame`, `world` —
+   `docs/ROADMAP.md`; redefined for Milestone C in issue #425)
    → claim its newest open issue.
 3. **A green PR has waited** (non-draft, merge state `CLEAN`, open ≥ 30 min)
    → review and merge it (`AGENTS.md` §3a). A green PR is *finished* work one

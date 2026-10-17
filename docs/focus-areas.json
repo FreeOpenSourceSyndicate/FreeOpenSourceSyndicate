@@ -20,7 +20,7 @@
     "sm": { "code": "sm", "label": "Scrum master", "focus": null },
     "po": { "code": "po", "label": "Product owner", "focus": null }
   },
-  "critical_path": ["metagame", "tactical"],
+  "critical_path": ["tactical", "metagame", "world"],
   "sm_owned": ["platform", "rules"],
   "sm_owned_note": "Areas the Scrum Master owns and triggers itself. These are project infrastructure, not game content, so the Product Owner never schedules them and `coord next` never routes a plain worker to them: only an agent whose name has role 'sm' is offered them. The SM claims one like any other area when it decides the work is due (docs/ORGANISATION.md section 7).",
   "areas": {

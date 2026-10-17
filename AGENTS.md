@@ -611,8 +611,14 @@ move us toward it, it is out of scope.
 
 ## 10. Known gaps / TODO for the next agent
 
-**Where to work next.** Follow `docs/ROADMAP.md` → *The critical path*. The long
-pole is **Milestone B (the metagame)** — the world map, economy, research, and
+**Where to work next.** Follow `docs/ROADMAP.md` → *The critical path*. **The
+critical path is `tactical`, `metagame`, `world`** (redefined for Milestone C in
+issue #425 — Milestones A and B are done, and the mission set is the long pole
+because the map content and the content guard are blocked by it). `platform`,
+`render`, and `release` do delivery, not features, so they stay off the ordered
+list. The narrative below records how the metagame got here; treat it as history
+for `metagame`, not as the current long pole. The old long pole was **Milestone B
+(the metagame)** — the world map, economy, research, and
 campaign, whose **core** systems have all merged (`src/core/economy/**`:
 `WorldMap`, `Economy`, `Research`, `Equipment`, `Campaign`; unit-tested in
 `tests/test_{worldmap,economy,research,equipment,campaign}.cpp`). The game layer

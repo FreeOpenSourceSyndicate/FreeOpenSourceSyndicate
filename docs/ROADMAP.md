@@ -76,9 +76,22 @@ it speculatively.
 Work is ordered by **dependency**, not by how fun it is to build. The long pole
 was the **metagame** (Milestone B): the largest missing block, and the campaign
 could not finish without it. Its systems have now landed and the loop is playable
-on the map screen (`src/core/economy/**` + `game::CampaignScreen`); what remains
-for it is per-region mission content, which is Milestone C. Milestone A (the
-tactical finish) continues in parallel.
+on the map screen (`src/core/economy/**` + `game::CampaignScreen`). **Milestones A
+and B are done**, so the critical path is now **Milestone C**:
+
+```json
+"critical_path": ["tactical", "metagame", "world"]
+```
+
+- **`tactical`** — the mission set is the long pole: it unblocks the campaign map
+  content and the content guard, both of which are `blocked-by` it.
+- **`metagame`** — the map wiring and the economy/research balance pass.
+- **`world`** — save/load, independent Milestone C feature work.
+
+`platform`, `render`, and `release` stay **off** the ordered list: they do
+delivery, not features, so they must not absorb capacity from the feature lanes
+(`docs/FOCUS_AREAS.md` §2). They remain claimable at the "any free area" rung, so
+nothing is starved. Redefined in issue #425.
 
 ```
   Milestone A  (finish the tactical layer)  ─┐
