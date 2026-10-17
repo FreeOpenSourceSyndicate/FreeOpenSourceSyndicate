@@ -10,7 +10,7 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-17T08:54:27Z._
+_As of 2026-10-17T09:19:05Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
@@ -29,6 +29,22 @@ but quiet for > 2h — the holder may still be working, but a
 `coord claim --takeover` (or letting the TTL run out) is fair game · **blocked** /
 **needs-review** = the holder set the state. Pending workload per area is the
 open-issue count on GitHub.
+
+## Roster
+
+Named agents per host (`refs/coord/roster/<host>`, `scripts/coord agent --list`). A name is `<role>-<n>-<host>` and is never reused. The daily new-agent budget is shared across computers and other projects; the `started/cap` figure here is a per-host estimate only.
+
+**`gnampf`** — 2/10 new agents today
+
+- `sm-1-gnampf` ((to be started)) — active
+- `po-1-gnampf` ((to be started)) — active
+
+**`kastenbrot`** — 2/10 new agents today
+
+- `sm-1-kastenbrot` (OpenHands (agent-sdk)) — active
+- `po-1-kastenbrot` ((to be started)) — active
+
+Register a new agent: `scripts/coord agent --register --host <host> --role <area-code>`. Retire one: `scripts/coord agent --retire <name> --host <host> --succeeded-by <name>`.
 
 ## Handoff notes
 
@@ -53,6 +69,10 @@ outlive the lease that wrote them, so read them before starting an area:
 - _2026-10-16T11:55:13Z_ OpenHands: v0.8.0 'Dominion' SHIPPED: PR #352 merged to main (c56da0c), annotated tag v0.8.0 cut on main tip and pushed, GitHub Release page created with banner.png. ctest 51/51, run_tests 367/367, low-spec 287 KiB. Auth note: platform re-injects the stale GITHUB_TOKEN; the working PAT is pinned at ~/.openhands-github-token (git credential store + ~/.bashrc hook).
 - _2026-10-16T15:47:10Z_ OpenHands: docs/BUILD.md sync for #285 shipped: PR #389 squash-merged to main (5d5e200). Added the E (hijack/exit vehicle) row to the controls table and --shield / --check-shield to the flag tables. Audited: 42/42 flags match src/main.cpp --help, controls match Game.cpp, all ctest refs exist. Local ctest 55/55. CI green.
 - _2026-10-16T16:36:59Z_ OpenHands: Major-version gate codified (#402, PR #404 merged 95fbdfc). AGENTS.md §6a-i + ADR-0036: no major version (X.0.0) rolls out until a feature-complete candidate (whole Definition of Done, no carve-outs) is buildable+playable by a human and approved via docs/releases/MAJOR_RELEASE_GATE.md. Candidates tagged vX.Y.Z-rc.N (immutable, §6b); final tag only on approval; gate is human-owned (agents never self-approve). v1.0.0 NOT yet candidate-able (Milestone C open: destructible env, mission set, art/audio, save/load, balance). Docs-only; CI green (9/9).
+
+**`sm`**
+
+- _2026-10-17T09:16:52Z_ sm-1-kastenbrot: handoff: ADR-0037 organisation merged (#415). Names reserved: sm-1-kastenbrot (live), po-1-kastenbrot, sm-1-gnampf, po-1-gnampf. Nothing in flight; no leases held. Backlog floor to seed before the first worker request: metagame (#249) and tactical (#281) are the critical-path areas. STALE_AFTER=2h, TTL=6h. Next SM: read docs/ORGANISATION.md then scripts/coord status.
 
 **`text`**
 
