@@ -102,8 +102,14 @@ _DEFAULT_AREAS = {
     "text": {"code": "tx", "label": "Text / i18n / Lore"},
     "metagame": {"code": "mg", "label": "Metagame / Campaign"},
     "platform": {"code": "pf", "label": "Build / CI / Tooling"},
+    "rules": {"code": "ru", "label": "Rules / Process"},
     "release": {"code": "rl", "label": "Release / Playtest"},
 }
+# Areas the Scrum Master owns and triggers itself (docs/ORGANISATION.md section
+# 7).  They are project infrastructure, not game content, so the Product Owner
+# never schedules them and `coord next` never routes a plain worker to them:
+# only an agent whose name has role "sm" is offered them.
+_DEFAULT_SM_OWNED = ("platform", "rules")
 # Critical-path order (docs/ROADMAP.md).  `coord next` prefers these so an idle
 # agent is steered at the work that unblocks the release, not just any free area.
 # The long pole (metagame) comes first.
@@ -132,10 +138,19 @@ class FocusConfig:
     roles: dict
     channels: dict
     critical: tuple = ()
+    sm_owned: tuple = ()
 
     @property
     def area_names(self) -> tuple:
         return tuple(self.areas)
+
+    @property
+    def worker_areas(self) -> tuple:
+        """Areas a plain worker may be routed to (the SM-owned ones removed)."""
+        return tuple(a for a in self.areas if a not in self.sm_owned)
+
+    def sm_owns(self, area: str) -> bool:
+        return area in self.sm_owned
 
     @property
     def critical_path_areas(self) -> tuple:
@@ -176,12 +191,13 @@ def load_focus_config(path: Optional[str] = None) -> FocusConfig:
     roles = dict(_DEFAULT_ROLES)
     channels = dict(_DEFAULT_CHANNELS)
     critical = _DEFAULT_CRITICAL
+    sm_owned = _DEFAULT_SM_OWNED
     try:
         with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
     except (OSError, json.JSONDecodeError, ValueError):
         return FocusConfig(areas=areas, roles=roles, channels=channels,
-                           critical=critical)
+                           critical=critical, sm_owned=sm_owned)
     if isinstance(data.get("areas"), dict) and data["areas"]:
         areas = {str(k): dict(v or {}) for k, v in data["areas"].items()}
     if isinstance(data.get("roles"), dict) and data["roles"]:
@@ -190,12 +206,18 @@ def load_focus_config(path: Optional[str] = None) -> FocusConfig:
         channels = {str(k): str(v) for k, v in data["channels"].items()}
     if isinstance(data.get("critical_path"), list):
         critical = tuple(str(a) for a in data["critical_path"])
+    if isinstance(data.get("sm_owned"), list):
+        # Only keep names that are real areas: a stale entry must not silently
+        # hide nothing (or, worse, a typo'd area from every worker's routing).
+        sm_owned = tuple(str(a) for a in data["sm_owned"] if str(a) in areas)
     return FocusConfig(areas=areas, roles=roles, channels=channels,
-                       critical=critical)
+                       critical=critical, sm_owned=sm_owned)
 
 
 CONFIG = load_focus_config()
 AREAS = CONFIG.area_names
+SM_OWNED_AREAS = CONFIG.sm_owned
+WORKER_AREAS = CONFIG.worker_areas
 CRITICAL_PATH_AREAS = CONFIG.critical_path_areas
 ROLES = tuple(CONFIG.roles)
 CHANNELS = tuple(CONFIG.channels)
@@ -564,7 +586,17 @@ def _notes_push(area: str, head: str, expect: Optional[str], *,
     expectation is reported as an ordinary failure for the caller to re-read and
     retry; a credential failure is raised, since retrying cannot fix it.
     """
-    ref = notes_ref_for(area)
+    _push_note_ref(notes_ref_for(area), head, expect, area, cwd=cwd)
+
+
+def _push_note_ref(ref: str, head: str, expect: Optional[str], what: str, *,
+                   cwd: Optional[str] = None) -> None:
+    """Publish a rebuilt note/message chain under a compare-and-swap.
+
+    Shared by the area notes log and the direct-message log: both are
+    append-only chains rebuilt from the read value, so both need the same
+    lost-update protection.
+    """
     lease = f"--force-with-lease={ref}:{expect or ''}"
     proc = git("push", lease, "origin", f"{head}:{ref}",
                check=False, cwd=cwd, env=_git_env())
@@ -572,20 +604,19 @@ def _notes_push(area: str, head: str, expect: Optional[str], *,
         detail = (proc.stderr or proc.stdout or "").strip()
         hint = _push_hint(detail)
         if hint is not None:
-            raise CoordAuthError(f"could not publish notes for {area}: "
-                                 f"{hint}\n{detail}")
-        raise CoordError(f"note ref {ref} moved under us:\n{detail}")
+            raise CoordAuthError(f"could not publish {what}: {hint}\n{detail}")
+        raise CoordError(f"ref {ref} moved under us:\n{detail}")
     git("update-ref", ref, head, check=False, cwd=cwd)
 
 
-def _write_notes(area: str, notes: list[Note], *, cwd: Optional[str] = None,
-                 expect: Optional[str] = None) -> None:
-    """Replace an area's note ref with a fresh chain of the given notes.
+def _write_note_ref(ref: str, notes: list[Note], expect: Optional[str] = None, *,
+                    what: str = "notes", cwd: Optional[str] = None) -> None:
+    """Replace a note/message ref with a fresh chain of the given entries.
 
-    The ref is rebuilt as a linear history (one commit per note) so the log is
-    human-readable with `git log refs/coord/notes/<area>`, then published under
-    a compare-and-swap on ``expect`` (see ``_notes_push``).  A lost race raises,
-    and the caller re-reads and retries, so no append is dropped.
+    The ref is rebuilt as a linear history (one commit per entry) so the log is
+    human-readable with `git log <ref>`, then published under a compare-and-swap
+    on ``expect`` (see ``_push_note_ref``).  A lost race raises, and the caller
+    re-reads and retries, so no append is dropped.
     """
     env = _git_env()
     parent: Optional[str] = None
@@ -599,7 +630,18 @@ def _write_notes(area: str, notes: list[Note], *, cwd: Optional[str] = None,
         head = commit
     if head is None:
         return
-    _notes_push(area, head, expect, cwd=cwd)
+    _push_note_ref(ref, head, expect, what, cwd=cwd)
+
+
+def _write_notes(area: str, notes: list[Note], *, cwd: Optional[str] = None,
+                 expect: Optional[str] = None) -> None:
+    """Replace an area's note ref with a fresh chain of the given notes.
+
+    A thin wrapper over ``_write_note_ref`` that keeps the area-notes call
+    sites unchanged.
+    """
+    _write_note_ref(notes_ref_for(area), notes, expect,
+                    what=f"notes for {area}", cwd=cwd)
 
 
 def fetch_notes(cwd: Optional[str] = None) -> None:
@@ -635,6 +677,81 @@ def append_note(area: str, agent: str, text: str, *, cwd: Optional[str] = None) 
         except CoordError:
             continue
     return note
+
+
+# --------------------------------------------------------------------------- #
+# Direct messages - agent-to-agent, after the initial prompt
+# --------------------------------------------------------------------------- #
+#
+# The generated initial prompt is how a *new* agent is started; it is a one-off,
+# delivered by the human because a chat that does not exist yet cannot read a
+# ref.  Every exchange after that must not go back through the human: an agent
+# that needs a fact from a peer, or the SM, addresses it directly.  A message is
+# a note that names ONE recipient, kept at refs/coord/msg/<agent> - the same
+# append-only, never-a-lock shape as the notes log, so it needs no server and
+# survives a release.
+
+MSG_PREFIX = "refs/coord/msg"
+
+
+def msg_ref_for(agent: str) -> str:
+    return f"{MSG_PREFIX}/{agent}"
+
+
+def fetch_messages(cwd: Optional[str] = None) -> None:
+    """Best-effort refresh of the remote message refs into the local namespace."""
+    git("fetch", "--prune", "--force", "origin",
+        f"+{MSG_PREFIX}/*:{MSG_PREFIX}/*", check=False, cwd=cwd)
+
+
+def read_messages(agent: str, cwd: Optional[str] = None) -> list[Note]:
+    """Messages addressed to one agent, oldest first.  Missing/corrupt -> []."""
+    proc = git("log", "--reverse", "--format=%B%x00", msg_ref_for(agent),
+               check=False, cwd=cwd)
+    if proc.returncode != 0:
+        return []
+    messages = []
+    for body in (proc.stdout or "").split("\x00"):
+        body = body.strip()
+        if not body:
+            continue
+        try:
+            messages.append(Note.from_json(body))
+        except (ValueError, KeyError, json.JSONDecodeError):
+            continue
+    return messages
+
+
+def send_message(to: str, agent: str, text: str, *,
+                 cwd: Optional[str] = None) -> Note:
+    """Send a direct message to one named agent.
+
+    The recipient must be a valid agent name: a message to a name nobody can
+    read is worse than no message, so a typo fails fast rather than sitting in
+    an unread ref.  The log is append-only and never expires, exactly like a
+    note; ``coord inbox`` reads it.
+    """
+    parsed = parse_agent_name(to)
+    if not parsed:
+        raise CoordError(f"'{to}' is not a valid agent name "
+                         f"(<role>-<n>-<host>, e.g. ta-1-kastenbrot).")
+    message = Note(agent=agent, area=to, text=text, epoch=now())
+    for _ in range(5):
+        fetch_messages(cwd=cwd)
+        expect = _local_ref_sha(msg_ref_for(to), cwd=cwd)
+        existing = read_messages(to, cwd=cwd)
+        if any(m.agent == message.agent and m.text == message.text
+               for m in existing):
+            break
+        try:
+            _write_note_ref(msg_ref_for(to), existing + [message], expect,
+                            cwd=cwd)
+            return message
+        except CoordAuthError:
+            raise
+        except CoordError:
+            continue
+    return message
 
 
 # --------------------------------------------------------------------------- #
@@ -1416,6 +1533,9 @@ def cmd_next(args: argparse.Namespace) -> int:
     empty:
 
       1. you already hold a lease        -> renew / finish / release it
+      1b. you are an SM and an SM-owned area is free
+                                         -> claim its next claimable issue (the
+                                            SM triggers infrastructure itself)
       2. a critical-path area is free    -> claim its next claimable issue
       2b. a takeover request is open     -> pick up the quiet holder's work
       3. a green PR has waited           -> review and merge it (drain the queue)
@@ -1433,6 +1553,11 @@ def cmd_next(args: argparse.Namespace) -> int:
     *finished* work one step from landing, so merging it beats *starting* new work
     even in a free non-critical area, but it never preempts a waiting blocker or
     the critical path (ADR-0035).
+
+    The SM-owned areas (`platform`, `rules`) are project infrastructure, not game
+    content (ADR-0038).  A plain worker is never routed to them; an agent whose
+    name has role `sm` is offered them at rung 1b, before the critical path, so
+    the SM triggers its own work rather than competing with a worker.
     """
     if not args.offline:
         fetch_ledger(required=True)
@@ -1470,16 +1595,33 @@ def cmd_next(args: argparse.Namespace) -> int:
               + ".")
 
     holders = {l.area: l for l in leases}
-    free = [a for a in AREAS if a not in holders]
+    # SM-owned areas (platform, rules) are infrastructure, not game content: the
+    # Product Owner never schedules them and a plain worker is never routed to
+    # them.  The SM owns no *game* area, so its routable set is exactly the
+    # infrastructure areas; with none free it falls through to the merge queue
+    # and review rungs below, which are its other durable jobs
+    # (docs/ORGANISATION.md section 7, ADR-0038).
+    parsed = parse_agent_name(args.agent)
+    is_sm = bool(parsed and parsed["role"] == "sm")
+    routable = SM_OWNED_AREAS if is_sm else WORKER_AREAS
+    free = [a for a in routable if a not in holders]
+
+    # 1b. An SM that is idle looks at its own areas first: the SM triggers that
+    #     work itself rather than waiting for the PO to schedule it.
+    if is_sm:
+        for area in free:
+            if by_area.get(area):
+                return _emit_claim(area, by_area[area][0][0])
 
     # 2. Critical path first.  A waiting blocker (a Rule 4 request another lane is
     #    blocked on) outranks plain work anywhere, because clearing it unblocks a
     #    peer (FOCUS_AREAS §4 Rule 4, ADR-0026).  So look for a blocker in *any*
     #    free critical-path area before a plain issue in the first one.
-    for area in CRITICAL_PATH_AREAS:
+    critical = [a for a in CRITICAL_PATH_AREAS if a in routable]
+    for area in critical:
         if area in free and by_area.get(area) and by_area[area][0][1]:
             return _emit_claim(area, by_area[area][0][0], critical=True)
-    for area in CRITICAL_PATH_AREAS:
+    for area in critical:
         if area in free and by_area.get(area):
             return _emit_claim(area, by_area[area][0][0], critical=True)
 
@@ -1612,12 +1754,13 @@ def _board_rows(at: int) -> list[tuple[str, str, str, str]]:
     for area in AREAS:
         group = [l for l in leases if l.area == area]
         live = [l for l in group if l.is_live(at)]
+        name = f"{area} (SM)" if area in SM_OWNED_AREAS else area
         if live:
             l = max(live, key=lambda x: x.epoch)
             state = l.state if l.state != "claimed" else ("stale" if l.is_stale(at) else "claimed")
-            rows.append((area, f"{l.agent} · #{l.issue}", state, human_delta(l.expires - at)))
+            rows.append((name, f"{l.agent} · #{l.issue}", state, human_delta(l.expires - at)))
         else:
-            rows.append((area, "—", "free", "—"))
+            rows.append((name, "—", "free", "—"))
     return rows
 
 
@@ -1650,7 +1793,9 @@ def render_board(at: Optional[int] = None) -> str:
         f"but quiet for > {human_delta(STALE_AFTER)} — the holder may still be working, but a",
         "`coord claim --takeover` (or letting the TTL run out) is fair game · **blocked** /",
         "**needs-review** = the holder set the state. Pending workload per area is the",
-        "open-issue count on GitHub.",
+        "open-issue count on GitHub. **(SM)** marks an SM-owned infrastructure area",
+        "(`platform`, `rules`): the Scrum Master triggers it and a plain worker is",
+        "never routed to it (docs/ORGANISATION.md §1).",
         "",
     ]
 
@@ -1769,6 +1914,31 @@ def cmd_notes(args: argparse.Namespace) -> int:
         for n in areas[area]:
             when = iso(n.epoch) if n.epoch else "?"
             print(f"[{area}] {when} {n.agent}: {n.text}")
+    return 0
+
+
+def cmd_msg(args: argparse.Namespace) -> int:
+    """Send a direct message to one named agent."""
+    send_message(args.to, args.agent, args.text)
+    print(f"msg -> {args.to}: {args.text}")
+    return 0
+
+
+def cmd_inbox(args: argparse.Namespace) -> int:
+    """Print the messages addressed to one agent."""
+    if not args.offline:
+        fetch_messages()
+    messages = read_messages(args.agent)
+    if args.json:
+        print(json.dumps([{"from": m.agent, "text": m.text, "epoch": m.epoch}
+                          for m in messages], indent=2, sort_keys=True))
+        return 0
+    if not messages:
+        print(f"no messages for {args.agent}.")
+        return 0
+    for m in messages:
+        when = iso(m.epoch) if m.epoch else "?"
+        print(f"[{when}] {m.agent} -> {args.agent}: {m.text}")
     return 0
 
 
@@ -2382,6 +2552,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--json", action="store_true")
     p.add_argument("--offline", action="store_true")
     p.set_defaults(func=cmd_notes)
+
+    p = sub.add_parser("msg", help="send a direct message to one named agent")
+    p.add_argument("--to", required=True, metavar="AGENT",
+                   help="the recipient's agent name (<role>-<n>-<host>)")
+    p.add_argument("--agent", required=True,
+                   help="your own agent name (who the message is from)")
+    p.add_argument("--text", required=True, help="the message")
+    p.set_defaults(func=cmd_msg)
+
+    p = sub.add_parser("inbox", help="read the messages addressed to one agent")
+    p.add_argument("--agent", required=True, help="your own agent name")
+    p.add_argument("--json", action="store_true")
+    p.add_argument("--offline", action="store_true")
+    p.set_defaults(func=cmd_inbox)
 
     p = sub.add_parser("agent", help="register / retire / list named agents on a host roster")
     p.add_argument("--register", action="store_true")

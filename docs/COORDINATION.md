@@ -77,8 +77,9 @@ scripts/coord claim --area <area> --issue <n> --agent "<role>-<n>-<host>" --bran
 
 - **`--area`** is a focus area from `docs/focus-areas.json` (or a channel: `sm`,
   `po`, `takeover`). The set is data, not code (docs/ORGANISATION.md §9). Today:
-  `tactical`, `world`, `render`,
-  `input-ui`, `content`, `text`, `metagame`, `platform`, `release`.
+  `tactical`, `world`, `render`, `input-ui`, `content`, `text`, `metagame`,
+  `platform`, `rules`, `release`. **`platform` and `rules` are SM-owned**: the SM
+  triggers them and `coord next` never routes a plain worker to them.
 - **One task = one branch = one PR.** Claim the area for the *task* you are about
   to do; the issue is what makes the claim legible.
 - The default TTL is **6 h**, capped at **24 h** (`--ttl 90m`, `--ttl 6h`, ...).
@@ -219,6 +220,21 @@ scripts/coord takeover             # open takeover requests
 `sm` and `po` carry the cross-machine handoff (docs/ORGANISATION.md §6b); the
 `takeover` channel carries takeover requests (§3c below). A channel note is
 exactly as harmless as an area note: never a lock, never an assignment.
+
+**Direct messages.** A channel is for a role or the fleet; for a one-to-one
+exchange address **one named agent** directly (ADR-0037, docs/ORGANISATION.md
+§5). A generated prompt is needed only to *start* a chat that does not exist yet;
+after that, agents talk to each other and never route ordinary coordination
+through the human:
+
+```bash
+scripts/coord msg --to ta-1-kastenbrot --agent po-2-kastenbrot --text "use escort.json"
+scripts/coord inbox --agent ta-1-kastenbrot     # read yours
+```
+
+Messages live at `refs/coord/msg/<agent>`: append-only, never expiring, never a
+lock — the same shape as a note, but private to the recipient (not printed on the
+board, not filed under an area). A message to an invalid agent name is refused.
 
 ## 3c. Taking over a quiet holder
 
