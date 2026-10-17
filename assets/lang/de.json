@@ -35,5 +35,11 @@
   "mission.demo.name": "Innenstadt-Saeuberung",
   "mission.demo.desc": "Den Innenstadtblock saeubern: alle feindlichen Agenten ausschalten und zivile Opfer gering halten.",
   "mission.escort.name": "Dach-Exfiltration",
-  "mission.escort.desc": "DELTA ueber die Daecher zum Exfil-Feld geleiten; der Verlust von DELTA beendet den Einsatz."
+  "mission.escort.desc": "DELTA ueber die Daecher zum Exfil-Feld geleiten; der Verlust von DELTA beendet den Einsatz.",
+  "mission.blackout.name": "Stromausfall",
+  "mission.blackout.desc": "Die Wand des Umspannwerks durchbrechen und das Relais zerstoeren, bevor das Netz zurueck ist.",
+  "mission.assembly.name": "Versammlung",
+  "mission.assembly.desc": "Die Kundgebung mit dem Compliance-Beacon fuer sich gewinnen und vier Personen unter Kontrolle bringen.",
+  "mission.overpass.name": "Ueberfuehrung",
+  "mission.overpass.desc": "Sich durch die Blockade kaempfen und einen lebenden Agenten in die ferne Ecke der Ueberfuehrung bringen."
 }

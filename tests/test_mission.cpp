@@ -2379,3 +2379,140 @@ FOSSYND_TEST(Mission, ExplosionWrecksVehicleAndHurtsNeighbours)
     (void)target;
 }
 
+// --- Shipped campaign mission set, slice 1 (issue #416) --------------------
+//
+// The first wave of authored campaign missions must load through the *real*
+// loader and be genuinely winnable, not merely parse. Each case loads its file
+// from the shipped tree, builds the real grid, populates the real mission, and
+// drives the objective's own mechanic to the win — so a mission that is
+// unreachable, walled off, or short of its own target count fails here instead
+// of in a playtest. The set is deliberately one objective kind per mission
+// (destroy / persuade / reach) and builds in difficulty.
+
+namespace
+{
+
+std::string shippedMission(const std::string& id)
+{
+    return std::string(FOSSYND_SOURCE_DIR) + "/assets/data/missions/" + id + ".json";
+}
+
+int indexOfAgentNamed(const Mission& mission, const std::string& name)
+{
+    const std::vector<Agent>& agents = mission.agents();
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (agents[i].name() == name)
+        {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
+} // namespace
+
+FOSSYND_TEST(Mission, ShippedBlackoutDestroyIsWinnable)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("blackout"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Destroy);
+
+    TileGrid grid = buildGrid(data);
+    const TilePos goal{data.objective.tileX, data.objective.tileY};
+    // The objective names a destructible wall, not a floor tile: without a
+    // breachable target the mission could never be won.
+    FOSSYND_CHECK(grid.isDestructible(goal.x, goal.y));
+    FOSSYND_CHECK(!grid.isWalkable(goal.x, goal.y));
+
+    Mission mission(grid, 11u);
+    populateMission(data, mission);
+    FOSSYND_CHECK(mission.objective().kind == ObjectiveSpec::Kind::Destroy);
+
+    // The player's real action: order the squad onto the defender standing
+    // behind the wall. The wall blocks the shot, so the agent chips the wall —
+    // the destroy objective's actual mechanic — rather than hitting the guard.
+    const int warden = indexOfAgentNamed(mission, "WARDEN");
+    FOSSYND_CHECK(warden >= 0);
+    mission.orderAttack(0, static_cast<std::size_t>(warden));
+
+    FOSSYND_CHECK(!grid.isRubble(goal.x, goal.y));
+    runUntilDone(mission, 20.0f);
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK(grid.isRubble(goal.x, goal.y));
+}
+
+FOSSYND_TEST(Mission, ShippedAssemblyPersuadeIsWinnable)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("assembly"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Persuade);
+    FOSSYND_CHECK(data.objective.targetCount >= 1);
+
+    // The mission must actually ship enough civilians to meet its own target.
+    std::size_t civilians = 0;
+    for (const AgentSpec& spec : data.agents)
+    {
+        if (spec.team == Team::Civilian)
+        {
+            ++civilians;
+        }
+    }
+    FOSSYND_CHECK(civilians >= static_cast<std::size_t>(data.objective.targetCount));
+
+    TileGrid grid = buildGrid(data);
+    Mission mission(grid, 12u);
+    populateMission(data, mission);
+
+    // The player's real action: use the Compliance Beacon on the crowd. The
+    // beacon is a per-agent gadget with a cooldown, so pace the uses and let the
+    // mission decide the win.
+    const int target = mission.objective().targetCount;
+    for (int i = 0; i < 60 && mission.state() == MissionState::Running; ++i)
+    {
+        mission.persuade(0);
+        mission.update(1.05f);
+    }
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK(mission.followerCount(0) >= static_cast<std::size_t>(target));
+}
+
+FOSSYND_TEST(Mission, ShippedOverpassReachIsWinnable)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("overpass"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::ReachTile);
+
+    TileGrid grid = buildGrid(data);
+    const TilePos goal{data.objective.tileX, data.objective.tileY};
+    FOSSYND_CHECK(grid.isWalkable(goal.x, goal.y));
+
+    Mission mission(grid, 13u);
+    populateMission(data, mission);
+
+    // The goal must be genuinely reachable from the squad, not walled off: a
+    // reach objective on an unreachable tile would be silently unwinnable.
+    const TilePos start = mission.agents()[0].tile();
+    FOSSYND_CHECK(!findPath(grid, start, goal, /*allowDiagonal=*/true).empty());
+
+    // The player's real action: send the squad to the exfil tile and fight
+    // through. The mission is won when a living agent stands on the tile.
+    for (std::size_t i = 0; i < mission.agents().size(); ++i)
+    {
+        if (mission.agents()[i].team() == Team::Player)
+        {
+            mission.orderMove(i, goal);
+        }
+    }
+    runUntilDone(mission, 120.0f);
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+}
+
