@@ -1553,6 +1553,156 @@ class TestFocusConfig(CoordTestCase):
         self.assertIn("Milestone C", roadmap)
         self.assertIn("metagame", coord.CONFIG.critical_path_areas)
 
+    def test_sm_owned_areas_are_real_areas_and_excluded_from_worker_routing(self):
+        # The SM-owned areas are infrastructure, not game content: they must be
+        # real areas (a typo would silently hide nothing), and a plain worker
+        # must never be routed to them.
+        for area in coord.SM_OWNED_AREAS:
+            self.assertIn(area, coord.AREAS)
+        for area in coord.SM_OWNED_AREAS:
+            self.assertNotIn(area, coord.WORKER_AREAS)
+        self.assertIn("platform", coord.SM_OWNED_AREAS)
+        self.assertIn("rules", coord.SM_OWNED_AREAS)
+        self.assertNotIn("tactical", coord.SM_OWNED_AREAS)
+
+    def test_a_stale_sm_owned_entry_is_dropped_not_trusted(self):
+        path = os.path.join(self.tmp, "focus.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({
+                "areas": {"alpha": {"code": "al"}},
+                "sm_owned": ["alpha", "does-not-exist"],
+            }, fh)
+        cfg = coord.load_focus_config(path)
+        self.assertEqual(cfg.sm_owned, ("alpha",))
+        self.assertEqual(cfg.worker_areas, ())
+
+    def test_missing_sm_owned_falls_back_to_the_default(self):
+        path = os.path.join(self.tmp, "focus.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({"areas": {"alpha": {"code": "al"}}}, fh)
+        cfg = coord.load_focus_config(path)
+        self.assertEqual(cfg.sm_owned, coord._DEFAULT_SM_OWNED)
+
+    def test_the_shipped_file_declares_sm_owned_areas(self):
+        path = os.path.join(REPO_ROOT, "docs", "focus-areas.json")
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        self.assertEqual(data.get("sm_owned"), ["platform", "rules"])
+        self.assertIn("rules", data["areas"])
+
+
+class TestSmOwnedRouting(CoordTestCase):
+    """SM-owned areas are triggered by the SM, never scheduled for a worker."""
+
+    def test_a_worker_is_never_routed_to_an_sm_owned_area(self):
+        # Only `platform` has work; a plain worker must not be offered it.
+        self._stub_issues({"platform": [(347, False)]})
+        self._stub_prs([])
+        out, _ = self.run_coord("next", "--agent", "ta-1-kastenbrot")
+        self.assertNotIn("claim platform", out)
+        self.assertIn("No open issue is claimable", out)
+
+    def test_an_sm_is_routed_to_its_own_area(self):
+        self._stub_issues({"platform": [(347, False)]})
+        self._stub_prs([])
+        out, _ = self.run_coord("next", "--agent", "sm-1-kastenbrot")
+        self.assertIn("claim platform / #347", out)
+
+    def test_an_sm_prefers_its_own_area_over_the_critical_path(self):
+        # An idle SM triggers its own infrastructure work rather than competing
+        # with a worker for the critical path.
+        self._stub_issues({"platform": [(347, False)], "tactical": [(405, False)]})
+        self._stub_prs([])
+        out, _ = self.run_coord("next", "--agent", "sm-1-kastenbrot")
+        self.assertIn("claim platform / #347", out)
+        self.assertNotIn("claim tactical", out)
+
+    def test_a_worker_is_still_routed_to_the_critical_path(self):
+        self._stub_issues({"tactical": [(405, False)]})
+        self._stub_prs([])
+        out, _ = self.run_coord("next", "--agent", "ta-1-kastenbrot")
+        self.assertIn("claim tactical / #405", out)
+        self.assertIn("critical path", out)
+
+    def test_a_legacy_bare_name_is_not_treated_as_an_sm(self):
+        # A legacy model-string agent has no role, so it is a worker: it must not
+        # be routed to an SM-owned area.
+        self._stub_issues({"platform": [(347, False)]})
+        self._stub_prs([])
+        out, _ = self.run_coord("next", "--agent", "OpenHands")
+        self.assertNotIn("claim platform", out)
+
+    def test_an_sm_with_no_infrastructure_issue_is_not_routed_to_a_game_area(self):
+        # The SM owns no game area: with no SM-area issue it falls through to its
+        # other durable jobs, never to a worker's area.
+        self._stub_issues({"tactical": [(405, False)]})
+        self._stub_prs([])
+        out, _ = self.run_coord("next", "--agent", "sm-1-kastenbrot")
+        self.assertNotIn("claim tactical", out)
+        self.assertNotIn("claim platform", out)
+
+
+class TestDirectMessages(CoordTestCase):
+    """After the initial prompt, agents talk to each other directly."""
+
+    def test_a_message_is_delivered_to_one_named_agent(self):
+        self.run_coord("msg", "--to", "ta-1-kastenbrot", "--agent",
+                       "po-2-kastenbrot", "--text", "use the escort mission")
+        messages = coord.read_messages("ta-1-kastenbrot")
+        self.assertEqual([m.text for m in messages], ["use the escort mission"])
+        self.assertEqual([m.agent for m in messages], ["po-2-kastenbrot"])
+
+    def test_a_message_goes_to_the_recipient_only(self):
+        self.run_coord("msg", "--to", "ta-1-kastenbrot", "--agent", "po-2-kastenbrot",
+                       "--text", "for ta")
+        self.assertEqual(coord.read_messages("ta-1-kastenbrot")[0].text, "for ta")
+        self.assertEqual(coord.read_messages("wo-1-kastenbrot"), [])
+
+    def test_messages_are_pushed_to_the_remote(self):
+        self.run_coord("msg", "--to", "ta-1-kastenbrot", "--agent", "po-2-kastenbrot",
+                       "--text", "x")
+        self.assertIn("refs/coord/msg/ta-1-kastenbrot", self.remote_refs())
+
+    def test_a_message_to_an_invalid_name_is_refused(self):
+        out, err = self.run_coord("msg", "--to", "not-a-name", "--agent", "po-2-kastenbrot",
+                                  "--text", "x", expect=2)
+        self.assertIn("not a valid agent name", err)
+        self.assertEqual(coord.read_messages("not-a-name"), [])
+
+    def test_inbox_lists_only_your_own_messages(self):
+        self.run_coord("msg", "--to", "ta-1-kastenbrot", "--agent", "po-2-kastenbrot",
+                       "--text", "yours")
+        self.run_coord("msg", "--to", "wo-1-kastenbrot", "--agent", "po-2-kastenbrot",
+                       "--text", "not yours")
+        out, _ = self.run_coord("inbox", "--agent", "ta-1-kastenbrot")
+        self.assertIn("yours", out)
+        self.assertNotIn("not yours", out)
+
+    def test_inbox_reports_when_empty(self):
+        out, _ = self.run_coord("inbox", "--agent", "ta-1-kastenbrot")
+        self.assertIn("no messages", out)
+
+    def test_inbox_json_is_machine_readable(self):
+        self.run_coord("msg", "--to", "ta-1-kastenbrot", "--agent", "po-2-kastenbrot",
+                       "--text", "j")
+        out, _ = self.run_coord("inbox", "--agent", "ta-1-kastenbrot", "--json")
+        self.assertEqual(json.loads(out)[0]["text"], "j")
+
+    def test_messages_are_capped_to_the_most_recent(self):
+        for i in range(coord.MAX_NOTES + 3):
+            self.run_coord("msg", "--to", "ta-1-kastenbrot", "--agent",
+                           "po-2-kastenbrot", "--text", f"m{i}")
+        messages = coord.read_messages("ta-1-kastenbrot")
+        self.assertEqual(len(messages), coord.MAX_NOTES)
+        self.assertEqual(messages[-1].text, f"m{coord.MAX_NOTES + 2}")
+
+    def test_a_message_is_not_a_note_on_an_area(self):
+        # A direct message must not leak into the area note logs the board prints.
+        self.run_coord("msg", "--to", "ta-1-kastenbrot", "--agent", "po-2-kastenbrot",
+                       "--text", "private")
+        self.assertEqual(coord.read_notes("tactical"), [])
+        self.assertNotIn("private", coord.render_board())
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

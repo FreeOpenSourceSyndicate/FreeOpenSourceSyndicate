@@ -9,8 +9,10 @@
 # comment. The authoritative, machine-readable area->file map is
 # docs/FOCUS_AREAS.md §2; keep this file in sync with it.
 #
-# The project runs nine focus areas (see FOCUS_AREAS.md §2):
-# tactical, world, render, input-ui, content, text, metagame, platform, release.
+# The project runs ten focus areas (see FOCUS_AREAS.md §2):
+# tactical, world, render, input-ui, content, text, metagame, platform, rules,
+# release. Two of them (platform, rules) are SM-owned infrastructure: the SM
+# triggers them and coord next never routes a plain worker to them.
 # There is no coordinator: coordination is flat and self-service
 # (FOCUS_AREAS.md §1, ADR-0019). A live claim is a git-ref lease on the remote
 # (refs/coord/leases/*, ADR-0021); read it with `scripts/coord status`. These
@@ -77,7 +79,7 @@
 /src/core/economy/                 @FreeOpenSourceSyndicate
 /assets/data/world/                @FreeOpenSourceSyndicate
 
-# --- 8. Build / CI / Tooling ---
+# --- 8. Build / CI / Tooling (SM-owned) ---
 # owner: focus: platform
 /.github/workflows/                @FreeOpenSourceSyndicate
 /CMakeLists.txt                    @FreeOpenSourceSyndicate
@@ -86,7 +88,16 @@
 /tests/CMakeLists.txt              @FreeOpenSourceSyndicate
 /scripts/                          @FreeOpenSourceSyndicate
 
-# --- 9. Release / Playtest ---
+# --- 9. Rules / Process (SM-owned) ---
+# owner: focus: rules
+# The authoritative rules docs; a change here is a rules change (two peer
+# reviews, or the sole-account self-review). See docs/ORGANISATION.md §1.
+/AGENTS.md                         @FreeOpenSourceSyndicate
+/docs/ORGANISATION.md              @FreeOpenSourceSyndicate
+/docs/FOCUS_AREAS.md               @FreeOpenSourceSyndicate
+/docs/focus-areas.json             @FreeOpenSourceSyndicate
+
+# --- 10. Release / Playtest ---
 # owner: focus: release
 /CHANGELOG.md                      @FreeOpenSourceSyndicate
 /docs/releases/                    @FreeOpenSourceSyndicate

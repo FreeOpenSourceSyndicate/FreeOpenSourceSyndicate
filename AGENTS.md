@@ -13,8 +13,10 @@ too; the rules apply to everyone.
 
 **Start with `docs/ORGANISATION.md`.** It defines the roles (a **Product Owner**
 and a **Scrum Master** per computer), the **agent names**
-(`<role>-<n>-<host>`), the per-host **roster**, the cross-role **channels**, and
-the **takeover** protocol. Then read `docs/COORDINATION.md` (the lease protocol)
+(`<role>-<n>-<host>`), the per-host **roster**, the cross-role **channels** and
+**direct messages**, and the **takeover** protocol. The **SM owns the
+infrastructure areas** (`platform`, `rules`) and triggers that work itself; the
+PO never schedules them. Then read `docs/COORDINATION.md` (the lease protocol)
 and `docs/FOCUS_AREAS.md` (the file map). The 2026-10-17 takeover reorganisation
 is recorded in **ADR-0037**.
 
@@ -171,8 +173,10 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
 9. **Review and merge each other's PRs.** See §3a. This applies to every agent
    and to human maintainers.
 10. **Work inside your focus area.** The repo is divided into focus areas (the set
-    is data — `docs/focus-areas.json`, docs/ORGANISATION.md §9; nine today; see
-    `docs/FOCUS_AREAS.md`). Claim a **free** area with the **highest pending
+    is data — `docs/focus-areas.json`, docs/ORGANISATION.md §9; ten today; see
+    `docs/FOCUS_AREAS.md`). Two of them (`platform`, `rules`) are **SM-owned**
+    infrastructure: the SM triggers them and `coord next` never routes a plain
+    worker to them. Claim a **free** area with the **highest pending
     workload**, preferring one you already know. Only the agent holding the
     area's live lease (or a helper it explicitly tasks) edits the files an area
     owns. Need a change in another area's files? File a cross-area request
@@ -237,10 +241,14 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
 18. **Know your role, and know the budget.** Each computer has a **Product
     Owner** (decides *what* is built, the priority order, the backlog, and the
     worker prompts) and a **Scrum Master** (watches coordination: the roster,
-    blockers, the merge queue, seeding issues; it may merge PRs and open/close
-    issues in its scope, and — while the repo has one GitHub account — self-review
-    a rules-doc PR). Neither owns a focus area, and neither may assign work or
-    override a live lease. The **daily agent budget is shared across computers
+    blockers, the merge queue, seeding issues; it owns the **infrastructure
+    areas** `platform` and `rules` and triggers that work itself; it may merge
+    PRs and open/close issues in its scope, and — while the repo has one GitHub
+    account — self-review a rules-doc PR). Neither owns a *game* focus area, and
+    neither may assign work or override a live lease. **Talk to peers directly**
+    (`scripts/coord msg` / `scripts/coord inbox`): a generated prompt is only for
+    starting a chat that does not exist yet, and the human is copied in only on a
+    genuine human decision (docs/ORGANISATION.md §5). The **daily agent budget is shared across computers
     and other projects** and is enforced by the **human**, not the tooling, so
     keep task scopes **small enough to reuse a worker** for the next task rather
     than requesting a new chat. See `docs/ORGANISATION.md`.

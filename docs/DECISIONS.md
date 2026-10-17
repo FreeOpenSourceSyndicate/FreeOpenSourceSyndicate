@@ -2211,3 +2211,81 @@ ever wants it gone, the delete is a self-contained removal of the three regexes,
   - New surface (`agent`, `takeover` commands; the roster ref) is covered by
     `tests/test_coord.py`; the coord fallback keeps coordination working if the
     data file is broken.
+
+
+---
+
+## ADR-0038 — SM-owned infrastructure areas, direct agent messages, and a bootstrapping SM
+
+- **Status:** Accepted (2026-10-17)
+- **Date:** 2026-10-17
+- **Refines:** ADR-0037 (the PO + SM organisation). The flat, lease-based
+  coordination and the named-agent/roster machinery are unchanged.
+- **Context:** ADR-0037 shipped the two-role organisation, and the first live
+  cycle exposed four gaps:
+  1. **`platform` (build/CI/tooling) was an ordinary area.** But it is *project
+     infrastructure*, not game content: it exists to run the project, not to make
+     the game. Making the **PO** schedule it put the organisational structure on
+     the game's backlog, where it competes with Milestone work and can be starved
+     — and it is not the PO's to decide.
+  2. **The process docs had no area at all.** Changes to the rules themselves
+     (`AGENTS.md`, `docs/ORGANISATION.md`, `docs/COORDINATION.md`,
+     `docs/FOCUS_AREAS.md`) had no `focus:` label and no owner, so a rules change
+     was unlabelled work.
+  3. **Coordination went back through the human.** The *initial prompt* is
+     necessarily human-delivered (a chat that does not exist yet cannot read a
+     ref), but every exchange after it was also being relayed by the human, who is
+     the slowest hop and the scarcest resource. There was no agent-to-agent
+     channel narrower than a broadcast note.
+  4. **Nobody bootstrapped a host.** The SM is the first agent on a host, but its
+     duties did not include bringing the host up: registering itself, fixing the
+     roster, and producing the **PO's** initial prompt so the human pastes two
+     prompts per host, not one per agent.
+- **Options:**
+  1. **Leave `platform` with the PO, add `rules` as a PO area.** Rejected: keeps
+     infrastructure on the game backlog and still has the PO deciding the rules.
+  2. **A new `infrastructure` super-area owned by the SM.** Rejected: merges two
+     genuinely different file sets (CI/scripts vs. the rules docs) into one lease,
+     so a CI change would lock out a rules change. Two small areas is better.
+  3. **Mark `platform` and `rules` as `sm_owned` in `docs/focus-areas.json`, add
+     a direct `coord msg`/`coord inbox` protocol, and make the SM bootstrap its
+     host.** Chosen: the ownership is data (a redesign is a JSON edit), the
+     message protocol is the same append-only ref shape as a note, and the
+     bootstrap is a written duty.
+- **Decision:**
+  - **`sm_owned` areas.** `docs/focus-areas.json` gains `"sm_owned": ["platform",
+    "rules"]` and a tenth area, **`rules`** (`focus: rules`, code `ru`). The SM
+    triggers this work itself by claiming the area; the **PO never schedules it**
+    and `coord next` **never routes a plain worker** to an SM-owned area (only an
+    agent whose name has role `sm` is offered them, and an idle SM is offered its
+    own areas first). `release` stays a normal worker area — a release is a
+    player-visible snapshot, not infrastructure.
+  - **Direct messages.** `scripts/coord msg --to <agent> --agent <you> --text ...`
+    writes `refs/coord/msg/<agent>`; `scripts/coord inbox --agent <you>` reads it.
+    Append-only, never expiring, never a lock — the same shape as a note, but
+    **addressed to one named agent** and private to it (not printed on the board,
+    not filed under an area). A message to an invalid agent name is refused. A
+    generated prompt is needed **only** to start a chat that does not exist yet;
+    after that, agents talk to each other. The human is copied in only on a
+    genuine human decision (`question` + `status: blocked`) or to start a new chat.
+  - **The SM bootstraps its host** (docs/ORGANISATION.md section 7a): on its first
+    call it reconciles the roster (retiring any never-started placeholder, fixing
+    `budget.started`), generates the **PO's** initial prompt, and reads the `sm`
+    and `po` channels plus the ledger. The SM starts the host's PO; the PO starts
+    workers.
+  - **Never pre-register a placeholder.** A reserved-but-not-started name is
+    indistinguishable from a live agent: it blocks the real allocation and inflates
+    the budget estimate. Reserve a name in a **note**; register with `--name` only
+    on start. (The tooling gap is issue #422.)
+- **Consequences:**
+  - Infrastructure work no longer competes with the game backlog, and the PO is no
+    longer asked to decide it; the SM owns its own throughput.
+  - A rules change has a home (`focus: rules`) and an owner (the SM).
+  - Coordination is direct: fewer human interruptions, less latency, and the
+    human's two jobs are exactly *decide* and *start a chat*.
+  - `docs/focus-areas.json` is the single switch: moving an area into or out of
+    `sm_owned` is a data edit, and a stale entry (a name not in `areas`) is
+    dropped rather than trusted.
+  - New surface (`msg`/`inbox`; `sm_owned` routing) is covered by
+    `tests/test_coord.py`; the built-in fallback still carries the ten areas and
+    `sm_owned` when the data file is missing or corrupt.

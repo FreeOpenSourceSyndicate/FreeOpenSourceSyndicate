@@ -24,7 +24,7 @@ rulebook. Read this page first, then those.
 |------|-------|----------|------|---------|
 | **Human maintainer** | 1 | — | Product direction, licensing, release approval, the chat budget | — |
 | **Product Owner (PO)** | **one per computer** | its host | *What* gets built and in what order; the backlog; splitting work into agent-sized tasks; writing each agent's prompt | Edit code or claim a lease |
-| **Scrum Master (SM)** | **one per computer** | its host | Coordination hygiene: the roster, the daily-agent budget, blockers, the merge queue, seeding issues | Assign work, override a live lease, edit another area's files |
+| **Scrum Master (SM)** | **one per computer** | its host | Coordination hygiene: the roster, the daily-agent budget, blockers, the merge queue, seeding issues, and the **infrastructure areas** (`platform`, `rules`) | Assign work, override a live lease, edit another area's files |
 | **Worker** | 0–N | its host | One task in one focus area, on one branch, one PR | Start in another area's files |
 
 **There is no coordinator** (ADR-0019). The SM is a *process* role, not an
@@ -33,6 +33,15 @@ authority: it watches and unblocks, it does not command. Coordination stays
 
 The **PO and the SM are peers on one host**. The PO decides the work; the SM keeps
 the machinery clean and reports what is stuck. Neither can do the other's job.
+
+**The SM owns the infrastructure areas.** `platform` (build, CI, scripts,
+packaging) and `rules` (the process docs themselves) are *not game content*: they
+exist to run the project, not to make the game. So the **SM triggers that work
+itself** — it claims `platform` or `rules` like any other area when it decides the
+work is due — and the **PO never schedules it**. `coord next` enforces this: a
+plain worker is never routed to an SM-owned area, and an idle SM looks at its own
+areas first (docs/ORGANISATION.md §7). `release` stays a normal worker area: it
+*does* produce player-visible content (a playtest snapshot).
 
 ## 2. Computers (hosts)
 
@@ -127,6 +136,18 @@ never a lock. Read them before acting; append with `scripts/coord note`.
 | `po` | PO ↔ PO | Handoff of priorities and backlog state when the machine changes |
 | `takeover` | any ↔ any | Takeover requests for a quiet holder (§6) |
 
+**Channels are for a role or the fleet; direct messages are for one agent.**
+Channels are the four above, printed on the board. For a one-to-one exchange use a
+**direct message** (`coord msg` / `coord inbox`, §5 below), which is private to the
+named recipient. Reach for a channel only when the *whole role* (both SMs, both
+POs) or everyone should see it.
+
+**Never pre-register a placeholder.** To hold a name before an agent starts, record
+it in a **note**; register with `--name` only when the agent actually starts. A
+placeholder entry is indistinguishable from a live agent: it blocks the real
+allocation (the first PO was pushed from `po-1` to `po-2` this way) and inflates
+the per-host `budget.started` estimate. The tooling gap is issue #422.
+
 ```bash
 scripts/coord note  --area sm --agent sm-1-kastenbrot --text "handoff: nothing in flight; #405/#406 seeded"
 scripts/coord notes --area sm
@@ -151,6 +172,77 @@ The PO requests a name or an issue-seed from the SM; the PO also **notifies the
 human** that it has done so, so the human can make sure the SM is active. The SM
 answers on the `sm` channel (or directly in the roster) and the PO puts the name
 in the worker's prompt.
+
+### Direct messages (talk to each other, not through the human)
+
+**A generated initial prompt is needed only once — to start an agent that does
+not exist yet.** The human pastes it into the new chat because a chat that has not
+started cannot read a ref. **Every exchange after that must be direct**: an agent
+that needs a fact from a peer, a name from the SM, or a decision from the PO sends
+a message to that agent, and reads its own inbox. Do **not** route ordinary
+coordination back through the human — that is slow and it is not the human's job.
+
+A message is a note addressed to **one named agent**, kept at
+`refs/coord/msg/<agent>` — append-only, never expiring, never a lock, exactly like
+a note:
+
+```bash
+scripts/coord msg --to ta-1-kastenbrot --agent po-2-kastenbrot --text "use escort.json"
+scripts/coord inbox --agent ta-1-kastenbrot        # read yours
+```
+
+- The recipient must be a valid agent name (`<role>-<n>-<host>`): a message to a
+  name nobody can read is worse than no message, so a typo fails fast.
+- Messages are **private to the recipient** — unlike a channel note, they are not
+  printed on the board and not filed under an area. Use a **channel** (`sm`,
+  `po`, `takeover`) for something the whole role, or the fleet, should see; use a
+  **message** for a direct exchange.
+- The human is copied in only when a decision is genuinely theirs (a `question` +
+  `status: blocked` issue, §5.2 of `docs/FOCUS_AREAS.md`).
+
+### Keep the human out of the loop
+
+**The human is the scarcest resource and the slowest hop.** Every exchange routed
+through them is latency added to work an agent could have finished alone. So:
+
+- **Do not ask the human what a peer can answer.** An agent asks the PO, the SM,
+  or a peer **directly** (`coord msg`), or reads the docs, the ledger, and the
+  inbox. The rules in this file and `AGENTS.md` answer scope, ordering, ownership,
+  and process questions; apply them yourself.
+- **Do not ask the human for a name, a seed, or a status.** The SM owns names and
+  the roster; the PO owns the backlog; both are readable with `coord status` /
+  `coord notes`.
+- **Only two things go to the human:** (a) a **decision that is genuinely theirs**
+  — product direction, licensing, a rule change, release approval, or the chat
+  budget — posted as a `question` + `status: blocked` issue with options and a
+  recommendation, **once**, then proceed on the reversible path; and (b) **starting
+  a chat that does not exist yet** (the initial prompt), which only the human can
+  do.
+- **Do not block on the human to keep moving.** Post the question, pick the
+  reversible option, and continue. A question is a side-channel, not a stop.
+
+### Starting a worker: the PO's standard introduction
+
+A worker that does not exist yet is started by the human pasting a prompt. The PO
+writes that prompt, and it **begins with this introduction** (keep it short; the
+worker reads the docs itself):
+
+```
+You are a FOSSynd worker. Your name is <role>-<n>-<host> (e.g. ta-1-kastenbrot).
+Read, in this order: AGENTS.md, docs/ORGANISATION.md, docs/FOCUS_AREAS.md,
+docs/COORDINATION.md, then docs/ROADMAP.md and docs/focus-areas.json.
+Register your name once: COORD_HOST=<host> scripts/coord agent --register
+--role <code> --name <role>-<n>-<host> --model "<your model>".
+Then read your inbox and the ledger: scripts/coord inbox --agent <name> and
+scripts/coord status. Claim your task with scripts/coord claim, work on one
+branch, open one PR, release the lease when it merges. Talk to the PO or the SM
+directly with scripts/coord msg --to <their name> --agent <your name> --text
+"..." - do not route coordination through the human. Post a handoff note before
+you stop.
+```
+
+Then the PO adds the task specifics: the **issue**, the **files** the worker may
+touch, the **acceptance criteria**, and the **tests** expected (§8).
 
 ## 6. Takeover
 
@@ -214,6 +306,11 @@ sure **no work waits and no capacity is wasted on conflicts**:
 
 - **Own the roster** for its host: register new agents, retire the dead, record
   lineage, keep the budget estimate honest.
+- **Trigger the infrastructure work.** `platform` and `rules` are the SM's own
+  areas (§1): when the build, CI, scripts, packaging, or the process docs need
+  work, the **SM claims the area and does it** (or delegates it to a helper it
+  tasks). The PO never schedules these; `coord next` routes a plain worker
+  elsewhere and gives an idle SM its own areas first.
 - **Watch the ledger** (`coord status`) and clear blockers: a `status: blocked`
   issue whose `blocked-by:` blockers have closed clears itself (ADR-0030), but
   the SM confirms and re-seeds.
@@ -238,24 +335,97 @@ the review requirement** for a rules-doc PR (the sole-account rule, AGENTS.md
 area's files. It has **no `focus:` label** and no `focus: coordinator` label
 exists.
 
+### 7a. The SM bootstraps its host
+
+The SM is usually the **first agent started on a host**, so it is the one that
+brings the host up. On its **first call** it must:
+
+1. **Reconcile the roster.** Retire any never-started placeholder and register
+   itself with its real model (`coord agent --retire … --succeeded-by …`, then
+   `coord agent --register --role sm --name sm-<n>-<host>`). Fix the host's
+   `budget.started` estimate if it counts a placeholder (issue #422).
+2. **Generate the PO's initial prompt.** Write the prompt that will start the
+   host's Product Owner (`po-<n>-<host>`) and give it to the human: read the
+   roster for the free `po` number, read the `po` channel and the ledger for the
+   handoff, and hand over the backlog state. **The PO does not start itself** —
+   the human pastes the prompt — so producing it is the SM's first deliverable.
+   The prompt starts from the standard introduction (§5) and adds the PO duties
+   from §8.
+3. **Read the handoff.** `coord notes --area sm`, `coord notes --area po`,
+   `coord status`, `coord takeover` — so the host starts from the last state, not
+   from scratch.
+
+The SM **starts the host's PO**; the PO then starts workers. This keeps one
+bootstrap path per host and means the human pastes at most two prompts per host
+(the SM, then the PO it wrote).
+
+### 7b. The SM's initial prompt (the merged one)
+
+There is **one** SM prompt per host. It merges the SM's own start-up with the duty
+to write the PO's prompt, so the human pastes it once and the host comes up on its
+own. The SM supplies its own `<n>` and `<host>` (read the roster first: the next
+free number for role `sm` on that host) and hands the PO prompt back to the human:
+
+```
+You are the Scrum Master for FOSSynd on host <host>. Your name is
+sm-<n>-<host>. You are a process role: you own NO game area. You own the two
+infrastructure areas (platform, rules) and you keep coordination healthy.
+
+Read, in this order: AGENTS.md, docs/ORGANISATION.md (especially sections 1, 5,
+7, 7a, 7b), docs/COORDINATION.md, docs/FOCUS_AREAS.md, docs/DECISIONS.md
+(ADR-0037, ADR-0038), docs/ROADMAP.md, docs/focus-areas.json.
+
+On this, your first call:
+1. Register yourself once:
+   COORD_HOST=<host> scripts/coord agent --register --role sm --name
+   sm-<n>-<host> --model "<your model>"
+   If the roster already holds a placeholder for you, retire it first
+   (scripts/coord agent --retire ... --succeeded-by sm-<n>-<host>) so no
+   never-started name blocks a real allocation (issue #422).
+2. Read the handoff: scripts/coord notes --area sm; scripts/coord notes --area
+   po; scripts/coord status; scripts/coord takeover. Start from the last state,
+   not from scratch.
+3. Generate the initial prompt for this host's Product Owner (po-<n>-<host>) and
+   give it to the human. Read the roster for the next free po number, read the
+   po channel and the ledger for the backlog handoff, and follow section 8 for
+   the PO's duties. The PO does not start itself: the human pastes the prompt you
+   write. This is your first deliverable.
+4. Then keep the machinery clean (section 7): watch the ledger, drain the merge
+   queue (merge green, non-draft PRs that have waited), keep the backlog floor,
+   and trigger the platform/rules work yourself (coord next routes you there).
+
+Talk to peers directly with scripts/coord msg --to <their name> --agent
+sm-<n>-<host> --text "..." and read yours with scripts/coord inbox --agent
+sm-<n>-<host>. Do NOT route ordinary coordination through the human; the human
+only decides human questions (question + status: blocked) and starts new chats.
+Post a handoff note (scripts/coord note --area sm ...) before you stop.
+```
+
 ## 8. The Product Owner
 
 The PO does the **planning**. It decides *what* to build and in what order, and it
 is the only role that requests new agents.
 
 - **Own the backlog**: keep a claimable issue per critical-path area; split big
-  issues (e.g. the mission set) into agent-sized slices before assigning.
+  issues (e.g. the mission set) into agent-sized slices before assigning. **Do not
+  seed or schedule the SM-owned infrastructure areas** (`platform`, `rules`): the
+  SM triggers those itself (§1, §7).
 - **Own the priority order** (per the human's 2026-10-17 decision): the PO knows
   the critical path and the work amounts, so it sets the order.
 - **Respect the scope fence** (ADR-0024): v1.0.0 is the 1993 clone; reject
   out-of-scope work and route genuine scope changes to the human.
-- **Write each worker's prompt**: state its **name**, focus area, issue, the files
-  it may touch, acceptance criteria, and the tests expected.
+- **Write each worker's prompt**: start from the standard introduction in §5, then
+  state the worker's **name**, focus area, issue, the files it may touch,
+  acceptance criteria, and the tests expected.
 - **Request agents from the human** (naming each one), and **notify the human**
   that it has asked the SM for names, so the human can confirm the SM is active.
+  Ask the SM by **direct message** (`coord msg --to sm-<n>-<host> ...`), not by
+  routing through the human; the human only needs to know an agent is wanted.
 
 The PO **does not edit code** and **does not claim a lease**. It may open/close
-issues and seed the backlog; the SM keeps the machinery clean.
+issues and seed the backlog; the SM keeps the machinery clean. **After a worker
+has started, the PO talks to it directly** (`coord msg`) — the initial prompt is
+the only prompt the human pastes.
 
 ## 9. Focus areas are data
 
@@ -266,13 +436,21 @@ The area set is **not** hard-coded. It lives in **`docs/focus-areas.json`**, whi
 {
   "areas": { "tactical": {"code": "ta", "label": "Tactical / Mission"}, ... },
   "roles": { "sm": {"code": "sm"}, "po": {"code": "po"} },
-  "critical_path": ["metagame", "tactical"]
+  "critical_path": ["metagame", "tactical"],
+  "sm_owned": ["platform", "rules"]
 }
 ```
 
-The **PO may redesign** the areas — add, remove, split, rename — by editing that
-file and `docs/FOCUS_AREAS.md`. The nine areas are a **legacy number** from the old
-organisation; the set may grow, shrink, or be replaced. Rules:
+There are **ten** areas today: the nine game-facing ones plus **`rules`** (the
+process docs themselves), which joined `platform` as an SM-owned infrastructure
+area. The areas a **worker** may be routed to are the ten minus the SM-owned ones;
+`coord next` never offers a plain worker an SM-owned area.
+
+The **PO may redesign** the game-facing areas — add, remove, split, rename — by
+editing that file and `docs/FOCUS_AREAS.md`. The **SM owns the infrastructure
+areas** (`sm_owned`): it triggers that work itself and the PO does not schedule
+it. A redesign that moves an area into or out of `sm_owned` is therefore the SM's
+call. Rules:
 
 - A **redesign should happen before the initial agent request**, so new workers
   keep a small scope.
@@ -308,3 +486,5 @@ If **you** cannot be recovered, your successor reads: this file, the `sm` channe
 - `docs/FOCUS_AREAS.md` — the file map per area.
 - `docs/DECISIONS.md` — ADR-0037 (this organisation) and the ADRs it builds on.
 - `docs/ROADMAP.md` — the plan the PO orders work from.
+- `docs/focus-areas.json` — the area set as data (areas, codes, `sm_owned`,
+  channels).

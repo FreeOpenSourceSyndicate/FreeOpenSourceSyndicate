@@ -1,7 +1,7 @@
 {
   "//": "AI/LLM-generated file. Do not treat as human-written source documentation.",
   "version": 1,
-  "note": "Data-driven focus areas, role codes, and coordination channels. scripts/coord reads this so the Product Owner can redesign the area set WITHOUT a code change (docs/ORGANISATION.md section 9). If this file is missing or corrupt, coord falls back to its built-in defaults (the same nine areas) so coordination never breaks. Keep docs/FOCUS_AREAS.md in sync; a change here is a rules change (two peer reviews, or the sole-account self-review).",
+  "note": "Data-driven focus areas, role codes, and coordination channels. scripts/coord reads this so the Product Owner can redesign the area set WITHOUT a code change (docs/ORGANISATION.md section 9). If this file is missing or corrupt, coord falls back to its built-in defaults (the same ten areas and sm_owned set) so coordination never breaks. Keep docs/FOCUS_AREAS.md in sync; a change here is a rules change (two peer reviews, or the sole-account self-review).",
   "agent_name": {
     "format": "<role>-<n>-<host>",
     "hosts": ["kastenbrot", "gnampf"],
@@ -12,11 +12,17 @@
     "po": "Product owner <-> product owner handoff (one PO per computer).",
     "takeover": "Takeover requests: a live agent asks the fleet to take over an area whose holder has gone quiet."
   },
+  "message": {
+    "note": "Direct agent-to-agent messages, addressed to ONE named agent (refs/coord/msg/<agent>). The generated initial prompt starts a worker; after that, agents talk to each other directly with `coord msg` / `coord inbox` instead of routing through the human. Append-only, like a note; never a lock.",
+    "ref": "refs/coord/msg/<agent>"
+  },
   "roles": {
     "sm": { "code": "sm", "label": "Scrum master", "focus": null },
     "po": { "code": "po", "label": "Product owner", "focus": null }
   },
   "critical_path": ["metagame", "tactical"],
+  "sm_owned": ["platform", "rules"],
+  "sm_owned_note": "Areas the Scrum Master owns and triggers itself. These are project infrastructure, not game content, so the Product Owner never schedules them and `coord next` never routes a plain worker to them: only an agent whose name has role 'sm' is offered them. The SM claims one like any other area when it decides the work is due (docs/ORGANISATION.md section 7).",
   "areas": {
     "tactical": { "code": "ta", "label": "Tactical / Mission" },
     "world": { "code": "wo", "label": "World / Simulation" },
@@ -26,6 +32,7 @@
     "text": { "code": "tx", "label": "Text / i18n / Lore" },
     "metagame": { "code": "mg", "label": "Metagame / Campaign" },
     "platform": { "code": "pf", "label": "Build / CI / Tooling" },
+    "rules": { "code": "ru", "label": "Rules / Process" },
     "release": { "code": "rl", "label": "Release / Playtest" }
   }
 }

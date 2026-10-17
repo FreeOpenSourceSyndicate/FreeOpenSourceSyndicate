@@ -21,7 +21,7 @@ Read this together with `AGENTS.md` §3 (protocol) and `docs/COORDINATION.md`
 (claims, labels, review). Where this file and `AGENTS.md` disagree, `AGENTS.md`
 wins — then fix this file in the same PR.
 
-> **Restored to eight focus areas (now nine), self-coordinating.** An earlier revision
+> **Restored to eight focus areas (now ten), self-coordinating.** An earlier revision
 > merged these into four lanes when agents could not stay connected; that was
 > reverted because multi-agent work was unstable at that granularity. A later
 > revision routed coordination through a single **coordinator** role; that is
@@ -105,8 +105,16 @@ team grows, re-split (§8) rather than sharing.
 | 5 | **Content / Data** | `focus: content` | `src/core/data/*` (`Json`, `MissionData`, `Catalogues`, `Config`, `ContentPaths`, `ContentValidation`, `AgentSprites`), `assets/data/**` except `missions/`, `docs/DATA_FORMAT.md`, `tests/{test_json,test_missiondata,test_config,test_content_validation,test_sprites}.cpp` | JSON loader, weapon/agent catalogues, config, content validation |
 | 6 | **Text / i18n / Lore** | `focus: text` | `assets/lang/**`, `src/core/i18n/*`, `src/game/EmbeddedLang.{h,cpp.in}`, `docs/LORE.md`, `tests/test_i18n.cpp` | strings, localisation, in-game text, lore lexicon |
 | 7 | **Metagame / Campaign** | `focus: metagame` | `src/core/economy/**` (world map, territories, economy, research, equipment, campaign), the map/management screen in `src/game/**`, `assets/data/world/**` | world map, income/taxation, research tree, purchase, mission selection, campaign progression |
-| 8 | **Build / CI / Tooling** | `focus: platform` | `.github/**`, `CMakeLists.txt`, `src/**/CMakeLists.txt`, `tests/CMakeLists.txt`, `scripts/**` | CI, build options, packaging, dependencies |
-| 9 | **Release / Playtest** | `focus: release` | `CHANGELOG.md`, `docs/releases/**`, `assets/ui/**`, tags / Release pages, `docs/BUILD.md` | cut releases, playtest docs, banners, build instructions; **own the major-version candidate + human-approval gate** (`AGENTS.md` §6a-i, `docs/releases/MAJOR_RELEASE_GATE.md`) |
+| 8 | **Build / CI / Tooling** | `focus: platform` | `.github/**`, `CMakeLists.txt`, `src/**/CMakeLists.txt`, `tests/CMakeLists.txt`, `scripts/**` | CI, build options, packaging, dependencies — **SM-owned** |
+| 9 | **Rules / Process** | `focus: rules` | `AGENTS.md`, `docs/ORGANISATION.md`, `docs/COORDINATION.md`, `docs/FOCUS_AREAS.md`, `docs/focus-areas.json`, `docs/CONTRIBUTING.md` | the coordination rules themselves — **SM-owned** |
+| 10 | **Release / Playtest** | `focus: release` | `CHANGELOG.md`, `docs/releases/**`, `assets/ui/**`, tags / Release pages, `docs/BUILD.md` | cut releases, playtest docs, banners, build instructions; **own the major-version candidate + human-approval gate** (`AGENTS.md` §6a-i, `docs/releases/MAJOR_RELEASE_GATE.md`) |
+
+**`platform` and `rules` are SM-owned** (`sm_owned` in `docs/focus-areas.json`).
+They are project infrastructure, not game content, so the **Product Owner never
+schedules them** and `coord next` never routes a plain worker to them: the **SM
+triggers that work itself** by claiming the area, and an idle SM is offered its
+own areas first (docs/ORGANISATION.md §1, §7). `release` is *not* SM-owned: a
+release is a player-visible playtest snapshot, so it stays ordinary worker work.
 
 **One deliberate sub-split inside `assets/data/`:** Content owns the loader,
 schema, and shared catalogues (`assets/data/{weapons,agents}.json`), while
@@ -117,7 +125,7 @@ place where a single top-level directory is split, and it is stated here so it
 is never in doubt.
 
 Areas 1–2 are the **core library** (engine-free, must stay SDL-free, ADR-0002).
-Areas 3–4 are the **engine layer** (the only place `<SDL.h>` appears). Areas 5–9
+Areas 3–4 are the **engine layer** (the only place `<SDL.h>` appears). Areas 5–10
 are **content, campaign, tooling, and delivery**.
 
 **Not every area is on the v1.0.0 critical path (ADR-0024).** The scope fence says
@@ -455,6 +463,7 @@ from §2. It is the single source of truth for *who may edit which files*:
 | `focus: text` |
 | `focus: metagame` |
 | `focus: platform` |
+| `focus: rules` |
 | `focus: release` |
 
 Plus the `status:` labels (`claimed`, `blocked`, `needs-review`). These are a
@@ -546,12 +555,19 @@ may do, how an agent is named, the per-host roster, the channels, and takeover �
 is `docs/ORGANISATION.md` (ADR-0037). In short:
 
 - A **worker** is named `<role>-<n>-<host>` where `<role>` is an area code from
-  §2 (`ta`, `wo`, `re`, `ui`, `co`, `tx`, `mg`, `pf`, `rl`). Claim with that name,
-  not a model string.
+  §2 (`ta`, `wo`, `re`, `ui`, `co`, `tx`, `mg`, `pf`, `ru`, `rl`). Claim with that
+  name, not a model string.
 - Each computer has a **Product Owner** (decides *what*) and a **Scrum Master**
-  (watches coordination). Neither owns an area, and neither may override a live
-  lease — the scheme stays flat (§1).
+  (watches coordination). The **SM owns the infrastructure areas** (`platform`,
+  `rules`): it triggers that work itself and the PO never schedules it. Neither
+  role owns a *game* area, and neither may override a live lease — the scheme
+  stays flat (§1).
+- **Talk to a peer directly** (`scripts/coord msg --to <name> --agent <you>`,
+  `scripts/coord inbox --agent <you>`) instead of routing through the human; a
+  generated prompt is only needed to *start* a chat that does not exist yet
+  (docs/ORGANISATION.md §5).
 - The **roster** (`refs/coord/roster/<host>`, `scripts/coord agent --list`) records
   the names; a replacement is a **new** name.
 - The **area set itself is data** (`docs/focus-areas.json`): the Product Owner may
-  redesign it (§2), keeping this file in sync.
+  redesign the game-facing areas (§2), keeping this file in sync; `sm_owned` marks
+  the infrastructure areas the SM owns.
