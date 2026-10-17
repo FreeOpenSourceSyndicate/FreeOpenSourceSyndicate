@@ -614,6 +614,17 @@ move us toward it, it is out of scope.
 
 ## 10. Known gaps / TODO for the next agent
 
+- **The critical path lives in three places that must agree (issue #425).** The
+  Milestone C order is `tactical`, `metagame`, `world` (mission set first - it
+  unblocks the map content and the content guard). It is read from
+  `docs/focus-areas.json` -> `critical_path`, the built-in `_DEFAULT_CRITICAL`
+  in `scripts/coord`, and pinned by the guards in `tests/test_coord.py`. Edit
+  one and CI reddens (`test_default_config_matches_the_shipped_file`,
+  `test_the_critical_path_matches_the_roadmap`), so change all three in one PR.
+  `platform`/`render`/`release` are deliberately **off** the list (they do
+  delivery, not features) - do not add them. Off-path tests must use an
+  off-path area (`render`), **not `world`**: `world` moved onto the path.
+
 **Where to work next.** Follow `docs/ROADMAP.md` → *The critical path*. **The
 critical path is `tactical`, `metagame`, `world`** (redefined for Milestone C in
 issue #425 — Milestones A and B are done, and the mission set is the long pole
