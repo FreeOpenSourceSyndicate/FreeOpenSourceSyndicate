@@ -154,6 +154,9 @@ It **never prints nothing**. It walks a fixed ladder and stops at the first rung
 that applies, so there is always a next step:
 
 1. **You hold a lease** → finish it, or `renew`/`release` it.
+1b. **You are the SM and an SM-owned area is free** (`platform`, `rules`;
+    `docs/ORGANISATION.md` §7) → claim its newest open issue. The SM triggers
+    infrastructure itself; a plain worker is never routed here.
 2. **A critical-path area is free** (`tactical`, `metagame`, `world` —
    `docs/ROADMAP.md`; redefined for Milestone C in issue #425)
    → claim its newest open issue.
