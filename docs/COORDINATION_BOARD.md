@@ -10,18 +10,18 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-17T11:50:58Z._
+_As of 2026-10-17T12:18:59Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
-| `tactical` | ta-1-kastenbrot · #416 | claimed | 5h |
-| `world` | wo-1-kastenbrot · #406 | claimed | 5h |
+| `tactical` | ta-1-kastenbrot · #416 | claimed | 4h |
+| `world` | — | free | — |
 | `render` | — | free | — |
 | `input-ui` | — | free | — |
 | `content` | — | free | — |
 | `text` | ta-1-kastenbrot · #428 | claimed | 5h |
 | `metagame` | — | free | — |
-| `platform (SM)` | sm-1-kastenbrot · #425 | claimed | 5h |
+| `platform (SM)` | sm-1-kastenbrot · #423 | claimed | 5h |
 | `rules (SM)` | — | free | — |
 | `release` | — | free | — |
 
@@ -49,7 +49,7 @@ Named agents per host (`refs/coord/roster/<host>`, `scripts/coord agent --list`)
 - `po-2-kastenbrot` (Claude Sonnet 4.5) — active
 - `po-1-kastenbrot` — retired → `po-2-kastenbrot`
 
-Register a new agent: `scripts/coord agent --register --host <host> --role <area-code>`. Retire one: `scripts/coord agent --retire <name> --host <host> --succeeded-by <name>`.
+Register a new agent: `scripts/coord agent --register --host <host> --role <area-code>`. Hold a name before its agent starts: `scripts/coord agent --reserve --host <host> --role <area-code> --name <name>` (then `--register` the same name to promote it). Retire one: `scripts/coord agent --retire <name> --host <host> --succeeded-by <name>`.
 
 ## Handoff notes
 
@@ -68,6 +68,7 @@ outlive the lease that wrote them, so read them before starting an area:
 - _2026-10-16T15:49:10Z_ OpenHands: coord now fails loudly if a release's ref-delete does not land (#392) - before, 'released <area>' printed and rc 0 even when the lease ref survived on the remote, stranding the area until TTL. Same silent-success class as #381 (board) and ADR-0033 (claim). If you add a ref deletion, route it through _delete_lease_ref so it is checked.
 - _2026-10-16T15:55:22Z_ OpenHands: note appends now use a per-ref compare-and-swap (#394): plain --force meant two clones writing one area kept only the second note (append_note's retry never fired). Route any new ref publishing through --force-with-lease with the value you read.
 - _2026-10-16T16:05:28Z_ OpenHands: coord now refuses to read a ledger it could not fetch (#399): check no longer passes blind and sweep no longer strips status: claimed on an empty read. If you add a command that decides based on lease refs, call fetch_ledger(required=True) (display-only reads can keep the tolerant default).
+- _2026-10-17T11:57:11Z_ sm-1-kastenbrot: Critical path for Milestone C is now (tactical, metagame, world) - issue #425, merged 636dea9. It lives in THREE places that must agree: docs/focus-areas.json critical_path, scripts/coord _DEFAULT_CRITICAL, and tests/test_coord.py guards. Editing one alone reddens CI (test_default_config_matches_the_shipped_file). Two tests used 'world' as a stand-in for an off-path area; world is on the path now, so off-path tests must use render (test_delivery_areas_stay_off_the_critical_path pins this). platform/render/release stay OFF the ordered list deliberately (delivery, not features) - do not add them.
 
 **`release`**
 
@@ -93,6 +94,10 @@ outlive the lease that wrote them, so read them before starting an area:
 - _2026-10-16T11:48:43Z_ OpenHands (agent-sdk): v0.8.0 text stamp DONE: app.tagline en=DOMINION de=HERRSCHAFT (PR #371, merged 5d395af). Re-audited on 5d395af: lexicon vs shipped data clean (LORE Vantage Combine vs data Riverside Combine is the open #282 alone); no unkeyed user-facing literal in src/game beyond the documented ADR-0024 set; all title-card/HUD literals are tr() fallbacks (rule 3 covers them); objective P<->key mapping correct; de.json is sound placeholder-wise. Both open text issues await a maintainer call and are not text-file edits: #282 rename (misplaced in campaign.json/METAGAME.md, metagame-owned + needs naming decision), #270 proper-noun-vs-localise (doc decision; recommend documenting as proper nouns for v1.0.0, key scheme as a v2 item). Tooling trap: ctest coord_tests fails (81 setUp errors) if GIT_CONFIG_* env vars leak into the shell (e.g. a GIT_CONFIG_COUNT/pushurl override for a tokenised push) - unset them before running the suite; not a real regression. Re-check #282 first before touching it - the data lives in assets/data/world/**, not assets/lang/**.
 - _2026-10-16T15:41:26Z_ OpenHands (agent-sdk): #377 DONE (text half): E (hijack/exit vehicle) added to hud.controls + title.controls.misc in en/de (PR #391, squash 8224466). Cross-area render half filed as #390: sync the tr() fallbacks in src/game/Hud.cpp + src/game/TitleCard.cpp and delete the two ALLOWED_FALLBACK_DRIFT entries in tests/test_i18n_keys.py. Until #390 lands those fallbacks are one token behind (cosmetic; en.json correct). Pattern used: render live-leased so Rule 1 forbade editing its files - the ALLOWED_FALLBACK_DRIFT deferral is exactly the #243 mechanism ('src/game/TitleCard.cpp is Render-owned; #238 syncs it'). On main (8224466): guards 9/9, ctest 6/6 core-only, en/de parity 31/31, no new unkeyed src/game literal since 5d395af. Open text issues #282/#270 still maintainer-blocked. Verify on main before new work; re-check #282 first (data is in assets/data/world/**, metagame-owned).
 - _2026-10-16T16:38:07Z_ OpenHands (agent-sdk): #377 COMPLETE (both halves). Text half: #391 -> 8224466. Render half: #390 -> PR #401 -> 2719dc3, which synced the hud.controls/title.controls.misc tr() fallbacks in Hud.cpp/TitleCard.cpp and emptied ALLOWED_FALLBACK_DRIFT. On main the guard is 9/9 with an empty allow-list; full engine build (SDL2) + ctest 57/57 incl. game_smoke; binary runs headless. NOTE: after I released the render lease, a peer (agent label 'OpenHands (Claude)') re-claimed render/#390 at 2026-10-16T16:37:34Z on the already-deleted branch fix/render-hint-fallback-sync - it is degenerate (#390 closed+merged); left it untouched per no-stomp, it will expire via sweep. Text lane has no actionable unblocked work: only maintainer-blocked #282 and #270 remain.
+
+**`world`**
+
+- _2026-10-17T11:53:22Z_ wo-1-kastenbrot: Save/load (#406, PR #430): core::CampaignSave (src/core/util/CampaignSave.{h,cpp}) is a versioned plain-text OVERLAY on the base campaign, not a full copy - topology comes from --campaign. Format: format tag 'fossynd-save' + int version (1). parse() rejects bad/missing format + wrong version before trusting fields; applyTo() rejects a territory the base campaign lacks. Floats use %.9g for exact round-trip. Research is captured/serialised but NOT reapplied (frozen Research API has no setter) - Rule 4 request to metagame is #431. Schema doc request to content is #432; --save/--load wiring to input-ui is #433. Tests: tests/test_persistence.cpp (ctest core_unit_tests). ADR-0038.
 
 Add one with `scripts/coord note --area <area> --agent "<role>-<n>-<host>" --text "..."`.
 
