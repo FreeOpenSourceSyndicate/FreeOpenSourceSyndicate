@@ -218,8 +218,11 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
 16. **An idle agent always has a next action — ask for it.** Run `scripts/coord
     next --agent "<role>-<n>-<host>"` whenever you do not know what to do. It never prints
     nothing: it walks a fixed ladder and stops at the first rung that applies —
-    (1) finish/renew a lease you hold, (2) claim a free **critical-path** area's
-    issue, (3) **drain the merge queue**: review and merge a green, non-draft PR
+    (1) finish/renew a lease you hold, (1b) if you are the **SM**, claim a free
+    SM-owned infrastructure area's issue (the SM triggers `platform`/`rules`
+    itself; a plain worker is never routed to them), (2) claim a free
+    **critical-path** area's issue, (3) **drain the merge queue**: review and
+    merge a green, non-draft PR
     that has waited ≥ 30 min (§3a), (4) claim any free area's issue, (5) **file a
     new issue** from the roadmap when the backlog is empty, (6) otherwise review
     an open PR you did not author (§3a). Rung 3 exists because a green PR is
