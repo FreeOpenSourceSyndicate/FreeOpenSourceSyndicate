@@ -6,6 +6,7 @@
 
 set(FOSSYND_GAME_SOURCES
     main.cpp
+    game/Audio.cpp
     game/Game.cpp
     game/Font.cpp
     game/Hud.cpp
@@ -286,6 +287,11 @@ if(BUILD_TESTS)
     # weapon. Exits non-zero on a broken invariant.
     add_test(NAME game_vehicle_input
              COMMAND FOSSynd --headless --check-vehicle-input)
+    # Audio subsystem (issue #423, ADR-0040): the cue table must be complete,
+    # non-silent, and deterministic, mixing must sum cues, and a disabled Audio
+    # must be a safe no-op. Device-free, so it runs without a sound card.
+    add_test(NAME game_audio
+             COMMAND FOSSynd --headless --check-audio)
     # Objective banner (issue #281): every objective kind must render a non-empty,
     # distinct, fully substituted localised string. Exits non-zero on a broken
     # invariant (a kind that fell through to the default or left a placeholder).

@@ -132,6 +132,7 @@ bool pushWheel(int y)
 
 Game::~Game()
 {
+    audio_.shutdown();
     sprites_.destroy();
     if (mapTexture_ != nullptr)
     {
@@ -231,6 +232,14 @@ bool Game::init(int width, int height, bool headless, bool lowSpec)
     titleCardActive_ = showTitleCard_;
     titleCardTime_ = 0.0f;
     titleCardStartRequested_ = false;
+
+    // Sound effects (issue #423, ADR-0040). Never fatal: a missing device leaves
+    // audio a silent no-op and the game runs. A headless run opens no device at
+    // all, so a CI boot is silent and cannot depend on a sound card.
+    if (!headless)
+    {
+        audio_.init();
+    }
 
     running_ = true;
     return true;
@@ -486,6 +495,10 @@ void Game::restart()
     paused_ = false;
     // Drop any banked time so the new mission starts on a clean step boundary.
     clock_.reset();
+    // Reset the audio event snapshot so a fresh mission's first kill/outcome is
+    // not compared against the previous run's counts (issue #423).
+    audioPrevious_ = AudioEvents{};
+    audioGunfire_.clear();
     centerOn(mission_.agents().front().position());
 }
 
@@ -2831,6 +2844,12 @@ void Game::update(float frameSeconds)
     updateAgentViews(frameSeconds);
     updateShieldSnapshot(frameSeconds);
     updateDrugSnapshot();
+
+    // Sound effects (issue #423, ADR-0040): turn this frame's mission events
+    // (new kills, a decided outcome) into cues. View-only, after the sim.
+    updateAudio();
+    // Feed any active cue into the device's stream so it keeps playing.
+    audio_.update();
 }
 
 void Game::updateAgentViews(float dt)
@@ -3655,6 +3674,60 @@ void Game::updateDrugSnapshot()
         }
         drugPeak_[i] = std::max(drugPeak_[i], timer);
     }
+}
+
+void Game::updateAudio()
+{
+    // Turns mission events since the last frame into sound cues (issue #423,
+    // ADR-0040). The core already computes the counts and the outcome; the view
+    // only snapshots them and derives `anyShot` from a gunfire timer rising. The
+    // event->cue decision itself is the pure, device-free `cuesForFrame`, so the
+    // headless guard exercises the real mapping. Never writes core (rule 1/4).
+    if (!audio_.enabled())
+    {
+        return;
+    }
+
+    AudioEvents current;
+    current.playerKills = mission_.playerKills();
+    current.enemyKills = mission_.enemyKills();
+    current.civilianKills = mission_.civilianKills();
+    current.state = mission_.state();
+
+    // `Agent::beginFireCooldown` raises an agent's gunfire timer to 0.75 the
+    // instant it fires, so a timer that rose since last frame means a shot this
+    // frame (it only ever counts down otherwise).
+    const auto& agents = mission_.agents();
+    if (audioGunfire_.size() != agents.size())
+    {
+        audioGunfire_.assign(agents.size(), 0.0f);
+    }
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        const float timer = agents[i].gunfireTimer();
+        if (timer > audioGunfire_[i])
+        {
+            current.anyShot = true;
+        }
+        audioGunfire_[i] = timer;
+    }
+
+    for (Cue cue : cuesForFrame(audioPrevious_, current))
+    {
+        audio_.play(cue);
+    }
+    audioPrevious_ = current;
+}
+
+bool Game::audioSelfTest()
+{
+    // Headless guard for the audio subsystem (issue #423, ADR-0040). The cue
+    // synthesis, mixing, and silent-fallback logic are device-free, so this runs
+    // in CI without a sound card. It fails on a broken invariant a bad subsystem
+    // would violate: an empty or silent cue, non-deterministic synthesis, a
+    // mixer that does not sum cues, a disabled Audio that is not a no-op, or an
+    // outcome mapping that cannot tell a win from a loss.
+    return Audio::selfTest();
 }
 
 bool Game::drugsSelfTest()

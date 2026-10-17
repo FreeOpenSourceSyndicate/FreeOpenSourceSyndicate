@@ -12,6 +12,7 @@
 #include "core/math/Vec2.h"
 #include "core/sim/Mission.h"
 #include "core/world/TileGrid.h"
+#include "game/Audio.h"
 #include "game/CampaignScreen.h"
 #include "game/Font.h"
 #include "game/GroundTiles.h"
@@ -236,6 +237,12 @@ public:
     // kind, and a destroyed vehicle must still draw (as a wreck). Returns false
     // on a broken invariant. Used by game_vehicles.
     bool vehicleSelfTest();
+
+    // Headless guard for the audio subsystem (issue #423, ADR-0040): the cue
+    // table must be complete, non-silent, and deterministic, mixing must sum
+    // active cues, and a disabled Audio must be a safe no-op. Needs no device,
+    // so it runs in CI. Used by the game_audio ctest.
+    bool audioSelfTest();
 
     // Headless guard for the vehicle input bindings (issue #373): `E` must
     // hijack a nearby vehicle for the selected agent and eject it again, a move
@@ -695,6 +702,26 @@ private:
 
     // Whole-board overview panel (Phase 2). Display-only; skipped when invalid.
     Minimap minimap_;
+
+    // Sound-effect player (issue #423, ADR-0040). Engine-layer and never fatal:
+    // when no device opens (a headless run, no sound card) it is a silent no-op,
+    // so the game always runs. Audio follows the view - it is triggered from the
+    // event snapshots below, never from core.
+    Audio audio_;
+
+    // The previous frame's mission events, so `cuesForFrame` can fire a cue on a
+    // *change* (a new kill, a decided outcome) and not on a steady state.
+    // View-only; it never feeds the simulation (golden rule 4).
+    AudioEvents audioPrevious_;
+
+    // Previous frame's per-agent gunfire timers. `Agent::beginFireCooldown` sets
+    // the timer to 0.75 the moment an agent fires, so a *rise* since last frame
+    // is a shot (issue #423). View-only.
+    std::vector<float> audioGunfire_;
+
+    // Picks up mission events since the last frame and plays the matching cue.
+    // Called once per `update`; a no-op when audio is disabled.
+    void updateAudio();
 
     // Per-agent view-only animation state. Kept out of core: it is presentation,
     // so it must never influence the simulation (AGENTS.md golden rule 4).

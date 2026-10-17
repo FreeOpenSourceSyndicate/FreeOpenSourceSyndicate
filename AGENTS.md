@@ -1209,6 +1209,7 @@ Do not start work outside the scope fence (ADR-0024).
   `--headless --check-shield`,
   `--headless --check-drugs`,
   `--headless --check-vehicles`,
+  `--headless --check-audio`,
   `--headless --scan [--screenshot out.bmp]`,
   `--headless --shield [--screenshot out.bmp]`,
   `--headless --drugs [--screenshot out.bmp]`,
@@ -1222,7 +1223,7 @@ Do not start work outside the scope fence (ADR-0024).
   `game_map_flag`, `game_objectives`, `game_scanner`,
   `game_scanner_screenshot`, `game_vehicles`, and
   `game_vehicles_screenshot`, `game_shield`, and `game_shield_screenshot`,
-  `game_drugs`, and `game_drugs_screenshot`
+  `game_drugs`, and `game_drugs_screenshot`, and `game_audio`
   cover the SDL layer
   headlessly.
 - **Queued-route overlay (issue #89):** the view draws a selected agent's
@@ -1298,3 +1299,29 @@ Do not start work outside the scope fence (ADR-0024).
   schema belongs in `docs/DATA_FORMAT.md` (**Content** area — a Rule 4 request,
   not an edit from World). The `--save`/`--load` CLI wiring is **Input/UI**'s
   (a separate request).
+- **Sound effects are a hand-rolled SDL2 layer (issue #423, ADR-0040).**
+  `game::Audio` (`src/game/Audio.{h,cpp}`, its own translation unit — do not grow
+  the shared `Game.cpp`) owns one `SDL_OpenAudioDevice` and a small fixed set of
+  **generated** cues (`Shoot`, `Hit`, `Explosion`, `Victory`, `Defeat`) mixed
+  into a streaming buffer fed with `SDL_QueueAudio`. **No new dependency** (SDL2
+  is already linked, so `SDL_mixer` was rejected) and **no audio asset** — every
+  cue is synthesised, so nothing can be copied from the original (golden rule 8).
+  It is **never fatal**: when no device opens (a headless run, no sound card, a
+  driver that cannot provide the baked format) it logs one `audio: disabled (...)`
+  line and stays a silent no-op, so `enabled()` is false and every later call is
+  harmless — the game always runs (AGENTS.md §1b). `Game::update` calls
+  `updateAudio()` then `audio_.update()`: `updateAudio` snapshots the frame's
+  events (the core's kill counts and mission state, plus `anyShot` derived from an
+  agent's `gunfireTimer()` *rising* — `Agent::beginFireCooldown` sets it to 0.75
+  on every shot) and turns them into cues through the **pure, device-free
+  `cuesForFrame(previous, current)`**, which fires only on a *change* (a new kill,
+  a decided outcome) so a steady state is silent and a kill/outcome fires once.
+  View-only; it never writes core (golden rule 4). A headless run opens no device
+  at all. **SFX are in scope for v1.0.0; music is not** (ADR-0024). The
+  `--check-audio` guard (ctest `game_audio`) drives the real synthesis/mixing path
+  and the real `cuesForFrame` mapping with no device: it fails on an empty or
+  silent cue, non-deterministic synthesis, a mixer that does not sum cues, a
+  disabled `Audio` that is not a no-op, a steady frame that fires a cue, or a
+  kill/outcome that fires twice or maps to the wrong cue. The `docs/BUILD.md`
+  audio-troubleshooting note is a **Release**-owned follow-up (a Rule 4 request,
+  not an edit from Platform).

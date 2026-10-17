@@ -2347,3 +2347,61 @@ ever wants it gone, the delete is a self-contained removal of the three regexes,
     filed as a separate request; this ADR fixes only the format and the helper.
 
 ---
+
+## ADR-0040 — Audio is a hand-rolled SDL2 SFX layer, not SDL_mixer
+
+- **Status:** Accepted (2026-10-17)
+- **Date:** 2026-10-17
+- **Context:** Milestone C adds **audio** to the clone. The maintainer ruled that
+  **sound effects (SFX) are in scope for v1.0.0** and **music is not** (the 1993
+  original's music is not part of the faithful *gameplay* target, ADR-0024). No
+  audio code existed: `Game::init` requested `SDL_INIT_VIDEO` only, there was no
+  device, no mixer, and no cue anywhere in the loop. The subsystem must run on the
+  low-spec target (AGENTS.md 1b) - a software-rendered, small-binary build for
+  ~2010 integrated graphics - and must be **safe headless**, because every CI job
+  and most ctests boot the game with the dummy video driver and no audio device.
+  It must not introduce a licensing risk (golden rule 8): the original's sound
+  files are off-limits, so every cue has to be **synthesised** by us.
+- **Options:**
+  1. **Link `SDL_mixer` and ship WAV/OGG cue files.** Rejected: a new runtime
+     dependency (AGENTS.md 1c) and extra binary weight for a handful of short
+     blips; it also invites shipping a *file* per cue, which is where a ripped
+     asset would hide. `SDL_mixer` earns its place when music and streamed audio
+     matter, which is exactly what is out of scope.
+  2. **Hand-roll over SDL2's own audio API** (`SDL_OpenAudioDevice` +
+     `SDL_QueueAudio`), synthesising short PCM buffers in code. Chosen: SDL2 is
+     already a dependency, so this adds **no new library**; cues are generated,
+     so **no asset can be copied**; the code is small; and a failure to open a
+     device degrades to silence instead of aborting a run.
+- **Decision:** **Option 2.** `game::Audio` (`src/game/Audio.{h,cpp}`,
+  engine-layer - it includes `<SDL.h>`, so it never lives in `src/core/`, golden
+  rule 1) owns one output device and a small fixed set of **generated** cues
+  (`Shoot`, `Hit`, `Explosion`, `Victory`, `Defeat`). Each cue is a short PCM
+  tone/noise envelope built once at init; `play(cue)` mixes it into a streaming
+  buffer that `update()` feeds to the device with `SDL_QueueAudio`.
+  `Audio::init()` requests `SDL_INIT_AUDIO` and a device, and on **any** failure
+  (no device, dummy driver, unsupported format) it logs once to stderr and enters
+  a **silent no-op** state: every later call is harmless and `enabled()` returns
+  false. Audio is therefore never fatal - the game always runs, with or without a
+  sound card.
+- **Consequences:**
+  - **No new dependency and no new asset.** The only new build input is the
+    source file; the low-spec size gate (AGENTS.md 1b, `scripts/check-size.sh`)
+    is the check that this stayed cheap, and the budget may be raised only with a
+    recorded justification.
+  - **Headless is safe by construction.** A headless run (`--headless`, the dummy
+    driver) opens no device and stays silent; the `--check-audio` guard drives the
+    real subsystem and asserts the cue table and the silent fallback, so the code
+    path is covered without a sound card.
+  - **The subsystem must be *used*, not just present** (the "capability landed but
+    never wired in" trap of #99/#101): `Game` plays `Victory`/`Defeat` when the
+    mission outcome changes, and `Shoot`/`Hit`/`Explosion` from the combat events
+    the core already reports. New cues are added to the enum and the generator,
+    never as files.
+  - **Music is out of scope for v1.0.0** (ADR-0024); if it is ever wanted it is a
+    v2.x.x concern and would revisit option 1 (a streamed-audio dependency).
+  - Audio follows the **view**: it is triggered from `Game` (the engine layer)
+    from state the core already computes. The core never plays a sound and stays
+    SDL-free (golden rule 1/4).
+
+---

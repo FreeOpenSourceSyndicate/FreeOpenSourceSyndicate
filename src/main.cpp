@@ -73,6 +73,7 @@ void printUsage()
         "      --check-drugs          Validate the performance-drug aura overlay.\n"
         "      --check-vehicles       Validate vehicle rendering.\n"
         "      --check-vehicle-input  Validate the hijack/drive/exit keys.\n"
+        "      --check-audio          Validate the sound-effect cue table.\n"
         "      --check-objectives     Validate the objective banner for every kind.\n"
         "      --check-campaign       Validate the campaign management loop.\n"
         "      --check-deploy         Validate deploying a mission from the map.\n"
@@ -185,6 +186,7 @@ int main(int argc, char** argv)
     bool spawnVehicles = false;           // --vehicle
     bool checkVehicles = false;           // --check-vehicles
     bool checkVehicleInput = false;       // --check-vehicle-input
+    bool checkAudio = false;              // --check-audio
     bool checkSprites = false;
     bool checkMinimap = false;
     bool checkSelection = false;
@@ -362,6 +364,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-vehicle-input") == 0)
         {
             checkVehicleInput = true;
+        }
+        else if (std::strcmp(argv[i], "--check-audio") == 0)
+        {
+            checkAudio = true;
         }
         else if (std::strcmp(argv[i], "--check-objectives") == 0)
         {
@@ -784,6 +790,17 @@ int main(int argc, char** argv)
         // vehicle must still draw as a wreck. Used by the game_vehicles ctest.
         const bool ok = game.vehicleSelfTest();
         std::printf(ok ? "vehicles: ok\n" : "vehicles: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkAudio)
+    {
+        // Headless guard for the audio subsystem (issue #423, ADR-0040): the cue
+        // table must be complete, non-silent, and deterministic, mixing must sum
+        // active cues, and a disabled Audio must be a safe no-op. Needs no
+        // device, so it runs in CI. Used by the game_audio ctest.
+        const bool ok = game.audioSelfTest();
+        std::printf(ok ? "audio: ok\n" : "audio: FAILED\n");
         return ok ? 0 : 1;
     }
 
