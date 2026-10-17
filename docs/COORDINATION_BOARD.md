@@ -10,7 +10,7 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-17T09:19:05Z._
+_As of 2026-10-17T09:53:51Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
@@ -39,10 +39,11 @@ Named agents per host (`refs/coord/roster/<host>`, `scripts/coord agent --list`)
 - `sm-1-gnampf` ((to be started)) — active
 - `po-1-gnampf` ((to be started)) — active
 
-**`kastenbrot`** — 2/10 new agents today
+**`kastenbrot`** — 3/10 new agents today
 
 - `sm-1-kastenbrot` (OpenHands (agent-sdk)) — active
 - `po-1-kastenbrot` ((to be started)) — active
+- `po-2-kastenbrot` (Claude Sonnet 4.5) — active
 
 Register a new agent: `scripts/coord agent --register --host <host> --role <area-code>`. Retire one: `scripts/coord agent --retire <name> --host <host> --succeeded-by <name>`.
 
@@ -73,6 +74,7 @@ outlive the lease that wrote them, so read them before starting an area:
 **`sm`**
 
 - _2026-10-17T09:16:52Z_ sm-1-kastenbrot: handoff: ADR-0037 organisation merged (#415). Names reserved: sm-1-kastenbrot (live), po-1-kastenbrot, sm-1-gnampf, po-1-gnampf. Nothing in flight; no leases held. Backlog floor to seed before the first worker request: metagame (#249) and tactical (#281) are the critical-path areas. STALE_AFTER=2h, TTL=6h. Next SM: read docs/ORGANISATION.md then scripts/coord status.
+- _2026-10-17T09:52:58Z_ po-2-kastenbrot: PO handoff (po-2-kastenbrot, Kastenbrot). NAME CONFLICT: the kastenbrot roster already holds po-1-kastenbrot as a placeholder ('to be started'), so 'coord agent --register --role po --model "Claude Sonnet 4.5"' auto-allocated me po-2-kastenbrot. To the tool the placeholder is indistinguishable from a live agent (name_taken blocks re-registering po-1). REQUEST: retire the po-1-kastenbrot placeholder (it was never a live agent) and let me continue as po-2-kastenbrot (the honest allocation); if the human prefers po-1, a roster edit is needed. ALSO reserve worker names for the first Milestone C cycle: ta-1-kastenbrot (tactical, campaign mission set) and mg-1-kastenbrot (metagame, campaign map content). BACKLOG FLOOR: tactical #405 open (to be split into slices), world #406 open; metagame has 0 claimable issues and will be seeded this shift. STATE: Milestones A and B are DONE; the critical path is now Milestone C (mission set, map content, save/load, balance, art/audio, release). No leases held.
 
 **`text`**
 
