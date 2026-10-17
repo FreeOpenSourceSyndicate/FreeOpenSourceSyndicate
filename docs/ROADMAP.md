@@ -177,6 +177,10 @@ Turn the systems into a game.
 
 - [ ] **Mission set**: enough missions to form a campaign (data-driven).
 - [ ] **Original art and audio** (`docs/ASSETS.md`); pixel art per ADR-0009.
+      _The **audio subsystem** has landed (issue #423, ADR-0040): `game::Audio`
+      plays generated SFX cues and degrades to silence when no device is present.
+      SFX are in scope for v1.0.0; **music is not**. Authoring per-mission sound
+      content stays on this line._
 - [ ] **Save/load** between sessions (the original saved progress).
 - [ ] **Balance pass** on weapons, economy, and research pacing.
 - [ ] **v1.0.0 release**: tag, GitHub Release, `docs/releases/`, CHANGELOG.
