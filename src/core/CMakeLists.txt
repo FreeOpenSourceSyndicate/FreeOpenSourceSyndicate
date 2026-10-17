@@ -6,6 +6,7 @@
 
 set(FOSSYND_CORE_SOURCES
     math/Isometric.cpp
+    util/CampaignSave.cpp
     world/TileGrid.cpp
     world/Pathfinding.cpp
     world/Vehicle.cpp

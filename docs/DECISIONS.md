@@ -2212,7 +2212,6 @@ ever wants it gone, the delete is a self-contained removal of the three regexes,
     `tests/test_coord.py`; the coord fallback keeps coordination working if the
     data file is broken.
 
-
 ---
 
 ## ADR-0038 — SM-owned infrastructure areas, direct agent messages, and a bootstrapping SM
@@ -2289,3 +2288,62 @@ ever wants it gone, the delete is a self-contained removal of the three regexes,
   - New surface (`msg`/`inbox`; `sm_owned` routing) is covered by
     `tests/test_coord.py`; the built-in fallback still carries the ten areas and
     `sm_owned` when the data file is missing or corrupt.
+
+---
+
+## ADR-0039 — Save games are a versioned progress overlay on the base campaign
+
+- **Status:** Accepted (2026-10-17)
+- **Date:** 2026-10-17
+- **Context:** Milestone C adds **save/load between sessions** (the original saved
+  progress). `docs/METAGAME.md` §10 lists it as an open question and says a
+  `Campaign` round-trip is "a schema change owned by Content and needs an ADR",
+  because a save is a new on-disk format that several areas read. No persistence
+  existed: every session started fresh. A save has to be versioned (a later build
+  must not silently misread an older file), reject corrupt input with a readable
+  error, stay engine-free (golden rule 1, ADR-0002), and be small enough for the
+  low-spec target (AGENTS.md §1b).
+- **Options:**
+  1. **Serialise the whole `Campaign`, including topology** (the territory graph,
+     research tree, and equipment catalogue). Rejected: it duplicates authored
+     content into every save, so a content edit and an old save diverge silently,
+     and the save grows without bound as content grows.
+  2. **A binary save.** Rejected: not diffable or hand-inspectable, and it would
+     need a second parser beside the JSON reader we already ship (ADR-0003), for
+     no gain at this size.
+  3. **A versioned JSON overlay of *progress only*, applied on top of the base
+     campaign file.** Chosen: the save carries only what the player changed —
+     per-territory ownership/tax, the funds ledger, research progress, and squad
+     loadouts — and the topology comes from the same `--campaign` file the game
+     already loads. Small, diffable, reuses the existing dependency-free parser,
+     and keeps authored content in one place.
+- **Decision:** **Option 3.** The format lives in `src/core/util/CampaignSave.*`
+  (`focus: world`), is plain-text JSON with a mandatory `"format":
+  "fossynd-save"` tag and an integer `"version"` (currently `1`), and is
+  documented in `docs/DATA_FORMAT.md`. `CampaignSave::parse` rejects a missing or
+  wrong format tag and an unsupported version *before* trusting any field, so an
+  old or foreign file fails with a readable error. The API is
+  `capture(Campaign) -> CampaignSave`, `serialize`/`parse`, `saveToFile`/
+  `loadFromFile`, and `applyTo(Campaign&)`, all SDL-free and unit-tested
+  (`tests/test_persistence.cpp`). The persisted object stays **metagame-owned**
+  (`core/economy/**`): the helper only reads and writes it through its frozen
+  public API, and a field that API cannot set is filed as a Rule 4 request to
+  metagame rather than edited from `world`.
+- **Consequences:**
+  - A save is an **overlay**: loading means "load the base campaign, then apply
+    the save". A save whose territory set does not match the loaded campaign is
+    rejected, not partially applied.
+  - **Research progress is captured and serialised but not yet reapplied**: the
+    frozen `Research` API has no restore setter, so writing it back needs a
+    metagame accessor (Rule 4 request). Until that lands, a loaded campaign keeps
+    the base file's research state; the save format already carries the fields, so
+    wiring the setter later is not a format change.
+  - The version tag is the compatibility contract: an incompatible schema change
+    bumps `kVersion`, and an older build rejects the newer file rather than
+    guessing. A future `Campaign`-level accessor that hides the composition could
+    move `capture`/`applyTo` onto `Campaign` itself, but the on-disk format stays
+    the same.
+  - Wiring `--save`/`--load` (or autosave) into the CLI is `focus: input-ui`'s,
+    filed as a separate request; this ADR fixes only the format and the helper.
+
+---
