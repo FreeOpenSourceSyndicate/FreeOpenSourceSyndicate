@@ -10,12 +10,12 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-17T10:52:20Z._
+_As of 2026-10-17T11:17:07Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
-| `tactical` | — | free | — |
-| `world` | — | free | — |
+| `tactical` | ta-1-kastenbrot · #416 | claimed | 5h |
+| `world` | wo-1-kastenbrot · #406 | claimed | 5h |
 | `render` | — | free | — |
 | `input-ui` | — | free | — |
 | `content` | — | free | — |
