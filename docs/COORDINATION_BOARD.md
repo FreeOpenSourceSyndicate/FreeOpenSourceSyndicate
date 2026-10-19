@@ -10,7 +10,7 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-19T08:32:42Z._
+_As of 2026-10-19T09:29:01Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
