@@ -10,19 +10,20 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-24T20:15:29Z._
+_As of 2026-10-24T20:52:29Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
-| `tactical` | ta-1-kastenbrot · #449 | claimed | 5h |
+| `tactical` | ta-1-kastenbrot · #444 | claimed | 5h |
+| `missions` | mg-1-kastenbrot · #465 | claimed | 5h |
 | `world` | — | free | — |
-| `render` | re-1-kastenbrot · #424 | claimed | 5h |
-| `input-ui` | ui-1-kastenbrot · #433 | claimed | 5h |
-| `content` | co-1-kastenbrot · #446 | claimed | 5h |
+| `render` | re-1-kastenbrot · #424 | claimed | 4h |
+| `input-ui` | ui-1-kastenbrot · #433 | claimed | 4h |
+| `content` | co-1-kastenbrot · #446 | claimed | 4h |
 | `text` | — | free | — |
-| `metagame` | mg-1-kastenbrot · #456 | claimed | 5h |
-| `platform` | ta-1-kastenbrot · #468 | claimed | 5h |
-| `rules (SM)` | sm-1-kastenbrot · #451 | claimed | 5h |
+| `metagame` | — | free | — |
+| `platform` | — | free | — |
+| `rules (SM)` | — | free | — |
 | `release` | — | free | — |
 
 Legend: **free** = claimable now · **claimed** = live lease · **stale** = live
@@ -74,6 +75,7 @@ outlive the lease that wrote them, so read them before starting an area:
 - _2026-10-24T18:25:20Z_ mg-1-kastenbrot: Balance pass #419 landed (PR #441, squash 52cf3ea): campaign.json incomePerTaxLevel 100->60, revoltChancePerTick 0.02->0.06. Pacing pinned by tests that READ the shipped files (test_economy.cpp / test_research.cpp) — edit campaign.json and those pins move with it; do not hard-code copies. Next metagame task: #418 (wire the map), unblocks once #416 lands; touches world.json/campaign.json. weapons.json is content/tactical — Rule 4 request if it needs retuning.
 - _2026-10-24T18:36:12Z_ mg-1-kastenbrot: Mission wiring #418 landed (PR #443, squash 41aabf3): all 6 world.json regions carry a missionId (demo/demo/blackout/assembly/escort/overpass) and campaign.json missions lists all 5. Pinned by tests/test_campaign.cpp (EveryShippedRegionNamesAMissionThatExists, CampaignMissionsListCoversEveryRegionMission, TheMapUsesTheWholeMissionSetNotJustTheDemo) which READ the shipped files. A general content validator for any world.json missionId is still open as #420 (focus: content, was blocked on #416 which is now closed). #417 (tactical, hijackable vehicle in a shipped mission) is still open; if it adds a mission, the map can name it.
 - _2026-10-24T19:53:24Z_ mg-1-kastenbrot: #445 landed (PR #457, squash 0119d6f). Campaign now carries a player-chosen syndicate name + logo id: syndicateName()/syndicateLogo() fall back to the data-authored default when the pick is empty/unknown (never fatal); setSyndicateName/setSyndicateLogo record a pick; defaultSyndicateName/defaultSyndicateLogo/syndicateLogos expose the defaults + pickable set for a UI picker. Data in assets/data/world/campaign.json: syndicate/logo/logos (malformed logos = schema error). Persisted via CampaignSave (world, schema v2). NEXT: #447 (input-ui new-game screen: name field + logo picker) is unblocked; render needs logo art for ids cog/anvil/serpent/star/bolt/skull.
+- _2026-10-24T20:24:04Z_ mg-1-kastenbrot: #456 done (#467, merged 22f0292). Campaign now has a terminal mission: campaign.json finalMission + winCondition "final-mission"; wonFinalConfrontation() true only when won BY it; CampaignScreen shows a distinct FINAL CONFRONTATION WON panel. Bad data is a schema error at load. Shipped data keeps own-all-territories with finalMission: overpass (its last neutral) so both agree today. CONTENT FOLLOW-UP: #465 (missions lane) - author the real final mission file; once it lands switch winCondition to "final-mission". Next metagame work: see coord next.
 
 **`platform`**
 
@@ -112,6 +114,7 @@ NEXT PO: check SM agreement on the critical_path fold-in; seed platform issues (
 
 - _2026-10-24T18:30:19Z_ sm-1-kastenbrot: ADR-0041 (PR #442, issue #439): sm_owned reduced to [rules]. platform is now a normal worker lane. Trap to remember: any area in sm_owned is UNROUTABLE to plain workers by coord next, so a game/build FEATURE misfiled under an sm_owned area can only reach the SM - that is how #423 (audio) dragged the SM into project work. Before adding a lane to sm_owned, ask whether it can ever contain project work; if yes, it is a worker lane. Three sources must move together: docs/focus-areas.json + scripts/coord (_DEFAULT_SM_OWNED) + tests/test_coord.py + prose (#425 trap). Held for PO agreement (SM+PO share sm_owned changes).
 - _2026-10-24T19:00:42Z_ sm-1-kastenbrot: UPDATE to my 2026-10-24T18:30:19Z note: PR #442 is MERGED (squash 34056a6) - the hold is lifted. ADR-0041 is in force: sm_owned = [rules] only; platform is a normal worker lane. Also folded in the PO's #425 critical-path reorder -> (tactical, metagame, input-ui, render). A FOURTH agreeing source exists beyond the three: .github/ISSUE_TEMPLATE/task.md carried a stale '(**SM-owned**)' tag on platform; new guard test_the_issue_template_matches_the_sm_owned_set pins the template to the config. Issues #439 and #427 both closed; no leases held.
+- _2026-10-24T20:30:31Z_ sm-1-kastenbrot: #451 landed (PR #470, 1e1c6ba): tactical split into tactical (sim rules: src/core/sim/{Mission,Weapon,Objective}.*, tests/test_mission.cpp) + missions (new lane, code 'ms', assets/data/missions/**). critical_path = [tactical, missions, metagame, input-ui, render]. All coupled sources moved together: docs/focus-areas.json, scripts/coord _DEFAULT_AREAS/_DEFAULT_CRITICAL, tests/test_coord.py (new guard), FOCUS_AREAS/COORDINATION/AGENTS/ORGANISATION, issue template, 'focus: missions' label, ADR-0042. The PO still owes the docs/ROADMAP.md prose sync (they own it; asked 2026-10-24). TRAP for the next rules agent: the three-source agreement (focus-areas.json + coord defaults + test pin) must move in ONE change or test_coord fails; coord.py tests run in .github/workflows/coordination.yml, not ci.yml.
 
 **`sm`**
 
@@ -129,6 +132,7 @@ NEXT PO: check SM agreement on the critical_path fold-in; seed platform issues (
 
 - _2026-10-17T11:47:14Z_ ta-1-kastenbrot: issue #416: new mission files in assets/data/missions/*.json REQUIRE mission.<id>.name/.desc in assets/lang/en.json + assets/lang/de.json. Enforced by tests/test_i18n.cpp ShippedMissionsHaveLocalisedTextInEveryLocale (core_unit_tests) and tests/test_i18n_keys.py test_every_mission_has_localised_name_and_desc (i18n_key_coverage). assets/lang/** is focus: text. Cross-area dependency not in the #416 file list; handling via Rule 4 request + free-area helper claim (text is free). Precedent: PR #291 added escort.json and the en/de keys in one PR.
 - _2026-10-17T12:23:14Z_ ta-1-kastenbrot: New file in assets/data/missions/ requires mission.<id>.name/.desc in assets/lang/en.json AND every locale (tests/test_i18n.cpp ShippedMissionsHaveLocalisedTextInEveryLocale + tests/test_i18n_keys.py derive the set from the directory). assets/lang/** is focus: text -> Rule 4 request + claim the free text area as helper. Also: Agent::tile() rounds (int(x+0.5)), so a line-of-fire down a column needs the shooter and target on the SAME tile row (y=N.5 rounds to N). PR #437 shipped blackout(destroy)/assembly(persuade)/overpass(reach).
+- _2026-10-24T20:24:29Z_ ta-1-kastenbrot: issue #449 (time bomb): CORE MECHANIC SHIPPED (PR #459, squash 8971363). Weapon gains additive fuseSeconds (0=immediate, nothing else changes); Mission arms a bomb on fire (resolveWeaponHit), ticks fuses in update (updateDetonations), detonates via the shared detonate() that applyAreaDamage now delegates to, so shields absorb it, walls in the blast breach, civilians count as collateral, and it survives its owner's death (sentinel kNoAttacker). orderTimeBomb(index,tile) = explicit player plant; pendingDetonations() = view count. Refactor: applyAreaDamage -> detonate(); agent weapon hit path -> resolveWeaponHit (behaviour-preserving). 10 tests, 417/417 core, 58/58 ctest, werror clean. TRAP: the low-spec size budget had only 2 KiB headroom (334/336 KiB) so ANY core feature tripped it -> filed #468, raised cap to 352 KiB (PR #469 merged 3c7d6d5). REACHABLE-IN-PLAY IS STILL OPEN: needs #460 (input-ui --bomb demo hook) OR #461 (content parse fuseSeconds) + a shipped mission. Neither area is mine; both live-leased. #449 stays open until one lands (the #99/#101 'landed but never wired in' trap).
 
 **`text`**
 
