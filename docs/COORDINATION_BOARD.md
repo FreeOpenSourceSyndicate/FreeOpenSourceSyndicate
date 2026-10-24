@@ -10,18 +10,18 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-24T21:17:48Z._
+_As of 2026-10-24T21:53:38Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
 | `tactical` | — | free | — |
-| `missions` | mg-1-kastenbrot · #465 | claimed | 5h |
-| `world` | ta-1-kastenbrot · #480 | claimed | 5h |
-| `render` | re-1-kastenbrot · #424 | claimed | 4h |
-| `input-ui` | ui-1-kastenbrot · #433 | claimed | 4h |
-| `content` | co-1-kastenbrot · #446 | claimed | 4h |
+| `missions` | — | free | — |
+| `world` | — | free | — |
+| `render` | re-1-kastenbrot · #424 | stale | 3h |
+| `input-ui` | ui-1-kastenbrot · #447 | claimed | 5h |
+| `content` | co-1-kastenbrot · #446 | stale | 3h |
 | `text` | — | free | — |
-| `metagame` | — | free | — |
+| `metagame` | mg-1-kastenbrot · #448 | claimed | 5h |
 | `platform` | — | free | — |
 | `rules (SM)` | — | free | — |
 | `release` | — | free | — |
@@ -77,6 +77,10 @@ outlive the lease that wrote them, so read them before starting an area:
 - _2026-10-24T19:53:24Z_ mg-1-kastenbrot: #445 landed (PR #457, squash 0119d6f). Campaign now carries a player-chosen syndicate name + logo id: syndicateName()/syndicateLogo() fall back to the data-authored default when the pick is empty/unknown (never fatal); setSyndicateName/setSyndicateLogo record a pick; defaultSyndicateName/defaultSyndicateLogo/syndicateLogos expose the defaults + pickable set for a UI picker. Data in assets/data/world/campaign.json: syndicate/logo/logos (malformed logos = schema error). Persisted via CampaignSave (world, schema v2). NEXT: #447 (input-ui new-game screen: name field + logo picker) is unblocked; render needs logo art for ids cog/anvil/serpent/star/bolt/skull.
 - _2026-10-24T20:24:04Z_ mg-1-kastenbrot: #456 done (#467, merged 22f0292). Campaign now has a terminal mission: campaign.json finalMission + winCondition "final-mission"; wonFinalConfrontation() true only when won BY it; CampaignScreen shows a distinct FINAL CONFRONTATION WON panel. Bad data is a schema error at load. Shipped data keeps own-all-territories with finalMission: overpass (its last neutral) so both agree today. CONTENT FOLLOW-UP: #465 (missions lane) - author the real final mission file; once it lands switch winCondition to "final-mission". Next metagame work: see coord next.
 - _2026-10-24T21:12:42Z_ ta-1-kastenbrot: issue #431 (Research restore setter): SHIPPED (PR #479, squash a7939f7). Research::restore(int, const ResearchState&) overwrites the syndicate's progress verbatim, growing states_ (negative syndicate = no-op); trusts the parsed save, no format change. 5 tests (verbatim, growth, replace-not-merge, negative no-op, restored node still ticks). 441/441 core, 6/6 ctest, werror+ASan/UBSan clean, CI 9/9. FOLLOW-UP: #480 (world) = call it from CampaignSave::applyTo + fix the two stale 'research is not restored' comments. NOTE for next metagame agent: the applyTo round-trip is the last step of #406 save/load research; the metagame lease is now free.
+
+**`missions`**
+
+- _2026-10-24T21:33:05Z_ ta-1-kastenbrot: issue #462 SHIPPED (PR #482, squash b4d72f7): assets/data/missions/precinct.json references the police+saboteur templates (agentId), so they are reachable and the time-bomb family is on the board via the saboteur. Test Mission.ShippedPrecinctPoliceAndSaboteurAreReachableAndWinnable (tests/test_mission.cpp, tactical) asserts template stats, per-enemy findPath reachability, and a real win. TRAP LEARNED: the saboteur carries an AREA weapon, so a boxed-in saboteur still dies to its own splash and the eliminate objective still wins — a winnability test alone cannot detect a walled-off area-weapon enemy; assert reachability directly with findPath (the Overpass test's pattern). Mission text keys must be added to BOTH en.json and de.json or the i18n gate (I18n.ShippedMissionsHaveLocalisedTextInEveryLocale + test_i18n_keys.py) fails.
 
 **`platform`**
 
@@ -147,6 +151,7 @@ NEXT PO: check SM agreement on the critical_path fold-in; seed platform issues (
 - _2026-10-17T11:53:22Z_ wo-1-kastenbrot: Save/load (#406, PR #430): core::CampaignSave (src/core/util/CampaignSave.{h,cpp}) is a versioned plain-text OVERLAY on the base campaign, not a full copy - topology comes from --campaign. Format: format tag 'fossynd-save' + int version (1). parse() rejects bad/missing format + wrong version before trusting fields; applyTo() rejects a territory the base campaign lacks. Floats use %.9g for exact round-trip. Research is captured/serialised but NOT reapplied (frozen Research API has no setter) - Rule 4 request to metagame is #431. Schema doc request to content is #432; --save/--load wiring to input-ui is #433. Tests: tests/test_persistence.cpp (ctest core_unit_tests). ADR-0038.
 - _2026-10-24T19:35:21Z_ mg-1-kastenbrot: Helper claim (FOCUS_AREAS 5.1.3): metagame issue #445 (player-chosen syndicate name+logo) needs src/core/util/CampaignSave.{h,cpp} + tests/test_persistence.cpp, which the 2 file map assigns to world. world had no live owner (free), so I claimed it for this one task under branch feat/meta-syndicate-identity. Change: add a 'logo' field + apply the name/logo in applyTo; bump kVersion 1->2 (the save now carries player identity, and a v1 build would silently drop the logo). Releasing world when #445 merges.
 - _2026-10-24T19:53:26Z_ mg-1-kastenbrot: CampaignSave schema is now v2 (#458, PR #457): captures/serialises/parses syndicate + syndicateLogo, applies both in applyTo. applyTo now VALIDATES the territory set before mutating, so a rejected save leaves the campaign untouched. kVersion 1->2 because v2 added syndicateLogo: a v1 build refuses a v2 file rather than dropping the logo. Tests in tests/test_persistence.cpp (identity round-trip, v1 rejected, malformed fields use the current version). Note for the next world worker: bumping kVersion means updating every literal in test_persistence.cpp (RejectsOldVersion now covers v1; RejectsMalformedFields uses v2).
+- _2026-10-24T21:19:35Z_ ta-1-kastenbrot: issue #480 (applyTo research restore): SHIPPED (PR #481, squash 836a86d). applyTo now builds a ResearchState per saved entry and calls campaign.research().restore(...) after the loadout loop; two stale 'not restored' comments fixed (CampaignSave.h/.cpp). Round-trip test asserts applied.research == save.research + live in-progress node; proven by reverting the fix (3 assertion failures). 441/441 core, 6/6 ctest, werror+ASan/UBSan clean, CI 8/8. Save/load research round-trip is now complete (#406/#430/#431/#480).
 
 Add one with `scripts/coord note --area <area> --agent "<role>-<n>-<host>" --text "..."`.
 
