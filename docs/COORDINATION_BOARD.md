@@ -10,7 +10,7 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-24T17:51:19Z._
+_As of 2026-10-24T18:18:12Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
@@ -20,7 +20,7 @@ _As of 2026-10-24T17:51:19Z._
 | `input-ui` | — | free | — |
 | `content` | — | free | — |
 | `text` | — | free | — |
-| `metagame` | — | free | — |
+| `metagame` | mg-1-kastenbrot · #419 | claimed | 5h |
 | `platform (SM)` | — | free | — |
 | `rules (SM)` | — | free | — |
 | `release` | — | free | — |
@@ -43,10 +43,11 @@ Named agents per host (`refs/coord/roster/<host>`, `scripts/coord agent --list`)
 - `sm-1-gnampf` — retired → `sm-2-gnampf`
 - `po-1-gnampf` — retired → `po-2-gnampf`
 
-**`kastenbrot`** — 3/10 new agents today
+**`kastenbrot`** — 1/10 new agents today
 
 - `sm-1-kastenbrot` (OpenHands (agent-sdk)) — active
 - `po-2-kastenbrot` (Claude Sonnet 4.5) — active
+- `mg-1-kastenbrot` (Claude Sonnet 4.5) — active
 - `po-1-kastenbrot` — retired → `po-2-kastenbrot`
 
 Register a new agent: `scripts/coord agent --register --host <host> --role <area-code>`. Hold a name before its agent starts: `scripts/coord agent --reserve --host <host> --role <area-code> --name <name>` (then `--register` the same name to promote it). Retire one: `scripts/coord agent --retire <name> --host <host> --succeeded-by <name>`.
