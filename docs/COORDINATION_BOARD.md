@@ -10,7 +10,7 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-24T18:18:12Z._
+_As of 2026-10-24T18:58:17Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
@@ -20,8 +20,8 @@ _As of 2026-10-24T18:18:12Z._
 | `input-ui` | — | free | — |
 | `content` | — | free | — |
 | `text` | — | free | — |
-| `metagame` | mg-1-kastenbrot · #419 | claimed | 5h |
-| `platform (SM)` | — | free | — |
+| `metagame` | — | free | — |
+| `platform` | — | free | — |
 | `rules (SM)` | — | free | — |
 | `release` | — | free | — |
 
@@ -29,9 +29,9 @@ Legend: **free** = claimable now · **claimed** = live lease · **stale** = live
 but quiet for > 2h — the holder may still be working, but a
 `coord claim --takeover` (or letting the TTL run out) is fair game · **blocked** /
 **needs-review** = the holder set the state. Pending workload per area is the
-open-issue count on GitHub. **(SM)** marks an SM-owned infrastructure area
-(`platform`, `rules`): the Scrum Master triggers it and a plain worker is
-never routed to it (docs/ORGANISATION.md §1).
+open-issue count on GitHub. **(SM)** marks the Scrum Master's own lane
+(`rules`, the process docs): the SM triggers it and a plain worker is
+never routed to it (docs/ORGANISATION.md §1, ADR-0041).
 
 ## Roster
 
@@ -57,6 +57,11 @@ Register a new agent: `scripts/coord agent --register --host <host> --role <area
 Cross-cycle notes left by earlier processes (`refs/coord/notes/*`). These
 outlive the lease that wrote them, so read them before starting an area:
 
+**`metagame`**
+
+- _2026-10-24T18:25:20Z_ mg-1-kastenbrot: Balance pass #419 landed (PR #441, squash 52cf3ea): campaign.json incomePerTaxLevel 100->60, revoltChancePerTick 0.02->0.06. Pacing pinned by tests that READ the shipped files (test_economy.cpp / test_research.cpp) — edit campaign.json and those pins move with it; do not hard-code copies. Next metagame task: #418 (wire the map), unblocks once #416 lands; touches world.json/campaign.json. weapons.json is content/tactical — Rule 4 request if it needs retuning.
+- _2026-10-24T18:36:12Z_ mg-1-kastenbrot: Mission wiring #418 landed (PR #443, squash 41aabf3): all 6 world.json regions carry a missionId (demo/demo/blackout/assembly/escort/overpass) and campaign.json missions lists all 5. Pinned by tests/test_campaign.cpp (EveryShippedRegionNamesAMissionThatExists, CampaignMissionsListCoversEveryRegionMission, TheMapUsesTheWholeMissionSetNotJustTheDemo) which READ the shipped files. A general content validator for any world.json missionId is still open as #420 (focus: content, was blocked on #416 which is now closed). #417 (tactical, hijackable vehicle in a shipped mission) is still open; if it adds a mission, the map can name it.
+
 **`platform`**
 
 - _2026-10-16T09:48:12Z_ OpenHands: Size cap raised 288->320 KiB (#356) so data-only catalogues do not fail spuriously; vehicles.json is now packaged (#357). Adding a catalogue to assets/data/*.json requires BOTH src/CMakeLists.txt install() and scripts/check-package-contents.sh to see it; the latter derives from the tree and fails CI if not.
@@ -77,6 +82,10 @@ outlive the lease that wrote them, so read them before starting an area:
 - _2026-10-16T11:55:13Z_ OpenHands: v0.8.0 'Dominion' SHIPPED: PR #352 merged to main (c56da0c), annotated tag v0.8.0 cut on main tip and pushed, GitHub Release page created with banner.png. ctest 51/51, run_tests 367/367, low-spec 287 KiB. Auth note: platform re-injects the stale GITHUB_TOKEN; the working PAT is pinned at ~/.openhands-github-token (git credential store + ~/.bashrc hook).
 - _2026-10-16T15:47:10Z_ OpenHands: docs/BUILD.md sync for #285 shipped: PR #389 squash-merged to main (5d5e200). Added the E (hijack/exit vehicle) row to the controls table and --shield / --check-shield to the flag tables. Audited: 42/42 flags match src/main.cpp --help, controls match Game.cpp, all ctest refs exist. Local ctest 55/55. CI green.
 - _2026-10-16T16:36:59Z_ OpenHands: Major-version gate codified (#402, PR #404 merged 95fbdfc). AGENTS.md §6a-i + ADR-0036: no major version (X.0.0) rolls out until a feature-complete candidate (whole Definition of Done, no carve-outs) is buildable+playable by a human and approved via docs/releases/MAJOR_RELEASE_GATE.md. Candidates tagged vX.Y.Z-rc.N (immutable, §6b); final tag only on approval; gate is human-owned (agents never self-approve). v1.0.0 NOT yet candidate-able (Milestone C open: destructible env, mission set, art/audio, save/load, balance). Docs-only; CI green (9/9).
+
+**`rules`**
+
+- _2026-10-24T18:30:19Z_ sm-1-kastenbrot: ADR-0041 (PR #442, issue #439): sm_owned reduced to [rules]. platform is now a normal worker lane. Trap to remember: any area in sm_owned is UNROUTABLE to plain workers by coord next, so a game/build FEATURE misfiled under an sm_owned area can only reach the SM - that is how #423 (audio) dragged the SM into project work. Before adding a lane to sm_owned, ask whether it can ever contain project work; if yes, it is a worker lane. Three sources must move together: docs/focus-areas.json + scripts/coord (_DEFAULT_SM_OWNED) + tests/test_coord.py + prose (#425 trap). Held for PO agreement (SM+PO share sm_owned changes).
 
 **`sm`**
 
