@@ -1,7 +1,7 @@
 {
   "//": "AI/LLM-generated file. Do not treat as human-written source documentation.",
   "version": 1,
-  "note": "Data-driven focus areas, role codes, and coordination channels. scripts/coord reads this so the Product Owner can redesign the area set WITHOUT a code change (docs/ORGANISATION.md section 9). If this file is missing or corrupt, coord falls back to its built-in defaults (the same ten areas and sm_owned set) so coordination never breaks. Keep docs/FOCUS_AREAS.md in sync; a change here is a rules change (two peer reviews, or the sole-account self-review).",
+  "note": "Data-driven focus areas, role codes, and coordination channels. scripts/coord reads this so the Product Owner can redesign the area set WITHOUT a code change (docs/ORGANISATION.md section 9). If this file is missing or corrupt, coord falls back to its built-in defaults (the same eleven areas and sm_owned set) so coordination never breaks. Keep docs/FOCUS_AREAS.md in sync; a change here is a rules change (two peer reviews, or the sole-account self-review).",
   "agent_name": {
     "format": "<role>-<n>-<host>",
     "hosts": ["kastenbrot", "gnampf"],
@@ -20,11 +20,12 @@
     "sm": { "code": "sm", "label": "Scrum master", "focus": null },
     "po": { "code": "po", "label": "Product owner", "focus": null }
   },
-  "critical_path": ["tactical", "metagame", "input-ui", "render"],
+  "critical_path": ["tactical", "missions", "metagame", "input-ui", "render"],
   "sm_owned": ["rules"],
   "sm_owned_note": "The Scrum Master's ONE lane: the process docs themselves (`rules`). The SM is a process role that organises the fleet, so its only focus area is the coordination rules; everything that makes or ships the game - including `platform` (build/CI/scripts/packaging) - is a normal WORKER lane. The SM is never routed to game or build work: `coord next` offers an SM only an sm_owned area, and falls through to its durable jobs (drain the merge queue, review) when that lane is held. The PO never schedules the SM's lane. See ADR-0041: the SM must not do project work (human directive 2026-10-17).",
   "areas": {
     "tactical": { "code": "ta", "label": "Tactical / Mission" },
+    "missions": { "code": "ms", "label": "Missions / Level Design" },
     "world": { "code": "wo", "label": "World / Simulation" },
     "render": { "code": "re", "label": "Render / Engine" },
     "input-ui": { "code": "ui", "label": "Input / UI / UX" },

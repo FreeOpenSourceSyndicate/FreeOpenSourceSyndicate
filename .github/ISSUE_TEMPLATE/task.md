@@ -20,7 +20,8 @@ assignees: ""
      lease (or a helper it tasks) is the only agent that edits the files listed
      under Scope. There is no coordinator; leases are self-service. -->
 
-- [ ] `focus: tactical` — `src/core/sim/{Mission,Weapon,Objective}`, `assets/data/missions/**`
+- [ ] `focus: tactical` — `src/core/sim/{Mission,Weapon,Objective}`, `tests/test_mission.cpp`
+- [ ] `focus: missions` — `assets/data/missions/**`, mission `.name`/`.desc` keys
 - [ ] `focus: world` — `src/core/{world,math,util}/**`, `src/core/sim/Agent.*`
 - [ ] `focus: render` — `src/game/**` drawing/HUD/minimap/sprites/font, `assets/sprites/**`
 - [ ] `focus: input-ui` — `src/main.cpp`, `src/game/Game.cpp` input/selection, CLI flags

@@ -2463,3 +2463,58 @@ ever wants it gone, the delete is a self-contained removal of the three regexes,
     was added or removed, so existing leases and labels stay valid.
 
 ---
+
+## ADR-0042 — Split `tactical` into `tactical` (sim rules) + `missions` (mission authoring)
+
+- **Status:** Accepted (2026-10-24)
+- **Date:** 2026-10-24
+- **Context:** The critical path's long pole is the **mission set**
+  (`assets/data/missions/*.json`), and mission authoring is **data** while the
+  rest of `tactical` is **combat-system code**
+  (`src/core/sim/{Mission,Weapon,Objective}.*`). One lane owned both, so mission
+  authoring could not run in parallel with combat-system work — they serialised
+  behind a single lease. The split was already half-documented: inside
+  `assets/data/` Content owns the catalogues and Tactical owned the mission
+  files (`docs/FOCUS_AREAS.md` §2, the "one deliberate sub-split"). Proposed by
+  the PO (`po-2-kastenbrot`, issue #451) and agreed in principle by the SM; the
+  maintainer gave the PO authority to restructure foci at any time, coordinating
+  with the SM only where the change touches the SM's lane.
+- **Options:**
+  1. **Keep `tactical` whole.** Rejected: it keeps the long pole and the combat
+     code behind one lease, so a mission-authoring slice and a combat-rules slice
+     cannot run at once — the exact parallelism the fleet exists to get.
+  2. **Put mission authoring under `content`.** Rejected: a mission file *is*
+     gameplay design (layouts, objectives used, enemy placement), not catalogue
+     data; and `content` is already a busy lane (loader, schema, catalogues,
+     validation).
+  3. **Give mission files their own lane, `missions`.** Chosen: the mission set
+     is the long pole, so it deserves a dedicated lease; `tactical` keeps the
+     rules an objective *kind* is made of, `missions` owns the missions that
+     *use* them.
+- **Decision:** **Option 3.** `docs/focus-areas.json` gains
+  `"missions": {"code": "ms", "label": "Missions / Level Design"}` immediately
+  after `tactical`, and `critical_path` becomes
+  `["tactical", "missions", "metagame", "input-ui", "render"]`. `tactical`'s
+  ownership narrows to `src/core/sim/{Mission,Weapon,Objective}.*` and
+  `tests/test_mission.cpp`; `missions` owns `assets/data/missions/**` and the
+  mission `.name`/`.desc` text keys (which stay `focus: text` via the existing
+  Rule 4 flow). The code fallback (`scripts/coord _DEFAULT_AREAS` /
+  `_DEFAULT_CRITICAL`), the guard tests (`tests/test_coord.py`), the issue
+  template, the label set (`focus: missions`), and the prose
+  (`docs/FOCUS_AREAS.md`, `docs/COORDINATION.md`, `AGENTS.md`,
+  `docs/ORGANISATION.md`) move together (the #425 three-source trap).
+- **Consequences:**
+  - **Mission authoring parallelises with combat-system work.** A `ms` worker
+    can hold `missions` and author a mission file while a `ta` worker holds
+    `tactical`; they coordinate by Rule 4 when a new objective *kind* is needed,
+    exactly as `tactical`↔`content` does for the parser today.
+  - **The area set grows to eleven** (ten game-facing + `rules`). The count is a
+    *legacy number* and may change; the prose that names it is updated here.
+  - **`sm_owned` is unchanged** (`["rules"]`), so this is a PO-side redesign of
+    the game-facing areas — the SM co-owns only the parts that touch its lane
+    (the label set and the process docs), which is why the SM raised the PR and
+    the PO synced `docs/ROADMAP.md`.
+  - **The change is a rules change**: two peer reviews, or the sole-account
+    self-review (`AGENTS.md` §3a).
+
+---

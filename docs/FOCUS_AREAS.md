@@ -21,7 +21,7 @@ Read this together with `AGENTS.md` §3 (protocol) and `docs/COORDINATION.md`
 (claims, labels, review). Where this file and `AGENTS.md` disagree, `AGENTS.md`
 wins — then fix this file in the same PR.
 
-> **Restored to eight focus areas (now ten), self-coordinating.** An earlier revision
+> **Restored to eight focus areas (now eleven), self-coordinating.** An earlier revision
 > merged these into four lanes when agents could not stay connected; that was
 > reverted because multi-agent work was unstable at that granularity. A later
 > revision routed coordination through a single **coordinator** role; that is
@@ -98,16 +98,17 @@ team grows, re-split (§8) rather than sharing.
 
 | # | Area | Label | Owns (primary files) | Typical work |
 |---|------|-------|----------------------|--------------|
-| 1 | **Tactical / Mission** | `focus: tactical` | `src/core/sim/Mission.{h,cpp}`, `src/core/sim/Weapon.h`, `src/core/sim/Objective.h`, `tests/test_mission.cpp`, `assets/data/missions/*.json` | AI, combat rules, weapon balance, objectives, win/lose, orders, mission design |
-| 2 | **World / Simulation** | `focus: world` | `src/core/world/*`, `src/core/math/*`, `src/core/util/*`, `src/core/sim/Agent.{h,cpp}` | pathfinding, tile grid, line of sight, isometric math, agent model, RNG |
-| 3 | **Render / Engine** | `focus: render` | `src/game/Game.cpp` (drawing/camera/hud), `src/game/Hud.cpp`, `src/game/Minimap.{h,cpp}`, `src/game/Sprite.{h,cpp}`, `src/game/Font.{h,cpp}`, `src/game/HudStyle.h`, `src/game/TitleCard.cpp`, `assets/sprites/**`, `assets/tiles/**` | draw the sim, sprites, camera, HUD, minimap, low-spec view |
-| 4 | **Input / UI / UX** | `focus: input-ui` | `src/main.cpp`, `src/game/Game.cpp` (input/selection), `src/game/Game.h` (input surface) | CLI flags, controls, selection, hotkeys, screens, title-card start path |
-| 5 | **Content / Data** | `focus: content` | `src/core/data/*` (`Json`, `MissionData`, `Catalogues`, `Config`, `ContentPaths`, `ContentValidation`, `AgentSprites`), `assets/data/**` except `missions/`, `docs/DATA_FORMAT.md`, `tests/{test_json,test_missiondata,test_config,test_content_validation,test_sprites}.cpp` | JSON loader, weapon/agent catalogues, config, content validation |
-| 6 | **Text / i18n / Lore** | `focus: text` | `assets/lang/**`, `src/core/i18n/*`, `src/game/EmbeddedLang.{h,cpp.in}`, `docs/LORE.md`, `tests/test_i18n.cpp` | strings, localisation, in-game text, lore lexicon |
-| 7 | **Metagame / Campaign** | `focus: metagame` | `src/core/economy/**` (world map, territories, economy, research, equipment, campaign), the map/management screen in `src/game/**`, `assets/data/world/**` | world map, income/taxation, research tree, purchase, mission selection, campaign progression |
-| 8 | **Build / CI / Tooling** | `focus: platform` | `.github/**`, `CMakeLists.txt`, `src/**/CMakeLists.txt`, `tests/CMakeLists.txt`, `scripts/**` | CI, build options, packaging, dependencies |
-| 9 | **Rules / Process** | `focus: rules` | `AGENTS.md`, `docs/ORGANISATION.md`, `docs/COORDINATION.md`, `docs/FOCUS_AREAS.md`, `docs/focus-areas.json`, `docs/CONTRIBUTING.md` | the coordination rules themselves — **the SM's own lane** |
-| 10 | **Release / Playtest** | `focus: release` | `CHANGELOG.md`, `docs/releases/**`, `assets/ui/**`, tags / Release pages, `docs/BUILD.md` | cut releases, playtest docs, banners, build instructions; **own the major-version candidate + human-approval gate** (`AGENTS.md` §6a-i, `docs/releases/MAJOR_RELEASE_GATE.md`) |
+| 1 | **Tactical / Mission** | `focus: tactical` | `src/core/sim/Mission.{h,cpp}`, `src/core/sim/Weapon.h`, `src/core/sim/Objective.h`, `tests/test_mission.cpp` | AI, combat rules, weapon balance, objectives, win/lose, orders |
+| 2 | **Missions / Level Design** | `focus: missions` | `assets/data/missions/*.json`, the mission `.name`/`.desc` text keys (with `text`, Rule 4) | authoring missions: layouts, objectives used, enemy placement, pacing |
+| 3 | **World / Simulation** | `focus: world` | `src/core/world/*`, `src/core/math/*`, `src/core/util/*`, `src/core/sim/Agent.{h,cpp}` | pathfinding, tile grid, line of sight, isometric math, agent model, RNG |
+| 4 | **Render / Engine** | `focus: render` | `src/game/Game.cpp` (drawing/camera/hud), `src/game/Hud.cpp`, `src/game/Minimap.{h,cpp}`, `src/game/Sprite.{h,cpp}`, `src/game/Font.{h,cpp}`, `src/game/HudStyle.h`, `src/game/TitleCard.cpp`, `assets/sprites/**`, `assets/tiles/**` | draw the sim, sprites, camera, HUD, minimap, low-spec view |
+| 5 | **Input / UI / UX** | `focus: input-ui` | `src/main.cpp`, `src/game/Game.cpp` (input/selection), `src/game/Game.h` (input surface) | CLI flags, controls, selection, hotkeys, screens, title-card start path |
+| 6 | **Content / Data** | `focus: content` | `src/core/data/*` (`Json`, `MissionData`, `Catalogues`, `Config`, `ContentPaths`, `ContentValidation`, `AgentSprites`), `assets/data/**` except `missions/`, `docs/DATA_FORMAT.md`, `tests/{test_json,test_missiondata,test_config,test_content_validation,test_sprites}.cpp` | JSON loader, weapon/agent catalogues, config, content validation |
+| 7 | **Text / i18n / Lore** | `focus: text` | `assets/lang/**`, `src/core/i18n/*`, `src/game/EmbeddedLang.{h,cpp.in}`, `docs/LORE.md`, `tests/test_i18n.cpp` | strings, localisation, in-game text, lore lexicon |
+| 8 | **Metagame / Campaign** | `focus: metagame` | `src/core/economy/**` (world map, territories, economy, research, equipment, campaign), the map/management screen in `src/game/**`, `assets/data/world/**` | world map, income/taxation, research tree, purchase, mission selection, campaign progression |
+| 9 | **Build / CI / Tooling** | `focus: platform` | `.github/**`, `CMakeLists.txt`, `src/**/CMakeLists.txt`, `tests/CMakeLists.txt`, `scripts/**` | CI, build options, packaging, dependencies |
+| 10 | **Rules / Process** | `focus: rules` | `AGENTS.md`, `docs/ORGANISATION.md`, `docs/COORDINATION.md`, `docs/FOCUS_AREAS.md`, `docs/focus-areas.json`, `docs/CONTRIBUTING.md` | the coordination rules themselves — **the SM's own lane** |
+| 11 | **Release / Playtest** | `focus: release` | `CHANGELOG.md`, `docs/releases/**`, `assets/ui/**`, tags / Release pages, `docs/BUILD.md` | cut releases, playtest docs, banners, build instructions; **own the major-version candidate + human-approval gate** (`AGENTS.md` §6a-i, `docs/releases/MAJOR_RELEASE_GATE.md`) |
 
 **`rules` is the SM's own lane** (`sm_owned` in `docs/focus-areas.json`). It is
 the one area whose *content* is the Scrum Master's role — the process docs
@@ -126,14 +127,17 @@ worker lane: a release is a player-visible playtest snapshot.
 
 **One deliberate sub-split inside `assets/data/`:** Content owns the loader,
 schema, and shared catalogues (`assets/data/{weapons,agents}.json`), while
-**mission content** (`assets/data/missions/*.json`) belongs to **Tactical**,
-because a mission file *is* gameplay design. Content never edits
-`assets/data/missions/`; Tactical never edits the catalogues. This is the only
-place where a single top-level directory is split, and it is stated here so it
-is never in doubt.
+**mission content** (`assets/data/missions/*.json`) belongs to its **own lane,
+`missions`** (split out of `tactical` in #451), because a mission file *is*
+gameplay design and the mission set is the long pole. Content never edits
+`assets/data/missions/`; `missions` never edits the catalogues. `tactical` owns
+the *rules* an objective kind is made of (`src/core/sim/**`), `missions` owns the
+*missions that use them* — they coordinate by Rule 4, exactly as
+`tactical`↔`content` does for the parser. This is the only place where a single
+top-level directory is split, and it is stated here so it is never in doubt.
 
-Areas 1–2 are the **core library** (engine-free, must stay SDL-free, ADR-0002).
-Areas 3–4 are the **engine layer** (the only place `<SDL.h>` appears). Areas 5–10
+Areas 1–3 are the **core library** (engine-free, must stay SDL-free, ADR-0002).
+Areas 4–5 are the **engine layer** (the only place `<SDL.h>` appears). Areas 6–11
 are **content, campaign, tooling, and delivery**.
 
 **Not every area is on the v1.0.0 critical path (ADR-0024).** The scope fence says
@@ -149,12 +153,14 @@ v1.0.0 is feature parity with the 1993 original. That makes some area capacity
   but they do not add clone content, so do not let them absorb agent capacity
   that could be building Milestone C. They are **worker** lanes (ADR-0041): a
   `pf`/`rl` worker takes them; the SM does not.
-- **The critical path for Milestone C** is `tactical`, `metagame`, `input-ui`,
-  `render` (`docs/ROADMAP.md`, issue #425; reordered by the PO on 2026-10-17):
-  the mission set is the long pole, then the campaign map/balance, then the
-  release-facing save/load wiring and the SFX/art the next snapshot needs.
-  `world` left the list (its save/load long pole landed), and `platform`/`release`
-  stay off it. Point agents there.
+- **The critical path for Milestone C** is `tactical`, `missions`, `metagame`,
+  `input-ui`, `render` (`docs/ROADMAP.md`, issue #425; reordered by the PO on
+  2026-10-17): the mission set is the long pole, then the campaign map/balance,
+  then the release-facing save/load wiring and the SFX/art the next snapshot
+  needs. `missions` was split out of `tactical` (#451) so mission *authoring*
+  runs in parallel with combat-system work — they are independent lanes.
+  `world` left the list (its save/load long pole landed), and
+  `platform`/`release` stay off it. Point agents there.
 
 ### 2.1 Interface surfaces an area must not silently change
 
@@ -164,6 +170,7 @@ the owning area's **contract step** (§4, Rule 3):
 | Area | Surface |
 |------|---------|
 | Tactical | `Mission`, `Weapon`, `ObjectiveSpec` public methods and outcome enum |
+| Missions | the mission file layout (`assets/data/missions/*.json`) as consumed by Content's `MissionData`; the `.name`/`.desc` text keys |
 | World | `Agent`, `TileGrid`, `Pathfinding`, `Rng`, `Vec2`, `TilePos`, `Isometric`, `Timestep` public APIs |
 | Render | nothing public (private `Game` drawing methods) |
 | Input/UI | the CLI flags and the `Game::init`/`run`/`set*` surface used by `main.cpp` |
@@ -187,6 +194,7 @@ the owning area's **contract step** (§4, Rule 3):
    | Area | Branch prefix |
    |------|---------------|
    | Tactical | `feat/sim-*`, `fix/sim-*` |
+   | Missions | `feat/mission-*`, `feat/missions-*` |
    | World | `feat/world-*`, `fix/world-*`, `refactor/core-*` |
    | Render | `feat/render-*`, `fix/render-*` |
    | Input/UI | `feat/ui-*`, `feat/input-*`, `fix/ui-*` |

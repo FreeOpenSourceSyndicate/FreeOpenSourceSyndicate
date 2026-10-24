@@ -488,12 +488,12 @@ The area set is **not** hard-coded. It lives in **`docs/focus-areas.json`**, whi
 {
   "areas": { "tactical": {"code": "ta", "label": "Tactical / Mission"}, ... },
   "roles": { "sm": {"code": "sm"}, "po": {"code": "po"} },
-  "critical_path": ["tactical", "metagame", "input-ui", "render"],
+  "critical_path": ["tactical", "missions", "metagame", "input-ui", "render"],
   "sm_owned": ["rules"]
 }
 ```
 
-There are **ten** areas today: the nine game-facing ones plus **`rules`** (the
+There are **eleven** areas today: the ten game-facing ones plus **`rules`** (the
 process docs themselves), the SM's **one** own lane — the only area whose content
 is coordination, which is the SM's job. Everything else, **including `platform`**
 (build/CI/scripts/packaging), is a **worker** lane: `coord next` routes a `pf`
