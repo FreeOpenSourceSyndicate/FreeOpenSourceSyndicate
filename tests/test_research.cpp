@@ -1,7 +1,11 @@
 /* AI/LLM-generated file. Do not treat as human-written source documentation. */
 #include "TestHarness.h"
 #include "core/economy/Economy.h"
+#include "core/economy/Equipment.h"
 #include "core/economy/Research.h"
+
+#include <cmath>
+#include <cstddef>
 
 using namespace fossynd::core;
 
@@ -147,4 +151,200 @@ FOSSYND_TEST(Research, LoadsShippedTreeFile)
     FOSSYND_CHECK(error.empty());
     FOSSYND_CHECK(tree.size() >= std::size_t{4});
     FOSSYND_CHECK(tree.find("gauss") != nullptr);
+}
+
+// --- Balance pass pins (issue #419) ---------------------------------------
+//
+// The research tree is the metagame's time sink; these pin its *pacing* (cost,
+// duration, depth, and how long the shipped economy takes to afford it) so a
+// later edit cannot silently make the tree a two-minute formality or an
+// unreachable grind. They read the real shipped files, so they cannot drift.
+
+namespace
+{
+
+// The shipped campaign's economy config (for the ticks-to-afford pins).
+EconomyConfig shippedEconomyConfig()
+{
+    std::string error;
+    Json root;
+    const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/world/campaign.json";
+    FOSSYND_CHECK(Json::parseFile(path, root, error));
+    FOSSYND_CHECK(error.empty());
+
+    EconomyConfig config;
+    FOSSYND_CHECK(Economy::fromJson(root, config, error));
+    FOSSYND_CHECK(error.empty());
+    return config;
+}
+
+ResearchTree shippedTree()
+{
+    std::string error;
+    ResearchTree tree;
+    const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/world/research.json";
+    FOSSYND_CHECK(ResearchTree::loadFromFile(path, tree, error));
+    FOSSYND_CHECK(error.empty());
+    return tree;
+}
+
+// Ticks of income at `tax` per owned territory needed to afford `cost` starting
+// from `funds`. Mirrors what the campaign clock does (EconomyConfig::tickSeconds
+// per tick); returns 0 when already affordable.
+int ticksToAfford(float cost, float funds, float perTick)
+{
+    if (funds >= cost)
+    {
+        return 0;
+    }
+    FOSSYND_CHECK(perTick > 0.0f);
+    return static_cast<int>(std::ceil((cost - funds) / perTick));
+}
+
+} // namespace
+
+FOSSYND_TEST(Research, ShippedTreeIsAThreeTierProgression)
+{
+    // The tree must be a real progression, not a flat shopping list: a cheap
+    // first tier, a branch, and a top-tier node gated behind both branches.
+    const ResearchTree tree = shippedTree();
+    FOSSYND_CHECK_EQ(tree.size(), std::size_t{8});
+
+    const ResearchNode* minigun = tree.find("minigun");
+    const ResearchNode* gauss = tree.find("gauss");
+    const ResearchNode* longshot = tree.find("longshot");
+    const ResearchNode* railgun = tree.find("railgun");
+    FOSSYND_CHECK(minigun != nullptr && gauss != nullptr && longshot != nullptr &&
+                  railgun != nullptr);
+
+    // Tier 1 -> tier 2 -> tier 3.
+    FOSSYND_CHECK_EQ(minigun->prerequisites.size(), std::size_t{0});
+    FOSSYND_CHECK_EQ(gauss->prerequisites.size(), std::size_t{1});
+    FOSSYND_CHECK_EQ(gauss->prerequisites[0], std::string("minigun"));
+    FOSSYND_CHECK_EQ(longshot->prerequisites.size(), std::size_t{1});
+    FOSSYND_CHECK_EQ(longshot->prerequisites[0], std::string("minigun"));
+    FOSSYND_CHECK_EQ(railgun->prerequisites.size(), std::size_t{2});
+
+    // The top node costs and takes longer than every tier below it, so the tree
+    // rewards depth rather than letting a single cheap node win the game.
+    FOSSYND_CHECK(railgun->cost > gauss->cost);
+    FOSSYND_CHECK(railgun->cost > longshot->cost);
+    FOSSYND_CHECK(railgun->cost > minigun->cost);
+    FOSSYND_CHECK(railgun->timeSeconds > minigun->timeSeconds);
+}
+
+FOSSYND_TEST(Research, ShippedTreePacingIsBracketed)
+{
+    // Pin the tree's total cost and duration, and that every node sits in a sane
+    // band: cheap enough to afford early, long enough to be a decision.
+    const ResearchTree tree = shippedTree();
+    float totalCost = 0.0f;
+    float totalTime = 0.0f;
+    for (const ResearchNode& node : tree.nodes())
+    {
+        FOSSYND_CHECK(node.cost >= 400.0f);   // no free research
+        FOSSYND_CHECK(node.cost <= 2000.0f);  // no single node is a whole campaign
+        FOSSYND_CHECK(node.timeSeconds >= 30.0f);
+        FOSSYND_CHECK(node.timeSeconds <= 180.0f);
+        totalCost += node.cost;
+        totalTime += node.timeSeconds;
+    }
+    FOSSYND_CHECK_NEAR(totalCost, 6100.0f);
+    FOSSYND_CHECK_NEAR(totalTime, 615.0f);
+
+    // At the shipped tick length the whole tree is a meaningful number of income
+    // ticks (not one) but not a grind (the campaign is 6 regions).
+    const EconomyConfig economy = shippedEconomyConfig();
+    const float totalTicks = totalTime / economy.tickSeconds;
+    FOSSYND_CHECK(totalTicks > 15.0f);
+    FOSSYND_CHECK(totalTicks < 30.0f);
+}
+
+FOSSYND_TEST(Research, TicksToAffordTheResearchTreeFromTheStartingPosition)
+{
+    // The opening economy is two owned territories; taxing them safely (below the
+    // revolt threshold) at tax 2 pays 2 * 2 * incomePerTaxLevel per tick. From
+    // `startingFunds`, the first root node must be affordable at once and the
+    // whole tree reachable in a reasonable number of ticks.
+    const EconomyConfig economy = shippedEconomyConfig();
+    const ResearchTree tree = shippedTree();
+
+    std::string error;
+    Json root;
+    const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/world/campaign.json";
+    FOSSYND_CHECK(Json::parseFile(path, root, error));
+    FOSSYND_CHECK(error.empty());
+    const float startingFunds = root["startingFunds"].asFloat(0.0f);
+
+    const float safeTax = static_cast<float>(economy.revoltThresholdLevel - 1);
+    const float perTick = 2.0f * (economy.baseIncome + economy.incomePerTaxLevel * safeTax);
+    FOSSYND_CHECK_NEAR(perTick, 240.0f);
+
+    // Every root node is affordable immediately: the loop starts on turn one.
+    for (const ResearchNode& node : tree.nodes())
+    {
+        if (node.prerequisites.empty())
+        {
+            FOSSYND_CHECK(ticksToAfford(node.cost, startingFunds, perTick) == 0);
+        }
+    }
+
+    // The top-tier node is a few ticks away, and the whole tree is a couple of
+    // dozen — the pacing target for a fresh campaign.
+    FOSSYND_CHECK_EQ(ticksToAfford(tree.find("railgun")->cost, startingFunds, perTick), 3);
+
+    float totalCost = 0.0f;
+    for (const ResearchNode& node : tree.nodes())
+    {
+        totalCost += node.cost;
+    }
+    const int treeTicks = ticksToAfford(totalCost, startingFunds, perTick);
+    FOSSYND_CHECK(treeTicks >= 15);
+    FOSSYND_CHECK(treeTicks <= 30);
+}
+
+FOSSYND_TEST(Research, ShippedResearchAndSquadAreAffordableWithinACampaign)
+{
+    // The acceptance target is a *reachable* win: the research tree and the
+    // gear it unlocks must be affordable in a number of income ticks that a
+    // six-region campaign actually has — not a walkover, not a grind. Each
+    // major investment (the whole tree, or a four-agent top-weapon squad) is
+    // checked separately; no player needs the theoretical maximum of both.
+    const EconomyConfig economy = shippedEconomyConfig();
+    const ResearchTree tree = shippedTree();
+
+    std::string error;
+    Json root;
+    const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/world/equipment.json";
+    FOSSYND_CHECK(Json::parseFile(path, root, error));
+    FOSSYND_CHECK(error.empty());
+    EquipmentCatalogue catalogue;
+    FOSSYND_CHECK(EquipmentCatalogue::fromJson(root, catalogue, error));
+    FOSSYND_CHECK(error.empty());
+
+    float totalResearch = 0.0f;
+    for (const ResearchNode& node : tree.nodes())
+    {
+        totalResearch += node.cost;
+    }
+
+    // A "win-ready" loadout: the top weapon (railgun) for all four slots.
+    const EquipmentItem* railgun = catalogue.find("railgun");
+    FOSSYND_CHECK(railgun != nullptr);
+    const float squadCost = railgun->cost * static_cast<float>(Equipment::kSquadSlots);
+
+    const float startingFunds = 1000.0f; // the shipped startingFunds
+    const float safeTax = static_cast<float>(economy.revoltThresholdLevel - 1);
+    const float perTick = 2.0f * (economy.baseIncome + economy.incomePerTaxLevel * safeTax);
+    FOSSYND_CHECK_NEAR(perTick, 240.0f);
+
+    // Funding the whole tree, or buying the top squad outright, each fits in a
+    // bounded window: enough ticks that the player must play the map, few enough
+    // that the campaign is not a grind.
+    const int treeTicks = ticksToAfford(totalResearch, startingFunds, perTick);
+    const int squadTicks = ticksToAfford(squadCost, startingFunds, perTick);
+    FOSSYND_CHECK(treeTicks >= 15);
+    FOSSYND_CHECK(treeTicks <= 25);
+    FOSSYND_CHECK(squadTicks >= 15);
+    FOSSYND_CHECK(squadTicks <= 30);
 }
