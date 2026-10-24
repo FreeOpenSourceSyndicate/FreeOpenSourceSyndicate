@@ -981,6 +981,234 @@ FOSSYND_TEST(Mission, DestroyObjectiveIsDeterministic)
     FOSSYND_CHECK_EQ(a.first, MissionState::Won);
 }
 
+// --- Assassinate / retrieve objectives (issue #444) ------------------------
+//
+// Two more kinds from the Definition of Done's objective set. `assassinate`
+// wins on one named agent's death, not the whole garrison; `retrieve` wins when
+// the item is picked up and carried to the exit tile. Each wins on its own
+// condition and never on the wrong one; the universal squad-dead loss is
+// unchanged.
+
+FOSSYND_TEST(Mission, AssassinateWinsWhenTheNamedTargetDies)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 41u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::Assassinate;
+    objective.agentIndex = 2; // the VIP is deliberately not index 0 or 1
+    mission.setObjective(objective);
+
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                               Weapon{"Rifle", 100.0f, 9.0f, 10.0f, 1.0f}));
+    // A second, tougher enemy that must *survive*: the win is the named kill,
+    // not the garrison's elimination.
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100000.0f,
+                               Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+    mission.addAgent(makeAgent(4.0f, 2.0f, Team::Enemy, 40.0f)); // the target
+
+    mission.orderAttack(0, 2);
+    runUntilDone(mission, 10.0f);
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK(!mission.agents()[2].isAlive());
+    // The garrison was not wiped: another enemy is still alive.
+    FOSSYND_CHECK(mission.aliveCount(Team::Enemy) >= static_cast<std::size_t>(1));
+}
+
+FOSSYND_TEST(Mission, AssassinateDoesNotWinBeforeTheTargetDies)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 42u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::Assassinate;
+    objective.agentIndex = 1;
+    mission.setObjective(objective);
+
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                               Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100000.0f,
+                               Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+
+    for (int i = 0; i < 40; ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK(mission.state() == MissionState::Running);
+    FOSSYND_CHECK(mission.agents()[1].isAlive());
+}
+
+FOSSYND_TEST(Mission, AssassinateOfAMissingTargetNeverWins)
+{
+    // A hand-built spec that names no agent is unsatisfiable (the loader rejects
+    // it), so it must not spuriously win.
+    TileGrid grid(20, 20);
+    Mission mission(grid, 43u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::Assassinate;
+    objective.agentIndex = 99;
+    mission.setObjective(objective);
+
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                               Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100.0f,
+                               Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+
+    for (int i = 0; i < 20; ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK(mission.state() == MissionState::Running);
+}
+
+FOSSYND_TEST(Mission, RetrieveWinsWhenTheItemIsCarriedToTheExit)
+{
+    TileGrid grid(30, 30);
+    Mission mission(grid, 44u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::Retrieve;
+    objective.itemX = 4;
+    objective.itemY = 2;
+    objective.tileX = 18;
+    objective.tileY = 2;
+    mission.setObjective(objective);
+
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                               Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    // A harmless far enemy keeps the mission running between the two legs.
+    mission.addAgent(makeAgent(28.0f, 28.0f, Team::Enemy, 100000.0f,
+                               Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+
+    // Leg 1: pick the item up. The mission must not end merely on pickup.
+    mission.orderMove(0, TilePos{4, 2});
+    runUntilDone(mission, 8.0f);
+    FOSSYND_CHECK(mission.state() == MissionState::Running);
+    FOSSYND_CHECK_EQ(mission.agents()[0].tile(), (TilePos{4, 2}));
+
+    // Leg 2: carry it to the exit.
+    mission.orderMove(0, TilePos{18, 2});
+    runUntilDone(mission, 20.0f);
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK_EQ(mission.agents()[0].tile(), (TilePos{18, 2}));
+}
+
+FOSSYND_TEST(Mission, RetrieveDoesNotWinOnTheExitTileBeforePickup)
+{
+    TileGrid grid(30, 30);
+    Mission mission(grid, 45u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::Retrieve;
+    objective.itemX = 4;
+    objective.itemY = 2;
+    objective.tileX = 18;
+    objective.tileY = 2;
+    mission.setObjective(objective);
+
+    mission.addAgent(makeAgent(16.0f, 2.0f, Team::Player, 100.0f,
+                               Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(28.0f, 28.0f, Team::Enemy, 100000.0f,
+                               Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+
+    // Walk straight onto the exit without ever touching the item tile.
+    mission.orderMove(0, TilePos{18, 2});
+    runUntilDone(mission, 6.0f);
+    FOSSYND_CHECK(mission.state() == MissionState::Running);
+    FOSSYND_CHECK_EQ(mission.agents()[0].tile(), (TilePos{18, 2}));
+}
+
+FOSSYND_TEST(Mission, RetrieveItemSurvivesThePickerUpAndIsCarriedByAnother)
+{
+    // The pickup is a squad-level latch, not tied to one unit: a second member
+    // may deliver the item after the first has picked it up.
+    TileGrid grid(30, 30);
+    Mission mission(grid, 46u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::Retrieve;
+    objective.itemX = 4;
+    objective.itemY = 2;
+    objective.tileX = 18;
+    objective.tileY = 2;
+    mission.setObjective(objective);
+
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                               Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(2.0f, 4.0f, Team::Player, 100.0f,
+                               Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(28.0f, 28.0f, Team::Enemy, 100000.0f,
+                               Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+
+    // Agent 0 picks the item up; agent 1 stays back and then delivers it.
+    mission.orderMove(0, TilePos{4, 2});
+    runUntilDone(mission, 8.0f);
+    FOSSYND_CHECK(mission.state() == MissionState::Running);
+
+    mission.orderMove(1, TilePos{18, 2});
+    runUntilDone(mission, 20.0f);
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+}
+
+FOSSYND_TEST(Mission, RetrieveLosesWhenTheSquadDiesAfterPickup)
+{
+    TileGrid grid(30, 30);
+    Mission mission(grid, 47u);
+    ObjectiveSpec objective;
+    objective.kind = ObjectiveSpec::Kind::Retrieve;
+    objective.itemX = 4;
+    objective.itemY = 2;
+    objective.tileX = 18;
+    objective.tileY = 2;
+    mission.setObjective(objective);
+
+    mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                               Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+    mission.addAgent(makeAgent(28.0f, 28.0f, Team::Enemy, 100000.0f,
+                               Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+
+    mission.orderMove(0, TilePos{4, 2});
+    runUntilDone(mission, 8.0f);
+    FOSSYND_CHECK(mission.state() == MissionState::Running);
+
+    // The universal lose condition still wins over a retrieve objective.
+    mission.agents()[0].applyDamage(1000.0f);
+    mission.update(0.05f);
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Lost);
+}
+
+FOSSYND_TEST(Mission, RetrieveObjectiveIsDeterministic)
+{
+    auto runScenario = [](std::uint64_t seed) {
+        TileGrid grid(30, 30);
+        Mission mission(grid, seed);
+        ObjectiveSpec objective;
+        objective.kind = ObjectiveSpec::Kind::Retrieve;
+        objective.itemX = 4;
+        objective.itemY = 2;
+        objective.tileX = 18;
+        objective.tileY = 2;
+        mission.setObjective(objective);
+        mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                                   Weapon{"None", 0.0f, 1.0f, 10.0f, 0.0f}));
+        mission.addAgent(makeAgent(28.0f, 28.0f, Team::Enemy, 100000.0f,
+                                   Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+        mission.orderMove(0, TilePos{4, 2});
+        for (int i = 0; i < 120; ++i)
+        {
+            mission.update(0.05f);
+        }
+        mission.orderMove(0, TilePos{18, 2});
+        for (int i = 0; i < 300; ++i)
+        {
+            mission.update(0.05f);
+        }
+        return std::make_pair(mission.state(), mission.elapsedSeconds());
+    };
+
+    const auto a = runScenario(910u);
+    const auto b = runScenario(910u);
+    FOSSYND_CHECK_EQ(a.first, b.first);
+    FOSSYND_CHECK_NEAR(a.second, b.second);
+    FOSSYND_CHECK_EQ(a.first, MissionState::Won);
+}
+
 // --- Area-of-effect weapons (issue #79) ------------------------------------
 // Layout shared by the explosive tests: a player with an always-hitting weapon
 // at (2,2) shoots the nearest enemy at (5,2); one enemy stands inside the blast
