@@ -23,11 +23,12 @@ contains no original assets, code, names, or trademarks.
 
 ### Changed
 
-- **The low-spec binary-size budget rose to 336 KiB** (from 320 KiB): `main` had
-  reached 318 KiB, leaving only ~2 KiB of headroom — one 4 KiB ELF page step — so
-  the next real feature PR failed spuriously rather than on a genuine regression
-  (issue #413). Same remedy as the 288 → 320 KiB raise (#312/#356); the guard still
-  fails loudly if the low-spec flags are dropped.
+- **The low-spec binary-size budget rose to 352 KiB** (from 336 KiB): `main` had
+  reached 334 KiB, leaving only ~2 KiB of headroom — less than one 4 KiB ELF page
+  step — so the next real feature PR (the time bomb, #449) failed spuriously
+  rather than on a genuine regression (issue #468). Same remedy as the
+  288 → 320 KiB (#312/#356) and 320 → 336 KiB (#413) raises; the guard still fails
+  loudly if the low-spec flags are dropped.
 - **A major version is now gated behind a feature-complete, human-approved
   candidate.** `AGENTS.md` §6a defined how to cut *minor* releases (`0.x.0`) but
   said nothing about a **major** version (`X.0.0`), so `v1.0.0` could in
