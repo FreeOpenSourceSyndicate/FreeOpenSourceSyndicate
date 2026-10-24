@@ -46,13 +46,14 @@ old hardware, that is a bug — please report it.
 
 The whole point of the profile is a **small** binary, so CI enforces a cap on it
 (issue #222, AGENTS.md §1b, ADR-0008): the **stripped low-spec binary must be
-<= 336 KiB**. As measured today, the low-spec build is ~300 KiB and the default
+<= 352 KiB**. As measured today, the low-spec build is ~320 KiB and the default
 Release build is ~667 KiB, so the budget still fails loudly if the profile flags
 are ever dropped or a heavy dependency sneaks in. The cap was raised from 288 KiB
 when the third shared catalogue (`assets/data/vehicles.json`, #319/#342) left only
-~2 KiB of headroom, and again from 320 KiB to 336 KiB (issue #413) once `main`
-reached 318 KiB — a 2 KiB margin that a single 4 KiB ELF page step would cross, so
-the next real PR failed spuriously rather than on a genuine regression.
+~2 KiB of headroom; to 336 KiB (issue #413) once `main` reached 318 KiB; and to
+352 KiB (issue #468) once `main` reached 334 KiB — each time a 2 KiB margin that a
+single 4 KiB ELF page step would cross, so the next real PR failed spuriously
+rather than on a genuine regression.
 
 The CI `low-spec` job runs the check as a named step:
 
@@ -68,7 +69,7 @@ ctest --test-dir build -R low_spec_binary_size --output-on-failure
 ```
 
 To change the cap, set `FOSSYND_SIZE_BUDGET_BYTES=<bytes>` (the default is
-`344064`). Raise it only with a justification in the pull request — a larger
+`360448`). Raise it only with a justification in the pull request — a larger
 budget works against the reason the profile exists.
 
 ## Catching memory and logic bugs (sanitizers)
