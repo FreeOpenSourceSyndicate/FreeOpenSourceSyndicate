@@ -348,3 +348,92 @@ FOSSYND_TEST(Research, ShippedResearchAndSquadAreAffordableWithinACampaign)
     FOSSYND_CHECK(squadTicks >= 15);
     FOSSYND_CHECK(squadTicks <= 30);
 }
+
+// --- Restore (save/load half, issue #431) ----------------------------------
+
+FOSSYND_TEST(Research, RestoreReinstatesCompletedAndInProgressVerbatim)
+{
+    // `begin` cannot reinstate a saved state (it gates on prerequisites, funds,
+    // and idleness), so a loader needs `restore` to set it directly.
+    Research research;
+    ResearchState saved;
+    saved.completed = {"a"};
+    saved.inProgress = "b";
+    saved.remainingSeconds = 7.5f;
+
+    research.restore(0, saved);
+
+    FOSSYND_CHECK(research.completed(0, "a"));
+    FOSSYND_CHECK(!research.completed(0, "b")); // in progress is not yet completed
+    FOSSYND_CHECK_EQ(research.state(0).inProgress, std::string("b"));
+    FOSSYND_CHECK_NEAR(research.state(0).remainingSeconds, 7.5f);
+}
+
+FOSSYND_TEST(Research, RestoreGrowsTheStoreForAHighSyndicate)
+{
+    // A save may name a syndicate the fresh process has never touched; restore
+    // must grow the per-syndicate store, exactly as `begin` does.
+    Research research;
+    ResearchState saved;
+    saved.completed = {"a", "b"};
+
+    research.restore(3, saved);
+
+    FOSSYND_CHECK(research.completed(3, "a"));
+    FOSSYND_CHECK(research.completed(3, "b"));
+    // The syndicates before it stay empty (no state leaked sideways).
+    FOSSYND_CHECK(!research.completed(0, "a"));
+    FOSSYND_CHECK(research.state(0).completed.empty());
+    FOSSYND_CHECK(research.state(0).inProgress.empty());
+}
+
+FOSSYND_TEST(Research, RestoreReplacesAnExistingStateRatherThanMerging)
+{
+    Research research;
+    Economy economy;
+    economy.addFunds(0, 1000.0f);
+    const ResearchTree tree = treeOrFail(kTreeJson);
+    FOSSYND_CHECK(research.begin(0, "a", tree, economy));
+    FOSSYND_CHECK(research.state(0).inProgress == "a");
+
+    // The saved state is authoritative: it overwrites, it does not union.
+    ResearchState saved;
+    saved.completed = {"b"};
+    research.restore(0, saved);
+
+    FOSSYND_CHECK(research.completed(0, "b"));
+    FOSSYND_CHECK(!research.completed(0, "a"));
+    FOSSYND_CHECK(research.state(0).inProgress.empty());
+    FOSSYND_CHECK_NEAR(research.state(0).remainingSeconds, 0.0f);
+}
+
+FOSSYND_TEST(Research, RestoreOfANegativeSyndicateIsANoOp)
+{
+    Research research;
+    ResearchState saved;
+    saved.completed = {"a"};
+
+    research.restore(-1, saved);
+
+    FOSSYND_CHECK(!research.completed(0, "a"));
+    FOSSYND_CHECK(research.state(0).completed.empty());
+}
+
+FOSSYND_TEST(Research, RestoredProgressContinuesToTick)
+{
+    // After a restore, an in-progress node must still complete on schedule: the
+    // timer is live, not frozen at the restored value.
+    Research research;
+    ResearchState saved;
+    saved.inProgress = "b";
+    saved.remainingSeconds = 5.0f;
+    research.restore(0, saved);
+
+    research.tick(2.0f);
+    FOSSYND_CHECK(!research.completed(0, "b"));
+    FOSSYND_CHECK_NEAR(research.state(0).remainingSeconds, 3.0f);
+
+    research.tick(3.0f);
+    FOSSYND_CHECK(research.completed(0, "b"));
+    FOSSYND_CHECK(research.state(0).inProgress.empty());
+}

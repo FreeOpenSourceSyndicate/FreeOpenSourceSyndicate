@@ -304,6 +304,15 @@ const ResearchState& Research::state(int syndicate) const
     return states_[static_cast<std::size_t>(syndicate)];
 }
 
+void Research::restore(int syndicate, const ResearchState& state)
+{
+    if (syndicate < 0)
+    {
+        return;
+    }
+    mutableState(syndicate) = state;
+}
+
 ResearchState& Research::mutableState(int syndicate)
 {
     ensureSize(states_, static_cast<std::size_t>(syndicate) + 1);
