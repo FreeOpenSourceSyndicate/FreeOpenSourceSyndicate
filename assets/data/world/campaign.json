@@ -10,6 +10,6 @@
   "world": "world.json",
   "research": "research.json",
   "equipment": "equipment.json",
-  "missions": ["demo", "escort"],
+  "missions": ["demo", "escort", "blackout", "assembly", "overpass"],
   "winCondition": "own-all-territories"
 }

@@ -433,6 +433,11 @@ use `jsonc` for annotation only, exactly as `docs/DATA_FORMAT.md` does).
 - `missionId` — optional; must match a mission's `id` (or file stem) when present.
   A neutral region needs one to be attackable, and the same `missionId` may be
   shared by several regions (ADR-0029), so a small mission set covers a larger map.
+  In the **shipped** `world.json` every one of the six regions carries a mission
+  drawn from the tactical mission set (`demo`, `escort`, `blackout`, `assembly`,
+  `overpass`) and each is listed in `campaign.json`'s `missions`, so the whole map
+  is playable rather than five regions replaying two boards (#418). The mapping is
+  pinned by `tests/test_campaign.cpp`.
 
 ### 5.2 `research.json`
 

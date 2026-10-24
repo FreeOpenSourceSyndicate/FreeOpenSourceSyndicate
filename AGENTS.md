@@ -696,6 +696,25 @@ Do not start work outside the scope fence (ADR-0024).
   (`assets/data/weapons.json`) is content/tactical — a Rule 4 request if it needs
   retuning. Docs: `docs/METAGAME.md` §5.4 / §10.4.
 
+- **The campaign map is wired to the mission set (issue #418, Milestone C).**
+  Every one of the six regions in `assets/data/world/world.json` now names a
+  `missionId`, and `campaign.json`'s `missions` list holds all five
+  (`demo`, `escort`, `blackout`, `assembly`, `overpass` — the three new ones came
+  from the tactical slice #416/PR #437). Before this, The Docks had no mission
+  (a dead-end region) and five regions replayed just `demo`/`escort`, so most of
+  the map was the same board twice. The engine resolves a region's `missionId` to
+  `assets/data/missions/<id>.json` (`CampaignScreen::resolveMissionFile`), so a
+  region naming a missing id would deploy nothing — the silent-break class of
+  #369. `tests/test_campaign.cpp` pins it: `EveryShippedRegionNamesAMissionThatExists`
+  (no empty id, every id has a file), `CampaignMissionsListCoversEveryRegionMission`
+  (the map names only ids in the shipped list), and
+  `TheMapUsesTheWholeMissionSetNotJustTheDemo` (the six regions cover all five
+  missions). `ShippedCampaignCanBeWonByClaimingTheFrontier` and the
+  `game_campaign` self-test still win a full run through the new mapping. Data
+  only, no code change (golden rule 7). A content-side guard that *validates*
+  every `world.json` `missionId` against the mission files is #420 (`focus:
+  content`).
+
 - The game now has a **playable vertical slice** with authored pixel-art
   sprites: an SDL2 isometric mission with a four-agent squad, live combat
   (health, hit flashes, kills), basic enemy AI, a HUD, a data-driven win/lose

@@ -16,6 +16,14 @@ std::string shipped(const std::string& name)
     return std::string(FOSSYND_SOURCE_DIR) + "/assets/data/world/" + name;
 }
 
+// The path a region's `missionId` resolves to when the campaign deploys: the
+// engine looks for `<missionId>.json` under the content mission dir
+// (CampaignScreen::resolveMissionFile). Checked here against the source tree.
+std::string shippedMissionFile(const std::string& missionId)
+{
+    return std::string(FOSSYND_SOURCE_DIR) + "/assets/data/missions/" + missionId + ".json";
+}
+
 Campaign loadedCampaign()
 {
     std::string error;
@@ -157,8 +165,10 @@ FOSSYND_TEST(Campaign, SelectMissionGatesOnDeployabilityAndSlots)
     // Territory 5 is neutral and behind other neutrals: not attackable yet.
     FOSSYND_CHECK(!campaign.selectMission(5, {}));
 
-    // Territory 1 is owned but has no mission.
-    FOSSYND_CHECK(!campaign.selectMission(1, {}));
+    // Territory 1 is owned and now carries a mission (every shipped region
+    // does), so a player may deploy to it.
+    FOSSYND_CHECK(campaign.selectMission(1, {}));
+    FOSSYND_CHECK_EQ(campaign.selectedTerritory(), 1);
 
     // Too many slots / bad slot.
     FOSSYND_CHECK(!campaign.selectMission(0, {0, 1, 2, 3, 4}));
@@ -345,4 +355,88 @@ FOSSYND_TEST(Campaign, TickAdvancesEconomyAndResearch)
         campaign.tick(10.0f, rng);
     }
     FOSSYND_CHECK(campaign.research().completed(Campaign::kPlayerSyndicate, "minigun"));
+}
+
+// --- Mission-set wiring pins (issue #418) ----------------------------------
+//
+// The campaign is only a campaign if every region is playable: each region's
+// `missionId` must resolve to a shipped mission file, and that id must be in the
+// campaign's `missions` list. Before #418, The Docks had no mission and five
+// regions replayed just two boards, so most of the map was the same fight twice.
+
+FOSSYND_TEST(Campaign, EveryShippedRegionNamesAMissionThatExists)
+{
+    const Campaign campaign = loadedCampaign();
+
+    // No region is allowed to be a dead end: every territory carries a mission.
+    for (const Territory& territory : campaign.map().territories())
+    {
+        FOSSYND_CHECK(!territory.missionId.empty());
+        // ...and the id resolves to a real shipped mission file (the silent-break
+        // class the closed #369 was: an id that nothing loads).
+        FOSSYND_CHECK(std::filesystem::exists(shippedMissionFile(territory.missionId)));
+    }
+}
+
+FOSSYND_TEST(Campaign, CampaignMissionsListCoversEveryRegionMission)
+{
+    const Campaign campaign = loadedCampaign();
+
+    // `campaign.json`'s `missions` list is the shipped set; a region naming an id
+    // that is not in it is a data error the loader cannot see.
+    for (const Territory& territory : campaign.map().territories())
+    {
+        bool listed = false;
+        for (const std::string& id : campaign.missions())
+        {
+            if (id == territory.missionId)
+            {
+                listed = true;
+                break;
+            }
+        }
+        FOSSYND_CHECK(listed);
+    }
+}
+
+FOSSYND_TEST(Campaign, TheMapUsesTheWholeMissionSetNotJustTheDemo)
+{
+    // The point of #418: the map should exercise the tactical mission set, not
+    // replay the opening two boards. Count the distinct missions the six regions
+    // name and require most of the shipped set to be reachable from the map.
+    const Campaign campaign = loadedCampaign();
+
+    std::vector<std::string> used;
+    for (const Territory& territory : campaign.map().territories())
+    {
+        bool seen = false;
+        for (const std::string& id : used)
+        {
+            if (id == territory.missionId)
+            {
+                seen = true;
+                break;
+            }
+        }
+        if (!seen)
+        {
+            used.push_back(territory.missionId);
+        }
+    }
+
+    FOSSYND_CHECK_EQ(used.size(), std::size_t{5}); // demo, escort, blackout, assembly, overpass
+    // Every id named by the map must also be in the campaign's shipped list.
+    for (const std::string& id : used)
+    {
+        bool listed = false;
+        for (const std::string& shipped : campaign.missions())
+        {
+            if (shipped == id)
+            {
+                listed = true;
+                break;
+            }
+        }
+        FOSSYND_CHECK(listed);
+    }
 }
