@@ -31,6 +31,14 @@ struct Weapon
     // single-target weapon, so existing weapons are unchanged.
     float areaRadius = 0.0f;
 
+    // Fuse, in seconds. `0` (the default) fires immediately and changes nothing
+    // for every existing weapon. A positive value arms a bomb on fire: the
+    // detonation is queued at the impact point and lands after this many
+    // seconds, using the same area-damage path (so a shield still covers it,
+    // walls in the blast breach, and a time bomb survives its owner's death).
+    // Deterministic; no RNG.
+    float fuseSeconds = 0.0f;
+
     // Seconds between firing decisions by the AI (reaction cadence).
     float cooldown() const { return fireRate > 0.0f ? 1.0f / fireRate : 1.0f; }
 };

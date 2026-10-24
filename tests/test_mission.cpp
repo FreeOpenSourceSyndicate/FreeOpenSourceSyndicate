@@ -2516,3 +2516,239 @@ FOSSYND_TEST(Mission, ShippedOverpassReachIsWinnable)
     FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
 }
 
+// --- time bomb (issue #449) ------------------------------------------------
+//
+// A fused charge: arming queues a detonation at a tile, it lands after the fuse,
+// and it uses the *same* area-damage path as an explosive weapon — so a shield
+// still covers it and walls in the blast breach. `fuseSeconds == 0` (the
+// default) is the old immediate behaviour and must be untouched.
+//
+// The enemy in these fixtures carries a long-range, zero-accuracy weapon so it
+// holds position and never wounds anyone: the only damage in the scene is the
+// bomb's, which keeps the assertions exact.
+
+namespace
+{
+std::size_t addTimeBombTarget(Mission& mission, float x, float y, float health = 100.0f)
+{
+    return mission.addAgent(makeAgent(x, y, Team::Enemy, health,
+                                      Weapon{"None", 0.0f, 100.0f, 1.0f, 0.0f}));
+}
+
+// Ticks until no bomb is pending (or a safety guard trips).
+void runUntilDetonated(Mission& mission)
+{
+    int guard = 0;
+    while (mission.pendingDetonations() > 0 && guard++ < 400)
+    {
+        mission.update(0.05f);
+    }
+}
+} // namespace
+
+FOSSYND_TEST(Mission, TimeBombDetonatesAfterTheFuse)
+{
+    TileGrid grid(30, 30);
+    Mission mission(grid, 71u);
+    const std::size_t hero =
+        mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                                   Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+    const std::size_t foe = addTimeBombTarget(mission, 10.0f, 2.0f);
+
+    FOSSYND_CHECK_EQ(mission.pendingDetonations(), 0u);
+    FOSSYND_CHECK(mission.orderTimeBomb(hero, TilePos{10, 2}));
+    FOSSYND_CHECK_EQ(mission.pendingDetonations(), 1u);
+
+    // Not yet: the fuse is still burning, so nothing has been damaged.
+    mission.update(0.05f);
+    FOSSYND_CHECK_NEAR(mission.agents()[foe].health(), 100.0f);
+    FOSSYND_CHECK_EQ(mission.pendingDetonations(), 1u);
+
+    // After the fuse, the blast lands on the enemy (60 damage) and is cleared.
+    runUntilDetonated(mission);
+    FOSSYND_CHECK_EQ(mission.pendingDetonations(), 0u);
+    FOSSYND_CHECK_NEAR(mission.agents()[foe].health(), 40.0f);
+}
+
+FOSSYND_TEST(Mission, TimeBombBreachesWallsInItsBlast)
+{
+    TileGrid grid(30, 30);
+    grid.setWalkable(11, 2, false);
+    grid.setDestructible(11, 2, true, 10);
+    Mission mission(grid, 72u);
+    const std::size_t hero =
+        mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                                   Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+    addTimeBombTarget(mission, 10.0f, 2.0f, 1000.0f);
+
+    FOSSYND_CHECK(grid.isDestructible(11, 2));
+    FOSSYND_CHECK(mission.orderTimeBomb(hero, TilePos{10, 2}));
+    runUntilDetonated(mission);
+
+    // The wall one tile from the impact is inside the blast radius and opens.
+    FOSSYND_CHECK(!grid.isDestructible(11, 2));
+    FOSSYND_CHECK(grid.isWalkable(11, 2));
+}
+
+FOSSYND_TEST(Mission, TimeBombSurvivesItsOwnersDeath)
+{
+    TileGrid grid(30, 30);
+    Mission mission(grid, 73u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    // A second player keeps the mission Running after the owner dies, so the
+    // bomb actually gets a chance to tick (a lone player's death ends it).
+    mission.addAgent(makeAgent(2.0f, 5.0f, Team::Player, 100.0f));
+    const std::size_t foe = addTimeBombTarget(mission, 10.0f, 2.0f);
+
+    FOSSYND_CHECK(mission.orderTimeBomb(hero, TilePos{10, 2}));
+
+    // Kill the owner before the fuse runs out: the bomb is already independent.
+    mission.agents()[hero].applyDamage(1000.0f);
+    FOSSYND_CHECK(!mission.agents()[hero].isAlive());
+
+    runUntilDetonated(mission);
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Running);
+    FOSSYND_CHECK_NEAR(mission.agents()[foe].health(), 40.0f);
+}
+
+FOSSYND_TEST(Mission, TimeBombBlastIsBlockedByShield)
+{
+    // The bomb reuses the area-damage path, so a raised shield absorbs it whole
+    // and drops, exactly as it would for an explosive weapon hit.
+    TileGrid grid(30, 30);
+    Mission mission(grid, 79u);
+    const std::size_t hero =
+        mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                                   Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+    const std::size_t foe = addTimeBombTarget(mission, 10.0f, 2.0f);
+
+    mission.setShields(foe, 1);
+    FOSSYND_CHECK(mission.activateShield(foe));
+    FOSSYND_CHECK(mission.orderTimeBomb(hero, TilePos{10, 2}));
+    runUntilDetonated(mission);
+
+    FOSSYND_CHECK(!mission.shieldUp(foe));
+    FOSSYND_CHECK_NEAR(mission.agents()[foe].health(), 100.0f); // absorbed
+}
+
+FOSSYND_TEST(Mission, TimeBombCannotBeStackedByOneAgent)
+{
+    TileGrid grid(30, 30);
+    Mission mission(grid, 74u);
+    const std::size_t hero =
+        mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                                   Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+    addTimeBombTarget(mission, 10.0f, 2.0f, 1000.0f);
+
+    FOSSYND_CHECK(mission.orderTimeBomb(hero, TilePos{10, 2}));
+    // A second plant while the first is still counting down is refused.
+    FOSSYND_CHECK(!mission.orderTimeBomb(hero, TilePos{10, 2}));
+    FOSSYND_CHECK_EQ(mission.pendingDetonations(), 1u);
+
+    // Once it has fired, the agent may plant another.
+    runUntilDetonated(mission);
+    FOSSYND_CHECK_EQ(mission.pendingDetonations(), 0u);
+    FOSSYND_CHECK(mission.orderTimeBomb(hero, TilePos{10, 2}));
+}
+
+FOSSYND_TEST(Mission, TimeBombRejectsCivilianDeadAndInvalid)
+{
+    TileGrid grid(30, 30);
+    Mission mission(grid, 75u);
+    const std::size_t civ = mission.addAgent(makeAgent(5.0f, 5.0f, Team::Civilian, 50.0f));
+    const std::size_t dead = mission.addAgent(makeAgent(8.0f, 8.0f, Team::Enemy, 10.0f));
+    mission.agents()[dead].applyDamage(100.0f);
+
+    FOSSYND_CHECK(!mission.orderTimeBomb(civ, TilePos{5, 5}));   // not a combatant
+    FOSSYND_CHECK(!mission.orderTimeBomb(dead, TilePos{8, 8}));  // corpse
+    FOSSYND_CHECK(!mission.orderTimeBomb(999, TilePos{1, 1}));   // out of range
+    FOSSYND_CHECK_EQ(mission.pendingDetonations(), 0u);
+}
+
+FOSSYND_TEST(Mission, TimeBombRejectsADriver)
+{
+    TileGrid grid(30, 30);
+    Mission mission(grid, 76u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    const std::size_t car = mission.addVehicle(makeCar(3.0f, 2.0f));
+
+    FOSSYND_CHECK(mission.orderHijack(car, hero));
+    FOSSYND_CHECK(mission.isDriving(hero));
+    FOSSYND_CHECK(!mission.orderTimeBomb(hero, TilePos{10, 2}));
+    FOSSYND_CHECK_EQ(mission.pendingDetonations(), 0u);
+}
+
+FOSSYND_TEST(Mission, FusedWeaponArmsOnFireInsteadOfDamaging)
+{
+    // A weapon with a fuse does not wound on impact: the shot arms a bomb at the
+    // target's tile, and the damage arrives when the fuse runs out. A slow
+    // fireRate keeps the shooter from re-arming before the first bomb lands.
+    TileGrid grid(30, 30);
+    Mission mission(grid, 77u);
+    const std::size_t hero =
+        mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                                   Weapon{"Bomb", 60.0f, 20.0f, 0.5f, 1.0f, 2.0f, 0.5f}));
+    const std::size_t foe = addTimeBombTarget(mission, 5.0f, 2.0f, 500.0f);
+    mission.orderAttack(hero, foe);
+
+    // The hit roll is stochastic, so fire until the fused weapon arms (a miss
+    // leaves the target unhurt, so this cannot mask a damaging hit).
+    int guard = 0;
+    while (mission.pendingDetonations() == 0 && guard++ < 200)
+    {
+        mission.update(0.05f);
+    }
+    // Arming lands no damage now: the target is untouched and a bomb is pending.
+    FOSSYND_CHECK_EQ(mission.pendingDetonations(), 1u);
+    FOSSYND_CHECK_NEAR(mission.agents()[foe].health(), 500.0f);
+
+    // The fuse runs out and the blast lands for the weapon's damage.
+    runUntilDetonated(mission);
+    FOSSYND_CHECK_NEAR(mission.agents()[foe].health(), 440.0f);
+}
+
+FOSSYND_TEST(Mission, ZeroFuseWeaponStillDamagesImmediately)
+{
+    // fuseSeconds == 0 (the default) must keep the old immediate-hit behaviour
+    // and never queue a detonation.
+    TileGrid grid(30, 30);
+    Mission mission(grid, 78u);
+    const std::size_t hero =
+        mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                                   Weapon{"Gun", 40.0f, 20.0f, 10.0f, 1.0f}));
+    const std::size_t foe = addTimeBombTarget(mission, 5.0f, 2.0f);
+    mission.orderAttack(hero, foe);
+
+    // Fire until the (stochastic) shot lands.
+    int guard = 0;
+    while (mission.agents()[foe].health() >= 100.0f && guard++ < 200)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK_EQ(mission.pendingDetonations(), 0u);
+    FOSSYND_CHECK_NEAR(mission.agents()[foe].health(), 60.0f);
+}
+
+FOSSYND_TEST(Mission, TimeBombDetonationIsDeterministic)
+{
+    auto run = []() {
+        TileGrid grid(30, 30);
+        Mission mission(grid, 80u);
+        const std::size_t hero =
+            mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f,
+                                       Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+        const std::size_t foe = addTimeBombTarget(mission, 10.0f, 2.0f);
+        mission.orderTimeBomb(hero, TilePos{10, 2});
+        for (int i = 0; i < 80; ++i)
+        {
+            mission.update(0.05f);
+        }
+        return std::make_pair(mission.agents()[foe].health(), mission.pendingDetonations());
+    };
+
+    const auto a = run();
+    const auto b = run();
+    FOSSYND_CHECK_NEAR(a.first, b.first);
+    FOSSYND_CHECK_EQ(a.second, b.second);
+}
+

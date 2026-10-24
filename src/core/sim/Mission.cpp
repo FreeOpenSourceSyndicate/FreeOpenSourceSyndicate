@@ -82,6 +82,19 @@ constexpr float kHijackRadius = 1.5f;
 constexpr float kVehicleWreckRadius = 1.5f;
 constexpr float kVehicleWreckDamageScale = 0.5f;
 
+// Time bomb (issue #449). A player-armed fused charge: it detonates after a
+// fixed fuse, with a blast wider and stronger than a rifle round, so it opens a
+// room the way a rocket does. The AI does not arm bombs yet.
+constexpr float kTimeBombFuseSeconds = 3.0f;
+constexpr float kTimeBombRadius = 2.0f;
+constexpr float kTimeBombDamage = 60.0f;
+
+// A sentinel attacker index for a blast whose source is gone (a time bomb
+// outliving its owner). It is never a valid agent index, so `detonate` excludes
+// no agent by identity and simply hurts everyone in range — the correct
+// behaviour for an orphaned charge.
+constexpr std::size_t kNoAttacker = static_cast<std::size_t>(-1);
+
 // The opposing combatant team for a given team. Civilians have no enemy.
 Team opposingTeam(Team team)
 {
@@ -919,6 +932,7 @@ void Mission::update(float dt)
         advanceMoveQueue(i);
     }
     resolveFire();
+    updateDetonations(dt);
     updateVehicles(dt);
     resolveVehicleFire();
     evaluateOutcome();
@@ -1447,27 +1461,7 @@ void Mission::resolveFire()
             continue;
         }
 
-        Agent& victim = agents_[targetIndex];
-        damageAgent(targetIndex, attacker.weapon().damage);
-        if (!victim.isAlive())
-        {
-            if (victim.team() == Team::Enemy)
-            {
-                ++playerKills_;
-            }
-            else if (victim.team() == Team::Player)
-            {
-                ++enemyKills_;
-            }
-        }
-
-        // Explosive weapons also damage everyone else caught in the blast. The
-        // primary target is excluded so it is hit exactly once (issue #79).
-        const float areaRadius = attacker.weapon().areaRadius;
-        if (areaRadius > 0.0f)
-        {
-            applyAreaDamage(i, targetIndex, attacker.weapon().damage, areaRadius);
-        }
+        resolveWeaponHit(i, targetIndex, attacker.weapon());
     }
 }
 
@@ -1503,11 +1497,49 @@ void Mission::breachTilesInBlast(const Vec2& impact, float radius, float damage)
 
 void Mission::applyAreaDamage(std::size_t attacker, std::size_t target, float damage, float radius)
 {
-    const Vec2 impact = agents_[target].position();
+    detonate(agents_[target].position(), radius, damage, attacker, target);
+}
+
+void Mission::resolveWeaponHit(std::size_t attacker, std::size_t targetIndex, const Weapon& weapon)
+{
+    // A fused weapon does not damage on impact: it arms a bomb at the target's
+    // tile that detonates after the fuse, through the same area-damage path.
+    // Owned by the shooter, so a shooter can never stack two bombs.
+    if (weapon.fuseSeconds > 0.0f)
+    {
+        armTimeBomb(attacker, agents_[targetIndex].tile(), weapon.areaRadius, weapon.damage);
+        return;
+    }
+
+    Agent& victim = agents_[targetIndex];
+    damageAgent(targetIndex, weapon.damage);
+    if (!victim.isAlive())
+    {
+        if (victim.team() == Team::Enemy)
+        {
+            ++playerKills_;
+        }
+        else if (victim.team() == Team::Player)
+        {
+            ++enemyKills_;
+        }
+    }
+
+    // Explosive weapons also damage everyone else caught in the blast. The
+    // primary target is excluded so it is hit exactly once (issue #79).
+    if (weapon.areaRadius > 0.0f)
+    {
+        applyAreaDamage(attacker, targetIndex, weapon.damage, weapon.areaRadius);
+    }
+}
+
+void Mission::detonate(const Vec2& impact, float radius, float damage, std::size_t attacker,
+                       std::size_t exclude)
+{
     for (std::size_t i = 0; i < agents_.size(); ++i)
     {
         Agent& bystander = agents_[i];
-        if (i == attacker || i == target || !bystander.isAlive())
+        if (i == attacker || i == exclude || !bystander.isAlive())
         {
             continue;
         }
@@ -1567,6 +1599,67 @@ void Mission::applyAreaDamage(std::size_t attacker, std::size_t target, float da
     // The explosion itself breaches destructible walls in its radius, not just
     // the one tile a blocked shot would have landed on (#185).
     breachTilesInBlast(impact, radius, damage);
+}
+
+bool Mission::armTimeBomb(std::size_t owner, TilePos tile, float radius, float damage)
+{
+    if (owner >= agents_.size())
+    {
+        return false;
+    }
+    const Agent& agent = agents_[owner];
+    // A bomb is a combatant's action: not a civilian, not a corpse, not someone
+    // already behind a wheel. One live bomb per agent, so a charge is never
+    // stacked on the same spot.
+    if (!agent.canAttack() || isDriving(owner))
+    {
+        return false;
+    }
+    for (const Detonation& armed : detonations_)
+    {
+        if (armed.owner == owner)
+        {
+            return false;
+        }
+    }
+    Detonation bomb;
+    bomb.impact = Vec2{static_cast<float>(tile.x), static_cast<float>(tile.y)};
+    bomb.radius = radius;
+    bomb.damage = damage;
+    bomb.fuse = kTimeBombFuseSeconds;
+    bomb.owner = owner;
+    detonations_.push_back(bomb);
+    return true;
+}
+
+bool Mission::orderTimeBomb(std::size_t index, TilePos tile)
+{
+    return armTimeBomb(index, tile, kTimeBombRadius, kTimeBombDamage);
+}
+
+void Mission::updateDetonations(float dt)
+{
+    // Tick every fuse first, then detonate the ones that have run out, so a
+    // single `update` cannot both arm and fire a bomb (order is fixed and
+    // deterministic). Iterating front-to-back and erasing the fired entries
+    // keeps the remaining order stable.
+    for (Detonation& bomb : detonations_)
+    {
+        bomb.fuse -= dt;
+    }
+    for (std::size_t i = 0; i < detonations_.size();)
+    {
+        if (detonations_[i].fuse > 0.0f)
+        {
+            ++i;
+            continue;
+        }
+        const Detonation& bomb = detonations_[i];
+        // The owner may be dead or gone by now: the blast is attributed to the
+        // sentinel, so it excludes nobody and hurts everyone in range.
+        detonate(bomb.impact, bomb.radius, bomb.damage, kNoAttacker, kNoAttacker);
+        detonations_.erase(detonations_.begin() + static_cast<std::ptrdiff_t>(i));
+    }
 }
 
 void Mission::applyStrayFire(std::size_t attacker, std::size_t target, float damage)
@@ -1706,6 +1799,9 @@ void Mission::resolveVehicleFire()
             }
         }
 
+        // A mounted weapon is a gun, not a charge: the time bomb is an agent's
+        // personal weapon, so this path never arms one (and a driver could not
+        // plant one anyway). Blast radius still applies as before.
         const float areaRadius = vehicle.mountedWeapon().areaRadius;
         if (areaRadius > 0.0f)
         {
