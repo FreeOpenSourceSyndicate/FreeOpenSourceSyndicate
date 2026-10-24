@@ -255,6 +255,23 @@ public:
     // fire, and only the vehicle's mounted weapon fires.
     bool isDriving(std::size_t agentIndex) const;
 
+    // --- time bomb (fused, delayed detonation) -------------------------------
+
+    // Orders the agent at `index` to plant a time bomb on `tile`: the bomb
+    // detonates after `kTimeBombFuseSeconds`, using the same area-damage path as
+    // an explosive weapon (so a raised shield still absorbs the hit, walls in the
+    // blast breach, and civilians caught in it count as collateral). The bomb is
+    // independent of its owner once armed — killing the agent does not defuse it.
+    // Only a living combatant not already driving may plant one; an agent that
+    // already has a bomb counting down cannot plant a second (returns false), so a
+    // charge is never stacked. Deterministic; no RNG. The AI does not plant
+    // bombs; this is a player order (a bomb-thrower AI is a follow-up).
+    bool orderTimeBomb(std::size_t index, TilePos tile);
+
+    // Number of armed bombs still counting down. The view draws a cue from this
+    // and the render lane can add a marker; the sim itself only needs the count.
+    std::size_t pendingDetonations() const { return detonations_.size(); }
+
     // Index of the nearest living agent on `enemyTeam` to (x, y) in tile space,
     // or -1 if none. Used by the view to pick a target under the cursor.
     int nearestEnemyTo(float tileX, float tileY, Team enemyTeam) const;
@@ -345,6 +362,39 @@ private:
     // with a non-zero area radius (issue #79).
     void applyAreaDamage(std::size_t attacker, std::size_t target, float damage, float radius);
 
+    // Lands one weapon hit on `targetIndex` for the shooter at `attacker`, the
+    // agent personal-fire path (a mounted vehicle weapon stays a plain gun and
+    // does not arm bombs). A weapon with a positive `fuseSeconds` does not damage
+    // now: it arms a bomb at the target's tile (owned by `attacker`, so a shooter
+    // cannot stack bombs) that detonates after the fuse. Otherwise the primary
+    // target takes one hit and, for an area weapon, everyone else in the blast is
+    // caught too. Deterministic; no RNG (the hit roll is the caller's).
+    void resolveWeaponHit(std::size_t attacker, std::size_t targetIndex, const Weapon& weapon);
+
+    // Detonates a blast at `impact` (a position in tile space) with `radius` and
+    // `damage`: hurts every living agent in range except `attacker` and
+    // `exclude`, wrecks vehicles in range (a wreck detonating in turn), and
+    // breaches destructible walls in the blast. Shared by explosive weapon fire
+    // and a time bomb's detonation so both behave identically. Either index may
+    // be `kNoAttacker` (never a valid agent index), which excludes no agent —
+    // used when the source is gone (a bomb outliving its owner) or when there is
+    // no separate primary target. Deterministic; no RNG.
+    void detonate(const Vec2& impact, float radius, float damage, std::size_t attacker,
+                  std::size_t exclude);
+
+    // Ticks every armed time bomb, detonating the ones whose fuse has run out.
+    // Called once per update. A detonation uses the bomb's snapshotted radius and
+    // damage and the sentinel attacker, so it is independent of the owner's fate.
+    // Deterministic; no RNG.
+    void updateDetonations(float dt);
+
+    // Arms a time bomb owned by the agent at `owner`, to detonate after
+    // `kTimeBombFuseSeconds` at `tile` with the given blast. Refused (false) for
+    // a dead/civilian/driving owner, an invalid index, or an owner that already
+    // has a live bomb — the single gate every arming path shares. Deterministic;
+    // no RNG.
+    bool armTimeBomb(std::size_t owner, TilePos tile, float radius, float damage);
+
     // Chips every destructible, unbreached tile whose centre lies within `radius`
     // tiles of `impact` (a position in tile space), opening the ones whose hit
     // points run out. Called for every explosive blast — a weapon's area damage
@@ -398,6 +448,20 @@ private:
     TileGrid* grid_ = nullptr;
     std::vector<Agent> agents_;
     std::vector<Vehicle> vehicles_;
+
+    // An armed time bomb: where it will land, the blast it will make, and who
+    // armed it. The damage/radius are snapshotted at arm time so the blast is
+    // independent of the owner (which may die first) and of later weapon
+    // changes; the owner is kept only so one agent cannot stack bombs.
+    struct Detonation
+    {
+        Vec2 impact{};
+        float radius = 0.0f;
+        float damage = 0.0f;
+        float fuse = 0.0f; // seconds remaining
+        std::size_t owner = 0;
+    };
+    std::vector<Detonation> detonations_;
     // Explicit mounted-fire target per vehicle (agent index, or -1 for
     // auto-acquire), kept in step with `vehicles_`. Parallel to how an agent's
     // `orderedTarget` works, but held on the Mission so `core::Vehicle` stays
