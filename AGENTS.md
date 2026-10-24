@@ -1250,6 +1250,24 @@ Do not start work outside the scope fence (ADR-0024).
   hide the map screen behind the default search. An empty `--campaign` still
   searches the default locations and skips absent candidates. ctest
   `game_cli_campaign_missing` (`WILL_FAIL`) guards it.
+- **`--save`/`--load` drive the campaign save helper (issue #433):** the versioned
+  snapshot from #406/PR #430 (`core::CampaignSave`) had no caller. `--save <path>`
+  writes the live campaign's progress on exit and `--load <path>` overlays a save
+  on the freshly loaded base campaign — the two-step load the ADR-0039 overlay
+  format requires. `Game::saveCampaignProgress`/`loadCampaignProgress` delegate to
+  `CampaignScreen::saveProgress`/`loadProgress` (which own the `core::Campaign`
+  and the view layout), and `main` applies the load **after** `init()` so the
+  resolved base campaign exists and the error names the real reason (parse error,
+  topology mismatch). An explicit `--load` naming a missing file fails fast like
+  `--mission`/`--campaign`/`--config` (the #259 pattern); a requested `--save`
+  that cannot be written is a failure, not a silent skip. `--headless
+  --check-save-load` (ctest `game_save_load`) runs the round-trip on a scratch
+  screen — progress a campaign, save, reload into a fresh base, confirm every
+  captured field returns, then confirm a corrupt and a missing file are rejected.
+  A save is written/read with stdio, not `<fstream>`, to protect the low-spec
+  size budget (§1b). The save/load wiring newly links `core::CampaignSave` into
+  the game binary (~24 KiB), which the low-spec budget must absorb — a `platform`
+  concern (see the size-budget notes in `docs/BUILD.md`).
 - **`--frames` must be a positive integer (issue #264):** a non-numeric, zero,
   negative, or trailing-garbage value (`abc`, `0`, `-3`, `5x`) prints
   `invalid --frames '<v>': expected a positive count` and exits 1, instead of
@@ -1265,6 +1283,7 @@ Do not start work outside the scope fence (ADR-0024).
   `--headless --check-campaign`,
   `--headless --check-deploy`,
   `--headless --check-campaign-keys`,
+  `--headless --check-save-load`,
   `--headless --check-objectives`,
   `--headless --check-scanner`,
   `--headless --check-shield`,
@@ -1280,7 +1299,7 @@ Do not start work outside the scope fence (ADR-0024).
   `game_demo`, `game_low_spec`, `game_title`, `game_sprites`, `game_minimap`,
   `game_selection`, `game_waypoints`, `game_waypoint_path`, `game_pause`,
   `game_pause_flag`, `game_gadgets`, `game_campaign`, `game_deploy`,
-  `game_campaign_keys`,
+  `game_campaign_keys`, `game_save_load`,
   `game_map_flag`, `game_objectives`, `game_scanner`,
   `game_scanner_screenshot`, `game_vehicles`, and
   `game_vehicles_screenshot`, `game_shield`, and `game_shield_screenshot`,
@@ -1380,7 +1399,7 @@ Do not start work outside the scope fence (ADR-0024).
   exactly. Tests: `tests/test_persistence.cpp` (ctest `core_unit_tests`). The
   schema belongs in `docs/DATA_FORMAT.md` (**Content** area — a Rule 4 request,
   not an edit from World). The `--save`/`--load` CLI wiring is **Input/UI**'s
-  (a separate request).
+  (issue #433): it now drives this helper (see the `--save`/`--load` bullet above).
 - **The player's syndicate identity is data + a save field (issue #445):** the
   original lets the player **name the syndicate and pick a logo** at the start.
   `core::Campaign` carries the choice — `syndicateName()`/`syndicateLogo()` return

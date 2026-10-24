@@ -38,6 +38,8 @@ void printUsage()
         "      --mission <path>       Load the given mission file.\n"
         "      --campaign <path>      Load the given campaign file (world map).\n"
         "      --config <path>        Load the given config file.\n"
+        "      --save <path>          Save campaign progress to <path> on exit.\n"
+        "      --load <path>          Restore campaign progress from <path>.\n"
         "      --lang <locale>        Set the UI language (e.g. en, de).\n"
         "      --demo                 Attract mode: the AI plays the mission.\n"
         "      --title                Show the title card.\n"
@@ -78,6 +80,7 @@ void printUsage()
         "      --check-campaign       Validate the campaign management loop.\n"
         "      --check-deploy         Validate deploying a mission from the map.\n"
         "      --check-campaign-keys  Validate map-screen key isolation.\n"
+        "      --check-save-load      Validate the campaign save/load round-trip.\n"
         "      --check-lang [locale]  Validate the UI string table.\n"
         "      --check-content [dir]  Validate mission/catalogue references.\n",
         FOSSYND_VERSION);
@@ -206,6 +209,7 @@ int main(int argc, char** argv)
     bool checkCampaign = false;
     bool checkDeploy = false;
     bool checkCampaignKeys = false;
+    bool checkSaveLoad = false;           // --check-save-load
     bool showMap = false;                 // --map
     const char* checkLangLocale = nullptr; // --check-lang [<locale>]
     const char* checkContent = nullptr;   // --check-content [<dataDir>]
@@ -218,6 +222,8 @@ int main(int argc, char** argv)
     std::string cliMission;   // --mission <path>
     std::string cliConfig;    // --config <path>
     std::string cliCampaign;  // --campaign <path>
+    std::string cliSave;      // --save <path>
+    std::string cliLoad;      // --load <path>
     std::string cliLang;      // --lang <locale>
 
     for (int i = 1; i < argc; ++i)
@@ -385,6 +391,10 @@ int main(int argc, char** argv)
         {
             checkCampaignKeys = true;
         }
+        else if (std::strcmp(argv[i], "--check-save-load") == 0)
+        {
+            checkSaveLoad = true;
+        }
         else if (std::strcmp(argv[i], "--map") == 0)
         {
             showMap = true;
@@ -419,6 +429,14 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--campaign") == 0 && i + 1 < argc)
         {
             cliCampaign = argv[++i];
+        }
+        else if (std::strcmp(argv[i], "--save") == 0 && i + 1 < argc)
+        {
+            cliSave = argv[++i];
+        }
+        else if (std::strcmp(argv[i], "--load") == 0 && i + 1 < argc)
+        {
+            cliLoad = argv[++i];
         }
         else if (std::strcmp(argv[i], "--config") == 0 && i + 1 < argc)
         {
@@ -552,6 +570,16 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    // An explicit `--load <path>` naming a missing file fails fast, like
+    // `--mission`/`--campaign`/`--config` (issue #259, #433): a typo must not
+    // silently start a fresh campaign. A corrupt or mismatched save is rejected
+    // after init(), where the base campaign exists and the parse error is known.
+    if (!cliLoad.empty() && !fossynd::core::fileExists(cliLoad))
+    {
+        std::fprintf(stderr, "load error (%s): file not found\n", cliLoad.c_str());
+        return 1;
+    }
+
     // Resolve the UI language (issue #123): a `--lang` flag overrides a `lang`
     // config key; neither set means English. An unknown locale is handled by the
     // game (warn and keep English), never a failure here.
@@ -566,6 +594,8 @@ int main(int argc, char** argv)
     game.setPaused(startPaused);
     game.setCampaignPath(cliCampaign);
     game.setShowMap(showMap);
+    game.setSavePath(cliSave);
+    game.setLoadPath(cliLoad);
 
     // Show the authored title card for a real, interactive player. Automated
     // runs (headless, screenshots, attract mode) skip it and go straight to the
@@ -580,6 +610,22 @@ int main(int argc, char** argv)
         return 1;
     }
     game.setAutoPlay(demo);
+
+    // Restore saved campaign progress on top of the base campaign (issue #433).
+    // The two-step load: init() loaded the base campaign; this overlays the save.
+    // A requested `--load` that cannot be applied is fatal (the #259 fail-fast
+    // pattern) — a corrupt or mismatched save must not silently start fresh. Done
+    // after init() so the resolved base campaign exists and the error names the
+    // real reason (parse error, topology mismatch).
+    if (!cliLoad.empty())
+    {
+        std::string loadError;
+        if (!game.loadCampaignProgress(cliLoad, loadError))
+        {
+            std::fprintf(stderr, "load error (%s): %s\n", cliLoad.c_str(), loadError.c_str());
+            return 1;
+        }
+    }
 
     // `--breach` opens every destructible wall up front so a headless screenshot
     // (or a manual run) shows the rubble art without waiting for combat (#218).
@@ -870,6 +916,23 @@ int main(int argc, char** argv)
         }
         const bool ok = game.campaignKeySelfTest();
         std::printf(ok ? "campaign-keys: ok\n" : "campaign-keys: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkSaveLoad)
+    {
+        // Headless guard for the campaign save/load round-trip (issue #433): a
+        // progressed campaign must save, reload into a fresh base campaign with
+        // every captured field restored, and a corrupt/missing file must be
+        // rejected. Runs from the repo root so the shipped campaign loads. Used by
+        // the game_save_load ctest.
+        if (!game.campaignValid())
+        {
+            std::fprintf(stderr, "save-load: no campaign loaded (run from the repo root?)\n");
+            return 1;
+        }
+        const bool ok = game.saveLoadSelfTest();
+        std::printf(ok ? "save-load: ok\n" : "save-load: FAILED\n");
         return ok ? 0 : 1;
     }
 
