@@ -1579,6 +1579,11 @@ class TestFocusConfig(CoordTestCase):
         self.assertEqual(tuple(coord.CONFIG.areas), tuple(coord._DEFAULT_AREAS))
         self.assertEqual(coord.CONFIG.critical_path_areas,
                          ("tactical", "metagame", "world"))
+        # The SM-owned set is read from the same shipped file and must agree with
+        # the built-in fallback too: a redesign that edits only one of them would
+        # otherwise silently move work between the PO's and the SM's schedules
+        # (ADR-0041, the #425 three-source trap).
+        self.assertEqual(coord.CONFIG.sm_owned, tuple(coord._DEFAULT_SM_OWNED))
         for name, spec in coord._DEFAULT_AREAS.items():
             self.assertEqual(coord.CONFIG.areas[name]["code"], spec["code"])
 
@@ -1687,6 +1692,36 @@ class TestFocusConfig(CoordTestCase):
         self.assertEqual(data.get("sm_owned"), ["rules"])
         self.assertIn("rules", data["areas"])
         self.assertIn("platform", data["areas"])
+
+    def test_the_issue_template_matches_the_sm_owned_set(self):
+        # The task template's focus-area list is a FOURTH source of the sm_owned
+        # claim (besides the shipped file, the fallback, and the prose docs).  A
+        # stale "(SM-owned)" tag on `platform` there would tell a contributor to
+        # file build work as SM-owned - re-arming the exact trap of #423/ADR-0041,
+        # because `coord next` would then route it only to the SM.  Guard it.
+        path = os.path.join(REPO_ROOT, ".github", "ISSUE_TEMPLATE", "task.md")
+        with open(path, encoding="utf-8") as fh:
+            template = fh.read()
+        lines = {}
+        for line in template.splitlines():
+            marker = "- [ ] `focus: "
+            if marker in line:
+                area = line.split(marker, 1)[1].split("`", 1)[0]
+                lines[area] = line
+        # Every area in the config is offered, so a new area cannot be missing.
+        for area in coord.AREAS:
+            self.assertIn(area, lines, f"issue template omits focus area {area!r}")
+        # Only an SM-owned area carries the SM marker; a worker lane never does.
+        sm_marker = "the SM's own lane"
+        for area, line in lines.items():
+            if area in coord.SM_OWNED_AREAS:
+                self.assertIn(sm_marker, line,
+                              f"SM-owned area {area!r} is not marked in the template")
+            else:
+                self.assertNotIn(sm_marker, line,
+                                 f"worker area {area!r} is wrongly marked SM-owned")
+        # The old, wrong tag must be gone for good.
+        self.assertNotIn("SM-owned", template)
 
 
 class TestSmOwnedRouting(CoordTestCase):
