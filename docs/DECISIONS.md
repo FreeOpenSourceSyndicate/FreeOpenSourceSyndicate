@@ -2216,7 +2216,8 @@ ever wants it gone, the delete is a self-contained removal of the three regexes,
 
 ## ADR-0038 — SM-owned infrastructure areas, direct agent messages, and a bootstrapping SM
 
-- **Status:** Accepted (2026-10-17)
+- **Status:** Partly superseded by ADR-0041 (the `platform` half; the `rules`
+  lane, direct messages, and the bootstrapping SM still stand)
 - **Date:** 2026-10-17
 - **Refines:** ADR-0037 (the PO + SM organisation). The flat, lease-based
   coordination and the named-agent/roster machinery are unchanged.
@@ -2403,5 +2404,62 @@ ever wants it gone, the delete is a self-contained removal of the three regexes,
   - Audio follows the **view**: it is triggered from `Game` (the engine layer)
     from state the core already computes. The core never plays a sound and stays
     SDL-free (golden rule 1/4).
+
+---
+
+## ADR-0041 — The SM does not do project work; its only lane is `rules`
+
+- **Status:** Accepted (2026-10-17)
+- **Date:** 2026-10-17
+- **Context:** The human's 2026-10-17 directive (re-stated twice) says the focus
+  areas are **legacy structure** from the pre-SM/PO scheme, that the SM and PO
+  may **restructure or scrap** them, and that the **SM must organise the other
+  agents, not do project work** — "everything else should be done by other
+  agents". The SM had been pulled into project work and the cause was
+  structural, not a lapse in judgement: ADR-0038 marked **`platform`**
+  (build/CI/scripts/packaging) `sm_owned`, and `coord next` never routes a plain
+  worker to an `sm_owned` area. So when issue **#423** (the audio subsystem — a
+  *game feature*, `src/game/Audio.{h,cpp}`) was filed `focus: platform`, the
+  **only** agent that could be routed to it was the SM. The lane forced the work,
+  and the SM ended up implementing and merging a feature — exactly what the
+  directive forbids. A second `sm_owned` area, `rules`, is different in kind: it
+  *is* the coordination rules, which are the SM's job.
+- **Options:**
+  1. **Keep `platform` and `rules` `sm_owned`, and rely on discipline** ("file
+     features under the right label"). Rejected: it leaves the trap armed. Any
+     future mislabel of build work drags the SM back in, and the SM cannot both
+     enforce the rules and depend on everyone else labelling perfectly.
+  2. **Scrap `sm_owned` entirely; the SM owns no lane at all.** Rejected: the
+     process docs are genuine SM work and need a lane to be claimed, so a
+     `rules` lane stays — it is the one area whose *content* is the SM's role.
+  3. **Make `platform` a normal WORKER lane; keep `rules` as the SM's only
+     lane.** Chosen: build/CI/scripts/packaging is project work that a `pf`
+     worker does in parallel, so it routes to a worker; the SM is offered only
+     `rules`, and with that held it falls through to its durable jobs (drain the
+     merge queue, review a PR).
+- **Decision:** **Option 3.** `docs/focus-areas.json` `sm_owned` becomes
+  `["rules"]`; `platform` stays a real area but is a normal worker lane, so
+  `coord next` routes a `pf` worker to it and **never** the SM. The SM's
+  routable set is exactly `rules`; when it is held the SM drains the merge queue
+  or reviews, which are its other durable jobs (`docs/ORGANISATION.md` §7). The
+  code fallback (`scripts/coord _DEFAULT_SM_OWNED`) and the guard tests move with
+  the data. The SM **organises**: it keeps the roster, the backlog floor, the
+  merge queue, and the rules current, and it **seeds and routes** project work
+  for others rather than doing it.
+- **Consequences:**
+  - **The #423 trap is closed.** A game/build feature cannot be routed to the SM
+    by its label, because no worker-excluded lane covers it. The remaining
+    `rules` lane contains only process docs — the SM's own coordination work.
+  - **A `pf` worker now owns build/CI/packaging.** The PO schedules it like any
+    other worker lane; the SM does not.
+  - **The PO and SM co-own the area set.** A change to `sm_owned` (moving a lane
+    in or out) touches what the PO schedules and what the SM triggers, so per the
+    human directive the two must **agree it together** — neither edits it alone.
+  - **A redesign is still a rules change**: two peer reviews, or the sole-account
+    self-review (`AGENTS.md` §3a), and it must keep `docs/focus-areas.json`,
+    `scripts/coord`, `tests/test_coord.py`, and the prose docs in agreement (the
+    #425 three-source trap).
+  - **The ten-area set is unchanged in count.** Only `sm_owned` moved; no lane
+    was added or removed, so existing leases and labels stay valid.
 
 ---

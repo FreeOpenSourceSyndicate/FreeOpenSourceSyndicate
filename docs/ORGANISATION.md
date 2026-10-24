@@ -24,7 +24,7 @@ rulebook. Read this page first, then those.
 |------|-------|----------|------|---------|
 | **Human maintainer** | 1 | — | Product direction, licensing, release approval, the chat budget | — |
 | **Product Owner (PO)** | **one per computer** | its host | *What* gets built and in what order; the backlog; splitting work into agent-sized tasks; writing each agent's prompt | Edit code or claim a lease |
-| **Scrum Master (SM)** | **one per computer** | its host | Coordination hygiene: the roster, the daily-agent budget, blockers, the merge queue, seeding issues, and the **infrastructure areas** (`platform`, `rules`) | Assign work, override a live lease, edit another area's files |
+| **Scrum Master (SM)** | **one per computer** | its host | Coordination hygiene: the roster, the daily-agent budget, blockers, the merge queue, seeding issues, and its **own lane** (`rules`, the process docs) | Assign work, override a live lease, edit another area's files, do project work |
 | **Worker** | 0–N | its host | One task in one focus area, on one branch, one PR | Start in another area's files |
 
 **There is no coordinator** (ADR-0019). The SM is a *process* role, not an
@@ -34,14 +34,26 @@ authority: it watches and unblocks, it does not command. Coordination stays
 The **PO and the SM are peers on one host**. The PO decides the work; the SM keeps
 the machinery clean and reports what is stuck. Neither can do the other's job.
 
-**The SM owns the infrastructure areas.** `platform` (build, CI, scripts,
-packaging) and `rules` (the process docs themselves) are *not game content*: they
-exist to run the project, not to make the game. So the **SM triggers that work
-itself** — it claims `platform` or `rules` like any other area when it decides the
-work is due — and the **PO never schedules it**. `coord next` enforces this: a
-plain worker is never routed to an SM-owned area, and an idle SM looks at its own
-areas first (docs/ORGANISATION.md §7). `release` stays a normal worker area: it
-*does* produce player-visible content (a playtest snapshot).
+**The SM does not do project work; its own lane is `rules`.** The human's
+2026-10-17 directive is explicit: the SM **organises the other agents**, and
+everything that builds or ships the game is done by **other** agents. So the SM's
+one focus area is **`rules`** — the process docs themselves, whose *content* is
+coordination, which is the SM's job. It claims `rules` like any other area when
+that work is due.
+
+**`platform` (build, CI, scripts, packaging) is a normal WORKER lane, not the
+SM's** (ADR-0041). Build/CI/packaging is project work, so it routes to a `pf`
+worker. It used to be `sm_owned`, and that is exactly how the SM was dragged into
+project work: a *feature* filed under `focus: platform` (issue #423, the audio
+subsystem) could **only** be routed to the SM, because `coord next` never routes
+a plain worker to an `sm_owned` area. The directive fixed the cause, not just the
+symptom: no worker-excluded lane may cover build or game work. `release` is also
+a normal worker lane: it produces a player-visible playtest snapshot.
+
+`coord next` enforces this: a plain worker is never routed to `rules`, and an
+idle SM is offered `rules` first — and, with it held, falls through to its other
+durable jobs (drain the merge queue, review a PR) rather than to a worker's lane
+(docs/ORGANISATION.md §7).
 
 ## 2. Computers (hosts)
 
@@ -335,11 +347,16 @@ sure **no work waits and no capacity is wasted on conflicts**:
 
 - **Own the roster** for its host: register new agents, retire the dead, record
   lineage, keep the budget estimate honest.
-- **Trigger the infrastructure work.** `platform` and `rules` are the SM's own
-  areas (§1): when the build, CI, scripts, packaging, or the process docs need
-  work, the **SM claims the area and does it** (or delegates it to a helper it
-  tasks). The PO never schedules these; `coord next` routes a plain worker
-  elsewhere and gives an idle SM its own areas first.
+- **Trigger its own lane.** `rules` (the process docs) is the SM's only area:
+  when the coordination rules need work, the **SM claims `rules` and does it** (or
+  delegates it to a helper it tasks). The PO never schedules it; `coord next`
+  routes a plain worker elsewhere and gives an idle SM its own lane first.
+- **Do not do project work.** Everything that builds or ships the game —
+  including `platform` (build/CI/scripts/packaging) — is **other agents'** work
+  (ADR-0041, the human's 2026-10-17 directive). The SM **seeds and routes** that
+  work for others; it never implements a feature or a build change itself. If the
+  SM finds itself writing game or build code, the lane structure is wrong — fix
+  the lane (with the PO), do not do the work.
 - **Watch the ledger** (`coord status`) and clear blockers: a `status: blocked`
   issue whose `blocked-by:` blockers have closed clears itself (ADR-0030), but
   the SM confirms and re-seeds.
@@ -398,12 +415,14 @@ free number for role `sm` on that host) and hands the PO prompt back to the huma
 
 ```
 You are the Scrum Master for FOSSynd on host <host>. Your name is
-sm-<n>-<host>. You are a process role: you own NO game area. You own the two
-infrastructure areas (platform, rules) and you keep coordination healthy.
+sm-<n>-<host>. You are a process role: you own NO game area. Your one focus area
+is `rules` (the process docs) and you keep coordination healthy. You DO NOT do
+project work: build/CI/packaging (the `platform` lane) and every game feature are
+other agents' work - you organise them, you do not do them (ADR-0041).
 
 Read, in this order: AGENTS.md, docs/ORGANISATION.md (especially sections 1, 5,
 7, 7a, 7b), docs/COORDINATION.md, docs/FOCUS_AREAS.md, docs/DECISIONS.md
-(ADR-0037, ADR-0038), docs/ROADMAP.md, docs/focus-areas.json.
+(ADR-0037, ADR-0038, ADR-0041), docs/ROADMAP.md, docs/focus-areas.json.
 
 On this, your first call:
 1. Register yourself once:
@@ -422,7 +441,9 @@ On this, your first call:
    write. This is your first deliverable.
 4. Then keep the machinery clean (section 7): watch the ledger, drain the merge
    queue (merge green, non-draft PRs that have waited), keep the backlog floor,
-   and trigger the platform/rules work yourself (coord next routes you there).
+   and trigger the rules work yourself (coord next routes you there). Do NOT do
+   project work - platform (build/CI/packaging) and game features are other
+   agents' lanes (ADR-0041).
 
 Talk to peers directly with scripts/coord msg --to <their name> --agent
 sm-<n>-<host> --text "..." and read yours with scripts/coord inbox --agent
@@ -438,8 +459,9 @@ is the only role that requests new agents.
 
 - **Own the backlog**: keep a claimable issue per critical-path area; split big
   issues (e.g. the mission set) into agent-sized slices before assigning. **Do not
-  seed or schedule the SM-owned infrastructure areas** (`platform`, `rules`): the
-  SM triggers those itself (§1, §7).
+  seed or schedule the SM's own lane** (`rules`): the SM triggers it itself (§1,
+  §7). Every other lane, **including `platform`** (build/CI/packaging), is a
+  normal worker lane you schedule like any other (ADR-0041).
 - **Own the priority order** (per the human's 2026-10-17 decision): the PO knows
   the critical path and the work amounts, so it sets the order.
 - **Respect the scope fence** (ADR-0024): v1.0.0 is the 1993 clone; reject
@@ -467,29 +489,33 @@ The area set is **not** hard-coded. It lives in **`docs/focus-areas.json`**, whi
   "areas": { "tactical": {"code": "ta", "label": "Tactical / Mission"}, ... },
   "roles": { "sm": {"code": "sm"}, "po": {"code": "po"} },
   "critical_path": ["tactical", "metagame", "world"],
-  "sm_owned": ["platform", "rules"]
+  "sm_owned": ["rules"]
 }
 ```
 
 There are **ten** areas today: the nine game-facing ones plus **`rules`** (the
-process docs themselves), which joined `platform` as an SM-owned infrastructure
-area. The areas a **worker** may be routed to are the ten minus the SM-owned ones;
-`coord next` never offers a plain worker an SM-owned area.
+process docs themselves), the SM's **one** own lane — the only area whose content
+is coordination, which is the SM's job. Everything else, **including `platform`**
+(build/CI/scripts/packaging), is a **worker** lane: `coord next` routes a `pf`
+worker to `platform` and never the SM, and it never offers a plain worker the
+SM's `rules` lane (ADR-0041).
 
-The **PO may redesign** the game-facing areas — add, remove, split, rename — by
-editing that file and `docs/FOCUS_AREAS.md`. The **SM owns the infrastructure
-areas** (`sm_owned`): it triggers that work itself and the PO does not schedule
-it. A redesign that moves an area into or out of `sm_owned` is therefore the SM's
-call. Rules:
+The **PO and SM share the area set.** The PO may redesign the game-facing areas —
+add, remove, split, rename — by editing that file and `docs/FOCUS_AREAS.md`. The
+**`sm_owned` list** (the SM's own lane, `rules`) is the one part that changes what
+each role schedules, so the two roles **agree it together** — neither edits it
+alone (the human's 2026-10-17 directive). Rules:
 
 - A **redesign should happen before the initial agent request**, so new workers
   keep a small scope.
 - **Small adjustments are always fine**; **no more than 2–3 new areas per day**,
   to respect the chat budget and keep active scopes small (a soft limit the human
   may overrule for an initialisation day).
-- The SM may also adjust areas if its own work needs it.
+- A change that moves a lane **into or out of `sm_owned`** is agreed by the **SM
+  and PO together** — neither edits it alone (it changes what each schedules).
 - A redesign is a **rules change**: two peer reviews, or the sole-account
-  self-review (AGENTS.md §3a).
+  self-review (AGENTS.md §3a). Keep `docs/focus-areas.json`, `scripts/coord`,
+  `tests/test_coord.py`, and the prose docs in agreement (the #425 trap).
 
 ## 10. Failure and replacement
 

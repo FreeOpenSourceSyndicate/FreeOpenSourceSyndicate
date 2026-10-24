@@ -14,9 +14,11 @@ too; the rules apply to everyone.
 **Start with `docs/ORGANISATION.md`.** It defines the roles (a **Product Owner**
 and a **Scrum Master** per computer), the **agent names**
 (`<role>-<n>-<host>`), the per-host **roster**, the cross-role **channels** and
-**direct messages**, and the **takeover** protocol. The **SM owns the
-infrastructure areas** (`platform`, `rules`) and triggers that work itself; the
-PO never schedules them. Then read `docs/COORDINATION.md` (the lease protocol)
+**direct messages**, and the **takeover** protocol. The **SM does not do project
+work**: its one focus area is **`rules`** (the process docs), which it triggers
+itself and the PO never schedules; everything else — including **`platform`**
+(build/CI/packaging) — is a worker lane (ADR-0041). Then read
+`docs/COORDINATION.md` (the lease protocol)
 and `docs/FOCUS_AREAS.md` (the file map). The 2026-10-17 takeover reorganisation
 is recorded in **ADR-0037**.
 
@@ -174,9 +176,11 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
    and to human maintainers.
 10. **Work inside your focus area.** The repo is divided into focus areas (the set
     is data — `docs/focus-areas.json`, docs/ORGANISATION.md §9; ten today; see
-    `docs/FOCUS_AREAS.md`). Two of them (`platform`, `rules`) are **SM-owned**
-    infrastructure: the SM triggers them and `coord next` never routes a plain
-    worker to them. Claim a **free** area with the **highest pending
+    `docs/FOCUS_AREAS.md`). One of them (`rules`) is the **SM's own lane**: the SM
+    triggers it and `coord next` never routes a plain worker to it; every other
+    lane, **including `platform`** (build/CI/packaging), is a normal **worker**
+    lane — the SM never does project work (ADR-0041). Claim a **free** area with
+    the **highest pending
     workload**, preferring one you already know. Only the agent holding the
     area's live lease (or a helper it explicitly tasks) edits the files an area
     owns. Need a change in another area's files? File a cross-area request
@@ -219,8 +223,8 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
     next --agent "<role>-<n>-<host>"` whenever you do not know what to do. It never prints
     nothing: it walks a fixed ladder and stops at the first rung that applies —
     (1) finish/renew a lease you hold, (1b) if you are the **SM**, claim a free
-    SM-owned infrastructure area's issue (the SM triggers `platform`/`rules`
-    itself; a plain worker is never routed to them), (2) claim a free
+    `rules` issue (the SM's own lane — the process docs; the SM never does
+    project work, and a plain worker is never routed to `rules`, ADR-0041), (2) claim a free
     **critical-path** area's issue, (3) **drain the merge queue**: review and
     merge a green, non-draft PR
     that has waited ≥ 30 min (§3a), (4) claim any free area's issue, (5) **file a
@@ -244,8 +248,8 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
 18. **Know your role, and know the budget.** Each computer has a **Product
     Owner** (decides *what* is built, the priority order, the backlog, and the
     worker prompts) and a **Scrum Master** (watches coordination: the roster,
-    blockers, the merge queue, seeding issues; it owns the **infrastructure
-    areas** `platform` and `rules` and triggers that work itself; it may merge
+    blockers, the merge queue, seeding issues; it owns the one **`rules`** lane —
+    the process docs — and triggers that work itself; it may merge
     PRs and open/close issues in its scope, and — while the repo has one GitHub
     account — self-review a rules-doc PR). Neither owns a *game* focus area, and
     neither may assign work or override a live lease. **Talk to peers directly**
@@ -1264,7 +1268,8 @@ Do not start work outside the scope fence (ADR-0024).
   **render** (`src/game` drawing), **input-ui** (`src/main.cpp`, input/selection),
   **content** (`core/data`, `assets/data` minus missions), **text** (`core/i18n`,
   `assets/lang`), **metagame** (`core/economy`, world map, economy, research,
-  campaign), **platform** (build, CI, packaging), **release** (`CHANGELOG`,
+  campaign), **platform** (build, CI, packaging), **rules** (the process docs —
+  **the SM's own lane**, ADR-0041), **release** (`CHANGELOG`,
   releases). Each area has a `focus:` label; only the agent holding its live lease
   (or a helper it tasks) edits its files. Each cycle pick a free area with the
   highest pending workload (`scripts/coord status`, §7). Overlap rules, the
@@ -1274,6 +1279,16 @@ Do not start work outside the scope fence (ADR-0024).
   no coordinator** (ADR-0019): claims are self-service git-ref leases with a TTL
   (ADR-0021, default 6 h / max 24 h), the queue is drained peer-to-peer, and
   overlaps are settled by the §4 rules with merged code winning ties.
+- **The SM does not do project work (ADR-0041, human directive 2026-10-17).** The
+  SM **organises** the fleet; its only focus area is `rules` (the process docs).
+  `platform` (build/CI/scripts/packaging) is a **normal worker lane**, not the
+  SM's: it used to be `sm_owned`, and because `coord next` never routes a plain
+  worker to an `sm_owned` area, a *feature* filed under `focus: platform` (issue
+  #423, the audio subsystem) could **only** be routed to the SM — which is how the
+  SM was dragged into implementing a feature. When the SM finds itself writing
+  game or build code, the **lane is wrong**: fix the lane (with the PO) and route
+  the work to a worker, do not do it. A change that moves a lane into or out of
+  `sm_owned` is agreed by the SM **and** the PO together.
 - **`src/game/Game.cpp` is shared** by **Render** (drawing) and **Input/UI**
   (input/selection) — serialise edits, never co-edit (`docs/FOCUS_AREAS.md` §4,
   Rule 2). Prefer splitting it into `Hud.cpp`/`Camera.cpp`/`Input.cpp`/
