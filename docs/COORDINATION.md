@@ -77,8 +77,8 @@ scripts/coord claim --area <area> --issue <n> --agent "<role>-<n>-<host>" --bran
 
 - **`--area`** is a focus area from `docs/focus-areas.json` (or a channel: `sm`,
   `po`, `takeover`). The set is data, not code (docs/ORGANISATION.md §9). Today:
-  `tactical`, `world`, `render`, `input-ui`, `content`, `text`, `metagame`,
-  `platform`, `rules`, `release`. **`rules` is the SM's own lane**: the SM
+  `tactical`, `missions`, `world`, `render`, `input-ui`, `content`, `text`,
+  `metagame`, `platform`, `rules`, `release`. **`rules` is the SM's own lane**: the SM
   triggers it and `coord next` never routes a plain worker to it. **`platform` is
   a normal worker lane** (ADR-0041): build/CI/packaging routes to a `pf` worker,
   never to the SM.
@@ -160,8 +160,8 @@ that applies, so there is always a next step:
     §7) → claim its newest open issue. The SM triggers its own coordination work;
     a plain worker is never routed here, and the SM is never routed to a worker's
     lane (ADR-0041).
-2. **A critical-path area is free** (`tactical`, `metagame`, `input-ui`,
-   `render` — `docs/ROADMAP.md`; reordered by the PO on 2026-10-17)
+2. **A critical-path area is free** (`tactical`, `missions`, `metagame`,
+   `input-ui`, `render` — `docs/ROADMAP.md`; reordered by the PO on 2026-10-17)
    → claim its newest open issue.
 3. **A green PR has waited** (non-draft, merge state `CLEAN`, open ≥ 30 min)
    → review and merge it (`AGENTS.md` §3a). A green PR is *finished* work one
@@ -327,7 +327,8 @@ change and should precede the initial agent request (docs/ORGANISATION.md §9).
 
 | Area | `focus:` label | Owns (summary) |
 |------|----------------|-----------------|
-| Tactical / Mission | `focus: tactical` | `core/sim` mission, combat, weapons, objectives; `assets/data/missions` |
+| Tactical / Mission | `focus: tactical` | `core/sim` mission, combat, weapons, objectives |
+| Missions / Level Design | `focus: missions` | `assets/data/missions`, mission `.name`/`.desc` keys |
 | World / Simulation | `focus: world` | `core/world`, `core/math`, `core/util`, `core/sim/Agent` |
 | Render / Engine | `focus: render` | `src/game` drawing, HUD, minimap, sprites, font |
 | Input / UI / UX | `focus: input-ui` | `src/main.cpp`, input/selection, CLI flags |

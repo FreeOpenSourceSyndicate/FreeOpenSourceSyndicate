@@ -95,6 +95,7 @@ REF_PREFIX = "refs/coord/leases"
 FOCUS_AREAS_PATH = "docs/focus-areas.json"
 _DEFAULT_AREAS = {
     "tactical": {"code": "ta", "label": "Tactical / Mission"},
+    "missions": {"code": "ms", "label": "Missions / Level Design"},
     "world": {"code": "wo", "label": "World / Simulation"},
     "render": {"code": "re", "label": "Render / Engine"},
     "input-ui": {"code": "ui", "label": "Input / UI / UX"},
@@ -117,12 +118,14 @@ _DEFAULT_SM_OWNED = ("rules",)
 # agent is steered at the work that unblocks the release, not just any free area.
 # The long pole comes first.  Redefined by the PO (2026-10-17, second pass): the
 # Milestone-C save/load CORE landed (#406/#430), so `world` has no open work and
-# is inert on the path; the chain is now tactical -> metagame, with the lanes the
-# next release (v0.9.0) needs - input-ui (save/load wiring #433 + syndicate
-# customisation) and render (SFX #424 + art) - following.  `platform`/`release`
-# stay off the list: they do delivery, not features, and must not absorb capacity
-# from the feature lanes.
-_DEFAULT_CRITICAL = ("tactical", "metagame", "input-ui", "render")
+# is inert on the path; the chain is now tactical -> missions -> metagame, with
+# the lanes the next release (v0.9.0) needs - input-ui (save/load wiring #433 +
+# syndicate customisation) and render (SFX #424 + art) - following.  `missions`
+# (the mission set, the true long pole) was split out of `tactical` (#451) so
+# mission authoring runs in parallel with combat-system work.  `platform`/
+# `release` stay off the list: they do delivery, not features, and must not
+# absorb capacity from the feature lanes.
+_DEFAULT_CRITICAL = ("tactical", "missions", "metagame", "input-ui", "render")
 # Process roles (no focus area).  A role code names an agent: <role>-<n>-<host>.
 _DEFAULT_ROLES = {
     "sm": {"code": "sm", "label": "Scrum master", "focus": None},

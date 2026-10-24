@@ -1578,7 +1578,7 @@ class TestFocusConfig(CoordTestCase):
         # that edits only one of them is caught.
         self.assertEqual(tuple(coord.CONFIG.areas), tuple(coord._DEFAULT_AREAS))
         self.assertEqual(coord.CONFIG.critical_path_areas,
-                         ("tactical", "metagame", "input-ui", "render"))
+                         ("tactical", "missions", "metagame", "input-ui", "render"))
         # The SM-owned set is read from the same shipped file and must agree with
         # the built-in fallback too: a redesign that edits only one of them would
         # otherwise silently move work between the PO's and the SM's schedules
@@ -1596,7 +1596,7 @@ class TestFocusConfig(CoordTestCase):
         cfg = coord.load_focus_config("/nonexistent/focus-areas.json")
         self.assertEqual(tuple(cfg.areas), tuple(coord._DEFAULT_AREAS))
         self.assertEqual(cfg.critical_path_areas,
-                         ("tactical", "metagame", "input-ui", "render"))
+                         ("tactical", "missions", "metagame", "input-ui", "render"))
 
     def test_a_redesigned_file_changes_the_area_set(self):
         path = os.path.join(self.tmp, "focus.json")
@@ -1640,6 +1640,20 @@ class TestFocusConfig(CoordTestCase):
         # (issue #425).  A redesign that puts a delivery area first would starve
         # the feature lanes.
         self.assertEqual(coord.CONFIG.critical_path_areas[0], "tactical")
+
+    def test_the_missions_area_is_split_out_and_on_the_path(self):
+        # #451 split mission authoring out of `tactical` into its own lane so it
+        # can run in parallel with combat-system work (the mission set is data,
+        # and the long pole).  Guard the split: `missions` must be a real area,
+        # carry code `ms`, and sit on the critical path right after `tactical`.
+        self.assertIn("missions", coord.AREAS)
+        self.assertEqual(coord.CONFIG.code_for("missions"), "ms")
+        path = coord.CONFIG.critical_path_areas
+        self.assertIn("missions", path)
+        self.assertLess(path.index("tactical"), path.index("missions"))
+        # `tactical` keeps the rules; `missions` is the authoring lane, so a
+        # worker can hold one without the other.
+        self.assertNotEqual("missions", "tactical")
 
     def test_delivery_areas_stay_off_the_critical_path(self):
         # platform/release "do delivery, not features" (FOCUS_AREAS §2): they stay

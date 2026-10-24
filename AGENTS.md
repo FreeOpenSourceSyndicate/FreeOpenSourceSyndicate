@@ -175,7 +175,7 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
 9. **Review and merge each other's PRs.** See §3a. This applies to every agent
    and to human maintainers.
 10. **Work inside your focus area.** The repo is divided into focus areas (the set
-    is data — `docs/focus-areas.json`, docs/ORGANISATION.md §9; ten today; see
+    is data — `docs/focus-areas.json`, docs/ORGANISATION.md §9; eleven today; see
     `docs/FOCUS_AREAS.md`). One of them (`rules`) is the **SM's own lane**: the SM
     triggers it and `coord next` never routes a plain worker to it; every other
     lane, **including `platform`** (build/CI/packaging), is a normal **worker**
@@ -1310,13 +1310,16 @@ Do not start work outside the scope fence (ADR-0024).
   branch (e.g. `fix/v0.3.0-<desc>`), leaving the original untouched.
 - **Parallel work is organised into focus areas** (`docs/FOCUS_AREAS.md`;
   the set is data in `docs/focus-areas.json`, ADR-0037):
-  **tactical** (mission/combat/weapons), **world** (sim/agent/pathfinding/math),
+  **tactical** (combat/weapon/objective rules), **missions** (mission authoring,
+  `assets/data/missions`), **world** (sim/agent/pathfinding/math),
   **render** (`src/game` drawing), **input-ui** (`src/main.cpp`, input/selection),
   **content** (`core/data`, `assets/data` minus missions), **text** (`core/i18n`,
   `assets/lang`), **metagame** (`core/economy`, world map, economy, research,
   campaign), **platform** (build, CI, packaging), **rules** (the process docs —
   **the SM's own lane**, ADR-0041), **release** (`CHANGELOG`,
-  releases). Each area has a `focus:` label; only the agent holding its live lease
+  releases). `missions` was split out of `tactical` (#451) so mission authoring
+  runs in parallel with combat-system work — the mission set is the long pole and
+  it is data. Each area has a `focus:` label; only the agent holding its live lease
   (or a helper it tasks) edits its files. Each cycle pick a free area with the
   highest pending workload (`scripts/coord status`, §7). Overlap rules, the
   cross-area request format, the helper protocol, the claim/lease protocol, and
