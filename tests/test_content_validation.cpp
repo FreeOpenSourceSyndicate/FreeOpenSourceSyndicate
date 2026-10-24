@@ -342,11 +342,12 @@ FOSSYND_TEST(ContentValidation, ShippedContentPasses)
     const ValidationReport report = validateContentDir(dataDir);
     FOSSYND_CHECK(report.ok());
     FOSSYND_CHECK(report.missionsChecked >= static_cast<std::size_t>(2));
-    // 12 weapons (the #124 tiers, the #219 additions, and the #369 longshot/
-    // railgun) + 10 agent templates (the #160 carriers included) + 4 vehicle
-    // templates (#319). Pinned exactly so an entry cannot silently vanish from a
-    // shipped catalogue; bump it when content is added on purpose.
-    FOSSYND_CHECK_EQ(report.cataloguesChecked, static_cast<std::size_t>(26));
+    // 13 weapons (the #124 tiers, the #219 additions, the #369 longshot/railgun,
+    // and the #446 time bomb) + 12 agent templates (the #160 carriers, the #219
+    // additions, and the #446 police/saboteur included) + 4 vehicle templates
+    // (#319). Pinned exactly so an entry cannot silently vanish from a shipped
+    // catalogue; bump it when content is added on purpose.
+    FOSSYND_CHECK_EQ(report.cataloguesChecked, static_cast<std::size_t>(29));
 }
 
 // The Phase 3 weapon tiers (issue #124) must be present in the shipped catalogue
@@ -511,6 +512,85 @@ FOSSYND_TEST(ContentValidation, ShippedMetagameWeaponsLoad)
     const auto dps = [](const Weapon& w) { return w.damage * w.fireRate * w.accuracy; };
     FOSSYND_CHECK(dps(*longshot) < dps(*flamethrower));
     FOSSYND_CHECK(dps(*railgun) < dps(*flamethrower));
+}
+
+// The #446 time bomb is the last weapon family the Definition of Done names
+// (`docs/ROADMAP.md`). The sim has no fuse/delay yet, so it ships as the
+// closest existing model: a high-damage area weapon. This pins that shape so a
+// later mis-edit cannot quietly turn it into a plain slug; the fuse itself is a
+// tactical follow-up (#449).
+FOSSYND_TEST(ContentValidation, ShippedTimeBombLoads)
+{
+    const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/weapons.json";
+    WeaponCatalogue catalogue;
+    bool found = false;
+    std::string error;
+    FOSSYND_CHECK(catalogue.loadFromFile(path, found, error));
+    FOSSYND_CHECK(found);
+
+    const Weapon* rifle = catalogue.find("rifle");
+    const Weapon* launcher = catalogue.find("launcher");
+    const Weapon* timeBomb = catalogue.find("time-bomb");
+    FOSSYND_CHECK(rifle != nullptr);
+    FOSSYND_CHECK(launcher != nullptr);
+    FOSSYND_CHECK(timeBomb != nullptr);
+    if (rifle == nullptr || launcher == nullptr || timeBomb == nullptr)
+    {
+        return;
+    }
+
+    FOSSYND_CHECK_EQ(timeBomb->name, std::string("Time Bomb"));
+
+    // A planted charge: an area weapon (like the launcher) whose blast is the
+    // hardest hit in the catalogue, but which is slow to place and short-ranged.
+    FOSSYND_CHECK(timeBomb->areaRadius > 0.0f);
+    FOSSYND_CHECK(timeBomb->areaRadius > launcher->areaRadius);
+    FOSSYND_CHECK(timeBomb->damage > launcher->damage);
+    FOSSYND_CHECK(timeBomb->damage > rifle->damage);
+    FOSSYND_CHECK(timeBomb->fireRate < rifle->fireRate);
+    FOSSYND_CHECK(timeBomb->range < rifle->range);
+}
+
+// The #446 `police` enemy template the Definition of Done names
+// (`docs/ROADMAP.md`: "Enemies: police, ..."). It must be an enemy that carries a
+// catalogue weapon by id, so a mission can deploy one by data alone. The
+// `saboteur` is the time-bomb's carrier, added so the new weapon is
+// mission-referenceable rather than inert (AGENTS.md "Shared catalogues").
+FOSSYND_TEST(ContentValidation, ShippedPoliceAndSaboteurLoad)
+{
+    const std::string dir = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/";
+    WeaponCatalogue weapons;
+    bool found = false;
+    std::string error;
+    FOSSYND_CHECK(weapons.loadFromFile(dir + "weapons.json", found, error));
+    FOSSYND_CHECK(found);
+
+    AgentCatalogue agents;
+    FOSSYND_CHECK(agents.loadFromFile(dir + "agents.json", weapons, found, error));
+    FOSSYND_CHECK(found);
+    FOSSYND_CHECK(error.empty());
+
+    const AgentEntry* police = agents.find("police");
+    const AgentEntry* saboteur = agents.find("saboteur");
+    FOSSYND_CHECK(police != nullptr);
+    FOSSYND_CHECK(saboteur != nullptr);
+    if (police == nullptr || saboteur == nullptr)
+    {
+        return;
+    }
+
+    FOSSYND_CHECK_EQ(police->spec.name, std::string("POLICE"));
+    FOSSYND_CHECK(police->spec.team == Team::Enemy);
+    // A police officer is a trained, armed responder: tougher than a civilian
+    // bystander and not a glass cannon.
+    FOSSYND_CHECK(police->spec.health > 20.0f);
+    FOSSYND_CHECK(police->spec.speed > 0.0f);
+    FOSSYND_CHECK_EQ(police->spec.weapon.name, std::string("Uzi"));
+
+    FOSSYND_CHECK_EQ(saboteur->spec.name, std::string("SABOTEUR"));
+    FOSSYND_CHECK(saboteur->spec.team == Team::Enemy);
+    FOSSYND_CHECK_EQ(saboteur->spec.weapon.name, std::string("Time Bomb"));
+    FOSSYND_CHECK(saboteur->spec.weapon.areaRadius > 0.0f);
 }
 
 // The #219 weapons are carried by agent templates (#219), so they are

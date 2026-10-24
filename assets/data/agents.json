@@ -9,6 +9,8 @@
     { "id": "marksman",   "name": "MARKSMAN",   "team": "enemy", "speed": 2.2, "health": 65, "weaponId": "laser" },
     { "id": "breacher",   "name": "BREACHER",   "team": "enemy", "speed": 3.2, "health": 85, "weaponId": "shotgun" },
     { "id": "sharpshooter","name": "SHARPSHOOTER","team": "enemy", "speed": 2.0, "health": 55, "weaponId": "sniper" },
-    { "id": "shocktrooper","name": "SHOCKTROOPER","team": "enemy", "speed": 3.0, "health": 95, "weaponId": "gauss" }
+    { "id": "shocktrooper","name": "SHOCKTROOPER","team": "enemy", "speed": 3.0, "health": 95, "weaponId": "gauss" },
+    { "id": "police",      "name": "POLICE",      "team": "enemy", "speed": 3.1, "health": 75, "weaponId": "uzi" },
+    { "id": "saboteur",    "name": "SABOTEUR",    "team": "enemy", "speed": 2.6, "health": 80, "weaponId": "time-bomb" }
   ]
 }
