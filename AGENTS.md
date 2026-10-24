@@ -1334,7 +1334,11 @@ Do not start work outside the scope fence (ADR-0024).
   SM was dragged into implementing a feature. When the SM finds itself writing
   game or build code, the **lane is wrong**: fix the lane (with the PO) and route
   the work to a worker, do not do it. A change that moves a lane into or out of
-  `sm_owned` is agreed by the SM **and** the PO together.
+  `sm_owned` is agreed by the SM **and** the PO together. The `sm_owned` claim has
+  **four sources** that must agree: `docs/focus-areas.json`, the `_DEFAULT_SM_OWNED`
+  fallback in `scripts/coord`, the prose (`AGENTS.md`/`docs/ORGANISATION.md`), and
+  the **task issue template** (`.github/ISSUE_TEMPLATE/task.md`), guarded by
+  `test_the_issue_template_matches_the_sm_owned_set`.
 - **`src/game/Game.cpp` is shared** by **Render** (drawing) and **Input/UI**
   (input/selection) — serialise edits, never co-edit (`docs/FOCUS_AREAS.md` §4,
   Rule 2). Prefer splitting it into `Hud.cpp`/`Camera.cpp`/`Input.cpp`/
