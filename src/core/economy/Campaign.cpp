@@ -86,6 +86,8 @@ bool Campaign::fromJson(const Json& root, Campaign& out, std::string& error)
     out.researchFile_ = root.has("research") ? root["research"].asString() : std::string();
     out.equipmentFile_ = root.has("equipment") ? root["equipment"].asString() : std::string();
     out.winCondition_ = root.has("winCondition") ? root["winCondition"].asString() : std::string();
+    out.finalMission_ = root.has("finalMission") ? root["finalMission"].asString() : std::string();
+    out.finalMissionWon_ = false;
 
     out.missions_.clear();
     const Json& missions = root["missions"];
@@ -106,6 +108,21 @@ bool Campaign::fromJson(const Json& root, Campaign& out, std::string& error)
             }
             out.missions_.push_back(id);
         }
+    }
+
+    // The terminal mission must be one of the campaign's own missions, and a
+    // `"final-mission"` win condition needs one — otherwise the campaign could
+    // never be won, which is a data mistake worth catching at load (issue #456).
+    if (!out.finalMission_.empty() &&
+        std::find(out.missions_.begin(), out.missions_.end(), out.finalMission_) == out.missions_.end())
+    {
+        error = "'finalMission' must be one of 'missions'";
+        return false;
+    }
+    if (out.winCondition_ == "final-mission" && out.finalMission_.empty())
+    {
+        error = "'winCondition' \"final-mission\" requires a 'finalMission' id";
+        return false;
     }
 
     return true;
@@ -305,6 +322,12 @@ void Campaign::recordResult(bool won, int syndicate)
     {
         map_.setOwner(selectedTerritory_, syndicate);
     }
+    // Winning the terminal mission is the final confrontation: the campaign ends
+    // then and there, however much of the map the player holds (issue #456).
+    if (won && !finalMission_.empty() && selectedMissionId_ == finalMission_)
+    {
+        finalMissionWon_ = true;
+    }
     evaluateEndState();
 }
 
@@ -348,6 +371,13 @@ void Campaign::evaluateEndState()
     }
 
     if (winCondition_ == "own-all-territories" && allPlayer && !map_.territories().empty())
+    {
+        state_ = CampaignState::Won;
+        return;
+    }
+    // A `final-mission` campaign is won by winning the terminal mission, not by
+    // taking the whole map (issue #456). The flag is set in `recordResult`.
+    if (winCondition_ == "final-mission" && finalMissionWon_)
     {
         state_ = CampaignState::Won;
         return;

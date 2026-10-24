@@ -44,6 +44,28 @@ std::string writeTemp(const std::string& text)
     return path.string();
 }
 
+// A temp campaign file that reuses the shipped world/research/equipment via
+// absolute sibling paths (a sibling named relative to a temp file would not be
+// found) but switches the win condition to the terminal-mission rule (#456).
+std::string finalMissionCampaignFile()
+{
+    const std::string dir = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/world/";
+    return writeTemp("{\n"
+                     "  \"syndicate\": \"Riverside Combine\", \"startingFunds\": 1000,\n"
+                     "  \"world\": \"" +
+                     dir +
+                     "world.json\",\n"
+                     "  \"research\": \"" +
+                     dir +
+                     "research.json\",\n"
+                     "  \"equipment\": \"" +
+                     dir +
+                     "equipment.json\",\n"
+                     "  \"missions\": [\"demo\", \"escort\", \"blackout\", \"assembly\", \"overpass\"],\n"
+                     "  \"winCondition\": \"final-mission\", \"finalMission\": \"overpass\"\n"
+                     "}");
+}
+
 } // namespace
 
 FOSSYND_TEST(Campaign, ParsesCampaignFields)
@@ -519,4 +541,168 @@ FOSSYND_TEST(Campaign, ParsesLogoDefaultsAndRejectsABadLogoList)
     Campaign rejected;
     FOSSYND_CHECK(!Campaign::fromJson(bad, rejected, error));
     FOSSYND_CHECK(!error.empty());
+}
+
+FOSSYND_TEST(Campaign, ParsesFinalMissionAndRejectsABadOne)
+{
+    // The terminal mission is named by data; it must be one of the campaign's own
+    // missions, so a typo cannot leave the campaign unwinnable (issue #456).
+    std::string error;
+    const Json root = Json::parse(R"({
+      "syndicate": "X", "missions": ["demo", "overpass"], "finalMission": "overpass"
+    })",
+                                   error);
+    FOSSYND_CHECK(error.empty());
+    Campaign campaign;
+    FOSSYND_CHECK(Campaign::fromJson(root, campaign, error));
+    FOSSYND_CHECK_EQ(campaign.finalMission(), std::string("overpass"));
+
+    // A final mission that is not in `missions` is a schema error.
+    const Json bad = Json::parse(R"({
+      "syndicate": "X", "missions": ["demo"], "finalMission": "nope"
+    })",
+                                 error);
+    FOSSYND_CHECK(error.empty());
+    Campaign rejected;
+    FOSSYND_CHECK(!Campaign::fromJson(bad, rejected, error));
+    FOSSYND_CHECK(!error.empty());
+
+    // A `final-mission` win condition without a final mission can never be won,
+    // so it is a schema error too.
+    const Json missing = Json::parse(R"({
+      "syndicate": "X", "missions": ["demo"], "winCondition": "final-mission"
+    })",
+                                     error);
+    FOSSYND_CHECK(error.empty());
+    Campaign rejected2;
+    FOSSYND_CHECK(!Campaign::fromJson(missing, rejected2, error));
+    FOSSYND_CHECK(!error.empty());
+}
+
+FOSSYND_TEST(Campaign, ShippedCampaignNamesAFinalMissionInItsMissionList)
+{
+    // The shipped campaign must name a final mission that is one of its missions,
+    // so the terminal end state is reachable from data alone.
+    Campaign campaign = loadedCampaign();
+    FOSSYND_CHECK(!campaign.finalMission().empty());
+    bool listed = false;
+    for (const std::string& id : campaign.missions())
+    {
+        if (id == campaign.finalMission())
+        {
+            listed = true;
+        }
+    }
+    FOSSYND_CHECK(listed);
+}
+
+FOSSYND_TEST(Campaign, WinningTheFinalMissionEndsTheCampaign)
+{
+    // A `final-mission` campaign is won by winning *that* mission, independent of
+    // territory count — even with neutrals left on the map (issue #456). The
+    // shipped map is reused so the test reads real data; only the win condition is
+    // switched to the final-mission rule.
+    const std::string path = finalMissionCampaignFile();
+
+    Campaign campaign;
+    std::string error;
+    FOSSYND_CHECK(Campaign::loadFromFile(path, campaign, error));
+    FOSSYND_CHECK(error.empty());
+    std::remove(path.c_str());
+
+    const int player = Campaign::kPlayerSyndicate;
+    // "overpass" is the shipped mission on territory 5 (The Sprawl), a neutral.
+    // Find it via the map rather than hard-coding the index.
+    TerritoryId finalTerritory = -1;
+    for (const Territory& territory : campaign.map().territories())
+    {
+        if (territory.missionId == campaign.finalMission())
+        {
+            finalTerritory = territory.id;
+            break;
+        }
+    }
+    FOSSYND_CHECK(finalTerritory >= 0);
+
+    // The final territory is a neutral behind others; make it reachable by
+    // granting it a player-held neighbour through the real deploy rule, then win
+    // it. `canDeployTo` is the frontier check, so claim the neighbour first.
+    FOSSYND_CHECK(!campaign.canDeployTo(finalTerritory)); // not yet on the frontier
+    for (TerritoryId id = 0; id < static_cast<TerritoryId>(campaign.map().size()); ++id)
+    {
+        if (id == finalTerritory)
+        {
+            continue;
+        }
+        campaign.map().setOwner(id, player);
+        if (campaign.canDeployTo(finalTerritory))
+        {
+            break;
+        }
+    }
+    FOSSYND_CHECK(campaign.canDeployTo(finalTerritory));
+
+    FOSSYND_CHECK(campaign.selectMission(finalTerritory, {0, 1, 2, 3}));
+    FOSSYND_CHECK_EQ(campaign.selectedMissionId(), campaign.finalMission());
+
+    // A non-final win does not end a final-mission campaign.
+    const std::size_t ownedBefore = campaign.map().territoriesOwnedBy(player).size();
+    FOSSYND_CHECK(ownedBefore < campaign.map().size()); // neutrals remain
+    FOSSYND_CHECK(campaign.state() == CampaignState::Running);
+
+    // Winning the final mission wins the campaign, neutrals and all.
+    campaign.recordResult(true, player);
+    FOSSYND_CHECK(campaign.state() == CampaignState::Won);
+    FOSSYND_CHECK(campaign.wonFinalConfrontation());
+    FOSSYND_CHECK(campaign.finished());
+    FOSSYND_CHECK(campaign.map().territoriesOwnedBy(player).size() < campaign.map().size());
+
+    // And the end state stays terminal: a later loss or tick cannot change it.
+    campaign.recordResult(false, player);
+    FOSSYND_CHECK(campaign.state() == CampaignState::Won);
+    Rng rng(5);
+    const int before = campaign.economy().tickCount();
+    campaign.tick(1000.0f, rng);
+    FOSSYND_CHECK_EQ(campaign.economy().tickCount(), before);
+}
+
+FOSSYND_TEST(Campaign, ANonFinalWinDoesNotEndAFinalMissionCampaign)
+{
+    // A win on any other region is an ordinary territorial claim: the campaign
+    // keeps running until the final confrontation is won (issue #456).
+    const std::string path = finalMissionCampaignFile();
+
+    Campaign campaign;
+    std::string error;
+    FOSSYND_CHECK(Campaign::loadFromFile(path, campaign, error));
+    FOSSYND_CHECK(error.empty());
+    std::remove(path.c_str());
+
+    const int player = Campaign::kPlayerSyndicate;
+    // Territory 2 (Old Town) is a neutral on the frontier with a non-final
+    // mission; winning it must not end the campaign.
+    FOSSYND_CHECK(campaign.canDeployTo(2));
+    FOSSYND_CHECK(campaign.map().find(2)->missionId != campaign.finalMission());
+    FOSSYND_CHECK(campaign.selectMission(2, {0, 1, 2, 3}));
+    campaign.recordResult(true, player);
+    FOSSYND_CHECK(campaign.state() == CampaignState::Running);
+    FOSSYND_CHECK(!campaign.wonFinalConfrontation());
+    FOSSYND_CHECK(!campaign.finished());
+}
+
+FOSSYND_TEST(Campaign, OwnAllTerritoriesWinIsNotAFinalConfrontation)
+{
+    // Under the shipped `own-all-territories` rule the campaign is won by owning
+    // the map; even though the shipped data also names a final mission, the win
+    // did not come *from* the final confrontation, so the screen must show the
+    // ordinary victory panel (issue #456).
+    Campaign campaign = loadedCampaign();
+    const int player = Campaign::kPlayerSyndicate;
+    for (TerritoryId id = 0; id < static_cast<TerritoryId>(campaign.map().size()); ++id)
+    {
+        campaign.map().setOwner(id, player);
+    }
+    campaign.recordResult(true, player);
+    FOSSYND_CHECK(campaign.state() == CampaignState::Won);
+    FOSSYND_CHECK(!campaign.wonFinalConfrontation());
 }

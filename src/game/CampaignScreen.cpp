@@ -762,16 +762,24 @@ void CampaignScreen::render(SDL_Renderer* renderer, const BitmapFont& font, int 
     if (campaign_.finished())
     {
         const bool won = campaign_.state() == core::CampaignState::Won;
+        // Winning the terminal mission (the original's final confrontation) is a
+        // distinct end state: the campaign is over because the climax was won, not
+        // because the map was swept. Say so, and in a warmer colour than an
+        // ordinary territorial victory (issue #456). The colour is local to this
+        // screen; `HudStyle.h` is Render's (Rule 4).
+        const bool wonFinal = won && campaign_.wonFinalConfrontation();
+        constexpr SDL_Color kFinalVictory{245, 205, 90, 255};
 
         // Dim the whole board so the panel reads as a modal overlay.
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
         SDL_RenderFillRect(renderer, &full);
 
-        const std::string headline = won ? "CAMPAIGN WON" : "CAMPAIGN LOST";
-        const std::string detail = won
-                                       ? "ALL TERRITORIES SECURED"
-                                       : "THE SYNDICATE HAS FALLEN";
+        const std::string headline =
+            wonFinal ? "FINAL CONFRONTATION WON" : (won ? "CAMPAIGN WON" : "CAMPAIGN LOST");
+        const std::string detail =
+            wonFinal ? "THE SYNDICATE STANDS SUPREME"
+                     : (won ? "ALL TERRITORIES SECURED" : "THE SYNDICATE HAS FALLEN");
         const std::string score =
             "TERRITORIES: " + std::to_string(owned) + "/" +
             std::to_string(campaign_.map().size());
@@ -785,15 +793,13 @@ void CampaignScreen::render(SDL_Renderer* renderer, const BitmapFont& font, int 
         SDL_Rect panel{(w - panelW) / 2, (h - panelH) / 2, panelW, panelH};
         SDL_SetRenderDrawColor(renderer, 12, 14, 16, 235);
         SDL_RenderFillRect(renderer, &panel);
-        SDL_SetRenderDrawColor(renderer, won ? hudstyle::kHudGood.r : hudstyle::kHudBad.r,
-                               won ? hudstyle::kHudGood.g : hudstyle::kHudBad.g,
-                               won ? hudstyle::kHudGood.b : hudstyle::kHudBad.b, 255);
+        const SDL_Color accent = wonFinal ? kFinalVictory : (won ? hudstyle::kHudGood : hudstyle::kHudBad);
+        SDL_SetRenderDrawColor(renderer, accent.r, accent.g, accent.b, 255);
         SDL_RenderDrawRect(renderer, &panel);
 
         const int cx = panel.x + panelW / 2;
         int ty = panel.y + margin;
-        font.draw(renderer, cx - font.textWidth(headline) / 2, ty, headline,
-                  won ? hudstyle::kHudGood : hudstyle::kHudBad);
+        font.draw(renderer, cx - font.textWidth(headline) / 2, ty, headline, accent);
         ty += lineH * 2;
         font.draw(renderer, cx - font.textWidth(detail) / 2, ty, detail, hudstyle::kHudText);
         ty += lineH * 2;

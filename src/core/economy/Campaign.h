@@ -86,6 +86,23 @@ public:
     const std::vector<std::string>& missions() const { return missions_; }
     const std::string& winCondition() const { return winCondition_; }
 
+    // The id of the campaign's terminal mission (the original's "final
+    // confrontation"), or empty when the campaign has none. Winning *this*
+    // mission ends the campaign with the victory state regardless of how much of
+    // the map the player holds (issue #456); a `"final-mission"` win condition
+    // requires it, and `own-all-territories` still wins the map outright.
+    const std::string& finalMission() const { return finalMission_; }
+
+    // True once the campaign has been won *by* winning the final confrontation,
+    // so the victory screen can show a distinct end state (issue #456). False
+    // under an `own-all-territories` win condition even if the terminal mission
+    // was among those won, because the campaign did not end *because* of it.
+    bool wonFinalConfrontation() const
+    {
+        return state_ == CampaignState::Won && finalMissionWon_ &&
+               winCondition_ == "final-mission";
+    }
+
     // --- selection & deployment ---
 
     // True if a mission can be deployed to `territory`: it must have a mission,
@@ -152,6 +169,8 @@ private:
     float startingFunds_ = 0.0f;
     std::vector<std::string> missions_;
     std::string winCondition_;
+    std::string finalMission_;           // id of the terminal mission, empty if none
+    bool finalMissionWon_ = false;       // the terminal mission was won (issue #456)
 
     std::string worldFile_;
     std::string researchFile_;
