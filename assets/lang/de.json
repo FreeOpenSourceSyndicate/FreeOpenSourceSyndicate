@@ -41,5 +41,7 @@
   "mission.assembly.name": "Versammlung",
   "mission.assembly.desc": "Die Kundgebung mit dem Compliance-Beacon fuer sich gewinnen und vier Personen unter Kontrolle bringen.",
   "mission.overpass.name": "Ueberfuehrung",
-  "mission.overpass.desc": "Sich durch die Blockade kaempfen und einen lebenden Agenten in die ferne Ecke der Ueberfuehrung bringen."
+  "mission.overpass.desc": "Sich durch die Blockade kaempfen und einen lebenden Agenten in die ferne Ecke der Ueberfuehrung bringen.",
+  "mission.precinct.name": "Revier",
+  "mission.precinct.desc": "Das Revier stuermen und die Polizeipatrouillen sowie den Saboteur ausschalten, bevor er den Block sprengen kann."
 }

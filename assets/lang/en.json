@@ -41,5 +41,7 @@
   "mission.assembly.name": "Assembly",
   "mission.assembly.desc": "Recruit the rally crowd with the Compliance Beacon and bring four of them under control.",
   "mission.overpass.name": "Overpass",
-  "mission.overpass.desc": "Fight through the blockade and get a living agent to the far corner of the overpass."
+  "mission.overpass.desc": "Fight through the blockade and get a living agent to the far corner of the overpass.",
+  "mission.precinct.name": "Precinct",
+  "mission.precinct.desc": "Storm the precinct and eliminate the police patrols and the saboteur before he can rig the block."
 }
