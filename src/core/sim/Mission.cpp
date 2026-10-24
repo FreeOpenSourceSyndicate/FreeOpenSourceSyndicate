@@ -935,6 +935,7 @@ void Mission::update(float dt)
     updateDetonations(dt);
     updateVehicles(dt);
     resolveVehicleFire();
+    updateRetrieval();
     evaluateOutcome();
 }
 
@@ -1872,6 +1873,20 @@ void Mission::evaluateOutcome()
             return;
         }
         break;
+    case ObjectiveSpec::Kind::Assassinate:
+        if (assassinationTargetDead())
+        {
+            state_ = MissionState::Won;
+            return;
+        }
+        break;
+    case ObjectiveSpec::Kind::Retrieve:
+        if (itemDelivered())
+        {
+            state_ = MissionState::Won;
+            return;
+        }
+        break;
     }
 
     if (aliveCount(Team::Player) == 0)
@@ -1938,6 +1953,52 @@ bool Mission::followerTargetMet() const
         }
     }
     return total >= static_cast<std::size_t>(target);
+}
+
+bool Mission::assassinationTargetDead() const
+{
+    const int index = objective_.agentIndex;
+    if (index < 0 || static_cast<std::size_t>(index) >= agents_.size())
+    {
+        // A missing target can never be killed; the loader rejects this, so it
+        // only guards a hand-built spec.
+        return false;
+    }
+    return !agents_[static_cast<std::size_t>(index)].isAlive();
+}
+
+bool Mission::itemDelivered() const
+{
+    if (!itemRetrieved_)
+    {
+        return false;
+    }
+    const TilePos exit{objective_.tileX, objective_.tileY};
+    for (const Agent& agent : agents_)
+    {
+        if (agent.isAlive() && agent.team() == Team::Player && agent.tile() == exit)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void Mission::updateRetrieval()
+{
+    if (objective_.kind != ObjectiveSpec::Kind::Retrieve || itemRetrieved_)
+    {
+        return;
+    }
+    const TilePos item{objective_.itemX, objective_.itemY};
+    for (const Agent& agent : agents_)
+    {
+        if (agent.isAlive() && agent.team() == Team::Player && agent.tile() == item)
+        {
+            itemRetrieved_ = true;
+            return;
+        }
+    }
 }
 
 const char* Mission::stateName() const

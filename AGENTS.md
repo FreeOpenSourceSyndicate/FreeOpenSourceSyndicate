@@ -1061,17 +1061,28 @@ Do not start work outside the scope fence (ADR-0024).
   (`core/sim/Objective.h`) is `EliminateAll` (default), `ReachTile` (a living
   player agent on a target tile), `Survive` (a time limit), `Escort` (the agent
   at `agentIndex` reaches the tile **alive**; losing it loses the mission),
-  `Destroy` (the target tile is breached rubble), or `Persuade` (at least
-  `targetCount` civilians recruited as followers, counted across the squad). A
+  `Destroy` (the target tile is breached rubble), `Persuade` (at least
+  `targetCount` civilians recruited as followers, counted across the squad),
+  `Assassinate` (the single agent at `agentIndex` is dead, garrison aside), or
+  `Retrieve` (the item on `itemX`/`itemY` is picked up **and** a living player
+  agent then stands on the exit tile `tileX`/`tileY`). A
   mission sets it with an optional `objective` JSON object
   (`docs/DATA_FORMAT.md`); `MissionData` parses it and `populateMission` calls
   `Mission::setObjective`. Evaluation is in `Mission::evaluateOutcome`; the
   universal lose condition (squad dead) wins over any objective, and an `Escort`
   adds "the escorted unit died" to it. The per-kind checks are small const
   helpers (`anyPlayerOnTile`, `escortedAgentOnTile`, `escortUnitLost`,
-  `targetTileBreached`, `followerTargetMet`). `Mission::elapsedSeconds()` is the
+  `targetTileBreached`, `followerTargetMet`, `assassinationTargetDead`,
+  `itemDelivered`) plus one per-update step (`updateRetrieval`, which latches
+  `Mission::itemRetrieved_` — a squad-level pickup flag reset by `setObjective`,
+  so any member may carry the item out). `Mission::elapsedSeconds()` is the
   frozen-on-end mission clock. New objectives need no C++ change beyond the enum
-  — prefer data. Added the full set in #281.
+  — prefer data. Added the full set in #281; `Assassinate`/`Retrieve` in #444
+  (reversing the #281 carve-out — ADR-0014 amendment). **The parser and the HUD
+  banner are cross-lane:** `MissionData::parseObjectiveJson` (content) and
+  `Game::objectiveBannerText` + the `--check-objectives` self-test (render) must
+  gain a branch per new kind, or a mission using it will not load / will render
+  the wrong banner.
 - **Sprites are authored text (ADR-0013):** agent and prop art lives in
   `assets/sprites/agents.txt` as `frame` blocks of `B`/`T`/`S`/`D`/`.`/`A`
   pixels. `core::bakeSheet` (`core/data/AgentSprites.*`, SDL-free, unit-tested)

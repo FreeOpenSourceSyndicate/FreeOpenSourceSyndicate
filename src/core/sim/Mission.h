@@ -282,8 +282,14 @@ public:
 
     // --- Objective (data-driven win condition) ---------------------------
 
-    // Sets the mission's win condition. Call before the first `update`.
-    void setObjective(ObjectiveSpec objective) { objective_ = objective; }
+    // Sets the mission's win condition. Call before the first `update`. Resets
+    // the retrieve pickup latch, so switching to a `retrieve` objective always
+    // starts with the item not yet picked up.
+    void setObjective(ObjectiveSpec objective)
+    {
+        objective_ = objective;
+        itemRetrieved_ = false;
+    }
     const ObjectiveSpec& objective() const { return objective_; }
 
     // Mission seconds elapsed while Running (frozen once Won/Lost). Used by the
@@ -429,6 +435,23 @@ private:
     // `objective_.targetCount` living followers in total.
     bool followerTargetMet() const;
 
+    // Assassinate: true when the agent named by `objective_.agentIndex` exists
+    // and is dead. A missing index can never be satisfied (the loader rejects
+    // it), so it only guards a hand-built spec.
+    bool assassinationTargetDead() const;
+
+    // Retrieve: true when the item has been picked up — a living player agent is
+    // standing on (itemX, itemY) — and a living player agent is standing on the
+    // exit tile (tileX, tileY). The pickup is latched in `itemRetrieved_` (see
+    // `updateRetrieval`), so carrying the item is a squad-level state, not tied
+    // to one unit.
+    bool itemDelivered() const;
+
+    // Retrieve: latches `itemRetrieved_` once a living player agent stands on the
+    // item tile. Called once per update, before `evaluateOutcome`, so a pickup
+    // and a same-tick delivery are both seen. A no-op for other kinds.
+    void updateRetrieval();
+
     // Index of the nearest living agent on `enemyTeam`, or -1.
     int nearestEnemy(std::size_t self, Team enemyTeam) const;
 
@@ -476,6 +499,10 @@ private:
     std::vector<float> drugsTimer_;  // active drug buff, sized to agents_
     Rng rng_;
     ObjectiveSpec objective_;
+    // Retrieve: latched true once a living player agent has stood on the item
+    // tile. Squad-level, so the item can be handed off between members; reset by
+    // `setObjective`.
+    bool itemRetrieved_ = false;
     float elapsedSeconds_ = 0.0f;
     MissionState state_ = MissionState::Running;
     int playerKills_ = 0;

@@ -496,6 +496,49 @@ Status values: `Proposed` Â· `Accepted` Â· `Rejected` Â· `Superseded by ADR-NNNN
   - Covered by `tests/test_mission.cpp` (win/lose per kind, determinism) and
     `tests/test_missiondata.cpp` (parsing, invalid schemas, disk load, populate).
 
+### Amendment (#444, 2026-10-17) — `assassinate` and `retrieve` become kinds
+
+- **Context:** the #281 amendment above deliberately left `assassinate` and
+  `retrieve` out, on the reading that "escort/retrieve" in the Roadmap was one
+  item and already satisfied by `Escort`. The **Definition of Done**
+  (`docs/ROADMAP.md` section "tactical system") lists them separately —
+  *"assassinate, eliminate, persuade, escort/retrieve, destroy"* — and issue
+  #444 asks for both as first-class kinds, because a mission that wants "kill
+  this one man" or "steal the thing and get out" must not fake it with
+  `EliminateAll`.
+- **Decision:** reverse the #281 carve-out and add the two kinds in place, the
+  same "new enum value + a data branch" way:
+  - `Kind` gains `Assassinate` and `Retrieve`. `Assassinate` reuses `agentIndex`
+    (the target to kill); `Retrieve` gains `itemX`/`itemY` (the pickup tile) and
+    reuses `tileX`/`tileY` (the exit tile). All new fields are defaulted, so
+    every existing kind and mission is byte-for-byte unchanged.
+  - `Assassinate` wins when the agent at `agentIndex` is **dead**, regardless of
+    the other defenders — the thin variant of `EliminateAll` the #281 note
+    anticipated.
+  - `Retrieve` wins when the item has been **picked up** (a living player agent
+    stands on `itemX`/`itemY`) **and** a living player agent then stands on the
+    exit tile. The pickup is a **latched squad-level state** (`Mission::
+    itemRetrieved_`, reset by `setObjective`), not bound to one unit, so any
+    member may carry the item out and the picker's death does not lose it. There
+    is no objective-specific lose condition (unlike `Escort`): the universal
+    squad-dead rule still applies.
+  - Evaluation stays in `Mission::evaluateOutcome` via small const helpers
+    (`assassinationTargetDead`, `itemDelivered`) plus one per-update step
+    (`updateRetrieval`), so the switch stays a data branch.
+- **Consequences:**
+  - `ObjectiveSpec` now covers the full DoD objective list; a `retrieve` mission
+    is a new enum value + a JSON block, not a code fork.
+  - The loader must parse `assassinate` (reusing the escort `agentIndex`
+    bounds-check) and `retrieve` (two on-map tiles: the item and the exit); the
+    HUD needs a per-kind banner. Both are cross-lane (content: `MissionData` /
+    `DATA_FORMAT.md`; render: `Hud.cpp` / the objective self-test) and are filed
+    as Rule 4 requests, per `docs/FOCUS_AREAS.md` §4.
+  - Covered by `tests/test_mission.cpp` (win / not-yet-won / missing-target /
+    carry-by-another / squad-dead / determinism per kind).
+  - The `retrieve` objective is *not* an inventory system: the item is a
+    mission-level flag, not an agent-carried object. A later carried-item model
+    (drop on death, hand-off rules) would be a new decision.
+
 ---
 
 ## ADR-0015 â€” A sanitizer build profile (`FOSSYND_SANITIZE`) and a CI lane
