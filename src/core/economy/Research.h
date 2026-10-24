@@ -83,6 +83,15 @@ public:
     // Progress for `syndicate` (an empty state for an unknown syndicate).
     const ResearchState& state(int syndicate) const;
 
+    // Overwrites `syndicate`'s progress verbatim (growing the store as needed).
+    // This is the restore half of save/load (#406, #431): `begin` gates on
+    // prerequisites, funds, and idleness and cannot reinstate a saved
+    // `completed`/`inProgress`/`remainingSeconds`, so a loader needs a direct
+    // setter. A negative `syndicate` is a no-op. It trusts `state` (it does not
+    // re-validate node ids against a tree), because the save format was already
+    // validated on parse.
+    void restore(int syndicate, const ResearchState& state);
+
 private:
     ResearchState& mutableState(int syndicate);
 
