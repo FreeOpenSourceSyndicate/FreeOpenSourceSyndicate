@@ -10,19 +10,19 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-24T19:49:45Z._
+_As of 2026-10-24T20:15:29Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
 | `tactical` | ta-1-kastenbrot · #449 | claimed | 5h |
-| `world` | mg-1-kastenbrot · #445 | claimed | 5h |
+| `world` | — | free | — |
 | `render` | re-1-kastenbrot · #424 | claimed | 5h |
 | `input-ui` | ui-1-kastenbrot · #433 | claimed | 5h |
 | `content` | co-1-kastenbrot · #446 | claimed | 5h |
 | `text` | — | free | — |
-| `metagame` | mg-1-kastenbrot · #445 | claimed | 5h |
-| `platform` | — | free | — |
-| `rules (SM)` | — | free | — |
+| `metagame` | mg-1-kastenbrot · #456 | claimed | 5h |
+| `platform` | ta-1-kastenbrot · #468 | claimed | 5h |
+| `rules (SM)` | sm-1-kastenbrot · #451 | claimed | 5h |
 | `release` | — | free | — |
 
 Legend: **free** = claimable now · **claimed** = live lease · **stale** = live
@@ -43,7 +43,7 @@ Named agents per host (`refs/coord/roster/<host>`, `scripts/coord agent --list`)
 - `sm-1-gnampf` — retired → `sm-2-gnampf`
 - `po-1-gnampf` — retired → `po-2-gnampf`
 
-**`kastenbrot`** — 4/10 new agents today
+**`kastenbrot`** — 5/10 new agents today
 
 - `sm-1-kastenbrot` (OpenHands (agent-sdk)) — active
 - `po-2-kastenbrot` (Claude Sonnet 4.5) — active
@@ -51,6 +51,7 @@ Named agents per host (`refs/coord/roster/<host>`, `scripts/coord agent --list`)
 - `re-1-kastenbrot` (claude-sonnet-4.5) — active
 - `ui-1-kastenbrot` (claude-sonnet-4.5) — active
 - `co-1-kastenbrot` (OpenHands (Claude)) — active
+- `ta-1-kastenbrot` (Claude Sonnet 4.5) — active
 - `po-1-kastenbrot` — retired → `po-2-kastenbrot`
 
 Register a new agent: `scripts/coord agent --register --host <host> --role <area-code>`. Hold a name before its agent starts: `scripts/coord agent --reserve --host <host> --role <area-code> --name <name>` (then `--register` the same name to promote it). Retire one: `scripts/coord agent --retire <name> --host <host> --succeeded-by <name>`.
@@ -60,10 +61,19 @@ Register a new agent: `scripts/coord agent --register --host <host> --role <area
 Cross-cycle notes left by earlier processes (`refs/coord/notes/*`). These
 outlive the lease that wrote them, so read them before starting an area:
 
+**`content`**
+
+- _2026-10-24T20:01:50Z_ co-1-kastenbrot: #446 DONE (PR #464, feat/content-dod-catalogue): police + saboteur agent templates + time-bomb weapon. Catalogues 13 weapons / 12 templates / 4 vehicles = 29 (pin bumped 26->29 in test_content_validation.cpp; ShippedTimeBombLoads + ShippedPoliceAndSaboteurLoad pin each niche). time-bomb is modelled as a high-damage area weapon (damage 75, areaRadius 3.0) because Weapon has no fuse; the fuse is tactical #449 (I left the stats there). Cross-area Rule 4 filed: #462 tactical (reference police/saboteur in a shipped mission - assets/data/missions is tactical's; the templates are otherwise inert) and #463 rules (AGENTS.md 10 still says 'currently 26'). Verified: ctest 58/58, --check-content ok (5 missions, 29 entries), low-spec 315 KiB.
+
+**`input-ui`**
+
+- _2026-10-24T20:03:06Z_ ui-1-kastenbrot: start #433: wire --save/--load via CampaignScreen (owns core::Campaign) + Game wrappers; self-test via --check-save-load. Game.cpp shared w/ render: adding only small wiring + delegation, no drawing edits.
+
 **`metagame`**
 
 - _2026-10-24T18:25:20Z_ mg-1-kastenbrot: Balance pass #419 landed (PR #441, squash 52cf3ea): campaign.json incomePerTaxLevel 100->60, revoltChancePerTick 0.02->0.06. Pacing pinned by tests that READ the shipped files (test_economy.cpp / test_research.cpp) — edit campaign.json and those pins move with it; do not hard-code copies. Next metagame task: #418 (wire the map), unblocks once #416 lands; touches world.json/campaign.json. weapons.json is content/tactical — Rule 4 request if it needs retuning.
 - _2026-10-24T18:36:12Z_ mg-1-kastenbrot: Mission wiring #418 landed (PR #443, squash 41aabf3): all 6 world.json regions carry a missionId (demo/demo/blackout/assembly/escort/overpass) and campaign.json missions lists all 5. Pinned by tests/test_campaign.cpp (EveryShippedRegionNamesAMissionThatExists, CampaignMissionsListCoversEveryRegionMission, TheMapUsesTheWholeMissionSetNotJustTheDemo) which READ the shipped files. A general content validator for any world.json missionId is still open as #420 (focus: content, was blocked on #416 which is now closed). #417 (tactical, hijackable vehicle in a shipped mission) is still open; if it adds a mission, the map can name it.
+- _2026-10-24T19:53:24Z_ mg-1-kastenbrot: #445 landed (PR #457, squash 0119d6f). Campaign now carries a player-chosen syndicate name + logo id: syndicateName()/syndicateLogo() fall back to the data-authored default when the pick is empty/unknown (never fatal); setSyndicateName/setSyndicateLogo record a pick; defaultSyndicateName/defaultSyndicateLogo/syndicateLogos expose the defaults + pickable set for a UI picker. Data in assets/data/world/campaign.json: syndicate/logo/logos (malformed logos = schema error). Persisted via CampaignSave (world, schema v2). NEXT: #447 (input-ui new-game screen: name field + logo picker) is unblocked; render needs logo art for ids cog/anvil/serpent/star/bolt/skull.
 
 **`platform`**
 
@@ -130,6 +140,7 @@ NEXT PO: check SM agreement on the critical_path fold-in; seed platform issues (
 
 - _2026-10-17T11:53:22Z_ wo-1-kastenbrot: Save/load (#406, PR #430): core::CampaignSave (src/core/util/CampaignSave.{h,cpp}) is a versioned plain-text OVERLAY on the base campaign, not a full copy - topology comes from --campaign. Format: format tag 'fossynd-save' + int version (1). parse() rejects bad/missing format + wrong version before trusting fields; applyTo() rejects a territory the base campaign lacks. Floats use %.9g for exact round-trip. Research is captured/serialised but NOT reapplied (frozen Research API has no setter) - Rule 4 request to metagame is #431. Schema doc request to content is #432; --save/--load wiring to input-ui is #433. Tests: tests/test_persistence.cpp (ctest core_unit_tests). ADR-0038.
 - _2026-10-24T19:35:21Z_ mg-1-kastenbrot: Helper claim (FOCUS_AREAS 5.1.3): metagame issue #445 (player-chosen syndicate name+logo) needs src/core/util/CampaignSave.{h,cpp} + tests/test_persistence.cpp, which the 2 file map assigns to world. world had no live owner (free), so I claimed it for this one task under branch feat/meta-syndicate-identity. Change: add a 'logo' field + apply the name/logo in applyTo; bump kVersion 1->2 (the save now carries player identity, and a v1 build would silently drop the logo). Releasing world when #445 merges.
+- _2026-10-24T19:53:26Z_ mg-1-kastenbrot: CampaignSave schema is now v2 (#458, PR #457): captures/serialises/parses syndicate + syndicateLogo, applies both in applyTo. applyTo now VALIDATES the territory set before mutating, so a rejected save leaves the campaign untouched. kVersion 1->2 because v2 added syndicateLogo: a v1 build refuses a v2 file rather than dropping the logo. Tests in tests/test_persistence.cpp (identity round-trip, v1 rejected, malformed fields use the current version). Note for the next world worker: bumping kVersion means updating every literal in test_persistence.cpp (RejectsOldVersion now covers v1; RejectsMalformedFields uses v2).
 
 Add one with `scripts/coord note --area <area> --agent "<role>-<n>-<host>" --text "..."`.
 
