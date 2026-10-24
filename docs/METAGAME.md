@@ -306,6 +306,14 @@ public:
     const std::string& defaultSyndicateLogo() const;
     const std::vector<std::string>& syndicateLogos() const; // pickable ids
 
+    // --- end state ---
+    // The terminal mission's id (the original's final confrontation), or empty.
+    // Winning it under a `"final-mission"` win condition ends the campaign.
+    const std::string& finalMission() const;
+    // True only when the campaign was won *by* the final confrontation (never
+    // under `own-all-territories`), so the victory panel can differ.
+    bool wonFinalConfrontation() const;
+
     // --- selection & deployment ---
     // True if a mission can be deployed to `territory`: it has a mission, and it
     // is player-owned or on the frontier (adjacent to a player-held territory).
@@ -406,6 +414,19 @@ public:
   then draws a centred victory/defeat panel (headline, a one-line detail, the
   held-territory count, and a quit hint) over a dimmed map. The self-test wins the
   campaign, then checks the won state refuses deployment and taxation.
+- **The final confrontation is a distinct end state (issue #456).**
+  `campaign.json` may name a `finalMission` (the id of the terminal mission, which
+  must be one of its `missions`) and set `winCondition` to `"final-mission"`.
+  Under that rule the campaign is won by winning *that* mission, independent of
+  territory count — even with neutrals left on the map — so the original's
+  climactic ending is representable. `Campaign::wonFinalConfrontation()` is true
+  only when the campaign was won *by* the final mission (it stays false under
+  `own-all-territories`, even if the terminal mission happened to be among those
+  won), and the screen draws a distinct, warmer "FINAL CONFRONTATION WON" panel
+  for it. The end state stays terminal either way (`finished()` freezes the
+  board). Both conditions are supported: the shipped data keeps
+  `own-all-territories` (its last neutral is the named `finalMission`, so the two
+  agree today) until the final mission is authored as its own file.
 - **Headless guard.** `--check-campaign` (ctest `game_campaign`) runs
   `CampaignScreen::selfTest`, which on a *copy* of the shipped campaign exercises
   starting funds → tax → income → research → buy → assign → attack the frontier
@@ -497,9 +518,16 @@ use `jsonc` for annotation only, exactly as `docs/DATA_FORMAT.md` does).
   "research": "research.json",
   "equipment": "equipment.json",
   "missions": ["demo"],
-  "winCondition": "own-all-territories"
+  "winCondition": "own-all-territories",
+  "finalMission": "overpass"
 }
 ```
+
+`winCondition` is `"own-all-territories"` (the default) or `"final-mission"`.
+`finalMission` (optional) names the terminal mission; it must be one of
+`missions`, and a `"final-mission"` win condition **requires** it — both are
+schema errors otherwise, so a typo cannot leave the campaign unwinnable
+(issue #456).
 
 Sibling file names (`world`, `research`, `equipment`) resolve **relative to the
 campaign file**, the same way the mission loader resolves catalogue paths

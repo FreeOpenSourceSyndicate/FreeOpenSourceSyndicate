@@ -1383,6 +1383,25 @@ Do not start work outside the scope fence (ADR-0024).
   **Input/UI**'s; both are Rule 4 follow-ups, not built here (golden rule 1).
   Tests: `tests/test_campaign.cpp` (defaults, choice, fallback, bad list) and
   `tests/test_persistence.cpp` (identity round-trips through a save).
+- **The campaign's terminal mission is data (issue #456):** `campaign.json` may
+  name a `finalMission` (the id of the terminal mission — the original's *final
+  confrontation* — which **must** be one of its `missions`) and set
+  `winCondition` to `"final-mission"`. Under that rule `Campaign` is won by
+  winning *that* mission, independent of territory count — even with neutrals
+  left on the map — so the climactic ending is representable; the shipped data
+  keeps `own-all-territories` (its last neutral is the named `finalMission`, so
+  the two agree today) until the final mission is authored as its own file (a
+  Rule 4 request to the missions lane). `Campaign::wonFinalConfrontation()` is
+  true **only** when the win came *from* the final mission (it stays false under
+  `own-all-territories`, even if the terminal mission was among those won), and
+  `CampaignScreen::render` draws a distinct, warmer "FINAL CONFRONTATION WON"
+  panel for it. The end state stays terminal either way (`finished()` freezes the
+  board). A `finalMission` not in `missions`, or a `"final-mission"` win condition
+  with no `finalMission`, is a schema error at load, so a typo cannot leave the
+  campaign unwinnable. `Campaign` and `CampaignScreen` are both metagame's files
+  (`src/core/economy/**` + the map screen in `src/game/**`, `docs/FOCUS_AREAS.md`
+  §2). Tests: `tests/test_campaign.cpp` (parse, bad data, a final win ends it, a
+  non-final win does not, `own-all-territories` is not a final win).
 - **Sound effects are a hand-rolled SDL2 layer (issue #423, ADR-0040).**
   `game::Audio` (`src/game/Audio.{h,cpp}`, its own translation unit — do not grow
   the shared `Game.cpp`) owns one `SDL_OpenAudioDevice` and a small fixed set of
