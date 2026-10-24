@@ -18,7 +18,7 @@
 # the PR: the whole point of the profile is a small binary (AGENTS.md 1b).
 set -euo pipefail
 
-BUDGET_BYTES="${FOSSYND_SIZE_BUDGET_BYTES:-360448}"   # 352 KiB
+BUDGET_BYTES="${FOSSYND_SIZE_BUDGET_BYTES:-393216}"   # 384 KiB
 
 BIN="${1:-build/src/FOSSynd}"
 

@@ -23,6 +23,14 @@ contains no original assets, code, names, or trademarks.
 
 ### Changed
 
+- **The low-spec binary-size budget rose to 384 KiB** (from 352 KiB): the
+  save/load wiring (#433) links `core::CampaignSave` into the game binary for
+  ~24 KiB, more than one 16 KiB step, so a single step (368 KiB) would have left
+  only ~2 KiB of headroom — less than one 4 KiB ELF page step — and the next real
+  feature PR would fail spuriously rather than on a genuine regression (issue
+  #477). Same remedy as the 288 → 320 KiB (#312/#356), 320 → 336 KiB (#413), and
+  336 → 352 KiB (#468) raises; the guard still fails loudly if the low-spec flags
+  are dropped.
 - **The low-spec binary-size budget rose to 352 KiB** (from 336 KiB): `main` had
   reached 334 KiB, leaving only ~2 KiB of headroom — less than one 4 KiB ELF page
   step — so the next real feature PR (the time bomb, #449) failed spuriously
