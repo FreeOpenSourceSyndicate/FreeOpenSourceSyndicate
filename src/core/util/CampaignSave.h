@@ -30,9 +30,12 @@ namespace fossynd::core
 struct CampaignSave
 {
     // Written as the top-level `format` tag; a file that does not carry it is not
-    // a save. Bump `kVersion` when the schema changes incompatibly.
+    // a save. Bump `kVersion` when the schema changes incompatibly. v2 added the
+    // player's chosen syndicate identity (`syndicate` became meaningful and a
+    // `syndicateLogo` was added): a v1 build would parse a v2 file and silently
+    // drop the chosen logo, so the version bump makes it reject the file instead.
     static constexpr const char* kFormat = "fossynd-save";
-    static constexpr int kVersion = 1;
+    static constexpr int kVersion = 2;
 
     // One territory's mutable progress. Names, neighbours, and mission ids are
     // topology and live in the base campaign file, not the save.
@@ -85,7 +88,8 @@ struct CampaignSave
         }
     };
 
-    std::string syndicate;                  // Campaign::syndicateName(); identification only
+    std::string syndicate;                  // Campaign::syndicateName(); the player's display name
+    std::string syndicateLogo;              // Campaign::syndicateLogo(); a stable logo id
     std::vector<TerritoryProgress> territories; // ascending id
     std::vector<FundsProgress> funds;           // ascending syndicate
     std::vector<ResearchProgress> research;     // ascending syndicate; entries with progress only
@@ -93,8 +97,9 @@ struct CampaignSave
 
     bool operator==(const CampaignSave& other) const
     {
-        return syndicate == other.syndicate && territories == other.territories &&
-               funds == other.funds && research == other.research && loadouts == other.loadouts;
+        return syndicate == other.syndicate && syndicateLogo == other.syndicateLogo &&
+               territories == other.territories && funds == other.funds &&
+               research == other.research && loadouts == other.loadouts;
     }
     bool operator!=(const CampaignSave& other) const { return !(*this == other); }
 
@@ -117,10 +122,12 @@ struct CampaignSave
 
     // Restores the saved progress onto `campaign`, which must be a freshly loaded
     // base campaign (the same `--campaign` file the save was taken from, so its
-    // topology matches). Ownership and tax are set for every saved territory, the
-    // funds ledger is reset to the saved amounts, and the squad loadouts are
-    // replaced. Returns false and sets `error` if the save references a territory
-    // the base campaign does not have, or carries an out-of-range field.
+    // topology matches). The player's chosen name and logo are applied, ownership
+    // and tax are set for every saved territory, the funds ledger is reset to
+    // the saved amounts, and the squad loadouts are replaced. Returns false and
+    // sets `error` if the save references a territory the base campaign does not
+    // have, or carries an out-of-range field (validated before anything mutates,
+    // so a rejected save leaves the campaign untouched).
     //
     // Research is *captured and serialised* but not reapplied: the frozen
     // `Research` API exposes no restore setter, so a save's completed list and
