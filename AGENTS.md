@@ -1183,8 +1183,8 @@ Do not start work outside the scope fence (ADR-0024).
   append an entry to the matching file and reference it by
   `weaponId`/`agentId`/`vehicleId`; a mission that inlines its content (e.g.
   `demo.json`) is unaffected. A new catalogue entry **must** bump the pinned
-  `cataloguesChecked` count in `tests/test_content_validation.cpp` (currently 26:
-  12 weapons + 10 templates + 4 vehicles) and a new weapon should add a carrier
+  `cataloguesChecked` count in `tests/test_content_validation.cpp` (currently 29:
+  13 weapons + 12 templates + 4 vehicles) and a new weapon should add a carrier
   template so it is mission-referenceable, not inert. Schema in
   `docs/DATA_FORMAT.md` ("Shared catalogues").
 - **The metagame world data is cross-checked against the weapon catalogue
