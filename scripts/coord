@@ -115,12 +115,14 @@ _DEFAULT_AREAS = {
 _DEFAULT_SM_OWNED = ("rules",)
 # Critical-path order (docs/ROADMAP.md).  `coord next` prefers these so an idle
 # agent is steered at the work that unblocks the release, not just any free area.
-# The long pole comes first.  Redefined for Milestone C by the PO (2026-10-17,
-# issue #425): the mission set (tactical) is now the long pole because the map
-# content (#418) and the content guard (#420) are both blocked-by it; metagame
-# and world follow.  `platform`/`render`/`release` stay off the list - they do
-# delivery, not features, and must not absorb capacity from the feature lanes.
-_DEFAULT_CRITICAL = ("tactical", "metagame", "world")
+# The long pole comes first.  Redefined by the PO (2026-10-17, second pass): the
+# Milestone-C save/load CORE landed (#406/#430), so `world` has no open work and
+# is inert on the path; the chain is now tactical -> metagame, with the lanes the
+# next release (v0.9.0) needs - input-ui (save/load wiring #433 + syndicate
+# customisation) and render (SFX #424 + art) - following.  `platform`/`release`
+# stay off the list: they do delivery, not features, and must not absorb capacity
+# from the feature lanes.
+_DEFAULT_CRITICAL = ("tactical", "metagame", "input-ui", "render")
 # Process roles (no focus area).  A role code names an agent: <role>-<n>-<host>.
 _DEFAULT_ROLES = {
     "sm": {"code": "sm", "label": "Scrum master", "focus": None},
@@ -163,8 +165,8 @@ class FocusConfig:
     def critical_path_areas(self) -> tuple:
         """Critical-path areas, in the file's priority order, then the rest.
 
-        The ``critical_path`` list preserves the *order* (metagame before
-        tactical, so the long pole is picked first); any area marked
+        The ``critical_path`` list preserves the *order* (tactical before
+        metagame, so the long pole is picked first); any area marked
         ``critical: true`` in its own spec is appended in area order, for a
         redesign that prefers the per-area flag.
         """

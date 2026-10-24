@@ -80,18 +80,23 @@ on the map screen (`src/core/economy/**` + `game::CampaignScreen`). **Milestones
 and B are done**, so the critical path is now **Milestone C**:
 
 ```json
-"critical_path": ["tactical", "metagame", "world"]
+"critical_path": ["tactical", "metagame", "input-ui", "render"]
 ```
 
 - **`tactical`** — the mission set is the long pole: it unblocks the campaign map
   content and the content guard, both of which are `blocked-by` it.
 - **`metagame`** — the map wiring and the economy/research balance pass.
-- **`world`** — save/load, independent Milestone C feature work.
+- **`input-ui`** — save/load wiring (#433) and player-syndicate customisation,
+  the release-facing work the next snapshot (v0.9.0) needs.
+- **`render`** — the original sound effects (#424) and art the same release needs.
 
-`platform`, `render`, and `release` stay **off** the ordered list: they do
-delivery, not features, so they must not absorb capacity from the feature lanes
-(`docs/FOCUS_AREAS.md` §2). They remain claimable at the "any free area" rung, so
-nothing is starved. Redefined in issue #425.
+`world` **left** the ordered list: its Milestone-C long pole (save/load core,
+#406/#430) has landed, so it has no open work and is inert on the path; it stays
+claimable at the "any free area" rung. `platform` and `release` stay **off** the
+ordered list: they do delivery, not features, so they must not absorb capacity
+from the feature lanes (`docs/FOCUS_AREAS.md` §2). They remain claimable at the
+"any free area" rung, so nothing is starved. Redefined in issue #425, and again
+by the PO on 2026-10-17 (second pass) as Milestone C's long pole moved.
 
 ```
   Milestone A  (finish the tactical layer)  ─┐

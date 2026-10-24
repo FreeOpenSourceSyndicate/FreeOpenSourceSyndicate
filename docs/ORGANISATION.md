@@ -488,7 +488,7 @@ The area set is **not** hard-coded. It lives in **`docs/focus-areas.json`**, whi
 {
   "areas": { "tactical": {"code": "ta", "label": "Tactical / Mission"}, ... },
   "roles": { "sm": {"code": "sm"}, "po": {"code": "po"} },
-  "critical_path": ["tactical", "metagame", "world"],
+  "critical_path": ["tactical", "metagame", "input-ui", "render"],
   "sm_owned": ["rules"]
 }
 ```

@@ -149,9 +149,12 @@ v1.0.0 is feature parity with the 1993 original. That makes some area capacity
   but they do not add clone content, so do not let them absorb agent capacity
   that could be building Milestone C. They are **worker** lanes (ADR-0041): a
   `pf`/`rl` worker takes them; the SM does not.
-- **The critical path for Milestone C** is `tactical`, `metagame`, `world`
-  (`docs/ROADMAP.md`, issue #425): the mission set is the long pole, then the
-  campaign map/balance, then save/load. Point agents there.
+- **The critical path for Milestone C** is `tactical`, `metagame`, `input-ui`,
+  `render` (`docs/ROADMAP.md`, issue #425; reordered by the PO on 2026-10-17):
+  the mission set is the long pole, then the campaign map/balance, then the
+  release-facing save/load wiring and the SFX/art the next snapshot needs.
+  `world` left the list (its save/load long pole landed), and `platform`/`release`
+  stay off it. Point agents there.
 
 ### 2.1 Interface surfaces an area must not silently change
 

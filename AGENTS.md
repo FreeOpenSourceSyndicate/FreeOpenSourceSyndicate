@@ -619,24 +619,30 @@ move us toward it, it is out of scope.
 ## 10. Known gaps / TODO for the next agent
 
 - **The critical path lives in three places that must agree (issue #425).** The
-  Milestone C order is `tactical`, `metagame`, `world` (mission set first - it
-  unblocks the map content and the content guard). It is read from
-  `docs/focus-areas.json` -> `critical_path`, the built-in `_DEFAULT_CRITICAL`
-  in `scripts/coord`, and pinned by the guards in `tests/test_coord.py`. Edit
-  one and CI reddens (`test_default_config_matches_the_shipped_file`,
+  Milestone C order is `tactical`, `metagame`, `input-ui`, `render` (mission set
+  first - it unblocks the map content and the content guard; then the campaign
+  map/balance, then the release-facing save/load wiring and SFX/art). It is read
+  from `docs/focus-areas.json` -> `critical_path`, the built-in
+  `_DEFAULT_CRITICAL` in `scripts/coord`, and pinned by the guards in
+  `tests/test_coord.py`. Edit one and CI reddens
+  (`test_default_config_matches_the_shipped_file`,
   `test_the_critical_path_matches_the_roadmap`), so change all three in one PR.
-  `platform`/`render`/`release` are deliberately **off** the list (they do
-  delivery, not features) - do not add them. Off-path tests must use an
-  off-path area (`render`), **not `world`**: `world` moved onto the path.
+  `platform`/`release` are deliberately **off** the list (they do delivery, not
+  features) - do not add them. `world` **left** the list (its save/load long pole
+  landed, so it has no open work); `render` **joined** it (the v0.9.0 release
+  needs its SFX/art). Off-path tests must use a genuinely off-path area
+  (`content`), **not `world`** or `render` - both moved onto the path.
 
 **Where to work next.** Follow `docs/ROADMAP.md` → *The critical path*. **The
-critical path is `tactical`, `metagame`, `world`** (redefined for Milestone C in
-issue #425 — Milestones A and B are done, and the mission set is the long pole
-because the map content and the content guard are blocked by it). `platform`,
-`render`, and `release` do delivery, not features, so they stay off the ordered
-list. The narrative below records how the metagame got here; treat it as history
-for `metagame`, not as the current long pole. The old long pole was **Milestone B
-(the metagame)** — the world map, economy, research, and
+critical path is `tactical`, `metagame`, `input-ui`, `render`** (reordered by the
+PO on 2026-10-17 — Milestones A and B are done, the mission set is the long pole
+because the map content and the content guard are blocked by it, and the next
+snapshot needs the save/load wiring and the SFX/art). `platform` and `release` do
+delivery, not features, so they stay off the ordered list, and `world` left it
+once its save/load long pole landed. The narrative below records how the metagame
+got here; treat it as history for `metagame`, not as the current long pole. The
+old long pole was **Milestone B (the metagame)** — the world map, economy,
+research, and
 campaign, whose **core** systems have all merged (`src/core/economy/**`:
 `WorldMap`, `Economy`, `Research`, `Equipment`, `Campaign`; unit-tested in
 `tests/test_{worldmap,economy,research,equipment,campaign}.cpp`). The game layer
