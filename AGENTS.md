@@ -675,6 +675,27 @@ layer: cybernetics, scanner, vehicles, destructible environment) runs in
 parallel — its objective set is complete (#281).
 Do not start work outside the scope fence (ADR-0024).
 
+- **The campaign pacing is tuned and pinned (issue #419, Milestone C).** The
+  shipped `assets/data/world/campaign.json` no longer uses the placeholder
+  economy: `incomePerTaxLevel` 60 (was 100) and `revoltChancePerTick` 0.06 (was
+  0.02). Rationale: a fresh campaign holds 2 of 6 regions, so at the old values
+  the whole 6100-fund research tree was affordable in ~13 ticks (a walkover) and
+  over-taxing at max tax out-earned the safe tax for ~112 ticks (no decision). At
+  the new values the opening safe path (tax 2 → 240/tick) affords the first
+  research node immediately and the whole tree in ~22 ticks, while max tax (5)
+  pays 2.5× but its expected value falls below the safe path after ~38 ticks — a
+  real tax-vs-revolt gamble. **The values are pinned by tests that read the
+  shipped files**, so a later edit that silently unbalances them fails
+  `ctest` instead of a playtest: `tests/test_economy.cpp`
+  (`ShippedConfigHasTheTunedPacing`, `ShippedIncomePerTickAtEachTaxLevel`,
+  `ShippedRevoltIsARealTradeOffNotAFormality`,
+  `ShippedStartingFundsCoverTheFirstResearchNode`) and `tests/test_research.cpp`
+  (`ShippedTreeIsAThreeTierProgression`, `ShippedTreePacingIsBracketed`,
+  `TicksToAffordTheResearchTreeFromTheStartingPosition`). Data only, no code
+  change (golden rule 7); `game_campaign` stays green. Weapon balance
+  (`assets/data/weapons.json`) is content/tactical — a Rule 4 request if it needs
+  retuning. Docs: `docs/METAGAME.md` §5.4 / §10.4.
+
 - The game now has a **playable vertical slice** with authored pixel-art
   sprites: an SDL2 isometric mission with a four-agent squad, live combat
   (health, hit flashes, kills), basic enemy AI, a HUD, a data-driven win/lose

@@ -469,9 +469,9 @@ use `jsonc` for annotation only, exactly as `docs/DATA_FORMAT.md` does).
   "syndicate": "Riverside Combine",
   "startingFunds": 1000,
   "maxTaxLevel": 5,
-  "incomePerTaxLevel": 100,
+  "incomePerTaxLevel": 60,
   "revoltThresholdLevel": 3,
-  "revoltChancePerTick": 0.02,
+  "revoltChancePerTick": 0.06,
   "tickSeconds": 30,
   "world": "world.json",
   "research": "research.json",
@@ -590,8 +590,14 @@ From the tracking issue (#249):
 3. **Squad ↔ mission mapping.** R1's exact shape (override specs vs. a separate
    deploy step) is Tactical/Content's call; this contract only requires that a
    bought loadout reaches the deployed agents.
-4. **Money scaling.** `EconomyConfig` values are placeholders; the real balance
-   is a data question (tune `campaign.json`, not code).
+4. **Money scaling.** *(settled — #419, the balance pass.)* The shipped
+   `campaign.json` is tuned so a fresh campaign (2 owned regions) reaches the win
+   in a reasonable number of ticks, and over-taxation is a real gamble: at
+   `revoltChancePerTick` 0.06 the risky max tax stops out-earning the safe tax
+   after ~38 ticks, so the decision is live but not a trap. The pins live in
+   `tests/test_economy.cpp` and `tests/test_research.cpp`, which read the shipped
+   files. Further tuning is still a data question — edit `campaign.json`, not
+   code.
 
 ---
 
