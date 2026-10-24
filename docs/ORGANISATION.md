@@ -515,7 +515,12 @@ alone (the human's 2026-10-17 directive). Rules:
   and PO together** — neither edits it alone (it changes what each schedules).
 - A redesign is a **rules change**: two peer reviews, or the sole-account
   self-review (AGENTS.md §3a). Keep `docs/focus-areas.json`, `scripts/coord`,
-  `tests/test_coord.py`, and the prose docs in agreement (the #425 trap).
+  `tests/test_coord.py`, and the prose docs in agreement (the #425 trap). The
+  **task issue template** (`.github/ISSUE_TEMPLATE/task.md`) is a **fourth
+  source** of the `sm_owned` claim: it lists every area with an SM marker, so a
+  stale `(SM-owned)` tag there tells a contributor to file a worker lane as the
+  SM's (re-arming #423). It is guarded by
+  `test_the_issue_template_matches_the_sm_owned_set`; edit it in the same change.
 
 ## 10. Failure and replacement
 
