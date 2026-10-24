@@ -2744,6 +2744,91 @@ FOSSYND_TEST(Mission, ShippedOverpassReachIsWinnable)
     FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
 }
 
+FOSSYND_TEST(Mission, ShippedPrecinctPoliceAndSaboteurAreReachableAndWinnable)
+{
+    // #462: the `police` and `saboteur` shared templates must be referenced by a
+    // shipped mission, or they are inert catalogue entries. This mission also
+    // proves the time-bomb carrier (the saboteur) is reachable in play.
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("precinct"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::EliminateAll);
+
+    // The two templates really resolved from the catalogue, with their own
+    // stats (not the mission's inline defaults).
+    bool sawPolice = false;
+    bool sawSaboteur = false;
+    for (const AgentSpec& spec : data.agents)
+    {
+        if (spec.name == "PATROL-1")
+        {
+            FOSSYND_CHECK_EQ(spec.team, Team::Enemy);
+            FOSSYND_CHECK_NEAR(spec.health, 75.0f);
+            FOSSYND_CHECK_EQ(spec.weapon.name, std::string("Uzi"));
+            sawPolice = true;
+        }
+        if (spec.name == "SABOTEUR")
+        {
+            FOSSYND_CHECK_EQ(spec.team, Team::Enemy);
+            FOSSYND_CHECK_NEAR(spec.health, 80.0f);
+            FOSSYND_CHECK_EQ(spec.weapon.name, std::string("Time Bomb"));
+            sawSaboteur = true;
+        }
+    }
+    FOSSYND_CHECK(sawPolice);
+    FOSSYND_CHECK(sawSaboteur);
+
+    // The mission's eliminate objective must be genuinely satisfiable: every
+    // enemy must be reachable from the squad, not walled off. This is checked
+    // directly, because the saboteur's time bomb has an area blast, so a boxed-in
+    // saboteur would still die to its own splash and mask an unreachable enemy.
+    TileGrid grid = buildGrid(data);
+    const TilePos start{static_cast<int>(data.agents.front().x),
+                        static_cast<int>(data.agents.front().y)};
+    for (const AgentSpec& spec : data.agents)
+    {
+        if (spec.team != Team::Enemy)
+        {
+            continue;
+        }
+        const TilePos foe{static_cast<int>(spec.x), static_cast<int>(spec.y)};
+        FOSSYND_CHECK(!findPath(grid, start, foe, /*allowDiagonal=*/true).empty());
+    }
+
+    Mission mission(grid, 16u);
+    populateMission(data, mission);
+
+    for (int guard = 0; guard < 40 && mission.state() == MissionState::Running; ++guard)
+    {
+        for (std::size_t i = 0; i < mission.agents().size(); ++i)
+        {
+            if (mission.agents()[i].team() != Team::Player)
+            {
+                continue;
+            }
+            for (std::size_t t = 0; t < mission.agents().size(); ++t)
+            {
+                if (mission.agents()[t].team() == Team::Enemy &&
+                    mission.agents()[t].isAlive())
+                {
+                    mission.orderAttack(i, t);
+                }
+            }
+        }
+        runUntilDone(mission, 6.0f);
+    }
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    for (const Agent& agent : mission.agents())
+    {
+        if (agent.team() == Team::Enemy)
+        {
+            FOSSYND_CHECK(!agent.isAlive());
+        }
+    }
+}
+
 // --- time bomb (issue #449) ------------------------------------------------
 //
 // A fused charge: arming queues a detonation at a tile, it lands after the fuse,
