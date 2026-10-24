@@ -124,16 +124,11 @@ struct CampaignSave
     // base campaign (the same `--campaign` file the save was taken from, so its
     // topology matches). The player's chosen name and logo are applied, ownership
     // and tax are set for every saved territory, the funds ledger is reset to
-    // the saved amounts, and the squad loadouts are replaced. Returns false and
+    // the saved amounts, the squad loadouts are replaced, and each saved
+    // syndicate's research progress is reinstated verbatim. Returns false and
     // sets `error` if the save references a territory the base campaign does not
     // have, or carries an out-of-range field (validated before anything mutates,
     // so a rejected save leaves the campaign untouched).
-    //
-    // Research is *captured and serialised* but not reapplied: the frozen
-    // `Research` API exposes no restore setter, so a save's completed list and
-    // in-progress node cannot be written back without a metagame accessor
-    // (Rule 4 request filed to `focus: metagame`). Until that lands, a loaded
-    // campaign starts its research from the base file's state.
     bool applyTo(Campaign& campaign, std::string& error) const;
 };
 

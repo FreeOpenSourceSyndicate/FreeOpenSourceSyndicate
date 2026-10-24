@@ -48,8 +48,8 @@ Campaign progressedCampaign()
     campaign.economy().addFunds(player, 1234.5f);
     campaign.economy().addFunds(1, 200.0f);
 
-    // Research progress (captured and serialised, though applyTo does not restore
-    // it until the metagame exposes a setter).
+    // Research progress: captured, serialised, and (since #431/#480) restored by
+    // applyTo.
     FOSSYND_CHECK(campaign.research().begin(player, "minigun", campaign.researchTree(),
                                            campaign.economy()));
 
@@ -186,6 +186,13 @@ FOSSYND_TEST(CampaignSave, ApplyRestoresProgressOntoAFreshCampaign)
     FOSSYND_CHECK(applied.territories == save.territories);
     FOSSYND_CHECK(applied.funds == save.funds);
     FOSSYND_CHECK(applied.loadouts == save.loadouts);
+    // Research progress comes back too (#480): the save's research vector is
+    // reproduced exactly by re-capturing the applied campaign.
+    FOSSYND_CHECK(applied.research == save.research);
+    FOSSYND_CHECK(!applied.research.empty());
+    // The restored progress is live state, not just re-serialised: the node the
+    // save had in progress is in progress on the reloaded campaign.
+    FOSSYND_CHECK_EQ(fresh.research().state(player).inProgress, std::string("minigun"));
     // The player's chosen identity survives the round-trip.
     FOSSYND_CHECK_EQ(fresh.syndicateName(), std::string("Nightingale Trust"));
     FOSSYND_CHECK_EQ(fresh.syndicateLogo(), std::string("serpent"));
