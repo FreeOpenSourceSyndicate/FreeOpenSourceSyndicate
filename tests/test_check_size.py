@@ -80,7 +80,7 @@ class CheckSizeTest(unittest.TestCase):
         self.assertEqual(code, USAGE, out)
         self.assertIn("not found", out)
 
-    def test_default_budget_is_the_documented_352_kib(self):
+    def test_default_budget_is_the_documented_384_kib(self):
         # CI calls the script with no FOSSYND_SIZE_BUDGET_BYTES, so the default is
         # the effective cap. Issue #328 confirmed 288 KiB (294912) after the
         # low-spec binary reached 254 KiB against the old 256 KiB cap; the cap was
@@ -91,15 +91,18 @@ class CheckSizeTest(unittest.TestCase):
         # to 352 KiB (360448) when main reached 334 KiB (issue #468): a 2 KiB
         # margin is less than one 4 KiB ELF page step, so the next real feature PR
         # (the time bomb, #449/#459) failed spuriously rather than on a genuine
-        # regression. The exact default is asserted so a silent nudge is caught
-        # here, not in review.
+        # regression. It rose again to 384 KiB (393216) when the save/load wiring
+        # (#433/#476) added ~24 KiB by linking `core::CampaignSave` (issue #477):
+        # more than one 16 KiB step, so a single step (368 KiB) would have left
+        # only ~2 KiB of headroom - the same trap. The exact default is asserted
+        # so a silent nudge is caught here, not in review.
         env = dict(os.environ)
         env.pop("FOSSYND_SIZE_BUDGET_BYTES", None)
-        self._write(336 * 1024 + 1)  # just past the *old* 336 KiB cap
+        self._write(352 * 1024 + 1)  # just past the *old* 352 KiB cap
         proc = subprocess.run([SCRIPT, self.binary], capture_output=True,
                               text=True, env=env)
         self.assertEqual(proc.returncode, OK, proc.stdout + proc.stderr)
-        self.assertIn("352 KiB", proc.stdout)
+        self.assertIn("384 KiB", proc.stdout)
 
     def test_reports_size_in_kib(self):
         self._write(2048)
