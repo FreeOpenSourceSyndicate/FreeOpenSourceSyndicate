@@ -10,17 +10,17 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-24T19:23:20Z._
+_As of 2026-10-24T19:49:45Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
-| `tactical` | — | free | — |
-| `world` | — | free | — |
-| `render` | — | free | — |
-| `input-ui` | — | free | — |
-| `content` | — | free | — |
+| `tactical` | ta-1-kastenbrot · #449 | claimed | 5h |
+| `world` | mg-1-kastenbrot · #445 | claimed | 5h |
+| `render` | re-1-kastenbrot · #424 | claimed | 5h |
+| `input-ui` | ui-1-kastenbrot · #433 | claimed | 5h |
+| `content` | co-1-kastenbrot · #446 | claimed | 5h |
 | `text` | — | free | — |
-| `metagame` | — | free | — |
+| `metagame` | mg-1-kastenbrot · #445 | claimed | 5h |
 | `platform` | — | free | — |
 | `rules (SM)` | — | free | — |
 | `release` | — | free | — |
@@ -43,11 +43,14 @@ Named agents per host (`refs/coord/roster/<host>`, `scripts/coord agent --list`)
 - `sm-1-gnampf` — retired → `sm-2-gnampf`
 - `po-1-gnampf` — retired → `po-2-gnampf`
 
-**`kastenbrot`** — 1/10 new agents today
+**`kastenbrot`** — 4/10 new agents today
 
 - `sm-1-kastenbrot` (OpenHands (agent-sdk)) — active
 - `po-2-kastenbrot` (Claude Sonnet 4.5) — active
 - `mg-1-kastenbrot` (Claude Sonnet 4.5) — active
+- `re-1-kastenbrot` (claude-sonnet-4.5) — active
+- `ui-1-kastenbrot` (claude-sonnet-4.5) — active
+- `co-1-kastenbrot` (OpenHands (Claude)) — active
 - `po-1-kastenbrot` — retired → `po-2-kastenbrot`
 
 Register a new agent: `scripts/coord agent --register --host <host> --role <area-code>`. Hold a name before its agent starts: `scripts/coord agent --reserve --host <host> --role <area-code> --name <name>` (then `--register` the same name to promote it). Retire one: `scripts/coord agent --retire <name> --host <host> --succeeded-by <name>`.
@@ -87,6 +90,7 @@ BACKLOG SEEDED (this shift): #444 tactical, #445 metagame, #446 content, #447 in
 HUMAN DECISIONS RECORDED: agent names FIXED proper nouns by recruitment REGION; weapon names LOCALISED (#270 scoped to weapons, agent half settled); player syndicate CUSTOMISABLE (name+logo) -> #445/#447; V1 WORLD map with real-world-culture regions -> #448; closed #282 as superseded.
 RESTRUCTURE: agreed with SM on #442 (sm_owned=[rules] only; platform -> normal worker lane). Proposed a follow-up split of 'tactical' into 'tactical' (src/core/sim) + 'missions' (assets/data/missions) to parallelise the mission long-pole - awaiting SM's view.
 NEXT PO: check SM agreement on the critical_path fold-in; seed platform issues (now a worker lane, none seeded yet); next tactical slice = more missions (#417 vehicle-in-mission, #449 time bomb); watch the v0.9.0 release (release lane #440).
+- _2026-10-24T19:32:16Z_ po-2-kastenbrot: PO shift 3b (po-2-kastenbrot), 2026-10-17. HUMAN: full authority to restructure foci without permission (coordinate with SM only where their scope is affected); #448 research directive added (research cultures, adapt region count freely, finish all the work). ACTIONS: (1) agreed #442 + folded critical_path=[tactical,metagame,input-ui,render] (SM merged, 4 agreeing sources now incl. the issue template); (2) approved+spec'd the tactical/missions split -> SM filed #451, spec DMed (tactical keeps src/core/sim rules; new 'missions' area code ms owns assets/data/missions authoring; critical_path=[tactical,missions,metagame,input-ui,render]); (3) seeded #454 platform (low-spec size budget after audio), #455 render (original pixel art: enemy types/vehicle wrecks/terrain), #456 metagame (final confrontation = terminal mission + distinct victory end state); (4) steered ta-1 to sequence #449 then #444 (and file a Rule 4 to content for the parser), mg-1 to #445 then #431 then #448, ui-1 heads-up for #447. BOARD: 5 live workers (ta-1 #449, mg-1 #445, ui-1 #433, re-1 #424, co-1 #446). OPEN BACKLOG: tactical #444/#417/#449(claimed), missions (after #451), metagame #445(claimed)/#431/#448/#456, input-ui #433(claimed)/#447(blocked), render #424(claimed)/#455, content #446(claimed)/#420/#432, text #270, platform #454, release #440/#450. NEXT PO: land #451 (SM's lane) then sync ROADMAP prose; seed the 'missions' lane once it exists; watch v0.9.0 (#450 blocked on #433/#424); the long pole is now the mission set -> keep #444 and future mission slices fed.
 
 **`release`**
 
@@ -125,6 +129,7 @@ NEXT PO: check SM agreement on the critical_path fold-in; seed platform issues (
 **`world`**
 
 - _2026-10-17T11:53:22Z_ wo-1-kastenbrot: Save/load (#406, PR #430): core::CampaignSave (src/core/util/CampaignSave.{h,cpp}) is a versioned plain-text OVERLAY on the base campaign, not a full copy - topology comes from --campaign. Format: format tag 'fossynd-save' + int version (1). parse() rejects bad/missing format + wrong version before trusting fields; applyTo() rejects a territory the base campaign lacks. Floats use %.9g for exact round-trip. Research is captured/serialised but NOT reapplied (frozen Research API has no setter) - Rule 4 request to metagame is #431. Schema doc request to content is #432; --save/--load wiring to input-ui is #433. Tests: tests/test_persistence.cpp (ctest core_unit_tests). ADR-0038.
+- _2026-10-24T19:35:21Z_ mg-1-kastenbrot: Helper claim (FOCUS_AREAS 5.1.3): metagame issue #445 (player-chosen syndicate name+logo) needs src/core/util/CampaignSave.{h,cpp} + tests/test_persistence.cpp, which the 2 file map assigns to world. world had no live owner (free), so I claimed it for this one task under branch feat/meta-syndicate-identity. Change: add a 'logo' field + apply the name/logo in applyTo; bump kVersion 1->2 (the save now carries player identity, and a v1 build would silently drop the logo). Releasing world when #445 merges.
 
 Add one with `scripts/coord note --area <area> --agent "<role>-<n>-<host>" --text "..."`.
 
