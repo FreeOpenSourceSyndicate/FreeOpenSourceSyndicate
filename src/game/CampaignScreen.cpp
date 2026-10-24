@@ -4,9 +4,11 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <queue>
 
 #include "core/data/ContentPaths.h"
+#include "core/util/CampaignSave.h"
 #include "game/HudStyle.h"
 
 namespace fossynd::game
@@ -150,6 +152,7 @@ bool CampaignScreen::init(const std::string& path, const std::string& exeDir)
 
     computeLayout();
     valid_ = true;
+    campaignFile_ = resolved;
     // Start on the first player-owned territory so the map opens with something
     // selected.
     selected_ = -1;
@@ -1058,6 +1061,169 @@ bool CampaignScreen::selfTest()
     }
 
     return true;
+}
+
+bool CampaignScreen::saveProgress(const std::string& path, std::string& error) const
+{
+    error.clear();
+    if (!valid_)
+    {
+        error = "no campaign loaded";
+        return false;
+    }
+    // A pure read of the frozen metagame API (golden rule 4): capture the live
+    // progress and write it. Nothing in the screen changes.
+    const core::CampaignSave save = core::CampaignSave::capture(campaign_);
+    return save.saveToFile(path, error);
+}
+
+bool CampaignScreen::loadProgress(const std::string& path, std::string& error)
+{
+    error.clear();
+    if (!valid_)
+    {
+        error = "no campaign loaded";
+        return false;
+    }
+    // The two-step load (ADR-0039): the base campaign is already loaded by init();
+    // the save is an overlay that restores the progress on top of it. A missing
+    // or corrupt file fails here, before any field is trusted.
+    core::CampaignSave save;
+    if (!core::CampaignSave::loadFromFile(path, save, error))
+    {
+        return false;
+    }
+    if (!save.applyTo(campaign_, error))
+    {
+        return false;
+    }
+    // Ownership may have changed hands, so re-select the first territory the
+    // player now holds (or -1) — the panel and deploy both read `selected_`.
+    selected_ = -1;
+    for (const core::Territory& territory : campaign_.map().territories())
+    {
+        if (territory.owner == core::Campaign::kPlayerSyndicate)
+        {
+            selected_ = territory.id;
+            break;
+        }
+    }
+    return true;
+}
+
+bool CampaignScreen::saveLoadSelfTest()
+{
+    if (!valid_ || campaignFile_.empty())
+    {
+        std::fprintf(stderr, "save/load self-test: no campaign loaded\n");
+        return false;
+    }
+
+    const int player = core::Campaign::kPlayerSyndicate;
+
+    // A scratch screen loaded fresh from the base file, so the live campaign the
+    // player sees is never touched.
+    CampaignScreen scratch;
+    if (!scratch.init(campaignFile_, exeDir_))
+    {
+        std::fprintf(stderr, "save/load self-test: could not reload the base campaign\n");
+        return false;
+    }
+
+    // Progress it in every field the save carries, so the round-trip has
+    // something to lose. Ownership varies (player / rival / neutral) so the save
+    // is not merely the base state.
+    int index = 0;
+    for (const core::Territory& territory : scratch.campaign_.map().territories())
+    {
+        const int owner = (index % 3 == 0) ? player : (index % 3 == 1 ? 1 : -1);
+        scratch.campaign_.map().setOwner(territory.id, owner);
+        scratch.campaign_.map().setTaxLevel(territory.id, index % 4);
+        ++index;
+    }
+    scratch.campaign_.economy().addFunds(player, 1234.5f);
+    scratch.campaign_.equipment().assign(player, 0, "medkit");
+    scratch.campaign_.equipment().assign(player, 1, "targeting-implant");
+
+    const core::CampaignSave expected = core::CampaignSave::capture(scratch.campaign_);
+
+    // Save it to a uniquely named temp file, so a concurrent run cannot collide.
+    // Plain C++ only: <filesystem> is deliberately avoided in the game layer
+    // (AGENTS.md §1b, the low-spec size budget) — $TMPDIR with /tmp as the
+    // fallback, as the rest of the tree does.
+    static int counter = 0;
+    const char* tmpDir = std::getenv("TMPDIR");
+    const std::string base =
+        std::string(tmpDir != nullptr && tmpDir[0] != '\0' ? tmpDir : "/tmp") +
+        "/fossynd_save_load_" + std::to_string(++counter);
+    const std::string file = base + ".json";
+    const std::string corrupt = base + "_bad.json";
+
+    std::string error;
+    if (!scratch.saveProgress(file, error))
+    {
+        std::fprintf(stderr, "save/load self-test: save failed: %s\n", error.c_str());
+        std::remove(file.c_str());
+        return false;
+    }
+
+    // Load it into a *fresh* base campaign, as a real `--load` does.
+    CampaignScreen reloaded;
+    if (!reloaded.init(campaignFile_, exeDir_))
+    {
+        std::fprintf(stderr, "save/load self-test: could not reload a fresh base\n");
+        std::remove(file.c_str());
+        return false;
+    }
+    const core::CampaignSave freshBase = core::CampaignSave::capture(reloaded.campaign_);
+    if (freshBase == expected)
+    {
+        std::fprintf(stderr,
+                     "save/load self-test: the progressed save equals the base state\n");
+        std::remove(file.c_str());
+        return false;
+    }
+
+    bool ok = true;
+    if (!reloaded.loadProgress(file, error))
+    {
+        std::fprintf(stderr, "save/load self-test: load failed: %s\n", error.c_str());
+        ok = false;
+    }
+    else if (core::CampaignSave::capture(reloaded.campaign_) != expected)
+    {
+        std::fprintf(stderr,
+                     "save/load self-test: the loaded progress does not match the save\n");
+        ok = false;
+    }
+
+    // A corrupt file must be rejected, not silently loaded with fields missing.
+    // Written with stdio, not <fstream>: the game layer avoids the ostream
+    // machinery to protect the low-spec size budget (AGENTS.md §1b).
+    if (std::FILE* bad = std::fopen(corrupt.c_str(), "wb"))
+    {
+        const char text[] = "{ this is not a save";
+        const std::size_t written = std::fwrite(text, 1, sizeof(text) - 1, bad);
+        (void)written;
+        std::fclose(bad);
+    }
+    std::string corruptError;
+    if (reloaded.loadProgress(corrupt, corruptError))
+    {
+        std::fprintf(stderr, "save/load self-test: a corrupt save was accepted\n");
+        ok = false;
+    }
+    // A missing file must be rejected too (the #259 fail-fast pattern).
+    std::string missingError;
+    if (reloaded.loadProgress("/no/such/fossynd-save.json", missingError))
+    {
+        std::fprintf(stderr, "save/load self-test: a missing save was accepted\n");
+        ok = false;
+    }
+
+    std::remove(file.c_str());
+    std::remove(corrupt.c_str());
+    return ok;
 }
 
 } // namespace fossynd::game

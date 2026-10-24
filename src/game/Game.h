@@ -59,6 +59,35 @@ public:
     // empty path means "search the default locations". Call before init().
     void setCampaignPath(const std::string& path) { campaignPath_ = path; }
 
+    // --- save/load (Milestone C, issue #433) ---
+
+    // Sets the path a `--save <path>` run writes the campaign's progress to when
+    // it exits. An empty path means "do not save". Call before init().
+    void setSavePath(const std::string& path) { savePath_ = path; }
+
+    // Sets the path a `--load <path>` run restores campaign progress from after
+    // the base campaign is loaded. An empty path means "do not load". Call before
+    // init(); `main` applies it with loadCampaignProgress() once init() has
+    // resolved the base campaign, and fails fast on a missing or corrupt file.
+    void setLoadPath(const std::string& path) { loadPath_ = path; }
+
+    // Writes the loaded campaign's progress to `path` (a pure read of the frozen
+    // metagame API). Returns false and sets `error` when no campaign is loaded or
+    // the file cannot be written. Used by `--save` on exit and by the self-test.
+    bool saveCampaignProgress(const std::string& path, std::string& error);
+
+    // Restores campaign progress from the save at `path`, on top of the base
+    // campaign init() already loaded. Returns false and sets `error` for a
+    // missing/corrupt file or a topology mismatch. Used by `--load`.
+    bool loadCampaignProgress(const std::string& path, std::string& error);
+
+    // Headless guard for the save/load round-trip (issue #433): saves a
+    // progressed campaign, reloads it, and confirms every captured field comes
+    // back, then confirms a corrupt and a missing file are rejected. Drives the
+    // real `CampaignScreen` save/load path. Used by the `--check-save-load` guard
+    // and the `game_save_load` ctest.
+    bool saveLoadSelfTest();
+
     // Starts with the campaign management screen (the world map) up instead of
     // the tactical board. Set by `--map`; `M` toggles it at runtime. Call before
     // init().
@@ -658,6 +687,12 @@ private:
     // Resolved campaign file, or empty to search the default locations. Set by
     // `--campaign` before init().
     std::string campaignPath_;
+
+    // Save/load paths (issue #433). `loadPath_` is applied in init() after the
+    // base campaign loads; `savePath_` is written on exit (run()) and by the
+    // self-test. Both empty mean "not requested".
+    std::string savePath_;
+    std::string loadPath_;
 
     // Start on the management screen (`--map`). `M` toggles it at runtime.
     bool showMap_ = false;

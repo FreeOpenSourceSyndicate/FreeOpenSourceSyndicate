@@ -38,6 +38,33 @@ public:
 
     bool valid() const { return valid_; }
 
+    // The base campaign file this screen loaded, or empty. A save is an overlay
+    // on this file's topology (ADR-0039), so save/load must know it to reload a
+    // matching base (issue #433).
+    const std::string& campaignFile() const { return campaignFile_; }
+
+    // --- save/load (Milestone C, issue #433) ---
+
+    // Writes the live campaign's progress to `path` through `core::CampaignSave`
+    // (a pure read of the frozen metagame API, golden rule 4). Returns false and
+    // sets `error` when the campaign is invalid or the file cannot be written.
+    bool saveProgress(const std::string& path, std::string& error) const;
+
+    // Loads the save at `path` and overlays it onto the already-loaded base
+    // campaign (the two-step load: base campaign first, then the save). On
+    // success the view layout is rebuilt and a territory is reselected, so the
+    // map reflects the restored progress. Returns false and sets `error` for a
+    // missing or corrupt file, or a save whose topology does not match the base.
+    bool loadProgress(const std::string& path, std::string& error);
+
+    // Headless guard for the save/load round-trip (issue #433): on a scratch
+    // screen (never the live one), progress a campaign, save it, load it into a
+    // fresh base campaign, and confirm every captured field comes back; then
+    // confirm a corrupt and a missing file are rejected. Returns false on the
+    // first broken invariant. Used by the `--check-save-load` guard and the
+    // `game_save_load` ctest.
+    bool saveLoadSelfTest();
+
     // Visibility is a view-only toggle (the `M` key). Hidden by default so the
     // tactical mission is what the player sees first.
     void toggle() { visible_ = !visible_; }
@@ -159,6 +186,11 @@ private:
     // The executable directory, kept so a deployed mission id resolves to a
     // file alongside the executable when run from outside the repo (issue #312).
     std::string exeDir_;
+
+    // The base campaign file actually loaded (resolved from the requested path or
+    // the default search). Kept so a save can be reloaded onto a matching base
+    // (issue #433). Empty until init() resolves one.
+    std::string campaignFile_;
 
     // A deployment waiting to be played (issue #312): the mission the selected
     // territory names, its resolved file, and the loadout resolved from the

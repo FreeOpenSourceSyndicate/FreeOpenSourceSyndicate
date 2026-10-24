@@ -327,6 +327,18 @@ if(BUILD_TESTS)
     add_test(NAME game_campaign_keys
              COMMAND FOSSynd --headless --check-campaign-keys)
     set_tests_properties(game_campaign_keys PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    # Campaign save/load round-trip (issue #433): a progressed campaign must save,
+    # reload into a fresh base campaign with every captured field restored, and a
+    # corrupt/missing file must be rejected. Run from the repo root so the shipped
+    # campaign and missions are found.
+    add_test(NAME game_save_load
+             COMMAND FOSSynd --headless --check-save-load)
+    set_tests_properties(game_save_load PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    # An explicit --load naming a missing file must fail fast, like
+    # --mission/--campaign/--config (issue #259, #433), not silently start fresh.
+    add_test(NAME game_cli_load_missing
+             COMMAND FOSSynd --headless --load /nonexistent/fossynd-save.json --frames 1)
+    set_tests_properties(game_cli_load_missing PROPERTIES WILL_FAIL TRUE)
     # `--map` starts on the management screen; it must render and exit cleanly
     # headlessly, so the world-map path is exercised, not just the flag.
     add_test(NAME game_map_flag

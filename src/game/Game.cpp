@@ -1445,6 +1445,41 @@ bool Game::campaignSelfTest()
     return !campaign_.shopOpen();
 }
 
+bool Game::saveCampaignProgress(const std::string& path, std::string& error)
+{
+    error.clear();
+    if (!campaign_.valid())
+    {
+        error = "no campaign loaded";
+        return false;
+    }
+    return campaign_.saveProgress(path, error);
+}
+
+bool Game::loadCampaignProgress(const std::string& path, std::string& error)
+{
+    error.clear();
+    if (!campaign_.valid())
+    {
+        error = "no campaign loaded";
+        return false;
+    }
+    return campaign_.loadProgress(path, error);
+}
+
+bool Game::saveLoadSelfTest()
+{
+    if (!campaign_.valid())
+    {
+        std::fprintf(stderr, "save/load self-test: no campaign loaded\n");
+        return false;
+    }
+    // The round-trip lives on the screen (it owns the core::Campaign and the
+    // view layout), so the guard drives the real save/load path there rather than
+    // re-implementing it (docs/FOCUS_AREAS.md §4, Rule 2).
+    return campaign_.saveLoadSelfTest();
+}
+
 bool Game::deploySelfTest()
 {
     // Deploying from the map must (a) resolve the territory's mission to a file,
@@ -4249,6 +4284,20 @@ int Game::run(int maxFrames)
             break;
         }
         SDL_Delay(1);
+    }
+
+    // Write the campaign's progress on exit when `--save <path>` was given
+    // (issue #433). A requested save that cannot be written is a failure, not a
+    // silent skip: the user asked for it, and a lost save is worse than an error.
+    if (!savePath_.empty())
+    {
+        std::string saveError;
+        if (!saveCampaignProgress(savePath_, saveError))
+        {
+            std::fprintf(stderr, "save error (%s): %s\n", savePath_.c_str(), saveError.c_str());
+            return 1;
+        }
+        std::printf("saved %s\n", savePath_.c_str());
     }
 
     return 0;
