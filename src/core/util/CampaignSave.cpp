@@ -582,9 +582,17 @@ bool CampaignSave::applyTo(Campaign& campaign, std::string& error) const
         }
     }
 
-    // Research is intentionally not restored here; see the header comment. The
-    // frozen Research API has no setter, so restoring it needs a metagame
-    // accessor (Rule 4 request filed to `focus: metagame`).
+    // Research: reinstate each saved syndicate's progress verbatim (the fields
+    // were validated when the save was parsed).
+    for (const ResearchProgress& entry : research)
+    {
+        ResearchState state;
+        state.completed = entry.completed;
+        state.inProgress = entry.inProgress;
+        state.remainingSeconds = entry.remainingSeconds;
+        campaign.research().restore(entry.syndicate, state);
+    }
+
     return true;
 }
 
