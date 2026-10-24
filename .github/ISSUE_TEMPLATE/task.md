@@ -27,8 +27,8 @@ assignees: ""
 - [ ] `focus: content` — `src/core/data/*`, `assets/data/**` (except `missions/`), `docs/DATA_FORMAT.md`
 - [ ] `focus: text` — `src/core/i18n/*`, `assets/lang/**`, `docs/LORE.md`
 - [ ] `focus: metagame` — `src/core/economy/**`, `assets/data/world/**`, the map/management screen
-- [ ] `focus: platform` — `.github/**`, CMake, `scripts/**` (**SM-owned**)
-- [ ] `focus: rules` — `AGENTS.md`, `docs/{ORGANISATION,COORDINATION,FOCUS_AREAS}.md`, `docs/focus-areas.json` (**SM-owned**)
+- [ ] `focus: platform` — `.github/**`, CMake, `scripts/**`
+- [ ] `focus: rules` — `AGENTS.md`, `docs/{ORGANISATION,COORDINATION,FOCUS_AREAS}.md`, `docs/focus-areas.json` (**the SM's own lane**)
 - [ ] `focus: release` — `CHANGELOG.md`, `docs/releases/**`, `assets/ui/**`, `docs/BUILD.md`
 
 ## Claim (self-service lease)

@@ -105,16 +105,24 @@ team grows, re-split (§8) rather than sharing.
 | 5 | **Content / Data** | `focus: content` | `src/core/data/*` (`Json`, `MissionData`, `Catalogues`, `Config`, `ContentPaths`, `ContentValidation`, `AgentSprites`), `assets/data/**` except `missions/`, `docs/DATA_FORMAT.md`, `tests/{test_json,test_missiondata,test_config,test_content_validation,test_sprites}.cpp` | JSON loader, weapon/agent catalogues, config, content validation |
 | 6 | **Text / i18n / Lore** | `focus: text` | `assets/lang/**`, `src/core/i18n/*`, `src/game/EmbeddedLang.{h,cpp.in}`, `docs/LORE.md`, `tests/test_i18n.cpp` | strings, localisation, in-game text, lore lexicon |
 | 7 | **Metagame / Campaign** | `focus: metagame` | `src/core/economy/**` (world map, territories, economy, research, equipment, campaign), the map/management screen in `src/game/**`, `assets/data/world/**` | world map, income/taxation, research tree, purchase, mission selection, campaign progression |
-| 8 | **Build / CI / Tooling** | `focus: platform` | `.github/**`, `CMakeLists.txt`, `src/**/CMakeLists.txt`, `tests/CMakeLists.txt`, `scripts/**` | CI, build options, packaging, dependencies — **SM-owned** |
-| 9 | **Rules / Process** | `focus: rules` | `AGENTS.md`, `docs/ORGANISATION.md`, `docs/COORDINATION.md`, `docs/FOCUS_AREAS.md`, `docs/focus-areas.json`, `docs/CONTRIBUTING.md` | the coordination rules themselves — **SM-owned** |
+| 8 | **Build / CI / Tooling** | `focus: platform` | `.github/**`, `CMakeLists.txt`, `src/**/CMakeLists.txt`, `tests/CMakeLists.txt`, `scripts/**` | CI, build options, packaging, dependencies |
+| 9 | **Rules / Process** | `focus: rules` | `AGENTS.md`, `docs/ORGANISATION.md`, `docs/COORDINATION.md`, `docs/FOCUS_AREAS.md`, `docs/focus-areas.json`, `docs/CONTRIBUTING.md` | the coordination rules themselves — **the SM's own lane** |
 | 10 | **Release / Playtest** | `focus: release` | `CHANGELOG.md`, `docs/releases/**`, `assets/ui/**`, tags / Release pages, `docs/BUILD.md` | cut releases, playtest docs, banners, build instructions; **own the major-version candidate + human-approval gate** (`AGENTS.md` §6a-i, `docs/releases/MAJOR_RELEASE_GATE.md`) |
 
-**`platform` and `rules` are SM-owned** (`sm_owned` in `docs/focus-areas.json`).
-They are project infrastructure, not game content, so the **Product Owner never
-schedules them** and `coord next` never routes a plain worker to them: the **SM
-triggers that work itself** by claiming the area, and an idle SM is offered its
-own areas first (docs/ORGANISATION.md §1, §7). `release` is *not* SM-owned: a
-release is a player-visible playtest snapshot, so it stays ordinary worker work.
+**`rules` is the SM's own lane** (`sm_owned` in `docs/focus-areas.json`). It is
+the one area whose *content* is the Scrum Master's role — the process docs
+themselves — so the **Product Owner never schedules it** and `coord next` never
+routes a plain worker to it: the **SM triggers that work itself** by claiming the
+area, and an idle SM is offered its own lane first (docs/ORGANISATION.md §1, §7).
+
+**`platform` is a normal worker lane** (ADR-0041). Build/CI/scripts/packaging is
+project work, not the SM's, so it routes to a `pf` worker like any other lane.
+It used to be `sm_owned`, which meant a *feature* filed under `focus: platform`
+(issue #423, the audio subsystem) could **only** be routed to the SM — that is
+how the SM was dragged into doing project work. The human's 2026-10-17 directive
+(ADR-0041) fixed it: the SM organises and never does project work, so no
+worker-excluded lane may cover build or game work. `release` is likewise a normal
+worker lane: a release is a player-visible playtest snapshot.
 
 **One deliberate sub-split inside `assets/data/`:** Content owns the loader,
 schema, and shared catalogues (`assets/data/{weapons,agents}.json`), while
@@ -139,10 +147,14 @@ v1.0.0 is feature parity with the 1993 original. That makes some area capacity
   instead; only take `text` work that keeps existing strings correct.
 - **`focus: release` / `focus: platform`** do delivery, not features — valuable,
   but they do not add clone content, so do not let them absorb agent capacity
-  that could be building Milestone C.
-- **The critical path for Milestone C** is `tactical`, `metagame`, `world`
-  (`docs/ROADMAP.md`, issue #425): the mission set is the long pole, then the
-  campaign map/balance, then save/load. Point agents there.
+  that could be building Milestone C. They are **worker** lanes (ADR-0041): a
+  `pf`/`rl` worker takes them; the SM does not.
+- **The critical path for Milestone C** is `tactical`, `metagame`, `input-ui`,
+  `render` (`docs/ROADMAP.md`, issue #425; reordered by the PO on 2026-10-17):
+  the mission set is the long pole, then the campaign map/balance, then the
+  release-facing save/load wiring and the SFX/art the next snapshot needs.
+  `world` left the list (its save/load long pole landed), and `platform`/`release`
+  stay off it. Point agents there.
 
 ### 2.1 Interface surfaces an area must not silently change
 
@@ -558,8 +570,9 @@ is `docs/ORGANISATION.md` (ADR-0037). In short:
   §2 (`ta`, `wo`, `re`, `ui`, `co`, `tx`, `mg`, `pf`, `ru`, `rl`). Claim with that
   name, not a model string.
 - Each computer has a **Product Owner** (decides *what*) and a **Scrum Master**
-  (watches coordination). The **SM owns the infrastructure areas** (`platform`,
-  `rules`): it triggers that work itself and the PO never schedules it. Neither
+  (watches coordination). The **SM's own lane is `rules`** (the process docs):
+  the SM triggers that work itself and the PO never schedules it. `platform` is a
+  **normal worker lane** (ADR-0041) — the SM never does project work. Neither
   role owns a *game* area, and neither may override a live lease — the scheme
   stays flat (§1).
 - **Talk to a peer directly** (`scripts/coord msg --to <name> --agent <you>`,
@@ -570,4 +583,4 @@ is `docs/ORGANISATION.md` (ADR-0037). In short:
   the names; a replacement is a **new** name.
 - The **area set itself is data** (`docs/focus-areas.json`): the Product Owner may
   redesign the game-facing areas (§2), keeping this file in sync; `sm_owned` marks
-  the infrastructure areas the SM owns.
+  the SM's own lane (`rules` — the process docs, ADR-0041).

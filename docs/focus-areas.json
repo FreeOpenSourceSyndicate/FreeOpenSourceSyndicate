@@ -20,9 +20,9 @@
     "sm": { "code": "sm", "label": "Scrum master", "focus": null },
     "po": { "code": "po", "label": "Product owner", "focus": null }
   },
-  "critical_path": ["tactical", "metagame", "world"],
-  "sm_owned": ["platform", "rules"],
-  "sm_owned_note": "Areas the Scrum Master owns and triggers itself. These are project infrastructure, not game content, so the Product Owner never schedules them and `coord next` never routes a plain worker to them: only an agent whose name has role 'sm' is offered them. The SM claims one like any other area when it decides the work is due (docs/ORGANISATION.md section 7).",
+  "critical_path": ["tactical", "metagame", "input-ui", "render"],
+  "sm_owned": ["rules"],
+  "sm_owned_note": "The Scrum Master's ONE lane: the process docs themselves (`rules`). The SM is a process role that organises the fleet, so its only focus area is the coordination rules; everything that makes or ships the game - including `platform` (build/CI/scripts/packaging) - is a normal WORKER lane. The SM is never routed to game or build work: `coord next` offers an SM only an sm_owned area, and falls through to its durable jobs (drain the merge queue, review) when that lane is held. The PO never schedules the SM's lane. See ADR-0041: the SM must not do project work (human directive 2026-10-17).",
   "areas": {
     "tactical": { "code": "ta", "label": "Tactical / Mission" },
     "world": { "code": "wo", "label": "World / Simulation" },

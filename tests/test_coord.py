@@ -454,14 +454,14 @@ class TestNextAction(CoordTestCase):
     def test_next_drains_a_green_pr_before_claiming_plain_work(self):
         # A non-critical area has claimable work, but a green PR has waited: the
         # finished work one step from landing is offered first (ADR-0035).
-        # `render` is off the critical path (issue #425), so rung 2 cannot fire.
-        self._stub_issues({"render": [(157, False)]})
+        # `content` is off the critical path, so rung 2 cannot fire.
+        self._stub_issues({"content": [(157, False)]})
         self._stub_prs([{"number": 336, "title": "test(i18n): guard ...",
                          "headRefName": "test/text-x", "_age": 3600}])
         out, _ = self.run_coord("next", "--agent", "a")
         self.assertIn("Merge queue: PR #336", out)
         self.assertIn("gh pr merge 336", out)
-        self.assertNotIn("claim render / #157", out)
+        self.assertNotIn("claim content / #157", out)
 
     def test_next_does_not_drain_before_the_critical_path(self):
         # The critical path still wins: a free critical-path issue outranks the
@@ -474,12 +474,12 @@ class TestNextAction(CoordTestCase):
 
     def test_next_drains_before_a_free_areas_plain_work(self):
         # No critical-path work; a free area has work and a PR has waited.
-        # Hold every critical-path area (issue #425 order) and offer work only in
-        # an off-path area, so rung 4 (plain work) competes with the merge queue.
-        self.run_coord("claim", "--area", "tactical", "--issue", 311, "--agent", "x")
-        self.run_coord("claim", "--area", "metagame", "--issue", 249, "--agent", "x")
-        self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "x")
-        self._stub_issues({"render": [(157, False)]})
+        # Hold every critical-path area and offer work only in an off-path area,
+        # so rung 4 (plain work) competes with the merge queue.
+        for area in coord.CRITICAL_PATH_AREAS:
+            self.run_coord("claim", "--area", area, "--issue", 300,
+                           "--agent", "x")
+        self._stub_issues({"content": [(157, False)]})
         self._stub_prs([{"number": 342, "title": "feat: vehicles", "_age": 7200}])
         out, _ = self.run_coord("next", "--agent", "a")
         self.assertIn("Merge queue: PR #342", out)
@@ -1578,7 +1578,12 @@ class TestFocusConfig(CoordTestCase):
         # that edits only one of them is caught.
         self.assertEqual(tuple(coord.CONFIG.areas), tuple(coord._DEFAULT_AREAS))
         self.assertEqual(coord.CONFIG.critical_path_areas,
-                         ("tactical", "metagame", "world"))
+                         ("tactical", "metagame", "input-ui", "render"))
+        # The SM-owned set is read from the same shipped file and must agree with
+        # the built-in fallback too: a redesign that edits only one of them would
+        # otherwise silently move work between the PO's and the SM's schedules
+        # (ADR-0041, the #425 three-source trap).
+        self.assertEqual(coord.CONFIG.sm_owned, tuple(coord._DEFAULT_SM_OWNED))
         for name, spec in coord._DEFAULT_AREAS.items():
             self.assertEqual(coord.CONFIG.areas[name]["code"], spec["code"])
 
@@ -1591,7 +1596,7 @@ class TestFocusConfig(CoordTestCase):
         cfg = coord.load_focus_config("/nonexistent/focus-areas.json")
         self.assertEqual(tuple(cfg.areas), tuple(coord._DEFAULT_AREAS))
         self.assertEqual(cfg.critical_path_areas,
-                         ("tactical", "metagame", "world"))
+                         ("tactical", "metagame", "input-ui", "render"))
 
     def test_a_redesigned_file_changes_the_area_set(self):
         path = os.path.join(self.tmp, "focus.json")
@@ -1637,23 +1642,31 @@ class TestFocusConfig(CoordTestCase):
         self.assertEqual(coord.CONFIG.critical_path_areas[0], "tactical")
 
     def test_delivery_areas_stay_off_the_critical_path(self):
-        # platform/render/release "do delivery, not features" (FOCUS_AREAS §2):
-        # they stay claimable at rung 4 but must not absorb critical-path
-        # capacity from the feature lanes (issue #425).
-        for area in ("platform", "render", "release"):
+        # platform/release "do delivery, not features" (FOCUS_AREAS §2): they stay
+        # claimable at rung 4 but must not absorb critical-path capacity from the
+        # feature lanes (issue #425).  `render` was moved ONTO the path by the PO
+        # (2026-10-17, second pass): the v0.9.0 release needs its SFX/art work, so
+        # it is a feature lane here, not a delivery area - do not "fix" it back.
+        for area in ("platform", "release"):
             self.assertNotIn(area, coord.CONFIG.critical_path_areas)
+        self.assertIn("render", coord.CONFIG.critical_path_areas)
 
     def test_sm_owned_areas_are_real_areas_and_excluded_from_worker_routing(self):
-        # The SM-owned areas are infrastructure, not game content: they must be
-        # real areas (a typo would silently hide nothing), and a plain worker
-        # must never be routed to them.
+        # The SM-owned area is the Scrum Master's OWN lane - the process docs
+        # (`rules`), which are coordination work, not game content (ADR-0041).  It
+        # must be a real area (a typo would silently hide nothing), and a plain
+        # worker must never be routed to it.
         for area in coord.SM_OWNED_AREAS:
             self.assertIn(area, coord.AREAS)
         for area in coord.SM_OWNED_AREAS:
             self.assertNotIn(area, coord.WORKER_AREAS)
-        self.assertIn("platform", coord.SM_OWNED_AREAS)
         self.assertIn("rules", coord.SM_OWNED_AREAS)
         self.assertNotIn("tactical", coord.SM_OWNED_AREAS)
+        # `platform` is a normal worker lane now: build/CI/packaging is project
+        # work a `pf` worker does, so the SM is never dragged into it (#423 was
+        # mislabelled `focus: platform` and only the SM could be routed to it).
+        self.assertNotIn("platform", coord.SM_OWNED_AREAS)
+        self.assertIn("platform", coord.WORKER_AREAS)
 
     def test_a_stale_sm_owned_entry_is_dropped_not_trusted(self):
         path = os.path.join(self.tmp, "focus.json")
@@ -1677,34 +1690,76 @@ class TestFocusConfig(CoordTestCase):
         path = os.path.join(REPO_ROOT, "docs", "focus-areas.json")
         with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
-        self.assertEqual(data.get("sm_owned"), ["platform", "rules"])
+        # The SM's only lane is the process docs (`rules`); `platform` is a normal
+        # worker lane (ADR-0041).
+        self.assertEqual(data.get("sm_owned"), ["rules"])
         self.assertIn("rules", data["areas"])
+        self.assertIn("platform", data["areas"])
+
+    def test_the_issue_template_matches_the_sm_owned_set(self):
+        # The task template's focus-area list is a FOURTH source of the sm_owned
+        # claim (besides the shipped file, the fallback, and the prose docs).  A
+        # stale "(SM-owned)" tag on `platform` there would tell a contributor to
+        # file build work as SM-owned - re-arming the exact trap of #423/ADR-0041,
+        # because `coord next` would then route it only to the SM.  Guard it.
+        path = os.path.join(REPO_ROOT, ".github", "ISSUE_TEMPLATE", "task.md")
+        with open(path, encoding="utf-8") as fh:
+            template = fh.read()
+        lines = {}
+        for line in template.splitlines():
+            marker = "- [ ] `focus: "
+            if marker in line:
+                area = line.split(marker, 1)[1].split("`", 1)[0]
+                lines[area] = line
+        # Every area in the config is offered, so a new area cannot be missing.
+        for area in coord.AREAS:
+            self.assertIn(area, lines, f"issue template omits focus area {area!r}")
+        # Only an SM-owned area carries the SM marker; a worker lane never does.
+        sm_marker = "the SM's own lane"
+        for area, line in lines.items():
+            if area in coord.SM_OWNED_AREAS:
+                self.assertIn(sm_marker, line,
+                              f"SM-owned area {area!r} is not marked in the template")
+            else:
+                self.assertNotIn(sm_marker, line,
+                                 f"worker area {area!r} is wrongly marked SM-owned")
+        # The old, wrong tag must be gone for good.
+        self.assertNotIn("SM-owned", template)
 
 
 class TestSmOwnedRouting(CoordTestCase):
-    """SM-owned areas are triggered by the SM, never scheduled for a worker."""
+    """The SM's own lane (`rules`) is triggered by the SM, never a worker's."""
 
-    def test_a_worker_is_never_routed_to_an_sm_owned_area(self):
-        # Only `platform` has work; a plain worker must not be offered it.
-        self._stub_issues({"platform": [(347, False)]})
+    def test_a_worker_is_never_routed_to_the_sm_lane(self):
+        # Only `rules` (the SM's own lane) has work; a plain worker must not be
+        # offered it - and with no worker-area issue it falls through to review.
+        self._stub_issues({"rules": [(347, False)]})
         self._stub_prs([])
         out, _ = self.run_coord("next", "--agent", "ta-1-kastenbrot")
-        self.assertNotIn("claim platform", out)
+        self.assertNotIn("claim rules", out)
         self.assertIn("No open issue is claimable", out)
 
-    def test_an_sm_is_routed_to_its_own_area(self):
+    def test_a_worker_is_routed_to_platform(self):
+        # `platform` is a normal worker lane: a `pf` worker is offered it.
         self._stub_issues({"platform": [(347, False)]})
         self._stub_prs([])
-        out, _ = self.run_coord("next", "--agent", "sm-1-kastenbrot")
+        out, _ = self.run_coord("next", "--agent", "pf-1-kastenbrot")
         self.assertIn("claim platform / #347", out)
 
-    def test_an_sm_prefers_its_own_area_over_the_critical_path(self):
-        # An idle SM triggers its own infrastructure work rather than competing
-        # with a worker for the critical path.
+    def test_an_sm_is_routed_to_its_own_lane(self):
+        self._stub_issues({"rules": [(347, False)]})
+        self._stub_prs([])
+        out, _ = self.run_coord("next", "--agent", "sm-1-kastenbrot")
+        self.assertIn("claim rules / #347", out)
+
+    def test_an_sm_is_never_routed_to_project_work(self):
+        # The human directive (ADR-0041): the SM organises, it does not do project
+        # work.  Even when `platform` (a normal worker lane) has work, the SM is
+        # offered its own lane or a durable job - never build/feature work.
         self._stub_issues({"platform": [(347, False)], "tactical": [(405, False)]})
         self._stub_prs([])
         out, _ = self.run_coord("next", "--agent", "sm-1-kastenbrot")
-        self.assertIn("claim platform / #347", out)
+        self.assertNotIn("claim platform", out)
         self.assertNotIn("claim tactical", out)
 
     def test_a_worker_is_still_routed_to_the_critical_path(self):
@@ -1716,14 +1771,14 @@ class TestSmOwnedRouting(CoordTestCase):
 
     def test_a_legacy_bare_name_is_not_treated_as_an_sm(self):
         # A legacy model-string agent has no role, so it is a worker: it must not
-        # be routed to an SM-owned area.
-        self._stub_issues({"platform": [(347, False)]})
+        # be routed to the SM's lane.
+        self._stub_issues({"rules": [(347, False)]})
         self._stub_prs([])
         out, _ = self.run_coord("next", "--agent", "OpenHands")
-        self.assertNotIn("claim platform", out)
+        self.assertNotIn("claim rules", out)
 
-    def test_an_sm_with_no_infrastructure_issue_is_not_routed_to_a_game_area(self):
-        # The SM owns no game area: with no SM-area issue it falls through to its
+    def test_an_sm_with_no_own_lane_issue_is_not_routed_to_a_game_area(self):
+        # The SM owns no game area: with no SM-lane issue it falls through to its
         # other durable jobs, never to a worker's area.
         self._stub_issues({"tactical": [(405, False)]})
         self._stub_prs([])

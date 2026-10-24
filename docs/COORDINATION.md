@@ -78,8 +78,10 @@ scripts/coord claim --area <area> --issue <n> --agent "<role>-<n>-<host>" --bran
 - **`--area`** is a focus area from `docs/focus-areas.json` (or a channel: `sm`,
   `po`, `takeover`). The set is data, not code (docs/ORGANISATION.md §9). Today:
   `tactical`, `world`, `render`, `input-ui`, `content`, `text`, `metagame`,
-  `platform`, `rules`, `release`. **`platform` and `rules` are SM-owned**: the SM
-  triggers them and `coord next` never routes a plain worker to them.
+  `platform`, `rules`, `release`. **`rules` is the SM's own lane**: the SM
+  triggers it and `coord next` never routes a plain worker to it. **`platform` is
+  a normal worker lane** (ADR-0041): build/CI/packaging routes to a `pf` worker,
+  never to the SM.
 - **One task = one branch = one PR.** Claim the area for the *task* you are about
   to do; the issue is what makes the claim legible.
 - The default TTL is **6 h**, capped at **24 h** (`--ttl 90m`, `--ttl 6h`, ...).
@@ -154,11 +156,12 @@ It **never prints nothing**. It walks a fixed ladder and stops at the first rung
 that applies, so there is always a next step:
 
 1. **You hold a lease** → finish it, or `renew`/`release` it.
-1b. **You are the SM and an SM-owned area is free** (`platform`, `rules`;
-    `docs/ORGANISATION.md` §7) → claim its newest open issue. The SM triggers
-    infrastructure itself; a plain worker is never routed here.
-2. **A critical-path area is free** (`tactical`, `metagame`, `world` —
-   `docs/ROADMAP.md`; redefined for Milestone C in issue #425)
+1b. **You are the SM and your own lane is free** (`rules`; `docs/ORGANISATION.md`
+    §7) → claim its newest open issue. The SM triggers its own coordination work;
+    a plain worker is never routed here, and the SM is never routed to a worker's
+    lane (ADR-0041).
+2. **A critical-path area is free** (`tactical`, `metagame`, `input-ui`,
+   `render` — `docs/ROADMAP.md`; reordered by the PO on 2026-10-17)
    → claim its newest open issue.
 3. **A green PR has waited** (non-draft, merge state `CLEAN`, open ≥ 30 min)
    → review and merge it (`AGENTS.md` §3a). A green PR is *finished* work one

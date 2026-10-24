@@ -105,19 +105,24 @@ _DEFAULT_AREAS = {
     "rules": {"code": "ru", "label": "Rules / Process"},
     "release": {"code": "rl", "label": "Release / Playtest"},
 }
-# Areas the Scrum Master owns and triggers itself (docs/ORGANISATION.md section
-# 7).  They are project infrastructure, not game content, so the Product Owner
-# never schedules them and `coord next` never routes a plain worker to them:
-# only an agent whose name has role "sm" is offered them.
-_DEFAULT_SM_OWNED = ("platform", "rules")
+# The Scrum Master's ONE lane: the process docs themselves (`rules`).  The SM is
+# a process role that organises the fleet, so its only focus area is the
+# coordination rules; everything that makes or ships the game - including
+# `platform` (build/CI/scripts/packaging) - is a normal WORKER lane.  The SM is
+# never routed to game or build work: `coord next` offers an SM only an
+# sm_owned area, and falls through to its durable jobs (drain the merge queue,
+# review) when that lane is held (ADR-0041, human directive 2026-10-17).
+_DEFAULT_SM_OWNED = ("rules",)
 # Critical-path order (docs/ROADMAP.md).  `coord next` prefers these so an idle
 # agent is steered at the work that unblocks the release, not just any free area.
-# The long pole comes first.  Redefined for Milestone C by the PO (2026-10-17,
-# issue #425): the mission set (tactical) is now the long pole because the map
-# content (#418) and the content guard (#420) are both blocked-by it; metagame
-# and world follow.  `platform`/`render`/`release` stay off the list - they do
-# delivery, not features, and must not absorb capacity from the feature lanes.
-_DEFAULT_CRITICAL = ("tactical", "metagame", "world")
+# The long pole comes first.  Redefined by the PO (2026-10-17, second pass): the
+# Milestone-C save/load CORE landed (#406/#430), so `world` has no open work and
+# is inert on the path; the chain is now tactical -> metagame, with the lanes the
+# next release (v0.9.0) needs - input-ui (save/load wiring #433 + syndicate
+# customisation) and render (SFX #424 + art) - following.  `platform`/`release`
+# stay off the list: they do delivery, not features, and must not absorb capacity
+# from the feature lanes.
+_DEFAULT_CRITICAL = ("tactical", "metagame", "input-ui", "render")
 # Process roles (no focus area).  A role code names an agent: <role>-<n>-<host>.
 _DEFAULT_ROLES = {
     "sm": {"code": "sm", "label": "Scrum master", "focus": None},
@@ -160,8 +165,8 @@ class FocusConfig:
     def critical_path_areas(self) -> tuple:
         """Critical-path areas, in the file's priority order, then the rest.
 
-        The ``critical_path`` list preserves the *order* (metagame before
-        tactical, so the long pole is picked first); any area marked
+        The ``critical_path`` list preserves the *order* (tactical before
+        metagame, so the long pole is picked first); any area marked
         ``critical: true`` in its own spec is appended in area order, for a
         redesign that prefers the per-area flag.
         """
@@ -1609,10 +1614,14 @@ def cmd_next(args: argparse.Namespace) -> int:
     even in a free non-critical area, but it never preempts a waiting blocker or
     the critical path (ADR-0035).
 
-    The SM-owned areas (`platform`, `rules`) are project infrastructure, not game
-    content (ADR-0038).  A plain worker is never routed to them; an agent whose
-    name has role `sm` is offered them at rung 1b, before the critical path, so
-    the SM triggers its own work rather than competing with a worker.
+    The SM-owned area (`rules`) is the Scrum Master's *own* lane - the process
+    docs themselves, which are coordination work, not game content (ADR-0041).
+    Everything else, including `platform` (build/CI/scripts/packaging), is a
+    normal WORKER lane: the SM is never routed to game or build work, so it
+    cannot be dragged into project work by a mislabelled issue.  A plain worker
+    is never routed to `rules`; an agent whose name has role `sm` is offered it
+    at rung 1b, and with that lane held it falls through to its durable jobs
+    (drain the merge queue, review).
     """
     if not args.offline:
         fetch_ledger(required=True)
@@ -1650,19 +1659,19 @@ def cmd_next(args: argparse.Namespace) -> int:
               + ".")
 
     holders = {l.area: l for l in leases}
-    # SM-owned areas (platform, rules) are infrastructure, not game content: the
-    # Product Owner never schedules them and a plain worker is never routed to
-    # them.  The SM owns no *game* area, so its routable set is exactly the
-    # infrastructure areas; with none free it falls through to the merge queue
-    # and review rungs below, which are its other durable jobs
-    # (docs/ORGANISATION.md section 7, ADR-0038).
+    # The SM's own lane (`rules`) is the process docs - coordination work, not
+    # game content (ADR-0041).  Every other area, including `platform`, is a
+    # normal WORKER lane: a plain worker is never routed to `rules`, and the SM
+    # is never routed to game or build work.  With its own lane held, the SM
+    # falls through to the merge queue and review rungs below, which are its
+    # other durable jobs (docs/ORGANISATION.md section 7).
     parsed = parse_agent_name(args.agent)
     is_sm = bool(parsed and parsed["role"] == "sm")
     routable = SM_OWNED_AREAS if is_sm else WORKER_AREAS
     free = [a for a in routable if a not in holders]
 
-    # 1b. An SM that is idle looks at its own areas first: the SM triggers that
-    #     work itself rather than waiting for the PO to schedule it.
+    # 1b. An SM that is idle looks at its own lane first: the SM triggers its own
+    #     coordination work rather than waiting for the PO to schedule it.
     if is_sm:
         for area in free:
             if by_area.get(area):
@@ -1848,9 +1857,9 @@ def render_board(at: Optional[int] = None) -> str:
         f"but quiet for > {human_delta(STALE_AFTER)} — the holder may still be working, but a",
         "`coord claim --takeover` (or letting the TTL run out) is fair game · **blocked** /",
         "**needs-review** = the holder set the state. Pending workload per area is the",
-        "open-issue count on GitHub. **(SM)** marks an SM-owned infrastructure area",
-        "(`platform`, `rules`): the Scrum Master triggers it and a plain worker is",
-        "never routed to it (docs/ORGANISATION.md §1).",
+        "open-issue count on GitHub. **(SM)** marks the Scrum Master's own lane",
+        "(`rules`, the process docs): the SM triggers it and a plain worker is",
+        "never routed to it (docs/ORGANISATION.md §1, ADR-0041).",
         "",
     ]
 
