@@ -184,7 +184,9 @@ edited once and referenced by id instead of copied into every mission
     { "id": "laser", "name": "Laser", "damage": 22, "range": 12, "fireRate": 1, "accuracy": 0.9 },
     { "id": "shotgun", "name": "Shotgun", "damage": 18, "range": 3.5, "fireRate": 1, "accuracy": 0.65 },
     { "id": "sniper", "name": "Sniper", "damage": 35, "range": 15, "fireRate": 0.5, "accuracy": 0.95 },
-    { "id": "gauss", "name": "Gauss", "damage": 7, "range": 11, "fireRate": 5, "accuracy": 0.8 }
+    { "id": "gauss", "name": "Gauss", "damage": 7, "range": 11, "fireRate": 5, "accuracy": 0.8 },
+    { "id": "time-bomb", "name": "Time Bomb", "damage": 75, "range": 5, "fireRate": 0.4,
+      "accuracy": 0.9, "areaRadius": 3.0 }
   ]
 }
 ```
@@ -194,7 +196,8 @@ edited once and referenced by id instead of copied into every mission
 {
   "agents": [
     { "id": "guard",  "name": "GUARD",  "team": "enemy", "speed": 3, "health": 70, "weaponId": "rifle" },
-    { "id": "gunner", "name": "GUNNER", "team": "enemy", "speed": 2.5, "health": 90, "weaponId": "launcher" }
+    { "id": "gunner", "name": "GUNNER", "team": "enemy", "speed": 2.5, "health": 90, "weaponId": "launcher" },
+    { "id": "police", "name": "POLICE", "team": "enemy", "speed": 3.1, "health": 75, "weaponId": "uzi" }
   ]
 }
 ```
@@ -212,6 +215,12 @@ edited once and referenced by id instead of copied into every mission
 - Each entry needs a non-empty **`id`**, unique within its file; a duplicate or
   missing id is a readable error.
 - A weapon entry takes the same fields as an inline `weapon` object (plus `id`).
+- **The `time-bomb` entry is modelled as an area weapon for now.** The sim has no
+  fuse/delay field (`Weapon` is `damage`/`range`/`fireRate`/`accuracy`/
+  `areaRadius`), so the Definition of Done's time-bomb family ships as the
+  closest existing shape: a high-damage blast (`areaRadius` > 0). The fuse itself
+  (arm, wait, then detonate through the normal area-damage path) is a **Tactical**
+  follow-up (issue #449); no core field is added here (golden rule 3).
 - An agent entry takes the same fields as a mission agent (`id`, `name`, `team`,
   `speed`, `health`) plus `weapon` or `weaponId`; it has no `x`/`y`.
 - A vehicle entry takes the same fields as a mission vehicle (`id`, `name`,
