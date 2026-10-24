@@ -293,6 +293,19 @@ public:
     Research& research();
     Equipment& equipment();
 
+    // --- player syndicate identity ---
+    // The player's chosen name and logo id. A fresh campaign uses the data
+    // defaults from `campaign.json`; a choice overrides them. An empty name, or
+    // an empty/unknown logo id, clears the choice and falls back to the default,
+    // so the map always has an identity and an unknown value is never fatal.
+    const std::string& syndicateName() const;
+    const std::string& syndicateLogo() const;
+    void setSyndicateName(const std::string& name);
+    void setSyndicateLogo(const std::string& id);
+    const std::string& defaultSyndicateName() const;
+    const std::string& defaultSyndicateLogo() const;
+    const std::vector<std::string>& syndicateLogos() const; // pickable ids
+
     // --- selection & deployment ---
     // True if a mission can be deployed to `territory`: it has a mission, and it
     // is player-owned or on the frontier (adjacent to a player-held territory).
@@ -472,6 +485,8 @@ use `jsonc` for annotation only, exactly as `docs/DATA_FORMAT.md` does).
 ```jsonc
 {
   "syndicate": "Riverside Combine",
+  "logo": "cog",
+  "logos": ["cog", "anvil", "serpent", "star", "bolt", "skull"],
   "startingFunds": 1000,
   "maxTaxLevel": 5,
   "incomePerTaxLevel": 60,
@@ -491,6 +506,15 @@ campaign file**, the same way the mission loader resolves catalogue paths
 (`core/data/Catalogues.h` → `cataloguePathForMission`). A missing optional file
 is not an error; the system starts empty (matching the mission/catalogue
 tolerance, so the game still starts with no data files, `AGENTS.md` §1b).
+
+**Player syndicate identity (issue #445).** `syndicate` is the display name and
+`logo` the default logo id; `logos` is the pickable set. All three are plain data
+(ADR-0003): a logo id is a stable string key the render lane maps to art — the art
+itself is **not** metagame's, so a new logo is a data entry here plus a render
+slice. A player choice (name + logo) overrides the default and is carried by the
+save (§8); an empty name, or an empty/unknown logo id, falls back to the default
+rather than leaving the map without an identity, and is never fatal. `logos` must
+be an array of non-empty strings if present; a malformed list is a schema error.
 
 ## 6. How the systems compose
 
@@ -603,6 +627,14 @@ From the tracking issue (#249):
    `tests/test_economy.cpp` and `tests/test_research.cpp`, which read the shipped
    files. Further tuning is still a data question — edit `campaign.json`, not
    code.
+5. **Player syndicate identity.** *(settled — #445.)* The original lets the
+   player name the syndicate and pick a logo at the start. The core now carries
+   the choice (`Campaign::syndicateName`/`syndicateLogo`, with data-authored
+   defaults and a pickable `logos` set), and the save persists it. The **name
+   input field and the logo picker** are a separate **input-ui** slice (the
+   new-game screen), and the **logo art** is a **render** slice — a logo id is
+   only a stable string key here, so the core stays free of art (golden rule 1).
+   Both follow-ups are filed as Rule 4 requests, not built here.
 
 ---
 

@@ -1,5 +1,7 @@
 {
   "syndicate": "Riverside Combine",
+  "logo": "cog",
+  "logos": ["cog", "anvil", "serpent", "star", "bolt", "skull"],
   "startingFunds": 1000,
   "maxTaxLevel": 5,
   "baseIncome": 0,

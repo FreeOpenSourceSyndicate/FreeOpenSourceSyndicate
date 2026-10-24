@@ -53,6 +53,10 @@ Campaign progressedCampaign()
     FOSSYND_CHECK(campaign.research().begin(player, "minigun", campaign.researchTree(),
                                            campaign.economy()));
 
+    // A player-chosen identity, so the save has one to lose.
+    campaign.setSyndicateName("Nightingale Trust");
+    campaign.setSyndicateLogo("serpent");
+
     // Squad loadouts.
     campaign.equipment().assign(player, 0, "minigun");
     campaign.equipment().assign(player, 0, "medkit");
@@ -160,6 +164,10 @@ FOSSYND_TEST(CampaignSave, CapturesOwnershipTaxFundsResearchAndLoadouts)
         }
     }
     FOSSYND_CHECK(sawLoadout);
+
+    // The player's chosen identity is captured too.
+    FOSSYND_CHECK_EQ(save.syndicate, std::string("Nightingale Trust"));
+    FOSSYND_CHECK_EQ(save.syndicateLogo, std::string("serpent"));
 }
 
 FOSSYND_TEST(CampaignSave, ApplyRestoresProgressOntoAFreshCampaign)
@@ -178,6 +186,9 @@ FOSSYND_TEST(CampaignSave, ApplyRestoresProgressOntoAFreshCampaign)
     FOSSYND_CHECK(applied.territories == save.territories);
     FOSSYND_CHECK(applied.funds == save.funds);
     FOSSYND_CHECK(applied.loadouts == save.loadouts);
+    // The player's chosen identity survives the round-trip.
+    FOSSYND_CHECK_EQ(fresh.syndicateName(), std::string("Nightingale Trust"));
+    FOSSYND_CHECK_EQ(fresh.syndicateLogo(), std::string("serpent"));
     FOSSYND_CHECK_EQ(fresh.map().owner(2), player);
     FOSSYND_CHECK_EQ(fresh.map().taxLevel(2), 5);
     // The saved amount is restored exactly, and the base campaign's starting
@@ -226,13 +237,20 @@ FOSSYND_TEST(CampaignSave, RejectsWrongFormatTag)
 FOSSYND_TEST(CampaignSave, RejectsOldVersion)
 {
     // The whole point of the version tag: an older file is refused with a
-    // readable error rather than loaded with fields silently missing.
-    CampaignSave save;
-    std::string error;
-    FOSSYND_CHECK(!CampaignSave::parse(
+    // readable error rather than loaded with fields silently missing. Version 1
+    // is the interesting case: it carried the name but no logo, so a v2 build
+    // must refuse it rather than load a game whose chosen logo vanished.
+    const char* old[] = {
         R"({"format": "fossynd-save", "version": 0, "territories": [], "funds": [], "research": [], "loadouts": []})",
-        save, error));
-    FOSSYND_CHECK(!error.empty());
+        R"({"format": "fossynd-save", "version": 1, "syndicate": "Riverside Combine", "territories": [], "funds": [], "research": [], "loadouts": []})",
+    };
+    for (const char* text : old)
+    {
+        CampaignSave save;
+        std::string error;
+        FOSSYND_CHECK(!CampaignSave::parse(text, save, error));
+        FOSSYND_CHECK(!error.empty());
+    }
 }
 
 FOSSYND_TEST(CampaignSave, RejectsNewerVersion)
@@ -259,15 +277,15 @@ FOSSYND_TEST(CampaignSave, RejectsMalformedFields)
     // A field of the wrong type must fail the parse, not be silently defaulted.
     const char* bad[] = {
         // territories missing
-        R"({"format": "fossynd-save", "version": 1, "funds": [], "research": [], "loadouts": []})",
+        R"({"format": "fossynd-save", "version": 2, "funds": [], "research": [], "loadouts": []})",
         // a territory with a non-numeric id
-        R"({"format": "fossynd-save", "version": 1, "territories": [{"id": "x", "owner": 0, "taxLevel": 0}], "funds": [], "research": [], "loadouts": []})",
+        R"({"format": "fossynd-save", "version": 2, "territories": [{"id": "x", "owner": 0, "taxLevel": 0}], "funds": [], "research": [], "loadouts": []})",
         // a negative owner
-        R"({"format": "fossynd-save", "version": 1, "territories": [{"id": 0, "owner": -2, "taxLevel": 0}], "funds": [], "research": [], "loadouts": []})",
+        R"({"format": "fossynd-save", "version": 2, "territories": [{"id": 0, "owner": -2, "taxLevel": 0}], "funds": [], "research": [], "loadouts": []})",
         // a loadout slot out of range
-        R"({"format": "fossynd-save", "version": 1, "territories": [], "funds": [], "research": [], "loadouts": [{"syndicate": 0, "slot": 99, "items": ["minigun"]}]})",
+        R"({"format": "fossynd-save", "version": 2, "territories": [], "funds": [], "research": [], "loadouts": [{"syndicate": 0, "slot": 99, "items": ["minigun"]}]})",
         // a negative funds amount
-        R"({"format": "fossynd-save", "version": 1, "territories": [], "funds": [{"syndicate": 0, "amount": -5}], "research": [], "loadouts": []})",
+        R"({"format": "fossynd-save", "version": 2, "territories": [], "funds": [{"syndicate": 0, "amount": -5}], "research": [], "loadouts": []})",
     };
     for (const char* text : bad)
     {

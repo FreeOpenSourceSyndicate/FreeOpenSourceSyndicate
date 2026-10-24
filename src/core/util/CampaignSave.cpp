@@ -122,6 +122,7 @@ CampaignSave CampaignSave::capture(const Campaign& campaign)
 {
     CampaignSave save;
     save.syndicate = campaign.syndicateName();
+    save.syndicateLogo = campaign.syndicateLogo();
 
     for (const Territory& territory : campaign.map().territories())
     {
@@ -174,6 +175,10 @@ bool CampaignSave::serialize(std::string& out, std::string& error) const
 
     text += "  \"syndicate\": ";
     writeString(text, syndicate);
+    text += ",\n";
+
+    text += "  \"syndicateLogo\": ";
+    writeString(text, syndicateLogo);
     text += ",\n";
 
     text += "  \"territories\": [";
@@ -313,6 +318,13 @@ bool CampaignSave::parse(const std::string& text, CampaignSave& out, std::string
         return false;
     }
     out.syndicate = root.has("syndicate") ? root["syndicate"].asString() : std::string();
+    if (root.has("syndicateLogo") && !root["syndicateLogo"].isString())
+    {
+        error = "'syndicateLogo' must be a string";
+        return false;
+    }
+    out.syndicateLogo =
+        root.has("syndicateLogo") ? root["syndicateLogo"].asString() : std::string();
 
     // Territories.
     const Json& territories = root["territories"];
@@ -517,9 +529,10 @@ bool CampaignSave::applyTo(Campaign& campaign, std::string& error) const
 {
     error.clear();
 
-    // Ownership and tax. A save that names a territory the base campaign does not
-    // have is a mismatch between the save and the loaded `--campaign` file, which
-    // must not silently drop progress.
+    // Validate before mutating anything: a save that names a territory the base
+    // campaign does not have is a mismatch between the save and the loaded
+    // `--campaign` file, which must not silently drop progress — and must not
+    // half-apply the identity either.
     for (const TerritoryProgress& entry : territories)
     {
         if (campaign.map().find(entry.id) == nullptr)
@@ -529,6 +542,14 @@ bool CampaignSave::applyTo(Campaign& campaign, std::string& error) const
             return false;
         }
     }
+
+    // The player's identity, so a loaded campaign shows the name and logo the
+    // player chose. An empty name/logo clears the choice and falls back to the
+    // base campaign's default (never fatal).
+    campaign.setSyndicateName(syndicate);
+    campaign.setSyndicateLogo(syndicateLogo);
+
+    // Ownership and tax.
     for (const TerritoryProgress& entry : territories)
     {
         campaign.map().setOwner(entry.id, entry.owner);

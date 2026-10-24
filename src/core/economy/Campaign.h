@@ -58,7 +58,30 @@ public:
     const ResearchTree& researchTree() const { return researchTree_; }
     const EquipmentCatalogue& catalogue() const { return catalogue_; }
 
-    const std::string& syndicateName() const { return syndicateName_; }
+    // The player syndicate's display name and logo id. A fresh campaign uses the
+    // data-authored defaults from `campaign.json`; a player choice overrides them.
+    // The name falls back to the default when cleared (empty), and the logo falls
+    // back when it is empty or not one of the data-authored logo ids, so an
+    // unknown value never leaves the map without an identity — and is never fatal
+    // (the art itself is the render lane's; a logo id is just a stable string key
+    // it maps to art). Both are plain data, so the core stays SDL-free (rule 1).
+    const std::string& syndicateName() const
+    {
+        return chosenSyndicateName_.empty() ? defaultSyndicateName_ : chosenSyndicateName_;
+    }
+    const std::string& syndicateLogo() const
+    {
+        return chosenSyndicateLogo_.empty() ? defaultSyndicateLogo_ : chosenSyndicateLogo_;
+    }
+    void setSyndicateName(const std::string& name); // empty clears to the default
+    void setSyndicateLogo(const std::string& id);   // empty/unknown clears to the default
+
+    // The data-authored defaults and the known logo ids, so a UI can offer a
+    // "reset" and build a logo picker from the campaign's own catalogue.
+    const std::string& defaultSyndicateName() const { return defaultSyndicateName_; }
+    const std::string& defaultSyndicateLogo() const { return defaultSyndicateLogo_; }
+    const std::vector<std::string>& syndicateLogos() const { return logos_; }
+
     float startingFunds() const { return startingFunds_; }
     const std::vector<std::string>& missions() const { return missions_; }
     const std::string& winCondition() const { return winCondition_; }
@@ -121,7 +144,11 @@ private:
     ResearchTree researchTree_;
     EquipmentCatalogue catalogue_;
 
-    std::string syndicateName_;
+    std::string defaultSyndicateName_;
+    std::string defaultSyndicateLogo_;
+    std::string chosenSyndicateName_; // empty = use the default
+    std::string chosenSyndicateLogo_; // empty = use the default
+    std::vector<std::string> logos_;  // known logo ids from the data file
     float startingFunds_ = 0.0f;
     std::vector<std::string> missions_;
     std::string winCondition_;

@@ -440,3 +440,83 @@ FOSSYND_TEST(Campaign, TheMapUsesTheWholeMissionSetNotJustTheDemo)
         FOSSYND_CHECK(listed);
     }
 }
+
+// --- Player-chosen syndicate identity (issue #445) --------------------------
+//
+// The player's syndicate is customisable at start, like the original: a free
+// name and a configurable logo. The core carries the choice; the input field and
+// the logo art are separate slices. Both fall back to the data default, so a
+// fresh campaign always has an identity and an unknown value is never fatal.
+
+FOSSYND_TEST(Campaign, DefaultsToTheDataAuthoredNameAndLogo)
+{
+    const Campaign campaign = loadedCampaign();
+
+    FOSSYND_CHECK_EQ(campaign.syndicateName(), std::string("Riverside Combine"));
+    FOSSYND_CHECK_EQ(campaign.defaultSyndicateName(), std::string("Riverside Combine"));
+    FOSSYND_CHECK_EQ(campaign.defaultSyndicateLogo(), std::string("cog"));
+    FOSSYND_CHECK_EQ(campaign.syndicateLogo(), std::string("cog"));
+    // The pickable logo set comes from the data file, so a UI can build a picker
+    // without hard-coding ids.
+    FOSSYND_CHECK(campaign.syndicateLogos().size() >= std::size_t{2});
+}
+
+FOSSYND_TEST(Campaign, CarriesAPlayerChosenNameAndLogo)
+{
+    Campaign campaign = loadedCampaign();
+
+    campaign.setSyndicateName("Nightingale Trust");
+    FOSSYND_CHECK_EQ(campaign.syndicateName(), std::string("Nightingale Trust"));
+    // The default is unchanged, so a UI can offer a reset.
+    FOSSYND_CHECK_EQ(campaign.defaultSyndicateName(), std::string("Riverside Combine"));
+
+    campaign.setSyndicateLogo("serpent");
+    FOSSYND_CHECK_EQ(campaign.syndicateLogo(), std::string("serpent"));
+}
+
+FOSSYND_TEST(Campaign, EmptyOrUnknownIdentityFallsBackToTheDefault)
+{
+    Campaign campaign = loadedCampaign();
+
+    // An empty name clears the choice: the map must never render a nameless
+    // syndicate, so the data default comes back.
+    campaign.setSyndicateName("Nightingale Trust");
+    campaign.setSyndicateName("");
+    FOSSYND_CHECK_EQ(campaign.syndicateName(), std::string("Riverside Combine"));
+
+    // An empty or unknown logo id is never fatal: it falls back to the default
+    // art rather than leaving the map with no logo.
+    campaign.setSyndicateLogo("not-a-logo");
+    FOSSYND_CHECK_EQ(campaign.syndicateLogo(), std::string("cog"));
+    campaign.setSyndicateLogo("serpent");
+    FOSSYND_CHECK_EQ(campaign.syndicateLogo(), std::string("serpent"));
+    campaign.setSyndicateLogo("");
+    FOSSYND_CHECK_EQ(campaign.syndicateLogo(), std::string("cog"));
+}
+
+FOSSYND_TEST(Campaign, ParsesLogoDefaultsAndRejectsABadLogoList)
+{
+    // The logo id and the pickable set come from data (ADR-0003), so a campaign
+    // file can rename or extend the set without a code change.
+    std::string error;
+    const Json root = Json::parse(R"({
+      "syndicate": "Riverside Combine", "logo": "bolt", "logos": ["cog", "bolt"],
+      "startingFunds": 1000
+    })",
+                                   error);
+    FOSSYND_CHECK(error.empty());
+
+    Campaign campaign;
+    FOSSYND_CHECK(Campaign::fromJson(root, campaign, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_EQ(campaign.defaultSyndicateLogo(), std::string("bolt"));
+    FOSSYND_CHECK_EQ(campaign.syndicateLogo(), std::string("bolt"));
+    FOSSYND_CHECK_EQ(campaign.syndicateLogos().size(), std::size_t{2});
+
+    // A malformed logo list is a schema error, not a silent default.
+    const Json bad = Json::parse(R"({ "syndicate": "X", "logos": "cog" })", error);
+    FOSSYND_CHECK(error.empty());
+    Campaign rejected;
+    FOSSYND_CHECK(!Campaign::fromJson(bad, rejected, error));
+    FOSSYND_CHECK(!error.empty());
+}

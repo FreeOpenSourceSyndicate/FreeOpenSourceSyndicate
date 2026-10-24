@@ -49,7 +49,32 @@ bool Campaign::fromJson(const Json& root, Campaign& out, std::string& error)
         return false;
     }
 
-    out.syndicateName_ = root.has("syndicate") ? root["syndicate"].asString() : std::string();
+    out.defaultSyndicateName_ =
+        root.has("syndicate") ? root["syndicate"].asString() : std::string();
+    // A player-chosen name/logo is not in the base file; it starts empty and falls
+    // back to the default. `logo` (singular) is the default logo id, `logos` is
+    // the pickable set (the art is a render slice; these are stable string keys).
+    out.defaultSyndicateLogo_ = root.has("logo") ? root["logo"].asString() : std::string();
+    out.logos_.clear();
+    const Json& logos = root["logos"];
+    if (!logos.isNull())
+    {
+        if (!logos.isArray())
+        {
+            error = "'logos' must be an array";
+            return false;
+        }
+        for (std::size_t i = 0; i < logos.size(); ++i)
+        {
+            const std::string id = logos[i].asString();
+            if (id.empty())
+            {
+                error = "each logo id must be a non-empty string";
+                return false;
+            }
+            out.logos_.push_back(id);
+        }
+    }
     out.startingFunds_ = root["startingFunds"].asFloat(0.0f);
     if (out.startingFunds_ < 0.0f)
     {
@@ -154,6 +179,26 @@ bool Campaign::loadFromFile(const std::string& path, Campaign& out, std::string&
     }
 
     return true;
+}
+
+void Campaign::setSyndicateName(const std::string& name)
+{
+    // An empty name clears the choice, so the data-authored default renders again
+    // (a player cannot leave the map without an identity).
+    chosenSyndicateName_ = name;
+}
+
+void Campaign::setSyndicateLogo(const std::string& id)
+{
+    // An empty id, or one that is not a known logo, clears the choice and falls
+    // back to the default: an unknown id is never fatal, it just picks the default
+    // art (the art is the render lane's; here an id is only a stable key).
+    if (id.empty() || std::find(logos_.begin(), logos_.end(), id) == logos_.end())
+    {
+        chosenSyndicateLogo_.clear();
+        return;
+    }
+    chosenSyndicateLogo_ = id;
 }
 
 bool Campaign::canDeployTo(TerritoryId territory) const

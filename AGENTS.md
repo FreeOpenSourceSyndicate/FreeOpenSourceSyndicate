@@ -1349,8 +1349,11 @@ Do not start work outside the scope fence (ADR-0024).
 - **Save/load is a versioned progress overlay (ADR-0039, issue #406):**
   `core::CampaignSave` (`src/core/util/CampaignSave.{h,cpp}`, **World** area)
   serialises a Campaign's *progress* — per-territory ownership/tax, the funds
-  ledger, research progress, and squad loadouts — as plain-text JSON with a
-  mandatory `"format": "fossynd-save"` tag and an integer `"version"` (now `1`).
+  ledger, research progress, squad loadouts, and the player's chosen syndicate
+  name/logo — as plain-text JSON with a
+  mandatory `"format": "fossynd-save"` tag and an integer `"version"` (now `2`;
+  v2 added `syndicateLogo` and made `syndicate` the player's chosen name, so a v1
+  build refuses a v2 file rather than dropping the logo).
   It is an **overlay**, not a full copy: topology (territory graph, research tree,
   equipment catalogue) comes from the base `--campaign` file, so loading is "load
   the base campaign, then `applyTo`". `parse` rejects a missing/wrong `format`
@@ -1364,6 +1367,22 @@ Do not start work outside the scope fence (ADR-0024).
   schema belongs in `docs/DATA_FORMAT.md` (**Content** area — a Rule 4 request,
   not an edit from World). The `--save`/`--load` CLI wiring is **Input/UI**'s
   (a separate request).
+- **The player's syndicate identity is data + a save field (issue #445):** the
+  original lets the player **name the syndicate and pick a logo** at the start.
+  `core::Campaign` carries the choice — `syndicateName()`/`syndicateLogo()` return
+  the player's pick, falling back to the data-authored default when the pick is
+  empty (name) or empty/unknown (logo), so the map always has an identity and an
+  unknown value is never fatal. `setSyndicateName`/`setSyndicateLogo` record a
+  pick; `defaultSyndicateName`/`defaultSyndicateLogo`/`syndicateLogos` expose the
+  defaults and the pickable set so a UI can offer a reset and build a picker
+  without hard-coding ids. The data lives in `assets/data/world/campaign.json`
+  (`syndicate`, `logo`, `logos`; a malformed `logos` list is a schema error) and
+  the choice is persisted by `CampaignSave` (now `version` `2`), so a loaded game
+  shows the player's name and logo. A **logo id is only a stable string key** —
+  the art is **Render**'s and the **name-input field + logo picker screen** is
+  **Input/UI**'s; both are Rule 4 follow-ups, not built here (golden rule 1).
+  Tests: `tests/test_campaign.cpp` (defaults, choice, fallback, bad list) and
+  `tests/test_persistence.cpp` (identity round-trips through a save).
 - **Sound effects are a hand-rolled SDL2 layer (issue #423, ADR-0040).**
   `game::Audio` (`src/game/Audio.{h,cpp}`, its own translation unit — do not grow
   the shared `Game.cpp`) owns one `SDL_OpenAudioDevice` and a small fixed set of
