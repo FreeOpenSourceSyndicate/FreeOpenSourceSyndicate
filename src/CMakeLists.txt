@@ -354,6 +354,13 @@ if(BUILD_TESTS)
     add_test(NAME game_save_load
              COMMAND FOSSynd --headless --check-save-load)
     set_tests_properties(game_save_load PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    # In-game save/load keys (issue #527): F5 saves the campaign to a default
+    # path and F9 loads it back, driven through the real handleEvents dispatch; a
+    # bad path fails soft and the keys are disabled on the tactical board. Run
+    # from the repo root so the shipped campaign loads.
+    add_test(NAME game_save_hotkeys
+             COMMAND FOSSynd --headless --check-save-hotkeys)
+    set_tests_properties(game_save_hotkeys PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     # New-game screen (issue #447): the name/logo decision logic and the real
     # apply-to-campaign path, headlessly. Run from the repo root so the shipped
     # campaign loads.

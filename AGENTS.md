@@ -1375,6 +1375,27 @@ Do not start work outside the scope fence (ADR-0024).
   size budget (§1b). The save/load wiring newly links `core::CampaignSave` into
   the game binary (~24 KiB), which the low-spec budget must absorb — a `platform`
   concern (see the size-budget notes in `docs/BUILD.md`).
+- **In-game save/load keys (issue #527):** `F5` saves the campaign and `F9` loads
+  it, so progress persists *during* play (the #433 CLI flags only saved on exit /
+  restored at launch). Both delegate to the same `saveCampaignProgress`/
+  `loadCampaignProgress` (#433) — no core change. The slot path is
+  `Game::inGameSavePath()`: an explicit `--save` wins, then the file a `--load`
+  resumed (so the keys continue the same session), else a documented per-user
+  location (`SDL_GetPrefPath`, `$XDG_DATA_HOME/FOSSynd/fossynd/save.json` on
+  Linux). **The keys act only on the campaign map**: the tactical board is a
+  transient mission with no persistent progress, so a save there would be
+  misleading — on the board the key prints a one-line hint instead (the policy
+  the issue asked us to pick and document). They fail **soft** in-game (a bad
+  path prints a message and play continues), unlike the CLI `--load` fail-fast of
+  #259 — a mis-keyed save must never cost the player progress. `F5`/`F9` are in
+  `mapScreenAllowsKey` (#364) so they are not swallowed by the map's tactical-key
+  filter, and `--check-save-hotkeys` (ctest `game_save_hotkeys`) drives the real
+  `handleEvents` dispatch with pushed events: save → mutate → load must
+  round-trip, a bad path must be a no-op, and the keys must be inert on the
+  board. The HUD control hint must list the keys — filed as Rule 4 requests to
+  `text` (#555, the `hud.controls` values) and `render` (#556, the `tr()`
+  fallback), per the #268 rule, because both lanes were live-leased when #527
+  landed.
 - **`--frames` must be a positive integer (issue #264):** a non-numeric, zero,
   negative, or trailing-garbage value (`abc`, `0`, `-3`, `5x`) prints
   `invalid --frames '<v>': expected a positive count` and exits 1, instead of
@@ -1391,6 +1412,7 @@ Do not start work outside the scope fence (ADR-0024).
   `--headless --check-deploy`,
   `--headless --check-campaign-keys`,
   `--headless --check-save-load`,
+  `--headless --check-save-hotkeys`,
   `--headless --check-newgame`,
   `--headless --new-game [--screenshot out.bmp]`,
   `--headless --check-objectives`,

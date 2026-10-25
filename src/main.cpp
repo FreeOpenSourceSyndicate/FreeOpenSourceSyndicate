@@ -85,6 +85,7 @@ void printUsage()
         "      --check-deploy         Validate deploying a mission from the map.\n"
         "      --check-campaign-keys  Validate map-screen key isolation.\n"
         "      --check-save-load      Validate the campaign save/load round-trip.\n"
+        "      --check-save-hotkeys   Validate the in-game F5/F9 save/load keys.\n"
         "      --check-newgame        Validate the new-game name/logo decision.\n"
         "      --check-lang [locale]  Validate the UI string table.\n"
         "      --check-content [dir]  Validate mission/catalogue references.\n",
@@ -218,6 +219,7 @@ int main(int argc, char** argv)
     bool checkDeploy = false;
     bool checkCampaignKeys = false;
     bool checkSaveLoad = false;           // --check-save-load
+    bool checkSaveHotkeys = false;        // --check-save-hotkeys
     bool checkNewGame = false;            // --check-newgame
     bool newGame = false;                 // --new-game
     bool showMap = false;                 // --map
@@ -416,6 +418,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-save-load") == 0)
         {
             checkSaveLoad = true;
+        }
+        else if (std::strcmp(argv[i], "--check-save-hotkeys") == 0)
+        {
+            checkSaveHotkeys = true;
         }
         else if (std::strcmp(argv[i], "--check-newgame") == 0)
         {
@@ -998,6 +1004,23 @@ int main(int argc, char** argv)
         }
         const bool ok = game.saveLoadSelfTest();
         std::printf(ok ? "save-load: ok\n" : "save-load: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkSaveHotkeys)
+    {
+        // Headless guard for the in-game save/load keys (issue #527): drives the
+        // real `handleEvents` dispatch with pushed F5/F9 events and asserts the
+        // campaign round-trips, a bad path fails soft, and the keys are disabled
+        // on the tactical board. Run from the repo root so the shipped campaign
+        // loads. Used by the game_save_hotkeys ctest.
+        if (!game.campaignValid())
+        {
+            std::fprintf(stderr, "save-hotkeys: no campaign loaded (run from the repo root?)\n");
+            return 1;
+        }
+        const bool ok = game.saveHotkeySelfTest();
+        std::printf(ok ? "save-hotkeys: ok\n" : "save-hotkeys: FAILED\n");
         return ok ? 0 : 1;
     }
 
