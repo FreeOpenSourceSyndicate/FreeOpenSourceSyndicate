@@ -35,6 +35,16 @@ kib() { echo "$(( $1 / 1024 ))"; }
 
 if [ "${SIZE_BYTES}" -le "${BUDGET_BYTES}" ]; then
     echo "size check OK: $(kib "${SIZE_BYTES}") KiB <= $(kib "${BUDGET_BYTES}") KiB budget (${BIN})"
+    # The budget is a hard cap, but a *margin smaller than one ELF page* is a trap:
+    # two PRs that each pass alone can merge to cross it (the #489/#490 semantic
+    # merge breached 384 KiB by 2 KiB), and the lane then blocks the whole fleet.
+    # Warn while still green so the next author reclaims space (or raises the cap)
+    # deliberately rather than discovering it red.
+    HEADROOM_BYTES=$(( BUDGET_BYTES - SIZE_BYTES ))
+    if [ "${HEADROOM_BYTES}" -lt 4096 ]; then
+        echo "size check WARNING: only $(kib "${HEADROOM_BYTES}") KiB of headroom left" \
+             "(< 1 ELF page); reclaim space or raise the budget before the next change (AGENTS.md 1b)." >&2
+    fi
     exit 0
 fi
 
