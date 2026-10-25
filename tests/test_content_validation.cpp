@@ -391,6 +391,248 @@ FOSSYND_TEST(ContentValidation, WorldRegionWithoutMissionIsAllowed)
     FOSSYND_CHECK(report.ok());
 }
 
+// A drug bar-ceiling (ADR-0043) must name a real bar and resolve its research
+// gate. A ceiling naming a bar outside the closed vocabulary is reported: the
+// purchase would raise no bar (the economy loader also rejects it, but this is
+// the cross-check layer that keeps a metagame data edit honest).
+FOSSYND_TEST(ContentValidation, DrugCeilingNamesARealBar)
+{
+    TempContent content("drug_bad_bar");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    content.write("world/equipment.json", R"({"items": [
+        {"id": "luck-ceiling", "kind": "drug", "name": "Luck", "bar": "luck",
+         "ceiling": 0.8, "cost": 900, "requiresResearch": "luck-ceiling"}
+    ]})");
+    content.write("world/research.json", R"({"nodes": [
+        {"id": "luck-ceiling", "name": "Luck", "cost": 500, "time": 60,
+         "requires": [], "unlocks": "luck-ceiling"}
+    ]})");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(!report.ok());
+    FOSSYND_CHECK(reportMentions(report, "drug ceiling 'luck-ceiling' names bar 'luck'"));
+    FOSSYND_CHECK(reportMentions(report, "adrenalin"));
+}
+
+// A drug ceiling whose `requiresResearch` names no research node is reported:
+// the item would be sold but never unlockable.
+FOSSYND_TEST(ContentValidation, DrugCeilingResearchGateMustResolve)
+{
+    TempContent content("drug_bad_research");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    content.write("world/equipment.json", R"({"items": [
+        {"id": "adrenalin-ceiling", "kind": "drug", "name": "Adrenalin",
+         "bar": "adrenalin", "ceiling": 1.0, "cost": 700,
+         "requiresResearch": "ghost-node"}
+    ]})");
+    content.write("world/research.json", R"({"nodes": [
+        {"id": "adrenalin-ceiling", "name": "Adrenalin", "cost": 500, "time": 60,
+         "requires": [], "unlocks": "adrenalin-ceiling"}
+    ]})");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(!report.ok());
+    FOSSYND_CHECK(reportMentions(report, "requires research 'ghost-node'"));
+    FOSSYND_CHECK(reportMentions(report, "not a research node"));
+}
+
+// A drug ceiling with an out-of-range ceiling (here > 1) is reported. The
+// economy loader also rejects it; this keeps the rule visible in one place for
+// a metagame data edit.
+FOSSYND_TEST(ContentValidation, DrugCeilingRangeIsChecked)
+{
+    TempContent content("drug_bad_ceiling");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    content.write("world/equipment.json", R"({"items": [
+        {"id": "adrenalin-ceiling", "kind": "drug", "name": "Adrenalin",
+         "bar": "adrenalin", "ceiling": 1.5, "cost": 700,
+         "requiresResearch": "adrenalin-ceiling"}
+    ]})");
+    content.write("world/research.json", R"({"nodes": [
+        {"id": "adrenalin-ceiling", "name": "Adrenalin", "cost": 500, "time": 60,
+         "requires": [], "unlocks": "adrenalin-ceiling"}
+    ]})");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(!report.ok());
+    FOSSYND_CHECK(reportMentions(report, "drug ceiling 'adrenalin-ceiling' has ceiling"));
+    FOSSYND_CHECK(reportMentions(report, "greater than 0 and at most 1"));
+}
+
+// A well-formed drug ceiling (real bar, in range, resolving research) must pass
+// - the positive half of the drug rules.
+FOSSYND_TEST(ContentValidation, WellFormedDrugCeilingPasses)
+{
+    TempContent content("drug_ok");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    content.write("world/equipment.json", R"({"items": [
+        {"id": "adrenalin-ceiling", "kind": "drug", "name": "Adrenalin",
+         "bar": "adrenalin", "ceiling": 1.0, "cost": 700,
+         "requiresResearch": "adrenalin-ceiling"}
+    ]})");
+    content.write("world/research.json", R"({"nodes": [
+        {"id": "adrenalin-ceiling", "name": "Adrenalin", "cost": 500, "time": 60,
+         "requires": [], "unlocks": "adrenalin-ceiling"}
+    ]})");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(report.ok());
+}
+
+// A drug ceiling with no research gate is reported: it must be unlocked by
+// research (ADR-0043), so an empty `requiresResearch` is a content error.
+FOSSYND_TEST(ContentValidation, DrugCeilingNeedsAResearchGate)
+{
+    TempContent content("drug_no_research");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    content.write("world/equipment.json", R"({"items": [
+        {"id": "adrenalin-ceiling", "kind": "drug", "name": "Adrenalin",
+         "bar": "adrenalin", "ceiling": 1.0, "cost": 700}
+    ]})");
+    content.write("world/research.json", R"({"nodes": []})");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(!report.ok());
+    FOSSYND_CHECK(reportMentions(report, "drug ceiling 'adrenalin-ceiling' needs"));
+    FOSSYND_CHECK(reportMentions(report, "requiresResearch"));
+}
+
+// A name pool naming a region that is not a territory is reported: the pool
+// would never be drawn for a real region (#509).
+FOSSYND_TEST(ContentValidation, NamePoolRegionMustExist)
+{
+    TempContent content("names_bad_region");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    content.write("world/world.json", R"({"territories": [
+        {"id": 0, "name": "A", "neighbours": [1], "owner": 0}
+    ]})");
+    content.write("world/names.json", R"({"pools": [
+        {"region": 0, "names": ["Aldric"]},
+        {"region": 7, "names": ["Bram"]}
+    ]})");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(!report.ok());
+    FOSSYND_CHECK(reportMentions(report, "name pool names region 7"));
+    FOSSYND_CHECK(reportMentions(report, "not a territory"));
+}
+
+// Every region in world.json must have a pool, so no region ships without the
+// names the screen draws for it.
+FOSSYND_TEST(ContentValidation, EveryRegionNeedsANamePool)
+{
+    TempContent content("names_missing_region");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    content.write("world/world.json", R"({"territories": [
+        {"id": 0, "name": "A", "neighbours": [1], "owner": 0},
+        {"id": 1, "name": "B", "neighbours": [0], "owner": 0}
+    ]})");
+    content.write("world/names.json", R"({"pools": [
+        {"region": 0, "names": ["Aldric"]}
+    ]})");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(!report.ok());
+    FOSSYND_CHECK(reportMentions(report, "region 1 has no name pool"));
+}
+
+// Two pools for the same region are reported: the second would shadow the first,
+// so the map's names would silently depend on file order.
+FOSSYND_TEST(ContentValidation, DuplicateNamePoolRegionIsReported)
+{
+    TempContent content("names_duplicate");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    content.write("world/world.json", R"({"territories": [
+        {"id": 0, "name": "A", "neighbours": [0], "owner": 0}
+    ]})");
+    content.write("world/names.json", R"({"pools": [
+        {"region": 0, "names": ["Aldric"]},
+        {"region": 0, "names": ["Bram"]}
+    ]})");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(!report.ok());
+    FOSSYND_CHECK(reportMentions(report, "region 0 is defined more than once"));
+}
+
+// A pool with an empty `names` array is reported: a region with no names would
+// draw nothing, so the pool must carry at least one name.
+FOSSYND_TEST(ContentValidation, NamePoolNeedsAtLeastOneName)
+{
+    TempContent content("names_empty_pool");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    content.write("world/world.json", R"({"territories": [
+        {"id": 0, "name": "A", "neighbours": [0], "owner": 0}
+    ]})");
+    content.write("world/names.json", R"({"pools": [
+        {"region": 0, "names": []}
+    ]})");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(!report.ok());
+    FOSSYND_CHECK(reportMentions(report, "region 0 must have a non-empty 'names' array"));
+}
+
+// A non-ASCII name is reported: the embedded 5x7 font draws ASCII 32-126 only,
+// so the name would render blank (the same rule as the string table).
+FOSSYND_TEST(ContentValidation, NamePoolNamesMustBePrintableAscii)
+{
+    TempContent content("names_non_ascii");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    content.write("world/world.json", R"({"territories": [
+        {"id": 0, "name": "A", "neighbours": [0], "owner": 0}
+    ]})");
+    content.write("world/names.json", "{\"pools\": [{\"region\": 0, \"names\": [\"J\\u00fcrgen\"]}]}");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(!report.ok());
+    FOSSYND_CHECK(reportMentions(report, "not printable ASCII"));
+}
+
+// An absent names.json is the safe fallback (the game assigns no names), not a
+// problem - matching the other optional world files.
+FOSSYND_TEST(ContentValidation, AbsentNamePoolsAreNotAProblem)
+{
+    TempContent content("names_absent");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    content.write("world/world.json", R"({"territories": [
+        {"id": 0, "name": "A", "neighbours": [0], "owner": 0}
+    ]})");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(report.ok());
+}
+
+// A well-formed names.json covering every region must pass - the positive half.
+FOSSYND_TEST(ContentValidation, WellFormedNamePoolsPass)
+{
+    TempContent content("names_ok");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    content.write("world/world.json", R"({"territories": [
+        {"id": 0, "name": "A", "neighbours": [1], "owner": 0},
+        {"id": 1, "name": "B", "neighbours": [0], "owner": 0}
+    ]})");
+    content.write("world/names.json", R"({"pools": [
+        {"region": 0, "names": ["Aldric", "Bram"]},
+        {"region": 1, "names": ["Corvin"]}
+    ]})");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(report.ok());
+}
+
 // The shipped content must always be valid: this is the guard that keeps a
 // broken mission or catalogue out of `main`.
 FOSSYND_TEST(ContentValidation, ShippedContentPasses)
