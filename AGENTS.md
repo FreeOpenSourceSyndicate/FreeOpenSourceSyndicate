@@ -138,11 +138,15 @@ out-of-scope item never is. When in doubt, fewer agents.
 This is a *resource* policy, not a coordination rule: it changes **how many**
 agents run, never **how** they coordinate (still flat, ADR-0019/0021).
 
-A small fleet only works if every agent always has something to do. That is the
-job of `scripts/coord next` (§3.16): an idle agent asks for its next action and
-always gets one — claim, seed an issue, or review. Keep the **backlog floor**
-above zero: when an area is free and has no open issue, the fix is to **file the
-next roadmap item as an issue**, not to idle or to add agents.
+**An agent keeps its scope small and stays in its lane.** It works the area it
+holds, preferring **small, reviewable** changes, and it does **not** fan out
+across areas to find something to do. When its own lane has no claimable work,
+the agent **stops** (ends its turn/shift) rather than claiming another free area
+or filing filler issues to stay busy (ADR-0046). The only scope-neutral jobs that
+remain available to an idle agent are the fleet's durable duties: finish/renew a
+lease it holds, and review/merge a green PR it did not author (§3a). An empty lane
+is a **stop**, not a signal to seed work: new issues come from the roadmap and the
+PO's plan (or a human), never from an idle agent topping up a lane.
 
 ## 2. The one rule that matters most
 
@@ -178,16 +182,18 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
    coordinate, update `AGENTS.md` in the same PR.
 9. **Review and merge each other's PRs.** See §3a. This applies to every agent
    and to human maintainers.
-10. **Work inside your focus area.** The repo is divided into focus areas (the set
+10. **Work inside your focus area, and keep the change small.** The repo is
+    divided into focus areas (the set
     is data — `docs/focus-areas.json`, docs/ORGANISATION.md §9; eleven today; see
     `docs/FOCUS_AREAS.md`). One of them (`rules`) is the **SM's own lane**: the SM
     triggers it and `coord next` never routes a plain worker to it; every other
     lane, **including `platform`** (build/CI/packaging), is a normal **worker**
-    lane — the SM never does project work (ADR-0041). Claim a **free** area with
-    the **highest pending
-    workload**, preferring one you already know. Only the agent holding the
-    area's live lease (or a helper it explicitly tasks) edits the files an area
-    owns. Need a change in another area's files? File a cross-area request
+    lane — the SM never does project work (ADR-0041). Claim a **free** area that
+    has work, preferring one you already know so the change stays small and safe
+    (ADR-0046). **Then stay in that lane:** prefer **small, reviewable** changes
+    (§3.3) and do not fan out into other areas to find more to do. Only the agent
+    holding the area's live lease (or a helper it explicitly tasks) edits the files
+    an area owns. Need a change in another area's files? File a cross-area request
     (`docs/FOCUS_AREAS.md` §4, Rule 4) — never edit them yourself.
 11. **Leases expire; abandoned work is reclaimed by the clock.** A lease past its
     TTL is **dead** and any agent may claim the area (`scripts/coord claim`), or
@@ -214,31 +220,34 @@ and **machine-checked**: a claim is a **git-ref lease**, not a comment
     with options and a recommendation — **no relay, no waiting silently**. See
     `docs/COORDINATION.md` §3.
 14. **Helpers are requested, never self-started.** An agent whose queue is empty
-    must not begin work in another area on its own. It works on tasks assigned by
-    that area's live owner; if the area has **no live lease**, it self-claims it
-    (`scripts/coord claim`). There is no availability announcement — the ledger
+    must not begin work in another area on its own — and, per ADR-0046, an empty
+    queue is a **stop**, not a reason to go looking. Help is given only on
+    request: it works on tasks assigned by that area's live owner; if the area has
+    **no live lease**, it self-claims it (`scripts/coord claim`). There is no
+    availability announcement — the ledger
     (`scripts/coord status`) is the signal (ADR-0021). Reviewing PRs and triaging
     issues need no assignment (`docs/FOCUS_AREAS.md` §5).
 15. **The board is generated.** `docs/COORDINATION_BOARD.md` is rendered from the
     ledger by `scripts/coord board` and rewritten by the scheduled sweep. Never
     hand-edit it and never open a "refresh the queue" PR — the old hand-maintained
     §8 table is gone (ADR-0021).
-16. **An idle agent always has a next action — ask for it.** Run `scripts/coord
-    next --agent "<role>-<n>-<host>"` whenever you do not know what to do. It never prints
-    nothing: it walks a fixed ladder and stops at the first rung that applies —
-    (1) finish/renew a lease you hold, (1b) if you are the **SM**, claim a free
-    `rules` issue (the SM's own lane — the process docs; the SM never does
-    project work, and a plain worker is never routed to `rules`, ADR-0041), (2) claim a free
-    **critical-path** area's issue, (3) **drain the merge queue**: review and
-    merge a green, non-draft PR
-    that has waited ≥ 30 min (§3a), (4) claim any free area's issue, (5) **file a
-    new issue** from the roadmap when the backlog is empty, (6) otherwise review
-    an open PR you did not author (§3a). Rung 3 exists because a green PR is
-    *finished* work one step from landing: merging it is worth more than starting
-    new work, and it is how the fleet drains the queue instead of leaving a green
-    PR to age (ADR-0035). The fleet must never stall for want of something to do;
-    when it does, the fix is to **add work**, never to add agents (§1d,
-    ADR-0024).
+16. **An agent stays in its lane and stops when its lane is empty.** Run
+    `scripts/coord next --agent "<role>-<n>-<host>"` to see where you stand. It
+    reports, in order: (1) a lease you already hold (finish/renew/release it
+    first), (1b) if you are the **SM**, a free `rules` issue (the SM's own lane —
+    the process docs; the SM never does project work, and a plain worker is never
+    routed to `rules`, ADR-0041), (2) a free **critical-path** area's issue, and
+    (3) a **green, non-draft PR that has waited ≥ 30 min** to review and merge
+    (§3a). Those are the **only** rungs. It deliberately does **not** route you to
+    "any free area" or tell you to file a new issue: when none of the above
+    applies, it prints **stop** and you end your turn (ADR-0046). Rung 3 stays
+    because a green PR is *finished* work one step from landing: merging it is
+    worth more than starting new work, and it is how the fleet drains the queue
+    instead of leaving a green PR to age (ADR-0035) — and it expands no agent's
+    scope. An **empty lane is a stop, not a signal to seed work**: new issues come
+    from the roadmap and the PO's plan (or a human), never from an idle agent
+    topping up a lane (§1d). Idle agents cost nothing; small, safe, in-lane
+    changes are the constraint, not activity.
 17. **Hand off through notes, not memory.** A lease is scoped to *now*: it is
     released or expires, so a fact the *next* process needs has nowhere else to
     live. Write it to the area's note log — `scripts/coord note --area <a> --agent
@@ -1560,8 +1569,10 @@ Do not start work outside the scope fence (ADR-0024).
   releases). `missions` was split out of `tactical` (#451) so mission authoring
   runs in parallel with combat-system work — the mission set is the long pole and
   it is data. Each area has a `focus:` label; only the agent holding its live lease
-  (or a helper it tasks) edits its files. Each cycle pick a free area with the
-  highest pending workload (`scripts/coord status`, §7). Overlap rules, the
+  (or a helper it tasks) edits its files. Keep scope small: pick a free area that
+  has work, prefer one you know, and **stay in it** — an empty lane is a stop, not
+  a reason to claim another area or seed work (ADR-0046, `scripts/coord status`,
+  §7). Overlap rules, the
   cross-area request format, the helper protocol, the claim/lease protocol, and
   the review matrix all live there. When you pick up work, claim the issue's area
   with `scripts/coord claim`; do not start in another area on your own. **There is

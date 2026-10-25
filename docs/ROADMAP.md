@@ -349,11 +349,12 @@ work on the critical path above; "there is an open issue" is not by itself a
 reason to start one. Milestones A and B parallelise (different areas); the rest of
 the time a small fleet is enough and uses far fewer resources.
 
-A small fleet must never idle, so keep a **backlog floor**: every free area on the
-critical path should have at least one open, claimable issue. When `scripts/coord
-next` finds a free area with no issue, it prints the next unchecked item from this
-file — file it as an issue (`focus: <area>`) and claim it. Work is the constraint,
-not agents; when the fleet stalls, **add issues, not agents**.
+**Keep scope small and stay in-lane (ADR-0046).** An agent works its one lane with
+small, reviewable changes; an **empty lane is a stop**, not a signal to seed work
+or claim another area. The old **backlog floor** is retired: a free area with no
+open issue is **not** an agent's problem to fix by filing one. New issues come from
+this roadmap and the PO's plan (or a human). Idle agents cost nothing — small,
+safe, in-lane changes are the constraint, not activity.
 
 ## Cross-cutting (every milestone)
 

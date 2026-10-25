@@ -2766,3 +2766,100 @@ ever wants it gone, the delete is a self-contained removal of the three regexes,
   - No gameplay or determinism change; this is a build/packaging policy.
 
 ---
+
+## ADR-0046 — An idle agent stays in its lane and stops when its lane is empty
+
+- **Status:** Accepted (2026-10-25)
+- **Date:** 2026-10-25
+- **Directive:** a human maintainer asked (2026-10-25): *"Agents should keep
+  their scope small. So they should stay in their lane and stop if their lane is
+  empty. Adapt the rules accordingly."* This ADR records that directive as a rule.
+- **Supersedes:** the **never-idle** stop condition and the **backlog floor** of
+  **ADR-0025** (and the rungs of the `coord next` ladder that implement them).
+  It does **not** touch ADR-0025's other parts (reachable staleness, reconciled
+  labels) or ADR-0021 (the lease is the claim) or ADR-0019 (flat, no coordinator).
+  **ADR-0035 stands:** draining the merge queue is still a durable fleet duty.
+
+- **Context:** The scheme was tuned to make a **small fleet never stall**
+  (ADR-0024/0025): `AGENTS.md` §1d told an idle agent to keep a **backlog floor**
+  ("when an area is free and has no open issue, the fix is to **file the next
+  roadmap item as an issue**"), and §3.16 / `docs/COORDINATION.md` §3a gave a
+  **never-idle ladder** whose rungs 4–5 route an idle agent to "claim **any**
+  free area's issue" and, when the backlog is empty, to **file a new issue**. The
+  stated stop condition was *"add work, never wait"*.
+
+  In practice, that pressure pushed agents **out of their lane and into larger
+  scope** rather than a small, safe change:
+
+  1. **The helper-lease / multi-area trap recurred five times in one shift**
+     (#499 `ta-1`, #527 `ui-1`, #502 `re-1`, #541 `ta-1`, #557 `co-1` — the last
+     holding **three** areas for one issue). Each time an agent claimed a second
+     area for the *same* issue and did not release it at commit time, so
+     `coord check` failed **fleet-wide** and reddened the *Lease ledger check* on
+     every open PR until a peer noticed.
+  2. **Agents wandered across lanes** — a metagame worker editing the shared
+     `src/game/Game.cpp` (Render/Input-UI's file, `docs/FOCUS_AREAS.md` §4
+     Rule 2), and multi-area claims treated as normal rather than exceptional.
+  3. **Filler work was seeded to avoid stopping** — issues filed because a lane
+     was empty, not because the roadmap needed them, enlarging the backlog and
+     the merge surface.
+
+  The lesson: *"never idle"* and *"small scope, one lane"* are in tension, and
+  the directive resolves the tension in favour of **small scope**.
+
+- **Options:**
+  1. **Keep the never-idle ladder; rely on discipline to keep scope small.**
+     Rejected: the observed five-fold recurrence is exactly the discipline
+     failing under pressure. A rule that fights itself cannot be enforced by
+     memory.
+  2. **Remove `coord next` entirely; an idle agent reads `coord status` and
+     decides.** Rejected: it discards the one genuinely useful, scope-*neutral*
+     behaviour — a green PR is *finished* work one step from landing, and
+     merging it (ADR-0035) expands no agent's scope.
+  3. **Keep the ladder's lease and merge-queue rungs; delete the
+     "claim any free area" and "file a new issue" rungs, and replace the
+     "never idle / add work" stop condition with "stop".** Chosen.
+
+- **Decision:** **Option 3.**
+  - **An agent keeps its scope small and stays in its lane.** It works the area
+    it holds, and prefers a **known** area with **small, reviewable** changes
+    (`AGENTS.md` §3.3). It does not fan out across areas to find something to do.
+  - **An empty lane is a stop, not a signal.** When an agent's own lane has no
+    claimable work, the agent **stops** (ends its turn/shift) instead of claiming
+    another free area or seeding filler issues. It does **not** file a new issue
+    merely because a lane is empty.
+  - **The durable fleet duties survive** — they are scope-*neutral* and shared,
+    and need no claim in a worker lane:
+    1. **finish/renew/release a lease you hold** (always first); and
+    2. **review and merge a green, non-draft PR that has waited** (`AGENTS.md`
+       §3a, ADR-0035) — a green PR is finished work, and merging it is not a
+       scope expansion.
+    Reviewing an open PR you did not author also remains available
+    (`docs/FOCUS_AREAS.md` §5).
+  - **The backlog floor is retired.** A free area with no open issue is **not** a
+    reason to file one. New issues come from the **roadmap and the PO's plan**
+    (or a human), not from an idle agent topping up a lane.
+  - **`scripts/coord next` is adapted to match** (rungs 4–5 removed; rung 5
+    becomes a "stop" message): a `focus: platform` Rule 4 request, because
+    `scripts/**` is Platform's file (`docs/FOCUS_AREAS.md` §2), and the prose
+    rules here are `rules`'s (the SM's lane).
+
+- **Consequences:**
+  - **The helper-lease trap loses its fuel.** The main driver of multi-area
+    claims — "there is nothing in my lane, so I will take another" — is gone.
+    (The mechanical warning at claim time from #561 stays as a backstop.)
+  - **A small fleet may now sit idle between shifts.** That is **intended**: idle
+    agents cost nothing, and the human starts chats, so "work" is not the
+    constraint — *small, safe, in-lane changes* are. The PO plans the work; an
+    empty lane waits for the PO (or a human), it is not filled by an agent.
+  - **The backlog shrinks toward the roadmap.** No more filler issues; the
+    open-issue list reflects planned work.
+  - **The merge queue still drains.** ADR-0035's queue-drain rung is kept, so a
+    green PR does not age for want of a merger.
+  - **No change to the lease mechanics.** `claim`/`renew`/`release`, the TTL,
+    staleness, and the flat model (ADR-0019/0021) are untouched; only the
+    *routing* of an idle agent changes.
+  - **Documentation must move together** (the #425 three-source trap): `AGENTS.md`
+    §1d/§3.10/§3.14/§3.16, `docs/FOCUS_AREAS.md` §5.1/§7.1, `docs/ORGANISATION.md`
+    §7, `docs/ROADMAP.md`, and `docs/COORDINATION.md` §3a.
+

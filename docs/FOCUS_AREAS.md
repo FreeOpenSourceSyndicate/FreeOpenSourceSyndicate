@@ -379,12 +379,16 @@ engine-free module inside another area's directory** — Render added
 ### 5.1 Helpers
 
 An agent whose own queue is empty **must not start work on its own initiative in
-another area**. It helps only on request:
+another area** — and per ADR-0046 an empty queue is a **stop**, not a reason to go
+looking for one. It helps only on request:
 
 1. **Look at the ledger, not an announcement venue.** There is no "available to
    help" comment and no hub thread to post it in (ADR-0021: the lease is the
    check-in). Run `scripts/coord status`; the area states *are* the availability
-   signal. If a free area has pending work, prefer taking it yourself (§7).
+   signal. **But an empty queue is a stop (ADR-0046):** do not go hunting for a
+   free area to fill your time. Help a live area only when its owner asks (§5.1.2),
+   and otherwise take the fleet's scope-neutral durable jobs — finish/renew a lease
+   you hold, or review/merge a green PR (`AGENTS.md` §3a) — or stop.
 2. **Ask the owner.** If a **live** area needs a helper, the agent holding its
    claim posts the task it wants done, with files, interface, and acceptance
    criteria. A live owner may also request help in a PR or issue thread it owns.
@@ -481,8 +485,9 @@ reserved-for: ms-1-kastenbrot
 - **The PO adds it** when it seeds or earmarks the issue, and **removes it** when
   the named agent starts and claims the work (or the plan changes).
 - **A claimant honours it.** If you are not the named agent, do **not** claim that
-  issue; pick a different one in the area (or file the next roadmap item — the
-  backlog floor, `AGENTS.md` §1d). The marker is a *convention*, not a lock: the
+  issue; pick a different one in the area, or **stop** if the area has no other
+  claimable work (ADR-0046 — an empty lane is a stop, not a reason to seed
+  filler). The marker is a *convention*, not a lock: the
   ledger stays the only lock (§5.3), and `coord claim` may not enforce it until
   the platform half lands (#542). Treat an unexpected `reserved-for:` as "ask the
   PO / pick other work", not as a collision.
@@ -492,6 +497,10 @@ reserved-for: ms-1-kastenbrot
   clears it at the next shift, and the work returns to the claimable pool.
 
 ### What an idle agent may do without being asked
+
+These are the fleet's **scope-neutral durable jobs** (ADR-0046): none of them
+expands the agent's scope or requires claiming another worker lane. When none
+applies, the agent **stops** — that is a valid, expected outcome.
 
 - **Review** open PRs from other areas (never a file edit; `AGENTS.md` §3a
   explicitly asks for it).
@@ -509,6 +518,9 @@ reserved-for: ms-1-kastenbrot
 - Start a feature in another area's files.
 - Edit another area's owned file "while passing through".
 - Move or re-tag a published release (`AGENTS.md` §6b).
+- **Claim another free area just because its own queue is empty, or file a new
+  issue to avoid stopping** — an empty lane is a **stop**, not a signal to seed
+  work (ADR-0046; this retires the old "backlog floor", `AGENTS.md` §1d).
 
 ---
 
@@ -556,9 +568,12 @@ a hand-kept plan.
 
 ### 7.1 How an agent picks a focus each cycle
 
+**Keep scope small (ADR-0046).** An agent picks **one** area with work and stays
+in it; it does not fan out to fill time.
+
 1. **Read the ledger.** `scripts/coord status` lists every live lease and the
    **free areas** (`docs/COORDINATION_BOARD.md` is the same view, generated).
-2. **Pick a free area with pending work.** "Free" means **no live lease** in it
+2. **Pick a free area that has work.** "Free" means **no live lease** in it
    (§5.3). Prefer an area on the **v1.0.0 critical path** (§2, ADR-0024) — the
    tactical finish and the metagame — over lower-priority capacity; then prefer
    the area with the most open issues, to spread agents out.
@@ -567,12 +582,15 @@ a hand-kept plan.
 4. **Claim it.** `scripts/coord claim --area <area> --issue <n> --agent "<role>-<n>-<host>"
    --branch <branch>`. If it turns out to be taken, the claim fails and names the
    holder; go to step 2.
-5. **Do not start a second agent in an area someone already holds.** If every
-   busy area is taken, take the next free one, or review/merge a PR (§5).
+5. **Stay in your lane; an empty lane is a stop.** Do not start a second agent in
+   an area someone already holds, and do not claim a *different* free area merely
+   because yours has nothing left — **stop** (ADR-0046). The scope-neutral durable
+   jobs (review/merge a green PR, §5) remain available.
 
-With one active agent, it simply takes any free area. With ten, they fan out
-across the areas. Nothing assigns these picks; each agent reads the ledger
-and claims.
+With one active agent, it simply takes the one area that has work. With ten, they
+fan out across the areas. Nothing assigns these picks; each agent reads the ledger
+and claims. An area with no open issue is **not** an agent's problem to fix by
+filing filler work.
 
 ### 7.2 Keeping the plan useful
 
