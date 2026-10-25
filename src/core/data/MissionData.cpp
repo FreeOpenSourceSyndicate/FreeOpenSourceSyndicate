@@ -666,6 +666,29 @@ bool applyLoadout(const PlayerLoadout& loadout, Mission& mission, const WeaponCa
                 return false;
             }
         }
+
+        // Drug bar ceilings (ADR-0043, #518/#553): the metagame-bought regulators
+        // that cap how high each bar may be regulated. `ceilings` is parallel to
+        // `slots`, so slot `slot - 1`'s value applies to this agent. A `0.0f`
+        // field is the "no ceiling" sentinel and is skipped, leaving the bar at
+        // its default `kDrugMaxLevel`; an absent entry leaves every bar
+        // unregulated, so an existing loadout is unchanged (golden rule 1/2).
+        if (slot - 1 < loadout.ceilings.size())
+        {
+            const DrugBarCeilings& ceilings = loadout.ceilings[slot - 1];
+            if (ceilings.adrenalin > 0.0f)
+            {
+                mission.setDrugCeiling(i, Drug::Adrenalin, ceilings.adrenalin);
+            }
+            if (ceilings.intelligence > 0.0f)
+            {
+                mission.setDrugCeiling(i, Drug::Intelligence, ceilings.intelligence);
+            }
+            if (ceilings.physical > 0.0f)
+            {
+                mission.setDrugCeiling(i, Drug::Physical, ceilings.physical);
+            }
+        }
     }
     return true;
 }
