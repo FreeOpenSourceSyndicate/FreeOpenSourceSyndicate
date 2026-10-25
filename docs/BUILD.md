@@ -42,53 +42,42 @@ A `FOSSYND_LOW_SPEC=ON` build runs in low-spec mode automatically. CI builds thi
 profile on every change so it cannot bit-rot. If the game does not start on very
 old hardware, that is a bug — please report it.
 
-### The binary-size budget
+### The size budget
 
-The whole point of the profile is a **small** binary, so CI enforces a cap on it
-(issue #222, AGENTS.md §1b, ADR-0008): the **stripped low-spec binary must be
-<= 384 KiB**. As measured today, the low-spec build is ~375 KiB and the default
-Release build is ~984 KiB, so the budget still fails loudly if the profile flags
-are ever dropped or a heavy dependency sneaks in. The cap was raised from 288 KiB
-when the third shared catalogue (`assets/data/vehicles.json`, #319/#342) left only
-~2 KiB of headroom; to 336 KiB (issue #413) once `main` reached 318 KiB; to
-352 KiB (issue #468) once `main` reached 334 KiB; and to 384 KiB (issue #477)
-when the save/load wiring (#433) linked `core::CampaignSave` for ~24 KiB — more
-than one 16 KiB step, so a single step would again have left a 2 KiB margin that a
-single 4 KiB ELF page step would cross, and the next real PR would fail spuriously
-rather than on a genuine regression.
+The v1.0.0 target is the **whole shipped game**, not a tiny binary (ADR-0045, the
+maintainer's directive): the built binary **plus** every file under `assets/` must
+stay **≤ ~60 MiB**, the scale of a Syndicate Plus install (the GOG package is
+~57 MiB including DOSBox). Targeting only post-2000 machines is fine; a low-spec
+*profile* is needed only if the game significantly exceeds that scale.
 
-The last breach was fixed by **reclaiming space rather than raising the cap
-again**: two PRs that each passed alone merged seconds apart and crossed the cap
-at 386 KiB, so the low-spec profile now builds with function/data sections
-(`-ffunction-sections -fdata-sections`) plus linker `--gc-sections`, and gates
-link-time optimisation on the compiler supporting IPO — together dropping the
-binary by ~40 KiB (issue #512). The check now also **warns** (still exit 0) when
-less than one ELF page (4 KiB) of headroom remains, so the next author reclaims
-space or raises the cap deliberately instead of rediscovering a red lane.
-
-> **The v1.0.0 size target is the whole game, not this binary.** ADR-0045 (the
-> maintainer's directive) sets the v1.0.0 target at **the whole shipped game
-> ≤ ~60 MiB** — the scale of a Syndicate Plus install — because targeting only
-> post-2000 machines is fine; a low-spec *profile* is needed only if the game
-> significantly exceeds that. Issue #524 re-scopes the gate accordingly; until it
-> lands, the binary cap above is still enforced.
-
-The CI `low-spec` job runs the check as a named step:
+CI enforces this as a named step in the `low-spec` job:
 
 ```bash
-./scripts/check-size.sh build/src/FOSSynd
+./scripts/check-size.sh build/src/FOSSynd assets
 ```
 
-The same check is available locally as the `low_spec_binary_size` ctest, which
-is registered only for a `FOSSYND_LOW_SPEC=ON` build:
+It prints the measured total (binary + assets) and **fails loudly** if the whole
+game outgrows the ceiling, so a 100 MiB dependency cannot land unnoticed. It also
+**warns** (still exit 0) when under 1 MiB of headroom remains, so the next author
+acts deliberately instead of rediscovering a red lane.
+
+The same check is available locally as the `game_size_budget` ctest (registered
+for any game build):
 
 ```bash
-ctest --test-dir build -R low_spec_binary_size --output-on-failure
+ctest --test-dir build -R game_size_budget --output-on-failure
 ```
 
-To change the cap, set `FOSSYND_SIZE_BUDGET_BYTES=<bytes>` (the default is
-`393216`). Raise it only with a justification in the pull request — a larger
-budget works against the reason the profile exists.
+To change the ceiling, set `FOSSYND_GAME_SIZE_BUDGET_BYTES=<bytes>` (the default
+is `62914560`, ~60 MiB). Raise it only with a justification in the pull request.
+
+> **History.** Before ADR-0045 this gate capped the **stripped low-spec binary**
+> at 384 KiB (issue #222, ADR-0008). That cap was raised repeatedly (288 → 336 →
+> 352 → 384 KiB) and finally attacked by reclaiming space — `-ffunction-sections`
+> / `-fdata-sections` plus `--gc-sections`, ~40 KiB off (issue #512). ADR-0045
+> retired the per-binary cap: the low-spec *profile* (small window + software
+> renderer) is still built and still worth keeping small, but the gate now keys
+> on the whole game.
 
 ## Catching memory and logic bugs (sanitizers)
 
