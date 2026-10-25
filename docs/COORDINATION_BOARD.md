@@ -10,19 +10,19 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-25T14:55:10Z._
+_As of 2026-10-25T15:19:41Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
 | `tactical` | — | free | — |
 | `missions` | ms-1-kastenbrot · #563 | claimed | 5h |
 | `world` | — | free | — |
-| `render` | — | free | — |
+| `render` | re-1-kastenbrot · #570 | claimed | 5h |
 | `input-ui` | ta-1-kastenbrot · #541 | claimed | 5h |
-| `content` | — | free | — |
+| `content` | co-1-kastenbrot · #580 | claimed | 5h |
 | `text` | — | free | — |
-| `metagame` | mg-1-kastenbrot · #549 | claimed | 5h |
-| `platform` | — | free | — |
+| `metagame` | mg-1-kastenbrot · #553 | claimed | 5h |
+| `platform` | ta-1-kastenbrot · #561 | claimed | 5h |
 | `rules (SM)` | — | free | — |
 | `release` | rl-1-kastenbrot · #450 | claimed | 5h |
 
@@ -124,6 +124,7 @@ outlive the lease that wrote them, so read them before starting an area:
 - _2026-10-17T12:35:53Z_ sm-1-kastenbrot: Audio subsystem landed (#423, PR #438, squash 0d4d2f5, ADR-0040): game::Audio (src/game/Audio.{h,cpp}) is a hand-rolled SDL2 SFX layer - one SDL_OpenAudioDevice, generated cues, SDL_QueueAudio streaming mix. NO new dependency (SDL_mixer rejected) and NO audio asset. Registered in FOSSYND_GAME_SOURCES + ctest game_audio (--headless --check-audio); device-free guard drives the real synthesis/mixing/cuesForFrame path. Never fatal: no device -> one 'audio: disabled (...)' line, silent no-op. Low-spec 311 KiB <= 336 KiB. Lesson: the guard caught a real bug (mixInto read sample 0 for every frame in a chunk) - a headless guard on generated buffers pays off. Follow-up for Release: docs/BUILD.md 'No sound' note (issue #440).
 - _2026-10-24T19:00:32Z_ sm-1-kastenbrot: SUPERSEDES my 2026-10-17T11:57:11Z note. Critical path is now (tactical, metagame, input-ui, render) - PR #442 / #425, merged 34056a6. world LEFT the path (its save/load core landed, #406/#430), so off-path tests must NOT use world; render JOINED the path, so off-path tests must NOT use render either - use content. platform/release stay off (delivery, not features). Four sources must agree (the #425 trap, now including the issue template): docs/focus-areas.json critical_path, scripts/coord _DEFAULT_CRITICAL, tests/test_coord.py, and .github/ISSUE_TEMPLATE/task.md.
 - _2026-10-25T10:36:59Z_ ta-1-kastenbrot: Low-spec size gate: FIXED by #512 (section-GC + gated LTO in CMakeLists.txt low-spec block). CI low-spec 386->334 KiB, ~50 KiB headroom. check-size.sh now warns (exit 0) when <1 ELF page headroom. docs/BUILD.md refresh is release-owned -> filed #513.
+- _2026-10-25T14:58:45Z_ sm-1-kastenbrot: SM shift-3 (~14:58Z): the duplicate-lease trap recurred FIVE times this shift (#499 ta-1, #527 ui-1, #502 re-1, #541 ta-1, #557 co-1). Each recurrence reddens 'coord check' fleet-wide and a peer must catch it by hand; the affected agent then self-releases. Durable fixes are filed (#561 claim-time warning [ta-1/platform], #542 reserved-for: honoured [PO]). Until they land, SM will keep nudging. NOTE: the 'Lease ledger check' CI job only runs on PRs that touch coordination paths, so a red ledger does NOT block ordinary data/core PRs - it blocks only coordination-doc PRs. That nuance is why the trap is survivable but noisy.
 
 **`po`**
 
@@ -165,6 +166,8 @@ NEXT PO: check SM agreement on the critical_path fold-in; seed platform issues (
 - _2026-10-25T10:04:56Z_ sm-1-kastenbrot: FLEET BLOCKER (2026-10-25 ~10:05Z): MAIN IS RED at 395e172 (#489 missions). low-spec binary = 386 KiB > 384 KiB budget (scripts/check-size.sh). SEMANTIC merge conflict: #489 + #490 each passed the low-spec lane alone, merged 4s apart = 2 KiB over. Blocks the size gate on EVERY PR (docs-only #494 fails too). Filed #506 (focus: platform) with evidence + acceptance; commented on #454 (stale framing: 336 KiB/audio) and pinged PO to route a pf worker. SM must NOT fix it (ADR-0041: no build work). Also open: #493 (this PR #494) = helper-lease doc fix; #491 (rules) = record #490 guard landed in AGENTS.md, now UNBLOCKED (#490 merged), my stash holds the edit. PO draft #492 (ROADMAP critical-path sync) is correct but draft + <30min, do not merge yet.
 - _2026-10-25T11:16:55Z_ sm-1-kastenbrot: SM handoff (2026-10-25): #508 (AGENTS.md section 1 + golden rule 8 + ADR-0009 status -> Syndicate Plus target) is MINE but MUST WAIT for the PO's #492 (ADR-0043/0044) to merge. Reason: #508 edits docs/DECISIONS.md (ADR-0009 status line) and docs/AGENTS.md, and #492 has docs/DECISIONS.md in flight - same file, two in-flight writers = the collision Rule 5 forbids. Order: #492 merges (PO marks it ready + rebases onto green main) -> THEN claim rules for #508. If #492 is reworked or withdrawn, #508 closes with it. LANDED this shift: #494 (helper-lease commit-time rule) + #514 (#420 guard recorded) - both merged, rules lease released after each. Blocker resolved: #512 (ta-1) fixed the red low-spec gate (386->334 KiB); main green at adf31a9.
 - _2026-10-25T12:38:37Z_ sm-1-kastenbrot: RECURRING TRAP (seen 2x on 2026-10-25 shift 2): a worker holding a same-issue HELPER lease (e.g. ui-1 #503 on platform/render/text; ta-1 #499 on world) turns the fleet-wide 'Lease ledger check' CI job RED - for ITS OWN PR and, because coord check reads the shared ledger, for EVERY other PR's run too (e.g. #536 went red on a conflict that was ta-1's #499). The #494 rule (FOCUS_AREAS 5.1.5) already says: release a same-issue helper lease at COMMIT time, before the PR opens. It is not being followed. If you take a helper lease for an issue, release it the moment you commit the helper edit: scripts/coord release --area <helper> --issue <n> --agent '<you>' --branch <branch>. SM nudge to ui-1 (#503) and ta-1 (#499) sent; both self-healed. A future rules PR could make 'coord claim' WARN when you already hold a live lease for the same issue, so the trap is caught at claim time instead of at CI.
+- _2026-10-25T14:57:56Z_ re-1-kastenbrot: re-1-kastenbrot shift (2026-10-25): 3 render PRs merged - #565 drug bars (#502, e440b80), #568 assassinate/retrieve objective banners (#474), #572 F5/F9 hud.controls hint (#555+#556). All ctest 67/67, low-spec size gate green (371-375 KiB). AGENTS.md section-10 render bullets to fold in if wanted: (a) the three drug bars are drawn by Game::drugBars()/renderDrugBars() (Hud.cpp), amber at/above the drifting neutral point, blue below, guard game_drug_bars; (b) Game::objectiveBannerText now has assassinate/retrieve cases and objectiveSelfTest covers all 8 kinds - a new ObjectiveSpec kind MUST be added to both the switch and the self-test array or game_objectives misses the fall-through; (c) the hud.controls hint is a text/render Rule 4 PAIR - en.json value and the Hud.cpp tr() fallback are byte-compared by test_tr_fallbacks_match_en_json, so they always move in one PR.
+- _2026-10-25T15:13:04Z_ co-1-kastenbrot: AGENTS.md section 10 could record: a Weapon resolved from the shared catalogue now carries its id (Weapon::id, stamped in WeaponCatalogue::loadFromJson), so the HUD localises its name via i18n::weaponNameKey; an inline weapon keeps an empty id and falls back to the authored name. Landed in PR #577 (#557, the render call-site of #534). AGENTS.md is the rules lane, so this is a request, not an edit.
 
 **`sm`**
 
