@@ -1585,10 +1585,15 @@ Do not start work outside the scope fence (ADR-0024).
   confrontation* — which **must** be one of its `missions`) and set
   `winCondition` to `"final-mission"`. Under that rule `Campaign` is won by
   winning *that* mission, independent of territory count — even with neutrals
-  left on the map — so the climactic ending is representable; the shipped data
-  keeps `own-all-territories` (its last neutral is the named `finalMission`, so
-  the two agree today) until the final mission is authored as its own file (a
-  Rule 4 request to the missions lane). `Campaign::wonFinalConfrontation()` is
+  left on the map — so the climactic ending is representable. The dedicated
+  final mission now exists as its own file, `assets/data/missions/conclave.json`
+  (#465, missions lane): an `assassinate` objective on the enemy OVERSEER behind
+  a praetorian guard, a distinct board from the reused `overpass`. The shipped
+  `campaign.json` still keeps `own-all-territories` and names `overpass` as its
+  `finalMission`, so the two agree today; **repointing `finalMission` at
+  `conclave` and switching `winCondition` to `"final-mission"` is a metagame
+  change** (`assets/data/world/campaign.json` is that lane's file, a Rule 4
+  request). `Campaign::wonFinalConfrontation()` is
   true **only** when the win came *from* the final mission (it stays false under
   `own-all-territories`, even if the terminal mission was among those won), and
   `CampaignScreen::render` draws a distinct, warmer "FINAL CONFRONTATION WON"

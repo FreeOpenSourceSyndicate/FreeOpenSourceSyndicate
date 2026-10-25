@@ -3887,3 +3887,75 @@ FOSSYND_TEST(Mission, TimeBombDetonationIsDeterministic)
     FOSSYND_CHECK_EQ(a.second, b.second);
 }
 
+// --- The final confrontation (issue #465) ----------------------------------
+//
+// #456 gave the campaign a terminal end state driven by a `finalMission`, but
+// the shipped data reused the ordinary `overpass` board, so there was no
+// *distinct* climax to play. This case loads the real dedicated final mission
+// through the real loader, builds the real grid, and drives the assassinate
+// objective to the win — so the campaign's terminal board cannot regress to
+// unwinnable or to a mis-indexed target without failing here.
+FOSSYND_TEST(Mission, ShippedConclaveFinalConfrontationIsWinnable)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("conclave"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Assassinate);
+
+    // The objective must name a real enemy — and specifically the enemy
+    // commander: a missing or mis-indexed target would make the final mission
+    // unwinnable or win on the wrong kill.
+    const int target = data.objective.agentIndex;
+    FOSSYND_CHECK(target >= 0);
+    FOSSYND_CHECK(static_cast<std::size_t>(target) < data.agents.size());
+    FOSSYND_CHECK_EQ(data.agents[static_cast<std::size_t>(target)].team, Team::Enemy);
+    FOSSYND_CHECK_EQ(data.agents[static_cast<std::size_t>(target)].name,
+                     std::string("OVERSEER"));
+
+    // The garrison must outnumber the single target, so a win proves the named
+    // kill rather than a wipe (the whole point of the assassinate kind).
+    std::size_t enemies = 0;
+    for (const AgentSpec& spec : data.agents)
+    {
+        if (spec.team == Team::Enemy)
+        {
+            ++enemies;
+        }
+    }
+    FOSSYND_CHECK(enemies >= 2);
+
+    TileGrid grid = buildGrid(data);
+    // The commander must be reachable from the squad, not walled off — the
+    // mission's own map must not make the objective impossible (#212).
+    const TilePos start{static_cast<int>(data.agents.front().x),
+                        static_cast<int>(data.agents.front().y)};
+    const TilePos commander{static_cast<int>(data.agents[static_cast<std::size_t>(target)].x),
+                            static_cast<int>(data.agents[static_cast<std::size_t>(target)].y)};
+    FOSSYND_CHECK(grid.isWalkable(commander.x, commander.y));
+    FOSSYND_CHECK(!findPath(grid, start, commander, /*allowDiagonal=*/true).empty());
+
+    Mission mission(grid, 24u);
+    populateMission(data, mission);
+    FOSSYND_CHECK(mission.objective().kind == ObjectiveSpec::Kind::Assassinate);
+
+    // The player's real action: order the squad onto the commander, re-issuing
+    // the order so the squad keeps closing as it fights through the guard.
+    for (int guard = 0; guard < 90 && mission.state() == MissionState::Running; ++guard)
+    {
+        for (std::size_t i = 0; i < mission.agents().size(); ++i)
+        {
+            if (mission.agents()[i].team() == Team::Player && mission.agents()[i].isAlive())
+            {
+                mission.orderAttack(i, static_cast<std::size_t>(target));
+            }
+        }
+        runUntilDone(mission, 4.0f);
+    }
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK(!mission.agents()[static_cast<std::size_t>(target)].isAlive());
+    // The win was the named kill, not a garrison wipe.
+    FOSSYND_CHECK(mission.aliveCount(Team::Enemy) >= static_cast<std::size_t>(1));
+}
+
