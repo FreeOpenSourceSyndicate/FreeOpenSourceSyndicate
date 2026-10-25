@@ -25,7 +25,20 @@ bool parseKind(const std::string& text, EquipmentKind& out)
         out = EquipmentKind::Cybernetic;
         return true;
     }
+    if (text == "drug")
+    {
+        out = EquipmentKind::Drug;
+        return true;
+    }
     return false;
+}
+
+// The closed vocabulary of drug bars (ADR-0043). Kept as the single source for
+// both the catalogue parser and `ceilings()` so a typo cannot name a bar that is
+// silently never applied.
+bool isDrugBar(const std::string& bar)
+{
+    return bar == "adrenalin" || bar == "intelligence" || bar == "physical";
 }
 
 bool validSlot(int slot)
@@ -96,6 +109,31 @@ bool EquipmentCatalogue::fromJson(const Json& root, EquipmentCatalogue& out, std
         }
         item.requiresResearch =
             node.has("requiresResearch") ? node["requiresResearch"].asString() : std::string();
+
+        if (item.kind == EquipmentKind::Drug)
+        {
+            // A ceiling must name a real bar, sit in (0, 1], and be gated by
+            // research — otherwise it is bought yet can never raise anything, or
+            // bypasses the research tree that is meant to pace it (ADR-0043).
+            item.bar = node.has("bar") ? node["bar"].asString() : std::string();
+            if (!isDrugBar(item.bar))
+            {
+                error = where + ": a drug needs 'bar' to be 'adrenalin', 'intelligence', "
+                                "or 'physical'";
+                return false;
+            }
+            item.ceiling = node["ceiling"].asFloat(0.0f);
+            if (!(item.ceiling > 0.0f) || item.ceiling > 1.0f)
+            {
+                error = where + ": 'ceiling' must be greater than 0 and at most 1";
+                return false;
+            }
+            if (item.requiresResearch.empty())
+            {
+                error = where + ": a drug ceiling needs a non-empty 'requiresResearch'";
+                return false;
+            }
+        }
 
         out.items_.push_back(std::move(item));
     }
@@ -204,18 +242,58 @@ bool Equipment::equip(int syndicate, int slot, const std::string& itemId,
     }
     // A LoadoutSlot carries one weapon, one gadget, and one cybernetic, so a new
     // item of a kind replaces the slot's existing item of that kind rather than
-    // being appended and then ignored at deploy time.
+    // being appended and then ignored at deploy time. Drug ceilings are the
+    // exception: a slot carries one ceiling **per bar** (ADR-0043), so a new
+    // ceiling replaces only a ceiling for the *same* bar, and ceilings for other
+    // bars are kept.
     for (auto it = items.begin(); it != items.end(); ++it)
     {
         const EquipmentItem* existing = catalogue.find(*it);
-        if (existing != nullptr && existing->kind == item->kind)
+        if (existing == nullptr || existing->kind != item->kind)
         {
-            *it = itemId;
-            return true;
+            continue;
         }
+        if (item->kind == EquipmentKind::Drug && existing->bar != item->bar)
+        {
+            continue; // a different bar: keep it, this slot can hold all three
+        }
+        *it = itemId;
+        return true;
     }
     items.push_back(itemId);
     return true;
+}
+
+DrugCeilings Equipment::ceilings(int syndicate, int slot,
+                                 const EquipmentCatalogue& catalogue) const
+{
+    DrugCeilings result;
+    for (const std::string& itemId : loadout(syndicate, slot))
+    {
+        const EquipmentItem* item = catalogue.find(itemId);
+        if (item == nullptr || item->kind != EquipmentKind::Drug)
+        {
+            continue;
+        }
+        float* target = nullptr;
+        if (item->bar == "adrenalin")
+        {
+            target = &result.adrenalin;
+        }
+        else if (item->bar == "intelligence")
+        {
+            target = &result.intelligence;
+        }
+        else if (item->bar == "physical")
+        {
+            target = &result.physical;
+        }
+        if (target != nullptr && item->ceiling > *target)
+        {
+            *target = item->ceiling; // the higher of two ceilings for one bar wins
+        }
+    }
+    return result;
 }
 
 } // namespace fossynd::core

@@ -723,9 +723,12 @@ Do not start work outside the scope fence (ADR-0024).
   `TheMapUsesTheWholeMissionSetNotJustTheDemo` (the regions cover all five
   missions). `ShippedCampaignCanBeWonByClaimingTheFrontier` and the
   `game_campaign` self-test still win a full run through the new mapping. Data
-  only, no code change (golden rule 7). A content-side guard that *validates*
-  every `world.json` `missionId` against the mission files is #420 (`focus:
-  content`).
+  only, no code change (golden rule 7). A content-side guard *validates* every
+  `world.json` `missionId` against the mission files: `validateWorldMapMissions`
+  (`src/core/data/ContentValidation.h`) reports a dangling id, tested by
+  `ContentValidation.WorldMapMissionIdsResolve` and
+  `ContentValidation.DanglingWorldMissionIdIsReported`
+  (`tests/test_content_validation.cpp`); it landed in #490 (`focus: content`).
 
 - **The shipped map is a world map (issue #448, Milestone C).** v1.0.0 replaces
   the original six city-district regions with **twelve culturally-flavoured
@@ -1006,6 +1009,57 @@ Do not start work outside the scope fence (ADR-0024).
   fraction can be shown without core exposing `kDrugDurationSeconds` (core-private).
   `--drugs` doses the squad up front (a demo hook beside `--shield`). The hotkey
   is `B` (Input/UI, issue #339).
+- **Regulated drug bars, S1 — the foundation** (issue #496, ADR-0043): drugs are
+  becoming the original's **three regulated bars** (adrenalin/intelligence/
+  physical), not the single-dose consumable above. `Drug`/`DrugState` live in
+  `src/core/sim/Drug.h` (header-only, core/SDL-free); `Mission` holds one
+  `DrugState` per agent (`drugStates_`, kept in sync by `addAgent` exactly like
+  `medikits_`/`shields_`/`scanners_` — no `Agent` change). `setDrugLevel` (clamps
+  to [0,1], no-op on a bad index), `drugLevel`, `drugNeutral`, and `drugEffect`
+  (`level - neutral`, clamped to [-1,1]) are the frozen API. **Normalisation:**
+  each `update`, the neutral point drifts toward the current level at
+  `kDrugNormalisationRate` (0.25/s, `Mission.cpp`-private), so a permanently-held
+  high bar adapts away and dropping it becomes a real penalty; the **level never
+  drifts** (the player regulates it). S1 is **pure state + drift — no behavioural
+  effect yet**: `drugEffect` is the hook S2 (adrenalin), S3 (intelligence), and S4
+  (physical) read. Deterministic; no RNG. S4 retires the old `drugs_`/
+  `drugsTimer_` consumable (and `kDrugDurationSeconds`); until then both models
+  coexist. The HUD bars (Render), the controls (Input/UI), and the research
+  ceilings (Metagame) are the cross-lane follow-ups (#502/#503/#504).
+- **Regulated drug bars, S2 — adrenalin** (issue #497, ADR-0043): the first bar
+  with real behaviour, on the S1 foundation. The **threat model** is
+  `Mission::threatTo(index)` — the sum over every **visible** living enemy of
+  `threatLevel(other)` (equipment-derived: `damage * (1 + areaRadius)`) times
+  situational modifiers: distance (closer is higher), "has seen me"
+  (`kThreatHasSeenMe`, asymmetric: a threat that has not noticed you is less
+  dangerous), "is targeting me" (`kThreatTargetingMe`), "is targeting a team-mate"
+  (distance-weighted toward the threatened ally), and "is moving towards me" (from
+  `Agent::previousPosition()` vs. the current position — deterministic, no RNG).
+  `threatLevel`/`threatTo` are pure reads, exposed for tests. **Panic** is
+  `Mission::isPanicking(index)`: a **latched** flag (`panicking_`, one per agent,
+  kept in sync by `addAgent`) set
+  when `threatTo` exceeds a threshold that **falls with adrenalin**
+  (`kPanicThresholdBase - kPanicThresholdDrop * effect`), cleared with
+  **hysteresis** (`kPanicClearFraction`) once the threat drops. An agent with
+  adrenalin effect **<= 0 never panics** (the threshold is effectively infinite) —
+  the "low adrenalin = rational AI" half of ADR-0043. While panicking the agent
+  **ignores the player's orders** (`orderMove`/`orderAttack` are no-ops) and
+  **its AI** (`updateAI` skips `updateCombatantAI`): `updatePanic` latches
+  `AiState::Retreat`, clears the order and the move queue, and flees the nearest
+  **visible** threat (`stepAwayFrom`, re-pathed only when the current flee path is
+  exhausted, so panic does not run an A* per tick). **Effects** (`drugEffect` =
+  level − neutral, so normalisation applies): movement speed
+  (`1 + kAdrenalinSpeedGain * effect`) and reaction cadence
+  (`Mission::reactionInterval`, shorter above 0) both **recomputed** each tick;
+  hit chance (`Mission::adrenalinAccuracyScale`, in `resolveFire`) **lowered** as
+  adrenalin rises (high = low precision) and raised as it falls. **Speed is
+  recomputed from `adrenalinBaseSpeed_` (one per agent, synced by `addAgent`),
+  never multiplied in place** — the drift changes the effect every tick, so a
+  multiply-in-place would compound and corrupt the base. The legacy `useDrugs`
+  speed buff and the `legs` cybernetic therefore fold into that base instead of
+  the live speed (both systems compose; the buff's expiry divides the base back
+  out). All deterministic; no RNG. S3 (intelligence) and S4 (physical) follow; the
+  HUD bars/controls/ceilings are #502/#503/#504.
 - **Cybernetic upgrades** (issue #313, ADR-0031): Milestone A's passive stat
   upgrades. `CyberneticEffect` (`src/core/sim/Cybernetic.h`, header-only) holds
   four **multipliers** (all default 1.0); `cyberneticEffectForId(id, out)`
@@ -1109,9 +1163,12 @@ Do not start work outside the scope fence (ADR-0024).
   `Mission.ShippedDecapitationAssassinateIsWinnable` /
   `Mission.ShippedExtractionRetrieveIsWinnable` in `tests/test_mission.cpp`
   (load the real file, check the target is real/reachable, drive the mechanic to
-  the win). **The HUD banner half is still open (render, #474):**
-  `Game::objectiveBannerText` + the `--check-objectives` self-test must gain a
-  branch per new kind, or a mission using it will render the wrong banner.
+  the win). **The text half has landed (issue #475):** `hud.objective.assassinate`
+  and `hud.objective.retrieve` are in `assets/lang/en.json` (+ `de.json`), so the
+  render banner has keys to read. **The HUD banner half is still open (render,
+  #474):** `Game::objectiveBannerText` + the `--check-objectives` self-test must
+  gain a branch per new kind (with the matching `tr()` fallback), or a mission
+  using it will render the wrong banner.
 - **Sprites are authored text (ADR-0013):** agent and prop art lives in
   `assets/sprites/agents.txt` as `frame` blocks of `B`/`T`/`S`/`D`/`.`/`A`
   pixels. `core::bakeSheet` (`core/data/AgentSprites.*`, SDL-free, unit-tested)
@@ -1515,7 +1572,8 @@ Do not start work outside the scope fence (ADR-0024).
 - **Sound effects are a hand-rolled SDL2 layer (issue #423, ADR-0040).**
   `game::Audio` (`src/game/Audio.{h,cpp}`, its own translation unit — do not grow
   the shared `Game.cpp`) owns one `SDL_OpenAudioDevice` and a small fixed set of
-  **generated** cues (`Shoot`, `Hit`, `Explosion`, `Victory`, `Defeat`) mixed
+  **generated** cues (`Shoot`, `Hit`, `Explosion`, `Victory`, `Defeat`, and the UI
+  cues `Select`/`Navigate`/`Cancel`) mixed
   into a streaming buffer fed with `SDL_QueueAudio`. **No new dependency** (SDL2
   is already linked, so `SDL_mixer` was rejected) and **no audio asset** — every
   cue is synthesised, so nothing can be copied from the original (golden rule 8).
@@ -1523,18 +1581,37 @@ Do not start work outside the scope fence (ADR-0024).
   driver that cannot provide the baked format) it logs one `audio: disabled (...)`
   line and stays a silent no-op, so `enabled()` is false and every later call is
   harmless — the game always runs (AGENTS.md §1b). `Game::update` calls
-  `updateAudio()` then `audio_.update()`: `updateAudio` snapshots the frame's
+  `updateAudio()`, which snapshots the frame's
   events (the core's kill counts and mission state, plus `anyShot` derived from an
   agent's `gunfireTimer()` *rising* — `Agent::beginFireCooldown` sets it to 0.75
-  on every shot) and turns them into cues through the **pure, device-free
-  `cuesForFrame(previous, current)`**, which fires only on a *change* (a new kill,
+  on every shot) through the **device-free `snapshotAudioEvents(mission, scratch)`**
+  (so the guard drives the *real* derivation, not a copy) and turns them into cues
+  through the **pure, device-free `cuesForFrame(previous, current)`**, which fires
+  only on a *change* (a new kill,
   a decided outcome) so a steady state is silent and a kill/outcome fires once.
   View-only; it never writes core (golden rule 4). A headless run opens no device
   at all. **SFX are in scope for v1.0.0; music is not** (ADR-0024). The
-  `--check-audio` guard (ctest `game_audio`) drives the real synthesis/mixing path
-  and the real `cuesForFrame` mapping with no device: it fails on an empty or
+  `--check-audio` guard (ctest `game_audio`) drives the real synthesis/mixing path,
+  the real `snapshotAudioEvents`+`cuesForFrame` mapping on **scratch missions** (a
+  firefight that ends in a win → Shoot/Hit/Victory, a doomed squad → Defeat, a
+  planted bomb killing a civilian → Explosion), and the real `uiActionsForChange`
+  mapping, with no device: it fails on an empty or
   silent cue, non-deterministic synthesis, a mixer that does not sum cues, a
-  disabled `Audio` that is not a no-op, a steady frame that fires a cue, or a
-  kill/outcome that fires twice or maps to the wrong cue. The `docs/BUILD.md`
+  disabled `Audio` that is not a no-op, a steady frame that fires a cue, a
+  kill/outcome that fires twice or maps to the wrong cue, or a UI action that maps
+  to a combat cue or the wrong blip.
+- **UI cues are observed at the audio call site, not sprinkled through input
+  (issue #424).** The device is fed by **`Game::pumpAudio()`**, called from `run`
+  after `update` — *not* from `update`, which returns early on the map, the title
+  card, the new-game screen, and pause. So a cue queued on any screen still
+  sounds. `pumpAudio` calls `updateUiAudio()` (builds a `UiAudioState` — the
+  selection plus the overlay flags — and maps its change through the pure,
+  device-free **`uiActionsForChange(previous, current)`**: a selection change is
+  `Select`, opening the map/shop or pausing is `Navigate`, closing one or resuming
+  is `Cancel`), then `drainUiCues()`, then `Audio::update()`. Input handlers do
+  not call the audio layer: the observation lives in the audio region of the
+  shared `Game.cpp`, so adding a UI cue does not touch Input/UI's handlers. Add a
+  new UI cue to the `Cue`/`UiAction` enums and the generator, never as an asset.
+  The `docs/BUILD.md`
   audio-troubleshooting note is a **Release**-owned follow-up (a Rule 4 request,
   not an edit from Platform).

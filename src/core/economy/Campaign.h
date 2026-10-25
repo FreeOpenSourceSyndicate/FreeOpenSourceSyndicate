@@ -133,6 +133,15 @@ public:
     // mission's default (issues #312, #341).
     PlayerLoadout selectedLoadout() const;
 
+    // The drug bar ceilings for the selected mission's squad (ADR-0043), parallel
+    // to `selectedSlots()`: entry i is the ceilings the squad slot
+    // `selectedSlots()[i]` grants, so the deploy path can tell the tactical layer
+    // how high each bar may be regulated. An empty result means "no ceilings"
+    // (no drug item bought), which the tactical bar model treats as "no bar may be
+    // raised". This is the metagame half; carrying the value onto the deployed
+    // agents is a Rule 4 request to `focus: tactical` (#499).
+    std::vector<DrugCeilings> selectedCeilings() const;
+
     // --- progression ---
 
     // Records the result of the selected mission. A win claims the territory for

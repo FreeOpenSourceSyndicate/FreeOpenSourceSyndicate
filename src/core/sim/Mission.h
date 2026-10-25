@@ -8,6 +8,7 @@
 #include "core/math/Vec2.h"
 #include "core/sim/Agent.h"
 #include "core/sim/Cybernetic.h"
+#include "core/sim/Drug.h"
 #include "core/sim/Objective.h"
 #include "core/util/Rng.h"
 #include "core/world/TileGrid.h"
@@ -177,6 +178,62 @@ public:
 
     // Remaining seconds of the agent's active drug buff (0 when none).
     float drugsTimer(std::size_t index) const;
+
+    // --- regulated drug bars (ADR-0043, v1.0.0 model) ------------------------
+
+    // Sets one of the agent's three drug bars (see `Drug`). The level is clamped
+    // to [0, 1]; no-op for an invalid index. This is the player's regulation of
+    // the bar — it does not touch the drifting neutral point.
+    void setDrugLevel(std::size_t index, Drug drug, float level);
+
+    // The agent's current level on `drug` (0 for an invalid index, matching the
+    // other gadget accessors; a valid agent is always at least `kDrugNeutralStart`
+    // by default, so 0 is unambiguous only as the invalid-index sentinel).
+    float drugLevel(std::size_t index, Drug drug) const;
+
+    // The agent's drifting neutral point on `drug` (starts at `kDrugNeutralStart`).
+    // The point moves toward the current level each tick (normalisation); the
+    // level itself never drifts. 0 for an invalid index.
+    float drugNeutral(std::size_t index, Drug drug) const;
+
+    // The effective drug effect on `drug`: `level - neutral`, clamped to [-1, 1].
+    // Positive means "above the body's adaptation" (a boost), negative means
+    // "below it" (a penalty). Exposed so S2-S4 and the HUD do not re-derive the
+    // rule. 0 for an invalid index.
+    float drugEffect(std::size_t index, Drug drug) const;
+
+    // --- adrenalin behaviour (ADR-0043, S2) ----------------------------------
+
+    // The threat the agent at `index` currently feels: the sum over every
+    // **visible** living enemy of `threatLevel(other)` scaled by situational
+    // modifiers: distance (closer is higher), "is targeting me", "is targeting
+    // a team-mate", and "is moving towards me". Pure and deterministic (no RNG);
+    // 0 for an invalid index or a non-combatant. This is adrenalin's input
+    // (see `isPanicking`).
+    float threatTo(std::size_t index) const;
+
+    // True while the agent at `index` is panicking: its felt threat exceeds the
+    // adrenalin-scaled panic threshold, so it ignores the player's orders and
+    // flees the threat until it settles. An agent with adrenalin effect <= 0
+    // **never** panics. Clears (with hysteresis) once the threat falls. False for
+    // an invalid index or a non-combatant.
+    bool isPanicking(std::size_t index) const;
+
+    // The AI re-evaluation cadence (seconds) the agent at `index` uses: shorter
+    // with higher adrenalin (faster reaction / target re-acquisition), longer
+    // with lower adrenalin. Read by `updateCombatantAI`; exposed for tests and
+    // the HUD. Returns the base cadence for an invalid index.
+    float reactionInterval(std::size_t index) const;
+
+    // The multiplier the live adrenalin effect applies to the agent's base hit
+    // chance: below 1 as adrenalin rises (high = low precision), above 1 as it
+    // falls (low = high precision). Read by `resolveFire`; exposed for tests.
+    float adrenalinAccuracyScale(std::size_t index) const;
+
+    // The base threat an agent projects from its equipment (weapon damage and
+    // blast area), before any situational modifiers. Data-derived, so a heavier
+    // gun is a bigger threat without a new `Agent` field. 0 for a non-combatant.
+    float threatLevel(std::size_t index) const;
 
     // --- cybernetic upgrades -------------------------------------------------
 
@@ -468,6 +525,17 @@ private:
     // through walls.
     bool seesTarget(std::size_t observer, std::size_t target) const;
 
+    // Recomputes the agent's movement speed from `adrenalinBaseSpeed_` and the
+    // live adrenalin effect (faster as effect rises). Recompute, never
+    // multiply in place: the effect drifts as the bar normalises, so a
+    // multiply-in-place would compound every tick and corrupt the base speed.
+    void applyAdrenalinSpeed(std::size_t index);
+
+    // Evaluates panic for `index` and, when it triggers, puts the agent into its
+    // order-ignoring flee reaction. Called once per update, before the AI thinks,
+    // so a panicking agent never obeys the player's order that tick.
+    void updatePanic(std::size_t index);
+
     TileGrid* grid_ = nullptr;
     std::vector<Agent> agents_;
     std::vector<Vehicle> vehicles_;
@@ -497,6 +565,18 @@ private:
     std::vector<float> scannerTimer_;// active scan pulse, sized to agents_
     std::vector<int> drugs_;         // doses carried, sized to agents_
     std::vector<float> drugsTimer_;  // active drug buff, sized to agents_
+    // One three-bar drug state per agent (ADR-0043), sized to agents_ and kept in
+    // sync by `addAgent`. The old single-dose `drugs_`/`drugsTimer_` pair above is
+    // retired by S4; this is the regulated-bar model that replaces it.
+    std::vector<DrugState> drugStates_;
+    // Adrenalin (S2). The agent's speed before the live adrenalin effect is
+    // applied: the speed must be *recomputed* from this each tick, never
+    // multiplied in place, or the normalisation drift corrupts the base stat
+    // (S4's physical slice must do the same for health/speed).
+    std::vector<float> adrenalinBaseSpeed_;
+    // Latched panic flag per agent. Panic clears with hysteresis, so a latching
+    // flag (not a recomputation) is needed; kept in sync by `addAgent`.
+    std::vector<bool> panicking_;
     Rng rng_;
     ObjectiveSpec objective_;
     // Retrieve: latched true once a living player agent has stood on the item

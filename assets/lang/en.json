@@ -11,6 +11,8 @@
   "hud.objective.escort": "OBJECTIVE: ESCORT {name} TO ({x},{y})",
   "hud.objective.destroy": "OBJECTIVE: DESTROY ({x},{y})",
   "hud.objective.persuade": "OBJECTIVE: RECRUIT {count} FOLLOWERS",
+  "hud.objective.assassinate": "OBJECTIVE: ASSASSINATE {name}",
+  "hud.objective.retrieve": "OBJECTIVE: RETRIEVE ITEM ({ix},{iy}) TO ({x},{y})",
   "hud.controls": "[SHIFT+CLICK] QUEUE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   [P] PERSUADE   [F] FREE   [H] MEDKIT   [S] SHIELD   [C] SCAN   [B] DRUGS   [E] HIJACK   [R] RESTART",
   "hud.followers": "FOLLOWERS: {count}",
   "hud.collateral": "COLLATERAL: {count}",
@@ -47,5 +49,11 @@
   "mission.decapitation.name": "Decapitation",
   "mission.decapitation.desc": "Cut the head off the operation: find and kill the OVERSEER while the garrison fights on.",
   "mission.extraction.name": "Extraction",
-  "mission.extraction.desc": "Grab the briefcase on the far ledge and carry it back to the extraction tile."
+  "mission.extraction.desc": "Grab the briefcase on the far ledge and carry it back to the extraction tile.",
+  "mission.holdout.name": "Holdout",
+  "mission.holdout.desc": "Stand your ground in the Vostaran ruins and survive the raiders' assault until the clock runs out.",
+  "mission.caravan.name": "Caravan",
+  "mission.caravan.desc": "Escort the courier across the Sahari dunes and bring them alive to the far oasis gate.",
+  "mission.relay.name": "Relay",
+  "mission.relay.desc": "Breach the Anduran relay wall and destroy the transmitter before the garrison seals the pass."
 }

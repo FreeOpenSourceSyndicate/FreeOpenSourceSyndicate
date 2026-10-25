@@ -54,6 +54,22 @@ class CheckSizeTest(unittest.TestCase):
         code, out = self._run(budget=1000)
         self.assertEqual(code, OK, out)
 
+    def test_small_headroom_warns_but_stays_green(self):
+        # A margin smaller than one ELF page (4096 B) is the trap that reddened
+        # main: two PRs each pass alone, then merge to cross the cap (#489/#490).
+        # The gate must still exit 0 but say so, so the next author acts first.
+        self._write(4096)
+        code, out = self._run(budget=4096 + 2048)  # 2 KiB of headroom
+        self.assertEqual(code, OK, out)
+        self.assertIn("WARNING", out)
+        self.assertIn("headroom", out)
+
+    def test_ample_headroom_does_not_warn(self):
+        self._write(4096)
+        code, out = self._run(budget=4096 + 8192)  # 8 KiB of headroom
+        self.assertEqual(code, OK, out)
+        self.assertNotIn("WARNING", out)
+
     def test_exactly_on_the_budget_passes(self):
         # The budget is a cap ("<="), so the boundary must not fail.
         self._write(1024)

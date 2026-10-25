@@ -61,7 +61,7 @@ std::string finalMissionCampaignFile()
                      "  \"equipment\": \"" +
                      dir +
                      "equipment.json\",\n"
-                     "  \"missions\": [\"demo\", \"escort\", \"blackout\", \"assembly\", \"overpass\"],\n"
+                     "  \"missions\": [\"demo\", \"escort\", \"blackout\", \"assembly\", \"overpass\", \"holdout\", \"caravan\", \"relay\"],\n"
                      "  \"winCondition\": \"final-mission\", \"finalMission\": \"overpass\"\n"
                      "}");
 }
@@ -244,6 +244,63 @@ FOSSYND_TEST(Campaign, SelectedLoadoutMapsBoughtEquipmentToSlots)
     const PlayerLoadout one = campaign.selectedLoadout();
     FOSSYND_CHECK_EQ(one.slots.size(), std::size_t{1});
     FOSSYND_CHECK(one.slots[0].weaponId.empty());
+}
+
+FOSSYND_TEST(Campaign, SelectedCeilingsFollowTheSquadAndSumPerBar)
+{
+    // ADR-0043, #504: the metagame half of the drug bar model. A bought ceiling
+    // reaches the deploy path as a per-slot `DrugCeilings`, parallel to
+    // `selectedLoadout`, so the tactical layer can cap each bar. The tactical
+    // half (applying them to a Mission) is a Rule 4 request, so this pins the
+    // metagame contract only.
+    Campaign campaign = loadedCampaign();
+    const int player = Campaign::kPlayerSyndicate;
+
+    // Nothing bought: every selected slot reports no ceiling (the metagame
+    // grants none; how tactical treats an absent ceiling is its own default).
+    FOSSYND_CHECK(campaign.selectMission(0, {0, 1, 2, 3}));
+    const std::vector<DrugCeilings> none = campaign.selectedCeilings();
+    FOSSYND_CHECK_EQ(none.size(), std::size_t{4});
+    for (const DrugCeilings& ceilings : none)
+    {
+        FOSSYND_CHECK(!ceilings.any());
+    }
+
+    // Buy all three ceilings into squad slot 0 (research gates them, so complete
+    // the nodes first), and one into slot 1. Research is idle-gated, so fund and
+    // complete each node in turn.
+    campaign.economy().addFunds(player, 5000.0f);
+    for (const char* node : {"adrenalin-ceiling", "intelligence-ceiling",
+                             "physical-ceiling"})
+    {
+        FOSSYND_CHECK(
+            campaign.research().begin(player, node, campaign.researchTree(), campaign.economy()));
+        campaign.research().tick(200.0f); // complete it before starting the next
+        FOSSYND_CHECK(campaign.research().completed(player, node));
+    }
+
+    campaign.equipment().equip(player, 0, "adrenalin-ceiling", campaign.catalogue());
+    campaign.equipment().equip(player, 0, "intelligence-ceiling", campaign.catalogue());
+    campaign.equipment().equip(player, 0, "physical-ceiling", campaign.catalogue());
+    campaign.equipment().equip(player, 1, "adrenalin-ceiling", campaign.catalogue());
+
+    FOSSYND_CHECK(campaign.selectMission(0, {0, 1, 2, 3}));
+    const std::vector<DrugCeilings> ceilings = campaign.selectedCeilings();
+    FOSSYND_CHECK_EQ(ceilings.size(), std::size_t{4});
+    FOSSYND_CHECK_NEAR(ceilings[0].adrenalin, 1.0f);
+    FOSSYND_CHECK_NEAR(ceilings[0].intelligence, 1.0f);
+    FOSSYND_CHECK_NEAR(ceilings[0].physical, 1.0f);
+    FOSSYND_CHECK_NEAR(ceilings[1].adrenalin, 1.0f);
+    FOSSYND_CHECK_NEAR(ceilings[1].intelligence, 0.0f);
+    FOSSYND_CHECK(!ceilings[2].any());
+    FOSSYND_CHECK(!ceilings[3].any());
+
+    // The ceilings follow the selected slots, like the loadout.
+    FOSSYND_CHECK(campaign.selectMission(0, {1}));
+    const std::vector<DrugCeilings> one = campaign.selectedCeilings();
+    FOSSYND_CHECK_EQ(one.size(), std::size_t{1});
+    FOSSYND_CHECK_NEAR(one[0].adrenalin, 1.0f);
+    FOSSYND_CHECK_NEAR(one[0].physical, 0.0f);
 }
 
 FOSSYND_TEST(Campaign, ShippedCampaignCanBeWonByClaimingTheFrontier)
@@ -446,7 +503,9 @@ FOSSYND_TEST(Campaign, TheMapUsesTheWholeMissionSetNotJustTheDemo)
         }
     }
 
-    FOSSYND_CHECK_EQ(used.size(), std::size_t{5}); // demo, escort, blackout, assembly, overpass
+    // #519: regions 2/3/7 were repointed at the #511 frontier missions, so the
+    // map now names eight distinct boards.
+    FOSSYND_CHECK_EQ(used.size(), std::size_t{8}); // demo, escort, blackout, assembly, overpass, holdout, caravan, relay
     // Every id named by the map must also be in the campaign's shipped list.
     for (const std::string& id : used)
     {

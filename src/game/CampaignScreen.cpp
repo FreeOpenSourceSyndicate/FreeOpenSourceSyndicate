@@ -595,11 +595,18 @@ void CampaignScreen::renderShop(SDL_Renderer* renderer, const BitmapFont& font, 
             for (const std::string& equippedId : slot)
             {
                 const core::EquipmentItem* equipped = campaign_.catalogue().find(equippedId);
-                if (equipped != nullptr && equipped->kind == item.kind)
+                if (equipped == nullptr || equipped->kind != item.kind)
                 {
-                    action += " (REPLACE " + equipped->name + ")";
-                    break;
+                    continue;
                 }
+                // A drug ceiling replaces only a ceiling for the same bar (a slot
+                // carries one per bar, ADR-0043), so only name a same-bar item.
+                if (item.kind == core::EquipmentKind::Drug && equipped->bar != item.bar)
+                {
+                    continue;
+                }
+                action += " (REPLACE " + equipped->name + ")";
+                break;
             }
             action += " (LEFT/RIGHT)";
         }

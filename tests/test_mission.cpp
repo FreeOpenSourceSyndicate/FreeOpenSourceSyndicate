@@ -2190,6 +2190,322 @@ FOSSYND_TEST(Mission, DrugsRaiseHitChance)
     FOSSYND_CHECK(buffedDamage > plainDamage);
 }
 
+// --- regulated drug bars (ADR-0043, issue #496) ------------------------------
+
+FOSSYND_TEST(Mission, DrugBarsStartAtNeutralWithZeroEffect)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 90u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+
+    for (Drug drug : {Drug::Adrenalin, Drug::Intelligence, Drug::Physical})
+    {
+        FOSSYND_CHECK_NEAR(mission.drugLevel(hero, drug), kDrugNeutralStart);
+        FOSSYND_CHECK_NEAR(mission.drugNeutral(hero, drug), kDrugNeutralStart);
+        FOSSYND_CHECK_NEAR(mission.drugEffect(hero, drug), 0.0f);
+    }
+}
+
+FOSSYND_TEST(Mission, DrugLevelClampsAndInvalidIndexIsNoOp)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 91u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+
+    mission.setDrugLevel(hero, Drug::Physical, 2.5f);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(hero, Drug::Physical), 1.0f);
+    mission.setDrugLevel(hero, Drug::Physical, -3.0f);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(hero, Drug::Physical), 0.0f);
+    mission.setDrugLevel(hero, Drug::Physical, 0.75f);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(hero, Drug::Physical), 0.75f);
+
+    // An out-of-range index is a safe no-op and reads back the sentinel 0.
+    const std::size_t bad = 99u;
+    mission.setDrugLevel(bad, Drug::Adrenalin, 1.0f);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(bad, Drug::Adrenalin), 0.0f);
+    FOSSYND_CHECK_NEAR(mission.drugNeutral(bad, Drug::Adrenalin), 0.0f);
+    FOSSYND_CHECK_NEAR(mission.drugEffect(bad, Drug::Adrenalin), 0.0f);
+}
+
+FOSSYND_TEST(Mission, DrugNeutralDriftsTowardTheHeldLevelAndShrinksTheEffect)
+{
+    // The normalisation property: hold a bar high and the body adapts, so the
+    // *effect* shrinks even though the player has not touched the level.
+    TileGrid grid(20, 20);
+    Mission mission(grid, 92u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    // A distant enemy keeps the mission Running (an empty enemy list would win).
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100000.0f,
+                               Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+
+    mission.setDrugLevel(hero, Drug::Adrenalin, 1.0f);
+    FOSSYND_CHECK_NEAR(mission.drugEffect(hero, Drug::Adrenalin), 0.5f);
+
+    // One second of drift at kDrugNormalisationRate (0.25/s): neutral rises by
+    // 0.25, so the effect falls from 0.5 to 0.25. The level is untouched.
+    for (int i = 0; i < 20; ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK_NEAR(mission.drugLevel(hero, Drug::Adrenalin), 1.0f);
+    FOSSYND_CHECK_NEAR(mission.drugNeutral(hero, Drug::Adrenalin), 0.75f);
+    FOSSYND_CHECK_NEAR(mission.drugEffect(hero, Drug::Adrenalin), 0.25f);
+}
+
+FOSSYND_TEST(Mission, DroppingABarAfterAHighHoldGivesANegativeEffect)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 93u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100000.0f,
+                               Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+
+    // Hold high long enough for the neutral point to climb, then drop the bar:
+    // the agent is now *below* its adapted level, so the effect is negative.
+    mission.setDrugLevel(hero, Drug::Physical, 1.0f);
+    for (int i = 0; i < 40; ++i) // 2 s: neutral rises by 0.5 toward 1.0
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK(mission.drugNeutral(hero, Drug::Physical) > kDrugNeutralStart);
+
+    mission.setDrugLevel(hero, Drug::Physical, 0.0f);
+    FOSSYND_CHECK(mission.drugEffect(hero, Drug::Physical) < 0.0f);
+}
+
+FOSSYND_TEST(Mission, AddAgentGrowsTheDrugStateWithTheRoster)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 94u);
+    const std::size_t first = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    mission.setDrugLevel(first, Drug::Intelligence, 0.9f);
+
+    // A second agent starts fresh at neutral; the first keeps its own bar.
+    const std::size_t second = mission.addAgent(makeAgent(3.0f, 2.0f, Team::Player, 100.0f));
+    FOSSYND_CHECK_NEAR(mission.drugLevel(second, Drug::Intelligence), kDrugNeutralStart);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(first, Drug::Intelligence), 0.9f);
+
+    // A civilian added later is kept in sync too (no crash, sane defaults).
+    const std::size_t bystander = mission.addAgent(makeAgent(4.0f, 2.0f, Team::Civilian, 20.0f));
+    FOSSYND_CHECK_NEAR(mission.drugLevel(bystander, Drug::Physical), kDrugNeutralStart);
+}
+
+// --- adrenalin behaviour (ADR-0043, S2, issue #497) --------------------------
+
+namespace
+{
+// A high-damage weapon so a single visible enemy clears the panic threshold.
+Weapon makeCannon() { return Weapon{"Cannon", 40.0f, 8.0f, 1.0f, 0.8f}; }
+} // namespace
+
+FOSSYND_TEST(Mission, ThreatIsZeroWithoutVisibleThreats)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 100u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+
+    FOSSYND_CHECK_NEAR(mission.threatTo(hero), 0.0f);
+    // A non-combatant projects no threat of its own and feels none.
+    const std::size_t bystander = mission.addAgent(makeAgent(3.0f, 2.0f, Team::Civilian, 20.0f));
+    FOSSYND_CHECK_NEAR(mission.threatTo(bystander), 0.0f);
+    FOSSYND_CHECK_NEAR(mission.threatLevel(bystander), 0.0f);
+}
+
+FOSSYND_TEST(Mission, ThreatRisesWithProximityAndIsDeterministic)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 101u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    const std::size_t far = mission.addAgent(makeAgent(2.0f, 9.0f, Team::Enemy, 100.0f,
+                                                       makePistol()));
+    const float farThreat = mission.threatTo(hero);
+    FOSSYND_CHECK(farThreat > 0.0f);
+    // Pure and deterministic: repeated reads agree exactly (no RNG).
+    FOSSYND_CHECK_NEAR(mission.threatTo(hero), farThreat);
+
+    // The same enemy moved closer raises the felt threat.
+    mission.agents()[far].setPosition(2.0f, 3.0f);
+    const float nearThreat = mission.threatTo(hero);
+    FOSSYND_CHECK(nearThreat > farThreat);
+
+    // A wall between them removes the threat entirely (must be visible).
+    mission.agents()[far].setPosition(2.0f, 9.0f);
+    for (int y = 3; y < 9; ++y)
+    {
+        grid.setWalkable(2, y, false);
+    }
+    FOSSYND_CHECK_NEAR(mission.threatTo(hero), 0.0f);
+}
+
+FOSSYND_TEST(Mission, ThreatRisesWhenTargetedAndWhenTargetingAnAlly)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 102u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    const std::size_t mate = mission.addAgent(makeAgent(2.0f, 4.0f, Team::Player, 100.0f));
+    const std::size_t foe = mission.addAgent(makeAgent(2.0f, 9.0f, Team::Enemy, 100.0f,
+                                                       makePistol()));
+
+    const float baseline = mission.threatTo(hero);
+    FOSSYND_CHECK(baseline > 0.0f);
+
+    // The enemy aims at the ally: a team-mate under fire raises the threat.
+    mission.agents()[foe].setOrderedTarget(static_cast<int>(mate));
+    const float allyTargeted = mission.threatTo(hero);
+    FOSSYND_CHECK(allyTargeted > baseline);
+
+    // The enemy aims at me: worse than aiming at an ally.
+    mission.agents()[foe].setOrderedTarget(static_cast<int>(hero));
+    const float meTargeted = mission.threatTo(hero);
+    FOSSYND_CHECK(meTargeted > allyTargeted);
+}
+
+FOSSYND_TEST(Mission, ThreatIsLowerWhenTheEnemyHasNotSeenMe)
+{
+    // "Has seen me" is asymmetric: a threat that has not noticed me is less
+    // dangerous than one that has, and an agent can see further than a myopic
+    // enemy's sight range (per-agent sight ranges, issue #333).
+    TileGrid grid(20, 20);
+    Mission mission(grid, 108u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    const std::size_t foe = mission.addAgent(makeAgent(2.0f, 8.0f, Team::Enemy, 100.0f,
+                                                       makePistol()));
+
+    const float seen = mission.threatTo(hero);
+    FOSSYND_CHECK(seen > 0.0f);
+    // Shrink the enemy's sight so it can no longer see the hero, but the hero can
+    // still see it: the felt threat drops.
+    mission.setSightRange(foe, 1.0f);
+    const float unseen = mission.threatTo(hero);
+    FOSSYND_CHECK(unseen > 0.0f);
+    FOSSYND_CHECK(unseen < seen);
+}
+
+FOSSYND_TEST(Mission, CalmAdrenalinNeverPanicsButHighAdrenalinDoes)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 103u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100000.0f));
+    mission.addAgent(makeAgent(2.0f, 3.0f, Team::Enemy, 100000.0f, makeCannon()));
+
+    // Adrenalin level == neutral => effect 0 => never panics, whatever the threat.
+    mission.setDrugLevel(hero, Drug::Adrenalin, kDrugNeutralStart);
+    FOSSYND_CHECK_NEAR(mission.drugEffect(hero, Drug::Adrenalin), 0.0f);
+    FOSSYND_CHECK(mission.threatTo(hero) > 0.0f);
+    mission.update(0.05f);
+    FOSSYND_CHECK(!mission.isPanicking(hero));
+
+    // High adrenalin (effect 0.5) under the same threat => panic.
+    mission.setDrugLevel(hero, Drug::Adrenalin, 1.0f);
+    FOSSYND_CHECK_NEAR(mission.drugEffect(hero, Drug::Adrenalin), 0.5f);
+    mission.update(0.05f);
+    FOSSYND_CHECK(mission.isPanicking(hero));
+}
+
+FOSSYND_TEST(Mission, PanickingAgentIgnoresOrdersAndSettlesWhenThreatClears)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 104u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100000.0f));
+    const std::size_t foe = mission.addAgent(makeAgent(2.0f, 3.0f, Team::Enemy, 100000.0f,
+                                                       makeCannon()));
+    mission.setDrugLevel(hero, Drug::Adrenalin, 1.0f);
+    mission.update(0.05f);
+    FOSSYND_CHECK(mission.isPanicking(hero));
+    FOSSYND_CHECK_EQ(mission.agents()[hero].aiState(), AiState::Retreat);
+
+    // An order while panicking is dropped: the flee path is untouched.
+    const std::vector<TilePos> fleePath = mission.agents()[hero].path();
+    mission.orderMove(hero, TilePos{15, 15});
+    FOSSYND_CHECK(mission.agents()[hero].path() == fleePath);
+    FOSSYND_CHECK(mission.isPanicking(hero));
+
+    // Once the threat is gone the panic clears (with hysteresis) and orders work
+    // again.
+    mission.agents()[foe].applyDamage(1.0e6f);
+    mission.update(0.05f);
+    FOSSYND_CHECK(!mission.isPanicking(hero));
+    mission.orderMove(hero, TilePos{15, 15});
+    FOSSYND_CHECK(!mission.agents()[hero].path().empty());
+    FOSSYND_CHECK(mission.agents()[hero].path().back() == (TilePos{15, 15}));
+}
+
+FOSSYND_TEST(Mission, AdrenalinMovesSpeedReactionAndAccuracyInDocumentedDirections)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 105u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    // A harmless distant enemy keeps the mission Running (no living enemies would
+    // end it and make later updates no-ops) and adds no meaningful threat.
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100000.0f,
+                               Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+    const float baseSpeed = mission.agents()[hero].speed();
+
+    // High adrenalin: faster, shorter reaction cadence, less precise.
+    mission.setDrugLevel(hero, Drug::Adrenalin, 1.0f);
+    mission.update(0.05f);
+    FOSSYND_CHECK(mission.agents()[hero].speed() > baseSpeed);
+    FOSSYND_CHECK(mission.reactionInterval(hero) < 0.4f);
+    FOSSYND_CHECK(mission.adrenalinAccuracyScale(hero) < 1.0f);
+
+    // Low adrenalin: the mirror — slower, slower to react, more precise.
+    mission.setDrugLevel(hero, Drug::Adrenalin, 0.0f);
+    mission.update(0.05f);
+    FOSSYND_CHECK(mission.agents()[hero].speed() < baseSpeed);
+    FOSSYND_CHECK(mission.reactionInterval(hero) > 0.4f);
+    FOSSYND_CHECK(mission.adrenalinAccuracyScale(hero) > 1.0f);
+}
+
+FOSSYND_TEST(Mission, AdrenalinSpeedIsRecomputedNotCompoundedByNormalisation)
+{
+    // The normalisation drift changes the effect every tick; a multiply-in-place
+    // implementation would compound it and run the speed away. The speed must
+    // stay within the documented band [base, base*(1+gain)] as the neutral point
+    // adapts to a held-high bar.
+    TileGrid grid(20, 20);
+    Mission mission(grid, 106u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100000.0f,
+                               Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+    const float baseSpeed = mission.agents()[hero].speed();
+
+    mission.setDrugLevel(hero, Drug::Adrenalin, 1.0f);
+    for (int i = 0; i < 200; ++i)
+    {
+        mission.update(0.05f);
+        const float speed = mission.agents()[hero].speed();
+        FOSSYND_CHECK(speed >= baseSpeed * 0.999f);
+        FOSSYND_CHECK(speed <= baseSpeed * 1.5f + 0.001f);
+    }
+}
+
+FOSSYND_TEST(Mission, AdrenalinComposesWithTheLegacyDrugBuffAndLegsUpgrade)
+{
+    // The adrenalin path recomputes speed from `adrenalinBaseSpeed_` every tick.
+    // A legacy one-off speed buff (the `useDrugs` gadget) and a legs cybernetic
+    // must therefore fold into that base, or the recompute would erase them.
+    TileGrid grid(20, 20);
+    Mission mission(grid, 107u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100000.0f,
+                               Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+    const float baseSpeed = mission.agents()[hero].speed();
+
+    // The legs upgrade raises the base; a subsequent tick must keep it.
+    FOSSYND_CHECK(mission.applyCybernetic(hero, "legs"));
+    const float legsSpeed = mission.agents()[hero].speed();
+    FOSSYND_CHECK(legsSpeed > baseSpeed);
+    mission.update(0.05f);
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].speed(), legsSpeed);
+
+    // The legacy buff stacks on top of the legs base and survives ticks.
+    mission.setDrugs(hero, 1);
+    FOSSYND_CHECK(mission.useDrugs(hero));
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].speed(), legsSpeed * 1.5f);
+    mission.update(0.05f);
+    FOSSYND_CHECK(mission.agents()[hero].speed() > legsSpeed);
+}
+
 // --- cybernetic upgrades (Milestone A, issue #313) ---------------------------
 
 FOSSYND_TEST(Mission, CyberneticVocabularyRejectsUnknown)
@@ -2638,6 +2954,36 @@ int indexOfAgentNamed(const Mission& mission, const std::string& name)
     return -1;
 }
 
+// The nearest living enemy to a player agent, or -1. `Mission::nearestEnemy` is
+// private, so a winnability test picks its own target; any living enemy keeps
+// the squad engaged, which is all the drive needs.
+int nearestLivingEnemy(const Mission& mission, std::size_t self)
+{
+    const std::vector<Agent>& agents = mission.agents();
+    if (self >= agents.size())
+    {
+        return -1;
+    }
+    int best = -1;
+    float bestDistance = 0.0f;
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (agents[i].team() != Team::Enemy || !agents[i].isAlive())
+        {
+            continue;
+        }
+        const float dx = agents[i].position().x - agents[self].position().x;
+        const float dy = agents[i].position().y - agents[self].position().y;
+        const float distance = dx * dx + dy * dy;
+        if (best < 0 || distance < bestDistance)
+        {
+            best = static_cast<int>(i);
+            bestDistance = distance;
+        }
+    }
+    return best;
+}
+
 } // namespace
 
 FOSSYND_TEST(Mission, ShippedBlackoutDestroyIsWinnable)
@@ -2943,6 +3289,154 @@ FOSSYND_TEST(Mission, ShippedExtractionRetrieveIsWinnable)
     orderSquadTo(exit);
     runUntilDone(mission, 40.0f);
     FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+}
+
+// --- Shipped frontier mission set, slice 1 (issue #511) --------------------
+//
+// The campaign's first three frontier regions (2 Vostara, 3 Sahari, 7 Andura)
+// must ship *distinct* boards, not replay the opening shared set. Each case
+// loads the real file through the real loader, builds the real grid, and drives
+// the objective's own mechanic to the win — so an unwinnable layout fails here
+// rather than at a playtest. `holdout` is notable: it is the first shipped
+// mission to use the `survive` objective, so that kind is now reachable in play
+// rather than merely evaluated by the core.
+
+FOSSYND_TEST(Mission, ShippedHoldoutSurviveIsWinnable)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("holdout"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Survive);
+    FOSSYND_CHECK(data.objective.seconds > 0.0f);
+
+    // A survive objective with no live enemy is a walkover, and one with a
+    // trivially lethal garrison is unwinnable; require a real garrison so the
+    // mission is a genuine holdout.
+    std::size_t enemies = 0;
+    for (const AgentSpec& spec : data.agents)
+    {
+        if (spec.team == Team::Enemy)
+        {
+            ++enemies;
+        }
+    }
+    FOSSYND_CHECK(enemies >= 2);
+
+    TileGrid grid = buildGrid(data);
+    Mission mission(grid, 31u);
+    populateMission(data, mission);
+
+    // The player's real action: fight the garrison off while the clock runs. The
+    // mission is won by *surviving*, not by wiping the garrison, so the win must
+    // land on the timer even if the enemies are still alive.
+    for (int guard = 0; guard < 120 && mission.state() == MissionState::Running; ++guard)
+    {
+        for (std::size_t i = 0; i < mission.agents().size(); ++i)
+        {
+            if (mission.agents()[i].team() != Team::Player || !mission.agents()[i].isAlive())
+            {
+                continue;
+            }
+            const int target = nearestLivingEnemy(mission, i);
+            if (target >= 0)
+            {
+                mission.orderAttack(i, static_cast<std::size_t>(target));
+            }
+        }
+        runUntilDone(mission, 2.0f);
+    }
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK(mission.elapsedSeconds() >= data.objective.seconds);
+}
+
+FOSSYND_TEST(Mission, ShippedCaravanEscortIsWinnable)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("caravan"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Escort);
+
+    // The escorted unit must be a real player agent, and the exit must be
+    // reachable from the squad or the mission is silently unwinnable (#212).
+    const int escorted = data.objective.agentIndex;
+    FOSSYND_CHECK(escorted >= 0);
+    FOSSYND_CHECK(static_cast<std::size_t>(escorted) < data.agents.size());
+    FOSSYND_CHECK_EQ(data.agents[static_cast<std::size_t>(escorted)].team, Team::Player);
+
+    TileGrid grid = buildGrid(data);
+    const TilePos exit{data.objective.tileX, data.objective.tileY};
+    FOSSYND_CHECK(grid.isWalkable(exit.x, exit.y));
+    const TilePos start{static_cast<int>(data.agents.front().x),
+                        static_cast<int>(data.agents.front().y)};
+    FOSSYND_CHECK(!findPath(grid, start, exit, /*allowDiagonal=*/true).empty());
+
+    Mission mission(grid, 32u);
+    populateMission(data, mission);
+
+    // The player's real action: walk the squad to the exit. The escorted unit
+    // must reach it alive, so losing it loses the mission.
+    for (int guard = 0; guard < 60 && mission.state() == MissionState::Running; ++guard)
+    {
+        for (std::size_t i = 0; i < mission.agents().size(); ++i)
+        {
+            if (mission.agents()[i].team() == Team::Player && mission.agents()[i].isAlive())
+            {
+                mission.orderMove(i, exit);
+            }
+        }
+        runUntilDone(mission, 4.0f);
+    }
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK(mission.agents()[static_cast<std::size_t>(escorted)].isAlive());
+    FOSSYND_CHECK(mission.agents()[static_cast<std::size_t>(escorted)].tile() == exit);
+}
+
+FOSSYND_TEST(Mission, ShippedRelayDestroyIsWinnable)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("relay"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Destroy);
+
+    TileGrid grid = buildGrid(data);
+    const TilePos goal{data.objective.tileX, data.objective.tileY};
+    // The objective names a destructible wall, not a floor tile: without a
+    // breachable target the mission could never be won.
+    FOSSYND_CHECK(grid.isDestructible(goal.x, goal.y));
+    FOSSYND_CHECK(!grid.isWalkable(goal.x, goal.y));
+
+    Mission mission(grid, 33u);
+    populateMission(data, mission);
+    FOSSYND_CHECK(mission.objective().kind == ObjectiveSpec::Kind::Destroy);
+
+    // The player's real action: order the squad onto the defender behind the
+    // wall. The wall blocks the shot, so the agent chips the wall — the destroy
+    // objective's actual mechanic.
+    FOSSYND_CHECK(!grid.isRubble(goal.x, goal.y));
+    for (int guard = 0; guard < 60 && mission.state() == MissionState::Running; ++guard)
+    {
+        for (std::size_t i = 0; i < mission.agents().size(); ++i)
+        {
+            if (mission.agents()[i].team() != Team::Player || !mission.agents()[i].isAlive())
+            {
+                continue;
+            }
+            const int target = nearestLivingEnemy(mission, i);
+            if (target >= 0)
+            {
+                mission.orderAttack(i, static_cast<std::size_t>(target));
+            }
+        }
+        runUntilDone(mission, 2.0f);
+    }
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK(grid.isRubble(goal.x, goal.y));
 }
 
 // A shipped mission's `vehicles[]` must reach the board (issue #417). The

@@ -395,6 +395,16 @@ another area**. It helps only on request:
 4. **Respect ownership.** A helper edits the owner's files only for the assigned
    task, and the owner reviews the PR (`AGENTS.md` §3a).
 5. **Hand back.** Report in the hand-off format and return to your own queue.
+   **A helper lease on a second area is released as soon as the edit is
+   committed** — before the PR is opened — not when it merges. The issue's
+   **primary** area keeps its lease until the PR lands, but two live leases for
+   one issue fail `coord check` (CI *Lease ledger check*), so a helper that
+   holds both has a red PR for the whole review. Release the helper lane at
+   commit time:
+
+   ```bash
+   scripts/coord release --area <helper-area> --issue <n> --agent "<you>" --branch <branch>
+   ```
 
 There is deliberately **no announcement venue** — not on the generated board
 (`docs/COORDINATION_BOARD.md`, a read-only view) and not on a hub issue. Posting
@@ -437,6 +447,10 @@ A claim is a **git-ref lease**, not a comment (ADR-0021). The mechanics live in
 - **To release**, run `scripts/coord release --area <a> --issue <n> --agent "<m>"`
   — do this as soon as the PR merges, or when you abandon the task. A lease you
   forget to release is reclaimed by the TTL, so the fleet never waits.
+  **Exception — a helper lease on a second area for the same issue:** release it
+  as soon as the edit is **committed** (see §5.1.5), not when the PR merges.
+  Two live leases for one issue fail `coord check`, so holding the helper lane
+  open turns the PR's *Lease ledger check* red for the whole review.
 
 This is the whole replacement for "the coordinator reassigns work": the clock
 does it, and the fleet never waits on a missing agent. `scripts/coord status` and
