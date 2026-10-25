@@ -723,9 +723,12 @@ Do not start work outside the scope fence (ADR-0024).
   `TheMapUsesTheWholeMissionSetNotJustTheDemo` (the regions cover all five
   missions). `ShippedCampaignCanBeWonByClaimingTheFrontier` and the
   `game_campaign` self-test still win a full run through the new mapping. Data
-  only, no code change (golden rule 7). A content-side guard that *validates*
-  every `world.json` `missionId` against the mission files is #420 (`focus:
-  content`).
+  only, no code change (golden rule 7). A content-side guard *validates* every
+  `world.json` `missionId` against the mission files: `validateWorldMapMissions`
+  (`src/core/data/ContentValidation.h`) reports a dangling id, tested by
+  `ContentValidation.WorldMapMissionIdsResolve` and
+  `ContentValidation.DanglingWorldMissionIdIsReported`
+  (`tests/test_content_validation.cpp`); it landed in #490 (`focus: content`).
 
 - **The shipped map is a world map (issue #448, Milestone C).** v1.0.0 replaces
   the original six city-district regions with **twelve culturally-flavoured
