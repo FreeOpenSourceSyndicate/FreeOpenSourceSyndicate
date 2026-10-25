@@ -699,8 +699,11 @@ private:
     static constexpr float kTileWidth = 64.0f;
     static constexpr float kTileHeight = 32.0f;
 
-    // Integer magnification of the authored 14x18 sprite cells. Kept small so
-    // agents read as people on a 64px tile and stay cheap to blit (AGENTS.md 1b).
+    // Integer magnification of the authored sprite cells. Kept small so agents
+    // read as people on a 64px tile and stay cheap to blit (AGENTS.md 1b). The
+    // cell size is per-sheet (agents are 20x28; props/vehicles stay 14x18 until
+    // their own slices) — see `docs/ART_STYLE.md` and `kAgentFrame*` — so this
+    // stays one scale for all of them.
     static constexpr int kSpriteScale = 3;
 
     // Integer zoom levels (issue #122): the whole world pass is magnified by
