@@ -68,6 +68,12 @@
   "mission.vault.desc": "Den Tresor auf dem fernen Sims knacken und das Buch durch die Wachlinie zum Bergungsfeld bringen.",
   "mission.uprising.name": "Aufstand",
   "mission.uprising.desc": "Die Menge mit dem Compliance-Beacon umdrehen und fuenf fuer sich gewinnen, bevor die Bereitschaft naht.",
+  "mission.arsenal.name": "Waffenlager",
+  "mission.arsenal.desc": "Den Transporter entfuehren und den Trupp ueber den Depothof zum Exfil-Feld fahren, bevor die Garnison die Route sperrt.",
+  "mission.gauntlet.name": "Spiessrutenlauf",
+  "mission.gauntlet.desc": "Die Bunkerwand mit Dauerfeuer durchbrechen und das Magazin dahinter sprengen, bevor sich die Verteidiger sammeln.",
+  "mission.stockade.name": "Palisade",
+  "mission.stockade.desc": "Den Hof der Palisade gegen die Raeuber halten und ihren Angriff ueberleben, bis die Zeit ablaeuft.",
 
   "weapon.pistol.name": "Pistole",
   "weapon.rifle.name": "Gewehr",
