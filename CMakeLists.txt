@@ -19,8 +19,31 @@ option(FOSSYND_LOW_SPEC "Optimise the build for very old, low-end hardware" OFF)
 if(FOSSYND_LOW_SPEC)
     add_compile_options(-Os -fno-unwind-tables -fno-asynchronous-unwind-tables)
     add_link_options(-s)
+    # Shrink the low-spec binary (AGENTS.md 1b, ADR-0008). The old-hardware
+    # profile exists to stay small, and its budget is a hard CI gate; a growth of
+    # one ELF page (4 KiB) is enough to breach it, so the profile must reclaim
+    # dead code rather than sit a page under the cap.
+    #
+    # 1. Section GC: one function/data per section lets the linker drop anything
+    #    unreferenced. GNU ld only (Apple's ld64 uses -dead_strip), so gate the
+    #    two flags together.
+    if(NOT APPLE)
+        add_compile_options(-ffunction-sections -fdata-sections)
+        add_link_options(-Wl,--gc-sections)
+    endif()
+    # 2. Link-time optimisation: the biggest win (it drops whole unreferenced
+    #    functions and inlines across translation units). Gate it on the compiler
+    #    actually supporting IPO, so an exotic toolchain degrades to section GC
+    #    instead of failing to configure.
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT FOSSYND_IPO_OK OUTPUT FOSSYND_IPO_MSG LANGUAGES CXX)
+    if(FOSSYND_IPO_OK)
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+    else()
+        message(STATUS "Low-spec: IPO unsupported, skipping LTO (${FOSSYND_IPO_MSG})")
+    endif()
     add_compile_definitions(FOSSYND_LOW_SPEC_BUILD=1)
-    message(STATUS "Low-spec profile enabled (-Os, stripped, low-res defaults)")
+    message(STATUS "Low-spec profile enabled (-Os, stripped, section-GC/LTO, low-res defaults)")
 endif()
 
 # Sanitizer profile: build the engine-agnostic core and its tests with
