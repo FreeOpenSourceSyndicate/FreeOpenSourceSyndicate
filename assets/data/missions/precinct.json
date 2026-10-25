@@ -27,5 +27,8 @@
     { "agentId": "police", "name": "PATROL-1", "x": 12.5, "y": 6.5 },
     { "agentId": "police", "name": "PATROL-2", "x": 20.5, "y": 18.5 },
     { "agentId": "saboteur", "name": "SABOTEUR", "x": 21.5, "y": 3.5 }
+  ],
+  "vehicles": [
+    { "vehicleId": "car", "x": 6.5, "y": 21.5 }
   ]
 }
