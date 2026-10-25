@@ -2227,6 +2227,105 @@ FOSSYND_TEST(Mission, DrugLevelClampsAndInvalidIndexIsNoOp)
     FOSSYND_CHECK_NEAR(mission.drugEffect(bad, Drug::Adrenalin), 0.0f);
 }
 
+FOSSYND_TEST(Mission, DrugCeilingDefaultsToMaxSoNothingChanges)
+{
+    // ADR-0043/#518: the ceiling is additive and defaulted. A mission that never
+    // calls `setDrugCeiling` is unregulated, so every S1-S4 behaviour is
+    // unchanged — the level still clamps to [0, 1].
+    TileGrid grid(20, 20);
+    Mission mission(grid, 95u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+
+    for (Drug drug : {Drug::Adrenalin, Drug::Intelligence, Drug::Physical})
+    {
+        FOSSYND_CHECK_NEAR(mission.drugCeiling(hero, drug), kDrugMaxLevel);
+        FOSSYND_CHECK_NEAR(mission.drugCeiling(hero, drug), 1.0f); // the model max
+    }
+    mission.setDrugLevel(hero, Drug::Adrenalin, 1.0f);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(hero, Drug::Adrenalin), 1.0f);
+}
+
+FOSSYND_TEST(Mission, DrugCeilingCapsTheLevel)
+{
+    // The clamp rule: a bar cannot be regulated above its ceiling.
+    TileGrid grid(20, 20);
+    Mission mission(grid, 96u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+
+    mission.setDrugCeiling(hero, Drug::Physical, 0.7f);
+    FOSSYND_CHECK_NEAR(mission.drugCeiling(hero, Drug::Physical), 0.7f);
+
+    mission.setDrugLevel(hero, Drug::Physical, 1.0f);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(hero, Drug::Physical), 0.7f); // capped
+    // Below the ceiling still regulates normally, and the other bars are free.
+    mission.setDrugLevel(hero, Drug::Physical, 0.3f);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(hero, Drug::Physical), 0.3f);
+    mission.setDrugLevel(hero, Drug::Adrenalin, 1.0f);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(hero, Drug::Adrenalin), 1.0f);
+}
+
+FOSSYND_TEST(Mission, LoweringTheCeilingPullsTheLevelDown)
+{
+    // A ceiling that drops below the held level must not leave `level > ceiling`
+    // (the invariant `setDrugLevel` relies on).
+    TileGrid grid(20, 20);
+    Mission mission(grid, 97u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+
+    mission.setDrugLevel(hero, Drug::Intelligence, 0.9f);
+    mission.setDrugCeiling(hero, Drug::Intelligence, 0.4f);
+    FOSSYND_CHECK_NEAR(mission.drugCeiling(hero, Drug::Intelligence), 0.4f);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(hero, Drug::Intelligence), 0.4f);
+
+    // Raising the ceiling back does not resurrect the old level (the pull is one
+    // way); the player must raise the bar again.
+    mission.setDrugCeiling(hero, Drug::Intelligence, 1.0f);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(hero, Drug::Intelligence), 0.4f);
+    mission.setDrugLevel(hero, Drug::Intelligence, 0.8f);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(hero, Drug::Intelligence), 0.8f);
+}
+
+FOSSYND_TEST(Mission, DrugCeilingClampsToRangeAndInvalidIndexIsNoOp)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 98u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+
+    // A ceiling above the model's maximum is clamped to `kDrugMaxLevel`.
+    mission.setDrugCeiling(hero, Drug::Adrenalin, 5.0f);
+    FOSSYND_CHECK_NEAR(mission.drugCeiling(hero, Drug::Adrenalin), kDrugMaxLevel);
+    // A negative ceiling clamps to 0 (the bar is locked at the bottom).
+    mission.setDrugCeiling(hero, Drug::Adrenalin, -2.0f);
+    FOSSYND_CHECK_NEAR(mission.drugCeiling(hero, Drug::Adrenalin), 0.0f);
+    mission.setDrugLevel(hero, Drug::Adrenalin, 0.5f);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(hero, Drug::Adrenalin), 0.0f);
+
+    // An out-of-range index is a safe no-op and reads back the sentinel 0.
+    mission.setDrugCeiling(99u, Drug::Physical, 0.3f);
+    FOSSYND_CHECK_NEAR(mission.drugCeiling(99u, Drug::Physical), 0.0f);
+}
+
+FOSSYND_TEST(Mission, SettingACeilingLeavesTheNeutralPointAlone)
+{
+    // The ceiling gates the *level*; the drifting neutral point is unaffected, so
+    // a capped bar still normalises as before (S1's rule).
+    TileGrid grid(20, 20);
+    Mission mission(grid, 99u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+
+    mission.setDrugCeiling(hero, Drug::Physical, 0.6f);
+    FOSSYND_CHECK_NEAR(mission.drugNeutral(hero, Drug::Physical), kDrugNeutralStart);
+    mission.setDrugLevel(hero, Drug::Physical, 1.0f); // capped to 0.6
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100000.0f,
+                               Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+    for (int i = 0; i < 20; ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK(mission.drugNeutral(hero, Drug::Physical) > kDrugNeutralStart);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(hero, Drug::Physical), 0.6f);
+}
+
 FOSSYND_TEST(Mission, DrugNeutralDriftsTowardTheHeldLevelAndShrinksTheEffect)
 {
     // The normalisation property: hold a bar high and the body adapts, so the
