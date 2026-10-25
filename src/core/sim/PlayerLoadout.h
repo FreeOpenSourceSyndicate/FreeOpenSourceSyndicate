@@ -38,8 +38,10 @@ struct LoadoutSlot
     std::string weaponId;
 
     // Gadget id, from the same closed vocabulary the equipment catalogue uses
-    // (`assets/data/world/equipment.json`): "medkit", "shield", "scanner" or
-    // "drugs". Empty keeps the slot's authored (zero) gadget count.
+    // (`assets/data/world/equipment.json`): "medkit", "shield" or "scanner".
+    // Empty keeps the slot's authored (zero) gadget count. The single-dose
+    // "drugs" gadget was retired by S4 (#499): a drug bar's *maximum* is the
+    // `ceilings` field below, not a charge.
     std::string gadgetId;
 
     // Cybernetic upgrade id, from the equipment catalogue's `kind: "cybernetic"`
@@ -67,7 +69,7 @@ inline constexpr int kUnknownGadget = -1;
 // and rejects a typo instead of silently deploying nothing.
 inline int gadgetChargesForId(const std::string& id)
 {
-    if (id == "medkit" || id == "shield" || id == "scanner" || id == "drugs")
+    if (id == "medkit" || id == "shield" || id == "scanner")
     {
         return kGadgetCharges;
     }

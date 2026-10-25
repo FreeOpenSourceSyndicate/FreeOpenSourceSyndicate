@@ -370,7 +370,7 @@ player agent is ignored:
 fossynd::core::PlayerLoadout loadout;
 loadout.slots.resize(2);
 loadout.slots[0].weaponId = "rifle";        // resolved against weapons.json
-loadout.slots[1].gadgetId = "medkit";       // "medkit" | "shield" | "scanner" | "drugs"
+loadout.slots[1].gadgetId = "medkit";       // "medkit" | "shield" | "scanner"
 loadout.slots[0].cyberneticId = "legs";     // "legs" | "arms" | "chest" | "eyes" | "targeting-implant"
 
 fossynd::core::WeaponCatalogue weapons;
@@ -395,9 +395,10 @@ of nearby enemies), matching the `kind: "gadget"` items in
 > **Note:** the single-dose `drugs` consumable of ADR-0028 is **retired** by
 > ADR-0043, which replaces it with three regulated drug bars and their ceilings
 > (see the "Drug bar-ceilings" section above). The shipped `equipment.json` no
-> longer sells a `drugs` gadget. `gadgetChargesForId` in
-> `src/core/sim/PlayerLoadout.h` still lists `drugs` until its tactical removal
-> lands (issue #499, `focus: tactical`); do not add new `drugs` gadgets to data.
+> longer sells a `drugs` gadget, and `gadgetChargesForId` in
+> `src/core/sim/PlayerLoadout.h` no longer lists it (issue #499, `focus: tactical`)
+> — naming `"drugs"` in a loadout is now a content error. Do not add new `drugs`
+> gadgets to data.
 
 The cybernetic vocabulary (`CyberneticEffect`, `src/core/sim/Cybernetic.h`) maps
 a `kind: "cybernetic"` catalogue id to permanent stat **multipliers** applied
