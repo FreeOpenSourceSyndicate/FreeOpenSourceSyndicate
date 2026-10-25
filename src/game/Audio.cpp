@@ -30,6 +30,10 @@ constexpr float kShootSeconds = 0.06f;
 constexpr float kHitSeconds = 0.05f;
 constexpr float kExplosionSeconds = 0.30f;
 constexpr float kOutcomeSeconds = 0.45f;
+// UI blips are shorter still, so a menu move does not smear into the next key.
+constexpr float kSelectSeconds = 0.05f;
+constexpr float kNavigateSeconds = 0.035f;
+constexpr float kCancelSeconds = 0.07f;
 
 float secondsFor(Cue cue)
 {
@@ -44,6 +48,12 @@ float secondsFor(Cue cue)
     case Cue::Victory:
     case Cue::Defeat:
         return kOutcomeSeconds;
+    case Cue::Select:
+        return kSelectSeconds;
+    case Cue::Navigate:
+        return kNavigateSeconds;
+    case Cue::Cancel:
+        return kCancelSeconds;
     case Cue::Count:
         break;
     }
@@ -92,6 +102,50 @@ Cue cueForState(core::MissionState state)
     return Cue::Hit;
 }
 
+Cue cueForUiAction(UiAction action)
+{
+    switch (action)
+    {
+    case UiAction::Select:
+        return Cue::Select;
+    case UiAction::Navigate:
+        return Cue::Navigate;
+    case UiAction::Cancel:
+        return Cue::Cancel;
+    case UiAction::Count:
+        break;
+    }
+    // Total: an unknown action is a quiet navigation tick, never a combat cue.
+    return Cue::Navigate;
+}
+
+std::vector<UiAction> uiActionsForChange(const UiAudioState& previous, const UiAudioState& current)
+{
+    std::vector<UiAction> actions;
+
+    if (previous.selection != current.selection)
+    {
+        actions.push_back(UiAction::Select);
+    }
+
+    // Opening an overlay (the map or the R&D shop) or pausing is a navigation
+    // tick; closing one or resuming is a cancel. A change in the other direction
+    // on the same frame would fire both, which is why each side is tested
+    // independently against the previous state.
+    if ((current.campaignVisible && !previous.campaignVisible) ||
+        (current.shopOpen && !previous.shopOpen) || (current.paused && !previous.paused))
+    {
+        actions.push_back(UiAction::Navigate);
+    }
+    if ((previous.campaignVisible && !current.campaignVisible) ||
+        (previous.shopOpen && !current.shopOpen) || (previous.paused && !current.paused))
+    {
+        actions.push_back(UiAction::Cancel);
+    }
+
+    return actions;
+}
+
 std::vector<Cue> cuesForFrame(const AudioEvents& previous, const AudioEvents& current)
 {
     std::vector<Cue> cues;
@@ -122,6 +176,37 @@ std::vector<Cue> cuesForFrame(const AudioEvents& previous, const AudioEvents& cu
     }
 
     return cues;
+}
+
+AudioEvents snapshotAudioEvents(const core::Mission& mission, std::vector<float>& previousGunfire)
+{
+    // The one place the view turns core state into audio events (issue #424), so
+    // the headless guard can run the real derivation on a scratch mission instead
+    // of duplicating it. A pure read of the mission (golden rule 4).
+    AudioEvents current;
+    current.playerKills = mission.playerKills();
+    current.enemyKills = mission.enemyKills();
+    current.civilianKills = mission.civilianKills();
+    current.state = mission.state();
+
+    // `Agent::beginFireCooldown` raises an agent's gunfire timer the instant it
+    // fires, and the timer only ever counts down, so a timer that rose since last
+    // frame means the agent fired this frame.
+    const auto& agents = mission.agents();
+    if (previousGunfire.size() != agents.size())
+    {
+        previousGunfire.assign(agents.size(), 0.0f);
+    }
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        const float timer = agents[i].gunfireTimer();
+        if (timer > previousGunfire[i])
+        {
+            current.anyShot = true;
+        }
+        previousGunfire[i] = timer;
+    }
+    return current;
 }
 
 Audio::~Audio()
@@ -334,6 +419,36 @@ std::vector<std::int16_t> Audio::synthesise(Cue cue)
             value = std::sin(phase) * envelope(local, 0.05f) * 0.5f;
             break;
         }
+        case Cue::Select:
+        {
+            // A single clean rising blip: a bright confirmation "click".
+            const float freq = 660.0f + 220.0f * t;
+            const float phase = 2.0f * 3.14159265f * freq *
+                                static_cast<float>(i) / static_cast<float>(kSampleRate);
+            value = std::sin(phase) * envelope(t, 0.1f) * 0.4f;
+            break;
+        }
+        case Cue::Navigate:
+        {
+            // A short, quiet high tick: a menu move, quieter than a selection.
+            const float freq = 990.0f;
+            const float phase = 2.0f * 3.14159265f * freq *
+                                static_cast<float>(i) / static_cast<float>(kSampleRate);
+            value = std::sin(phase) * envelope(t, 0.15f) * 0.28f;
+            break;
+        }
+        case Cue::Cancel:
+        {
+            // A falling two-tone blip: a lower "back/cancel" cue, distinct from
+            // the rising Select and the high Navigate.
+            const int note = std::min(1, static_cast<int>(t * 2.0f));
+            const float freqs[2] = {440.0f, 330.0f};
+            const float phase = 2.0f * 3.14159265f * freqs[note] *
+                                static_cast<float>(i) / static_cast<float>(kSampleRate);
+            const float local = t * 2.0f - static_cast<float>(note);
+            value = std::sin(phase) * envelope(local, 0.1f) * 0.38f;
+            break;
+        }
         case Cue::Count:
             break;
         }
@@ -522,6 +637,33 @@ bool Audio::selfTest()
         std::fprintf(stderr, "audio self-test: losing did not fire Defeat\n");
         return false;
     }
+
+    // 7. The UI action mapping is total, injective, and never a combat cue
+    //    (issue #424): a selection, a menu move, and a cancel must each map to
+    //    their own UI blip, so a menu key cannot be mistaken for a shot.
+    const Cue selectCue = cueForUiAction(UiAction::Select);
+    const Cue navigateCue = cueForUiAction(UiAction::Navigate);
+    const Cue cancelCue = cueForUiAction(UiAction::Cancel);
+    if (selectCue == navigateCue || selectCue == cancelCue || navigateCue == cancelCue)
+    {
+        std::fprintf(stderr, "audio self-test: UI actions map to the same cue\n");
+        return false;
+    }
+    const Cue combatCues[] = {Cue::Shoot, Cue::Hit, Cue::Explosion, Cue::Victory,
+                              Cue::Defeat};
+    for (Cue ui : {selectCue, navigateCue, cancelCue})
+    {
+        for (Cue combat : combatCues)
+        {
+            if (ui == combat)
+            {
+                std::fprintf(stderr, "audio self-test: a UI action mapped to a combat cue\n");
+                return false;
+            }
+        }
+    }
+    // The UI cues are baked and non-silent like every other cue (step 1 checked
+    // the whole table, including them), so a menu key is actually audible.
 
     return true;
 }
