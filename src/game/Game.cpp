@@ -1524,6 +1524,7 @@ bool Game::objectiveSelfTest()
         core::ObjectiveSpec::Kind::EliminateAll, core::ObjectiveSpec::Kind::ReachTile,
         core::ObjectiveSpec::Kind::Survive,      core::ObjectiveSpec::Kind::Escort,
         core::ObjectiveSpec::Kind::Destroy,      core::ObjectiveSpec::Kind::Persuade,
+        core::ObjectiveSpec::Kind::Assassinate,  core::ObjectiveSpec::Kind::Retrieve,
     };
 
     std::set<std::string> seen;
@@ -1537,6 +1538,10 @@ bool Game::objectiveSelfTest()
         spec.seconds = 30.0f;
         spec.agentIndex = 0;
         spec.targetCount = 1;
+        // Give the retrieve item its own tile so the banner shows two distinct
+        // coordinates, not a degenerate "(1,1) TO (1,1)".
+        spec.itemX = 2;
+        spec.itemY = 3;
         mission_.setObjective(spec);
 
         bool urgent = false;
