@@ -2506,6 +2506,181 @@ FOSSYND_TEST(Mission, AdrenalinComposesWithTheLegacyDrugBuffAndLegsUpgrade)
     FOSSYND_CHECK(mission.agents()[hero].speed() > legsSpeed);
 }
 
+// --- intelligence behaviour (ADR-0043, S3, issue #498) -----------------------
+
+namespace
+{
+// A weapon with a blast radius, for the friendly-fire-avoidance tests.
+Weapon makeGrenade() { return Weapon{"Grenade", 30.0f, 9.0f, 1.0f, 1.0f, /*areaRadius=*/2.0f}; }
+} // namespace
+
+FOSSYND_TEST(Mission, IntelligenceScalesThreatRecognitionDeterministically)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 201u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    mission.addAgent(makeAgent(2.0f, 5.0f, Team::Enemy, 100.0f, makeCannon()));
+
+    // At neutral intelligence the effect is 0, so the felt threat is the raw
+    // sum: recognitionScale is exactly 1 and S2 behaviour is unchanged.
+    mission.setDrugLevel(hero, Drug::Intelligence, kDrugNeutralStart);
+    FOSSYND_CHECK_NEAR(mission.recognitionScale(hero), 1.0f);
+    const float neutral = mission.threatTo(hero);
+    FOSSYND_CHECK(neutral > 0.0f);
+
+    // High intelligence detects more threat; low intelligence under-detects.
+    mission.setDrugLevel(hero, Drug::Intelligence, 1.0f);
+    const float high = mission.threatTo(hero);
+    FOSSYND_CHECK(high > neutral);
+    FOSSYND_CHECK_NEAR(mission.recognitionScale(hero), 1.0f + 0.6f * 0.5f);
+
+    mission.setDrugLevel(hero, Drug::Intelligence, 0.0f);
+    const float low = mission.threatTo(hero);
+    FOSSYND_CHECK(low < neutral);
+    FOSSYND_CHECK(low > 0.0f);
+
+    // Deterministic: repeated reads agree exactly (no RNG).
+    FOSSYND_CHECK_NEAR(mission.threatTo(hero), low);
+}
+
+FOSSYND_TEST(Mission, LowIntelligenceUnderDetectsSoPanicsLessThanHigh)
+{
+    // Recognition feeds panic: the same scene that panics a high-intelligence
+    // agent leaves a low-intelligence one calm, because it perceives less threat.
+    TileGrid grid(20, 20);
+    Mission mission(grid, 202u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100000.0f));
+    // A pistol at 4 tiles: its raw felt threat sits between the panic thresholds
+    // for a low- and a high-intelligence agent at this adrenalin level.
+    mission.addAgent(makeAgent(2.0f, 6.0f, Team::Enemy, 100000.0f, makePistol()));
+
+    // Adrenalin high enough to lower the panic threshold, then vary intelligence.
+    mission.setDrugLevel(hero, Drug::Adrenalin, 1.0f);
+    mission.setDrugLevel(hero, Drug::Intelligence, 0.0f);
+    mission.update(0.05f);
+    FOSSYND_CHECK(!mission.isPanicking(hero));
+
+    mission.setDrugLevel(hero, Drug::Intelligence, 1.0f);
+    mission.update(0.05f);
+    FOSSYND_CHECK(mission.isPanicking(hero));
+}
+
+FOSSYND_TEST(Mission, HighIntelligencePrefersTheHittableTarget)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 203u);
+    // An area weapon, so "hittable" also means "no team-mate in the blast".
+    const std::size_t shooter =
+        mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f, makeGrenade()));
+    // A nearer enemy with a team-mate right beside it (the shot would catch the
+    // team-mate), and a further enemy that is clear: a dumb agent picks the near
+    // one, a smart one the one it can actually hit.
+    const std::size_t nearButCovered = mission.addAgent(makeAgent(6.0f, 2.0f, Team::Enemy, 100.0f));
+    mission.addAgent(makeAgent(6.0f, 3.0f, Team::Player, 100.0f)); // the friendly
+    const std::size_t farButClear = mission.addAgent(makeAgent(9.0f, 2.0f, Team::Enemy, 100.0f));
+
+    // At neutral/low intelligence the picker is `nearestEnemy`: the near one.
+    mission.setDrugLevel(shooter, Drug::Intelligence, kDrugNeutralStart);
+    FOSSYND_CHECK_EQ(mission.selectTarget(shooter, Team::Enemy), static_cast<int>(nearButCovered));
+
+    // At high intelligence it prefers the target it can hit without friendly fire.
+    mission.setDrugLevel(shooter, Drug::Intelligence, 1.0f);
+    FOSSYND_CHECK_EQ(mission.selectTarget(shooter, Team::Enemy), static_cast<int>(farButClear));
+}
+
+FOSSYND_TEST(Mission, HighIntelligenceAvoidsFriendlyFireInBlast)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 204u);
+    const std::size_t shooter =
+        mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f, makeGrenade()));
+    // A team-mate standing right beside the enemy, inside the 2-tile blast.
+    mission.addAgent(makeAgent(6.0f, 2.0f, Team::Player, 100.0f));
+    const std::size_t foe = mission.addAgent(makeAgent(7.0f, 2.0f, Team::Enemy, 100.0f));
+
+    FOSSYND_CHECK(mission.wouldHitFriendInBlast(shooter, foe));
+    // Neutral/low intelligence takes the shot anyway.
+    mission.setDrugLevel(shooter, Drug::Intelligence, kDrugNeutralStart);
+    FOSSYND_CHECK(mission.shouldTakeAreaShot(shooter, foe));
+    // High intelligence holds fire.
+    mission.setDrugLevel(shooter, Drug::Intelligence, 1.0f);
+    FOSSYND_CHECK(!mission.shouldTakeAreaShot(shooter, foe));
+
+    // With no friendly near the target, even a smart agent takes the shot.
+    mission.agents()[1].setPosition(2.0f, 15.0f);
+    FOSSYND_CHECK(!mission.wouldHitFriendInBlast(shooter, foe));
+    FOSSYND_CHECK(mission.shouldTakeAreaShot(shooter, foe));
+}
+
+FOSSYND_TEST(Mission, HighIntelligenceProtectsCiviliansButNotAnAssassinationTarget)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 205u);
+    const std::size_t shooter =
+        mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f, makeGrenade()));
+    const std::size_t bystander =
+        mission.addAgent(makeAgent(6.0f, 2.0f, Team::Civilian, 100.0f));
+    const std::size_t foe = mission.addAgent(makeAgent(7.0f, 2.0f, Team::Enemy, 100.0f));
+    mission.setDrugLevel(shooter, Drug::Intelligence, 1.0f);
+
+    // A civilian in the blast is protected: the smart agent holds fire.
+    FOSSYND_CHECK(mission.wouldHitFriendInBlast(shooter, foe));
+    FOSSYND_CHECK(!mission.shouldTakeAreaShot(shooter, foe));
+
+    // The same scene under an assassinate objective: the named civilian is the
+    // mission target, so it is not protected and the objective stays completable.
+    ObjectiveSpec spec;
+    spec.kind = ObjectiveSpec::Kind::Assassinate;
+    spec.agentIndex = static_cast<int>(bystander);
+    mission.setObjective(spec);
+    FOSSYND_CHECK(mission.isAssassinationTarget(bystander));
+    FOSSYND_CHECK(!mission.wouldHitFriendInBlast(shooter, foe));
+    FOSSYND_CHECK(mission.shouldTakeAreaShot(shooter, foe));
+}
+
+FOSSYND_TEST(Mission, HighIntelligenceRecognisesACivilianAssassinationTarget)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 206u);
+    const std::size_t shooter = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    const std::size_t mark = mission.addAgent(makeAgent(2.0f, 5.0f, Team::Civilian, 100.0f));
+    // An enemy elsewhere, so the team filter has something to reject.
+    mission.addAgent(makeAgent(15.0f, 15.0f, Team::Enemy, 100.0f));
+
+    ObjectiveSpec spec;
+    spec.kind = ObjectiveSpec::Kind::Assassinate;
+    spec.agentIndex = static_cast<int>(mark);
+    mission.setObjective(spec);
+
+    // At neutral intelligence the civilian is not a target.
+    mission.setDrugLevel(shooter, Drug::Intelligence, kDrugNeutralStart);
+    FOSSYND_CHECK(mission.selectTarget(shooter, Team::Enemy) != static_cast<int>(mark));
+
+    // At high intelligence the named civilian is recognised as the target.
+    mission.setDrugLevel(shooter, Drug::Intelligence, 1.0f);
+    FOSSYND_CHECK_EQ(mission.selectTarget(shooter, Team::Enemy), static_cast<int>(mark));
+}
+
+FOSSYND_TEST(Mission, SmartAgentNeverTargetsItsOwnTeamEvenIfTheObjectiveNamesIt)
+{
+    // The picker must never turn a unit on the agent's own team, even when an
+    // assassinate objective names it (a malformed objective).
+    TileGrid grid(20, 20);
+    Mission mission(grid, 207u);
+    const std::size_t shooter = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    const std::size_t teamMate = mission.addAgent(makeAgent(2.0f, 5.0f, Team::Player, 100.0f));
+    const std::size_t foe = mission.addAgent(makeAgent(2.0f, 8.0f, Team::Enemy, 100.0f));
+
+    ObjectiveSpec spec;
+    spec.kind = ObjectiveSpec::Kind::Assassinate;
+    spec.agentIndex = static_cast<int>(teamMate);
+    mission.setObjective(spec);
+    mission.setDrugLevel(shooter, Drug::Intelligence, 1.0f);
+
+    // The same-team mark is rejected; the real enemy is still the target.
+    FOSSYND_CHECK_EQ(mission.selectTarget(shooter, Team::Enemy), static_cast<int>(foe));
+}
+
 // --- cybernetic upgrades (Milestone A, issue #313) ---------------------------
 
 FOSSYND_TEST(Mission, CyberneticVocabularyRejectsUnknown)

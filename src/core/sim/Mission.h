@@ -235,6 +235,41 @@ public:
     // gun is a bigger threat without a new `Agent` field. 0 for a non-combatant.
     float threatLevel(std::size_t index) const;
 
+    // --- intelligence behaviour (ADR-0043, S3) -------------------------------
+
+    // The multiplier the live intelligence effect applies to the felt threat:
+    // below 1 as intelligence falls (low = poor threat recognition, so the agent
+    // under-detects and panics less), above 1 as it rises. Exactly 1.0 at effect
+    // 0, so S2 behaviour is unchanged for a neutral bar. Read by `threatTo`;
+    // exposed for tests and the HUD. Always >= 0. Deterministic.
+    float recognitionScale(std::size_t index) const;
+
+    // The target the agent at `self` picks among living enemies of `enemyTeam`.
+    // At intelligence effect <= 0 this is exactly `nearestEnemy` (the nearest
+    // enemy with a clear shot). As the effect rises the picker increasingly
+    // prefers a target it can actually hit — in weapon range and with no
+    // team-mate standing in the line — over a nearer but un-hittable one, and
+    // (above neutral) it recognises a civilian named by an `assassinate`
+    // objective as a valid target. Deterministic; no RNG. -1 when none.
+    int selectTarget(std::size_t self, Team enemyTeam) const;
+
+    // True when the objective names the agent at `index` — an `assassinate`
+    // objective's target. Such a unit is a recognised target (at high
+    // intelligence) and is never treated as a friendly to protect. Deterministic.
+    bool isAssassinationTarget(std::size_t index) const;
+
+    // True when firing the agent's weapon at `targetIndex` would catch a
+    // team-mate or a civilian bystander in the blast (an area weapon only; false
+    // for a single-target weapon). A mission target (assassinate) never counts as
+    // protected. Deterministic; no RNG.
+    bool wouldHitFriendInBlast(std::size_t self, std::size_t targetIndex) const;
+
+    // True when a high-intelligence agent should take the area shot at
+    // `targetIndex`: false when the blast would catch a team-mate or a civilian
+    // and intelligence is above neutral; a neutral-or-low agent always takes it.
+    // Read by `resolveFire`; exposed for tests. Deterministic.
+    bool shouldTakeAreaShot(std::size_t self, std::size_t targetIndex) const;
+
     // --- cybernetic upgrades -------------------------------------------------
 
     // Applies a cybernetic upgrade to the agent at `index`: its `effect`
