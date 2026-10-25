@@ -13,6 +13,7 @@
 #include "core/data/Catalogues.h"
 #include "core/data/Json.h"
 #include "core/data/MissionData.h"
+#include "core/sim/Cybernetic.h"
 
 // Dependency-free content validation (ADR-0003): resolve every mission's
 // `weaponId`/`agentId` references against the shared catalogues and reject
@@ -215,6 +216,24 @@ inline void validateWorldData(const std::filesystem::path& dir, const WeaponCata
                          "equipment item '" + id + "' is a weapon but '" + id +
                              "' is not in the weapon catalogue (" + std::string(kWeaponsFileName) +
                              ")"});
+                }
+                // A gadget or cybernetic id must be one the mission loader
+                // accepts, or `applyLoadout` rejects the whole squad at deploy
+                // (after the shop sold it and the player paid) — the #369
+                // silent-break class. Resolve through the loader's own closed
+                // vocabulary so the guard cannot drift from it (issue #580).
+                if (kind == "gadget" && gadgetChargesForId(id) == kUnknownGadget)
+                {
+                    report.problems.push_back({equipmentPath.string(), "unknown gadget id '" + id + "'"});
+                }
+                if (kind == "cybernetic")
+                {
+                    CyberneticEffect effect;
+                    if (!cyberneticEffectForId(id, effect))
+                    {
+                        report.problems.push_back(
+                            {equipmentPath.string(), "unknown cybernetic id '" + id + "'"});
+                    }
                 }
                 if (kind == "drug")
                 {

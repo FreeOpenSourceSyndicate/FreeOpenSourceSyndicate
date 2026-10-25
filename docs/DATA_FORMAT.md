@@ -483,6 +483,14 @@ if (!report.ok())
   does not define (the pre-#369 `longshot`/`railgun`) would be bought and then
   make `applyLoadout` reject the **whole** squad loadout at deploy. The world
   files are optional, so a content dir that ships no campaign still validates.
+- **Gadget and cybernetic equipment ids are cross-checked too** (issue #580):
+  a `kind: "gadget"` item must be an id `gadgetChargesForId` accepts (`medkit` |
+  `shield` | `scanner` | `drugs`) and a `kind: "cybernetic"` item must be an id
+  `cyberneticEffectForId` accepts (`legs` | `arms` | `chest` | `eyes` |
+  `targeting-implant`). A typo would otherwise be sold in the shop and then make
+  `applyLoadout` reject the **whole** squad loadout at deploy — the same
+  silent-break class as #369, caught before the player pays. The guard calls the
+  loader's own resolvers so the accepted set cannot drift from `applyLoadout`.
 - **Drug bar-ceilings and region name pools are cross-checked too** (issue #510):
   a `kind: "drug"` item must name a real `bar` (ADR-0043), sit in `(0, 1]`, and
   resolve its `requiresResearch` to a real `research.json` node; and each pool in
