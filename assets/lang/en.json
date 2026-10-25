@@ -13,7 +13,7 @@
   "hud.objective.persuade": "OBJECTIVE: RECRUIT {count} FOLLOWERS",
   "hud.objective.assassinate": "OBJECTIVE: ASSASSINATE {name}",
   "hud.objective.retrieve": "OBJECTIVE: RETRIEVE ITEM ({ix},{iy}) TO ({x},{y})",
-  "hud.controls": "[SHIFT+CLICK] QUEUE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   [P] PERSUADE   [F] FREE   [H] MEDKIT   [S] SHIELD   [C] SCAN   [B] DRUGS   [/] BAR   ;/' ADJUST   [E] HIJACK   [R] RESTART   [F5] SAVE   [F9] LOAD",
+  "hud.controls": "[SHIFT+CLICK] QUEUE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   [P] PERSUADE   [F] FREE   [H] MEDKIT   [S] SHIELD   [C] SCAN   [B] SPIKE   [/] BAR   ;/' ADJUST   [E] HIJACK   [R] RESTART   [F5] SAVE   [F9] LOAD",
   "hud.followers": "FOLLOWERS: {count}",
   "hud.collateral": "COLLATERAL: {count}",
   "hud.squad": "SQUAD",
@@ -34,7 +34,7 @@
   "title.controls.move": "CLICK  MOVE THE SQUAD",
   "title.controls.attack": "RIGHT-CLICK  FOCUS FIRE",
   "title.controls.select": "1-4 RECALL  CTRL+1-4 SET  A  ALL",
-  "title.controls.gadgets": "H  MEDKIT   S  SHIELD   C  SCAN   B  DRUGS   [/] BAR   ;/' ADJUST",
+  "title.controls.gadgets": "H  MEDKIT   S  SHIELD   C  SCAN   B  SPIKE   [/] BAR   ;/' ADJUST",
   "title.controls.misc": "ARROWS  SCROLL   SPACE  PAUSE   R  RESTART   E  HIJACK   ESC  QUIT",
   "title.footer": "FOSSYND v{version}  -  FREE OPEN SOURCE SYNDICATE",
 

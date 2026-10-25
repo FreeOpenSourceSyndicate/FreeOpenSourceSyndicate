@@ -264,13 +264,14 @@ if(BUILD_TESTS)
     # screenshot headlessly, so a shield capture is a real artefact (issue #375).
     add_test(NAME game_shield_screenshot
              COMMAND FOSSynd --headless --shield --screenshot shield.bmp --frames 2)
-    # Performance-drug aura (issue #387): no aura before a dose, one aura on the
-    # dosed combatant, no aura for a civilian dose, and the aura clearing once the
-    # buff expires. Exits non-zero on a broken invariant.
+    # Drug-bar demo hook (issue #541, ADR-0043): the `--drugs` squad spike and the
+    # `B` active-bar spike move the bars and respect the ceiling. The old
+    # single-dose aura guard is gone with the consumable. Exits non-zero on a
+    # broken invariant.
     add_test(NAME game_drugs
              COMMAND FOSSynd --headless --check-drugs)
-    # `--drugs` doses the squad and must still render and write a screenshot
-    # headlessly, so a drug-aura capture is a real artefact (issue #387).
+    # `--drugs` spikes the squad's bars and must still render and write a
+    # screenshot headlessly, so a drug-bar capture is a real artefact (issue #541).
     add_test(NAME game_drugs_screenshot
              COMMAND FOSSynd --headless --drugs --screenshot drugs.bmp --frames 2)
     # Drug-bar controls (issue #503, ADR-0043): `[`/`]` must cycle the active bar,

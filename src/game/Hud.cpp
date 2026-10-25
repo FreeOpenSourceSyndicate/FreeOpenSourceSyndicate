@@ -165,7 +165,7 @@ void Game::renderHud()
     }
     const std::string controls = tr("hud.controls",
                                     "[SHIFT+CLICK] QUEUE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   "
-                                    "[P] PERSUADE   [F] FREE   [H] MEDKIT   [S] SHIELD   [C] SCAN   [B] DRUGS   [/] BAR   ;/' ADJUST   [E] HIJACK   [R] RESTART   [F5] SAVE   [F9] LOAD");
+                                    "[P] PERSUADE   [F] FREE   [H] MEDKIT   [S] SHIELD   [C] SCAN   [B] SPIKE   [/] BAR   ;/' ADJUST   [E] HIJACK   [R] RESTART   [F5] SAVE   [F9] LOAD");
     // The objective label is tinted by state; the static controls hint stays dim.
     // Together they used to overflow the default width, which right-aligned the
     // line and pushed the objective (its leftmost part) off-screen, so show the

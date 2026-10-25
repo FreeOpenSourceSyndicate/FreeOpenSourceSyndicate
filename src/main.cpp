@@ -52,7 +52,7 @@ void printUsage()
         "      --breach               Breach all destructible walls before rendering.\n"
         "      --scan                 Activate a scanner pulse on the squad before rendering.\n"
         "      --shield               Raise a shield on the squad before rendering.\n"
-        "      --drugs                Take performance drugs on the squad before rendering.\n"
+        "      --drugs                Spike the squad's drug bars before rendering.\n"
         "      --vehicle              Spawn a demo car and train before rendering.\n"
         "      --bomb                 Plant a demo time bomb on the squad before rendering.\n"
         "      --zoom <n>             Set the integer zoom level (1-3).\n"
@@ -74,7 +74,7 @@ void printUsage()
         "      --check-rubble         Validate breached-tile rubble rendering.\n"
         "      --check-scanner        Validate the scanner ping overlay.\n"
         "      --check-shield         Validate the personal shield overlay.\n"
-        "      --check-drugs          Validate the performance-drug aura overlay.\n"
+        "      --check-drugs          Validate the drug-bar demo hook and the B spike.\n"
         "      --check-drug-controls  Validate the three drug-bar controls.\n"
         "      --check-drug-bars      Validate the three drug-bar HUD.\n"
         "      --check-bomb           Validate the time-bomb demo hook.\n"
@@ -697,8 +697,9 @@ int main(int argc, char** argv)
         game.raiseShieldForSquad();
     }
 
-    // `--drugs` doses every living player agent up front so a headless screenshot
-    // shows the drug aura without a hotkey (issue #387). Kept beside `--shield`.
+    // `--drugs` spikes every living player agent's three drug bars up front so a
+    // headless screenshot shows them high without a hotkey (issue #541, ADR-0043).
+    // Kept beside `--shield`.
     if (drugsSquad)
     {
         game.takeDrugsForSquad();
@@ -875,10 +876,9 @@ int main(int argc, char** argv)
 
     if (checkDrugs)
     {
-        // Headless guard for the performance-drug aura overlay (issue #387): no
-        // aura before a dose, one aura on the dosed combatant, no aura for a
-        // civilian dose, and the aura clearing once the buff expires. Used by the
-        // game_drugs ctest.
+        // Headless guard for the drug-bar demo hook (issue #541, ADR-0043): the
+        // `--drugs` squad spike and the `B` active-bar spike move the bars and
+        // respect the ceiling. Used by the game_drugs ctest.
         const bool ok = game.drugsSelfTest();
         std::printf(ok ? "drugs: ok\n" : "drugs: FAILED\n");
         return ok ? 0 : 1;

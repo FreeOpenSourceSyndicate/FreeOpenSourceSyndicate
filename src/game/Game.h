@@ -274,11 +274,11 @@ public:
     // game_shield.
     bool shieldSelfTest();
 
-    // Headless guard for the performance-drug aura (issue #387): no aura before
-    // a dose, one aura on the dosed combatant, no aura for a civilian dose, and
-    // the aura clearing once the buff expires through the real update path.
-    // Drives the shared drugMarks() decision the render pass uses. Returns false
-    // on a broken invariant. Used by game_drugs.
+    // Headless guard for the drug-bar demo hook (issue #541, ADR-0043). The old
+    // single-dose consumable is retired: `--drugs` now spikes every living player
+    // agent's three bars (to their ceiling), and this drives the *real* handlers
+    // (`takeDrugsForSquad`, `spikeDrugBarOnSelection`) to prove the bars move and
+    // respect the ceiling. Returns false on a broken invariant. Used by game_drugs.
     bool drugsSelfTest();
 
     // Headless guard for the drug-bar controls (issue #503, ADR-0043): `[`/`]`
@@ -337,10 +337,11 @@ public:
     // core.
     void raiseShieldForSquad();
 
-    // Gives every living player agent a drug dose and takes it, granting one dose
-    // first when the squad has none (issue #387). A demo/verification hook (like
-    // `--shield`): `--drugs` makes the aura visible for a headless screenshot
-    // without a hotkey. Not a gameplay rule — the dose rules stay in core.
+    // Spikes every living player agent's three drug bars to their ceilings
+    // (issue #541, ADR-0043). A demo/verification hook (like `--shield`):
+    // `--drugs` makes the regulated bars read high for a headless screenshot
+    // without a hotkey. The old single-dose consumable is retired; the bars are
+    // the only drug surface, so this only raises state core already owns.
     void takeDrugsForSquad();
 
     // Plants one time bomb on the first living player combatant's tile (issue
@@ -461,10 +462,6 @@ private:
     // agent with a shield up. Presentation-only; it reads `Mission::shieldUp` and
     // never writes it (golden rule 4).
     void renderShield();
-    // Performance-drug aura overlay (issue #387): an amber rim around each agent
-    // with a live drug buff, fading as the dose runs out. Presentation-only; it
-    // reads `Mission::drugsTimer` and never writes it (golden rule 4).
-    void renderDrugAura();
     // Drug-bar HUD (issue #502, ADR-0043): three regulated bars (adrenalin /
     // intelligence / physical) per selected agent, each showing the level and the
     // drifting neutral point. Presentation-only; it reads `Mission::drugLevel` /
@@ -534,11 +531,15 @@ private:
     // the frozen `core::Mission` gadget API, which decides the effect and spends
     // the charge: the view picks the agents, the core owns the rules (golden rule
     // 1/4). A selection without a charge (or a civilian/dead agent) is a safe
-    // no-op. Keys: `H` medkit, `S` shield, `C` scanner, `B` drugs.
+    // no-op. Keys: `H` medkit, `S` shield, `C` scanner.
     void useMedkitOnSelection();    // `H`: heal the most-wounded ally in range
     void activateShieldOnSelection(); // `S`: absorb the next incoming hit
     void activateScannerOnSelection(); // `C`: ping nearby enemies for a moment
-    void useDrugsOnSelection();     // `B`: temporary speed/accuracy boost
+
+    // `B`: spike the active drug bar to its ceiling for every selected agent
+    // (issue #541, ADR-0043). The retired single-dose consumable is gone; this is
+    // the one-press "max out the bar I am regulating" beside the `;`/`'` steps.
+    void spikeDrugBarOnSelection();
 
     // Drug-bar controls (issue #503, ADR-0043). `[`/`]` cycle which of the three
     // bars (`Drug::Adrenalin`/`Intelligence`/`Physical`) the adjust keys act on;
@@ -612,22 +613,6 @@ private:
     // View-only: pure read of core (golden rule 4).
     std::vector<ShieldMark> shieldMarks() const;
 
-    // One drug aura the overlay draws (issue #387): a rim around an agent with a
-    // live performance-drug buff. `fraction` is the remaining dose (1 just taken,
-    // 0 just expired), so the aura can fade as it runs out.
-    struct DrugMark
-    {
-        std::size_t index = 0;
-        core::Vec2 world{0.0f, 0.0f};
-        float fraction = 0.0f;
-    };
-
-    // The drug auras the overlay should draw, from the live mission state. Shared
-    // by renderDrugAura() and drugsSelfTest() so the guard checks the real
-    // decision (an aura only while the buff runs). View-only: pure read of core
-    // (golden rule 4).
-    std::vector<DrugMark> drugMarks() const;
-
     // One drug bar the HUD draws for a selected agent (issue #502, ADR-0043):
     // the regulated level, the drifting neutral point, and whether the bar is
     // the one the `;`/`'` keys currently adjust. All three bars are drawn per
@@ -646,15 +631,6 @@ private:
     // guard checks the real decision. View-only: pure read of core (golden rule
     // 4).
     std::vector<DrugBar> drugBars() const;
-
-    // Per-agent peak drug timer observed while its buff runs, so drugMarks() can
-    // report the remaining fraction without core exposing the buff's full
-    // duration (issue #387). View-only; never feeds the simulation.
-    std::vector<float> drugPeak_;
-
-    // Records each agent's peak drug timer and clears it on expiry (issue #387).
-    // Called from update(), so the aura fades as the dose runs out.
-    void updateDrugSnapshot();
 
     // Per-agent absorb burst, in seconds left (issue #375). A raised shield drops
     // the instant it takes a hit, so without this the dome would vanish with no
