@@ -1296,6 +1296,107 @@ void Game::takeDrugsForSquad()
     updateDrugSnapshot();
 }
 
+void Game::plantDemoTimeBomb()
+{
+    // Plant one bomb on the first living player combatant's tile (issue #460), so
+    // a headless screenshot/guard exercises the real `Mission::orderTimeBomb` path
+    // (the fused mechanic from #449) without a mission that ships one. The rules
+    // stay in core: this only picks the agent and hands the order over.
+    for (std::size_t i = 0; i < mission_.agents().size(); ++i)
+    {
+        const core::Agent& agent = mission_.agents()[i];
+        if (!agent.isAlive() || agent.team() != core::Team::Player || !agent.canAttack())
+        {
+            continue;
+        }
+        mission_.orderTimeBomb(i, agent.tile());
+        return;
+    }
+}
+
+bool Game::bombSelfTest()
+{
+    // Headless guard for the time-bomb demo hook (issue #460): drive the real
+    // order path and prove the invariants a broken hook would violate — no bomb
+    // before, exactly one armed after planting, a civilian cannot plant one, a
+    // second bomb on the same agent is refused (no stacking), and the bomb clears
+    // once its fuse runs out through the real update path.
+    const auto& agents = mission_.agents();
+    if (mission_.pendingDetonations() != 0)
+    {
+        std::fprintf(stderr, "bomb self-test: a bomb was armed before any plant\n");
+        return false;
+    }
+
+    std::size_t planter = agents.size();
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (agents[i].isAlive() && agents[i].team() == core::Team::Player && agents[i].canAttack())
+        {
+            planter = i;
+            break;
+        }
+    }
+    if (planter == agents.size())
+    {
+        std::fprintf(stderr, "bomb self-test: no living player combatant\n");
+        return false;
+    }
+
+    // The demo hook arms exactly one bomb, on the chosen agent's tile.
+    plantDemoTimeBomb();
+    if (mission_.pendingDetonations() != 1)
+    {
+        std::fprintf(stderr, "bomb self-test: the demo hook did not arm exactly one bomb\n");
+        return false;
+    }
+
+    // A second bomb on the same agent is refused: a charge is never stacked.
+    if (mission_.orderTimeBomb(planter, agents[planter].tile()))
+    {
+        std::fprintf(stderr, "bomb self-test: a second bomb stacked on the same agent\n");
+        return false;
+    }
+    if (mission_.pendingDetonations() != 1)
+    {
+        std::fprintf(stderr, "bomb self-test: a refused second plant changed the bomb count\n");
+        return false;
+    }
+
+    // A civilian cannot plant a bomb: the core refuses, so no bomb is added.
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (agents[i].isAlive() && agents[i].team() == core::Team::Civilian)
+        {
+            if (mission_.orderTimeBomb(i, agents[i].tile()))
+            {
+                std::fprintf(stderr, "bomb self-test: a civilian planted a bomb\n");
+                return false;
+            }
+            if (mission_.pendingDetonations() != 1)
+            {
+                std::fprintf(stderr, "bomb self-test: a civilian plant changed the bomb count\n");
+                return false;
+            }
+            break;
+        }
+    }
+
+    // Let the fuse run out through the real update path: the bomb detonates and
+    // clears. Step in small increments so the guard does not depend on core's
+    // exact fuse duration.
+    for (int step = 0; step < 400 && mission_.pendingDetonations() > 0; ++step)
+    {
+        mission_.update(0.5f);
+    }
+    if (mission_.pendingDetonations() != 0)
+    {
+        std::fprintf(stderr, "bomb self-test: the bomb survived its fuse\n");
+        return false;
+    }
+    return true;
+}
+
 bool Game::scannerSelfTest()
 {
     // Headless guard for the scanner ping overlay (issue #323): before any scan
