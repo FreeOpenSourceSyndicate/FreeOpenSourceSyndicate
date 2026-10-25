@@ -61,11 +61,16 @@ SRC_DIR = os.path.join(REPO_ROOT, "src")
 LANG_DIR = os.path.join(REPO_ROOT, "assets", "lang")
 EN_JSON = os.path.join(LANG_DIR, "en.json")
 MISSIONS_DIR = os.path.join(REPO_ROOT, "assets", "data", "missions")
+WEAPONS_JSON = os.path.join(REPO_ROOT, "assets", "data", "weapons.json")
 
 # A mission id is the file stem; `missionIdFromPath` rejects anything that is not
 # a safe key segment, so a mission whose stem does not match this yields no key
 # and localisation is skipped — which is exactly what the guard must catch.
 MISSION_ID = re.compile(r"^[a-z][a-z0-9_]*$")
+
+# A weapon id is a catalogue `id`; `weaponNameKey` uses the same safe-segment
+# rule as a mission id (lower-case, digits, `_`, `-`), so the same guard applies.
+WEAPON_ID = re.compile(r"^[a-z][a-z0-9_-]*$")
 
 # The shape `tr()` keys use: dotted, lower-camel segments.
 KEY_SHAPED = re.compile(r'"([a-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)"')
@@ -153,6 +158,19 @@ def shipped_mission_ids():
         name for name in os.listdir(MISSIONS_DIR) if name.endswith(".json")
     )
     return [name[: -len(".json")] for name in names]
+
+
+def shipped_weapon_ids():
+    """The ``id`` of every entry in ``assets/data/weapons.json``, sorted.
+
+    The id is what ``core::i18n::weaponNameKey`` derives the localisation key
+    from, so the catalogue file — not a hardcoded list — is the authoritative
+    weapon set: a new weapon cannot be forgotten by a stale list (issue #534).
+    """
+    with open(WEAPONS_JSON, encoding="utf-8") as handle:
+        root = json.load(handle)
+    weapons = root.get("weapons", []) if isinstance(root, dict) else []
+    return sorted(entry["id"] for entry in weapons if isinstance(entry, dict) and "id" in entry)
 
 
 def source_files():
@@ -421,6 +439,46 @@ class StringTableKeyCoverage(unittest.TestCase):
                 + "\n".join(problems)
                 + "\nAdd `mission.<id>.name` and `mission.<id>.desc` to en.json "
                 "and every locale."
+            )
+
+    def test_every_weapon_has_a_localised_name(self):
+        # Weapon name keys are derived at runtime from the catalogue id
+        # (`weapon.<id>.name`, `core::i18n::weaponNameKey`, issue #534), so they
+        # are not key-shaped literals in `src/` and rule 1 cannot see them. Every
+        # shipped weapon must be localisable in every locale, or a localised run
+        # silently shows the authored English name (the silent-English class of
+        # #191).
+        english = english_table()
+        self.assertTrue(english, "en.json carried no keys")
+
+        ids = shipped_weapon_ids()
+        self.assertTrue(ids, "no weapon entries found")
+
+        locale_tables = {}
+        for path in shipped_locale_files():
+            keys, _dupes = load_table(path)
+            locale_tables[os.path.basename(path)] = keys
+
+        problems = []
+        for weapon_id in ids:
+            if not WEAPON_ID.match(weapon_id):
+                problems.append(
+                    f"  {weapon_id}: id is not a safe key segment "
+                    f"(localisation would be skipped)"
+                )
+                continue
+            key = f"weapon.{weapon_id}.name"
+            if key not in english:
+                problems.append(f"  en.json: missing {key}")
+            for locale, keys in sorted(locale_tables.items()):
+                if key not in keys:
+                    problems.append(f"  {locale}: missing {key}")
+
+        if problems:
+            self.fail(
+                "weapon localisation is incomplete:\n"
+                + "\n".join(problems)
+                + "\nAdd `weapon.<id>.name` to en.json and every locale."
             )
 
     def test_no_locale_value_is_empty(self):

@@ -63,5 +63,19 @@
   "mission.vault.name": "Tresor",
   "mission.vault.desc": "Den Tresor auf dem fernen Sims knacken und das Buch durch die Wachlinie zum Bergungsfeld bringen.",
   "mission.uprising.name": "Aufstand",
-  "mission.uprising.desc": "Die Menge mit dem Compliance-Beacon umdrehen und fuenf fuer sich gewinnen, bevor die Bereitschaft naht."
+  "mission.uprising.desc": "Die Menge mit dem Compliance-Beacon umdrehen und fuenf fuer sich gewinnen, bevor die Bereitschaft naht.",
+
+  "weapon.pistol.name": "Pistole",
+  "weapon.rifle.name": "Gewehr",
+  "weapon.uzi.name": "Uzi",
+  "weapon.launcher.name": "Werfer",
+  "weapon.minigun.name": "Minigun",
+  "weapon.flamethrower.name": "Flammenwerfer",
+  "weapon.laser.name": "Laser",
+  "weapon.shotgun.name": "Schrotflinte",
+  "weapon.sniper.name": "Scharfschuetze",
+  "weapon.gauss.name": "Gauss",
+  "weapon.longshot.name": "Weitschuss",
+  "weapon.railgun.name": "Railgun",
+  "weapon.time-bomb.name": "Zeitbombe"
 }

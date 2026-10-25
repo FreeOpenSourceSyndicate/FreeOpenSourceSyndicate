@@ -5,14 +5,15 @@
 
 #include "core/i18n/StringTable.h"
 
-// Mission-text localisation (issue #142, ADR-0020).
+// Authored content-text localisation (issues #142, #534; ADR-0020).
 //
-// Mission-authored text (the `name` / `description` in
-// `assets/data/missions/*.json`) is content, not UI chrome, so it is keyed by a
-// stable, language-independent mission id and resolved through the same
-// `StringTable` the HUD uses. This header is pure and engine-free: it derives
-// keys and resolves strings, and never touches the filesystem or the mission
-// loader, so the caller decides where the id and the raw text come from.
+// Content-authored text (a mission's `name`/`description` in
+// `assets/data/missions/*.json`, and a weapon's `name` in
+// `assets/data/weapons.json`) is content, not UI chrome, so it is keyed by a
+// stable, language-independent id and resolved through the same `StringTable`
+// the HUD uses. This header is pure and engine-free: it derives keys and
+// resolves strings, and never touches the filesystem or a loader, so the caller
+// decides where the id and the raw text come from.
 namespace fossynd::core::i18n
 {
 
@@ -23,6 +24,14 @@ namespace fossynd::core::i18n
 //   missionDescKey("demo") == "mission.demo.desc"
 std::string missionNameKey(const std::string& id);
 std::string missionDescKey(const std::string& id);
+
+// The string-table key for a weapon's localised display name, derived from its
+// shared-catalogue id (`assets/data/weapons.json`). Pure.
+//
+//   weaponNameKey("rifle") == "weapon.rifle.name"
+//   weaponNameKey("time-bomb") == "weapon.time-bomb.name"
+std::string weaponNameKey(const std::string& id);
+
 
 // The mission id used for localisation, taken from a mission content path: the
 // file stem without its directory or extension
