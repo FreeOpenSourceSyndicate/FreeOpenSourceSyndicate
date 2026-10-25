@@ -1,0 +1,51 @@
+{
+  "name": "The Conclave",
+  "id": "conclave",
+  "width": 28,
+  "height": 28,
+  "objective": { "kind": "assassinate", "agentIndex": 8 },
+  "buildings": [
+    { "x": 4, "y": 4, "width": 5, "height": 5 },
+    { "x": 19, "y": 4, "width": 5, "height": 5 },
+    { "x": 4, "y": 19, "width": 5, "height": 5 },
+    { "x": 19, "y": 19, "width": 5, "height": 5 }
+  ],
+  "blocked": [
+    { "x": 13, "y": 10 }, { "x": 14, "y": 10 }, { "x": 15, "y": 10 },
+    { "x": 12, "y": 13 }, { "x": 12, "y": 14 }, { "x": 12, "y": 15 },
+    { "x": 16, "y": 13 }, { "x": 16, "y": 14 }, { "x": 16, "y": 15 },
+    { "x": 13, "y": 18 }, { "x": 14, "y": 18 }, { "x": 15, "y": 18 }
+  ],
+  "agents": [
+    { "name": "ALPHA", "team": "player", "x": 1.5, "y": 26.5, "health": 140,
+      "weapon": { "name": "Gauss", "damage": 7, "range": 11, "fireRate": 5, "accuracy": 0.8 } },
+    { "name": "BRAVO", "team": "player", "x": 2.5, "y": 26.5, "health": 130,
+      "weapon": { "name": "Laser", "damage": 22, "range": 12, "fireRate": 1, "accuracy": 0.9 } },
+    { "name": "CHARLIE", "team": "player", "x": 1.5, "y": 25.5, "health": 120,
+      "weapon": { "name": "Rifle", "damage": 8, "range": 9, "fireRate": 4, "accuracy": 0.65 } },
+    { "name": "DELTA", "team": "player", "x": 2.5, "y": 25.5, "health": 120,
+      "weapon": { "name": "Shotgun", "damage": 18, "range": 3.5, "fireRate": 1, "accuracy": 0.65 } },
+
+    { "name": "PRAETORIAN-1", "team": "enemy", "x": 4.5, "y": 21.5, "health": 110,
+      "weapon": { "name": "Minigun", "damage": 4, "range": 6, "fireRate": 16, "accuracy": 0.5 } },
+    { "name": "PRAETORIAN-2", "team": "enemy", "x": 23.5, "y": 21.5, "health": 110,
+      "weapon": { "name": "Minigun", "damage": 4, "range": 6, "fireRate": 16, "accuracy": 0.5 } },
+    { "name": "PRAETORIAN-3", "team": "enemy", "x": 4.5, "y": 4.5, "health": 110,
+      "weapon": { "name": "Flamethrower", "damage": 7, "range": 4, "fireRate": 8, "accuracy": 0.6 } },
+    { "name": "PRAETORIAN-4", "team": "enemy", "x": 23.5, "y": 4.5, "health": 110,
+      "weapon": { "name": "Shotgun", "damage": 18, "range": 3.5, "fireRate": 1, "accuracy": 0.65 } },
+
+    { "name": "OVERSEER", "team": "enemy", "x": 14.5, "y": 14.5, "health": 160,
+      "weapon": { "name": "Railgun", "damage": 34, "range": 13, "fireRate": 0.9, "accuracy": 0.9 } },
+    { "name": "BODYGUARD-1", "team": "enemy", "x": 13.5, "y": 13.5, "health": 100,
+      "weapon": { "name": "Gauss", "damage": 7, "range": 11, "fireRate": 5, "accuracy": 0.8 } },
+    { "name": "BODYGUARD-2", "team": "enemy", "x": 15.5, "y": 15.5, "health": 100,
+      "weapon": { "name": "Gauss", "damage": 7, "range": 11, "fireRate": 5, "accuracy": 0.8 } },
+    { "name": "MARKSMAN", "team": "enemy", "x": 20.5, "y": 14.5, "health": 65,
+      "weapon": { "name": "Laser", "damage": 22, "range": 12, "fireRate": 1, "accuracy": 0.9 } },
+
+    { "name": "CIVILIAN", "team": "civilian", "x": 7.5, "y": 14.5, "health": 20 },
+    { "name": "CIVILIAN", "team": "civilian", "x": 20.5, "y": 22.5, "health": 20 },
+    { "name": "CIVILIAN", "team": "civilian", "x": 7.5, "y": 22.5, "health": 20 }
+  ]
+}

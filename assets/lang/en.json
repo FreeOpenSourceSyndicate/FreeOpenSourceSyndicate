@@ -55,5 +55,7 @@
   "mission.caravan.name": "Caravan",
   "mission.caravan.desc": "Escort the courier across the Sahari dunes and bring them alive to the far oasis gate.",
   "mission.relay.name": "Relay",
-  "mission.relay.desc": "Breach the Anduran relay wall and destroy the transmitter before the garrison seals the pass."
+  "mission.relay.desc": "Breach the Anduran relay wall and destroy the transmitter before the garrison seals the pass.",
+  "mission.conclave.name": "The Conclave",
+  "mission.conclave.desc": "Storm the syndicate conclave and kill the OVERSEER; the praetorian guard and his bodyguards will fight to the last."
 }
