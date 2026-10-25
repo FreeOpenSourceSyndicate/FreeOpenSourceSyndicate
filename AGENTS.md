@@ -1129,9 +1129,12 @@ Do not start work outside the scope fence (ADR-0024).
   `Mission.ShippedDecapitationAssassinateIsWinnable` /
   `Mission.ShippedExtractionRetrieveIsWinnable` in `tests/test_mission.cpp`
   (load the real file, check the target is real/reachable, drive the mechanic to
-  the win). **The HUD banner half is still open (render, #474):**
-  `Game::objectiveBannerText` + the `--check-objectives` self-test must gain a
-  branch per new kind, or a mission using it will render the wrong banner.
+  the win). **The text half has landed (issue #475):** `hud.objective.assassinate`
+  and `hud.objective.retrieve` are in `assets/lang/en.json` (+ `de.json`), so the
+  render banner has keys to read. **The HUD banner half is still open (render,
+  #474):** `Game::objectiveBannerText` + the `--check-objectives` self-test must
+  gain a branch per new kind (with the matching `tr()` fallback), or a mission
+  using it will render the wrong banner.
 - **Sprites are authored text (ADR-0013):** agent and prop art lives in
   `assets/sprites/agents.txt` as `frame` blocks of `B`/`T`/`S`/`D`/`.`/`A`
   pixels. `core::bakeSheet` (`core/data/AgentSprites.*`, SDL-free, unit-tested)
