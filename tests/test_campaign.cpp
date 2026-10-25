@@ -765,3 +765,132 @@ FOSSYND_TEST(Campaign, OwnAllTerritoriesWinIsNotAFinalConfrontation)
     FOSSYND_CHECK(campaign.state() == CampaignState::Won);
     FOSSYND_CHECK(!campaign.wonFinalConfrontation());
 }
+
+// --- region-based agent names (issue #509) ---
+
+FOSSYND_TEST(Campaign, RecruitingAssignsAFixedNameFromTheRegionsPool)
+{
+    Campaign campaign = loadedCampaign();
+
+    // Every region in the shipped map has a pool, and recruiting in a region
+    // yields a name from *that* region's pool.
+    FOSSYND_CHECK_EQ(campaign.namePools().regions().size(), campaign.map().size());
+    for (const Territory& territory : campaign.map().territories())
+    {
+        const std::vector<std::string>* pool = campaign.namePools().pool(territory.id);
+        FOSSYND_CHECK(pool != nullptr);
+        FOSSYND_CHECK(!pool->empty());
+
+        // A fresh campaign per region, so the recruited name comes from this
+        // region's pool (a name is idempotent once assigned).
+        Campaign fresh = loadedCampaign();
+        const std::string name = fresh.recruitAgent(0, territory.id);
+        FOSSYND_CHECK(!name.empty());
+        bool inPool = false;
+        for (const std::string& candidate : *pool)
+        {
+            if (candidate == name)
+            {
+                inPool = true;
+                break;
+            }
+        }
+        FOSSYND_CHECK(inPool);
+    }
+}
+
+FOSSYND_TEST(Campaign, RecruitedNameIsStableAndDistinctAcrossTheSquad)
+{
+    Campaign campaign = loadedCampaign();
+
+    // Four recruits in the same region fill four slots with four distinct names
+    // (a fresh roster never duplicates an identity).
+    const std::string a = campaign.recruitAgent(0, 0);
+    const std::string b = campaign.recruitAgent(1, 0);
+    const std::string c = campaign.recruitAgent(2, 0);
+    const std::string d = campaign.recruitAgent(3, 0);
+    FOSSYND_CHECK(!a.empty() && !b.empty() && !c.empty() && !d.empty());
+    FOSSYND_CHECK(a != b && a != c && a != d && b != c && b != d && c != d);
+    FOSSYND_CHECK_EQ(campaign.agentName(0), a);
+    FOSSYND_CHECK_EQ(campaign.agentName(3), d);
+
+    // A name never changes afterwards: recording a result leaves it in place.
+    campaign.recordResult(true, Campaign::kPlayerSyndicate);
+    FOSSYND_CHECK_EQ(campaign.agentName(0), a);
+
+    // A name also survives a re-run of the same recruit on the same roster (the
+    // assignment is deterministic, not random): recruiting slot 0 again in region
+    // 0 returns the same name it already holds.
+    FOSSYND_CHECK_EQ(campaign.recruitAgent(0, 0), a);
+}
+
+FOSSYND_TEST(Campaign, RecruitWithoutAPoolIsASafeNoOp)
+{
+    Campaign campaign = loadedCampaign();
+
+    // A region with no pool assigns no name and never crashes (the documented
+    // fallback, AGENTS.md 1b).
+    FOSSYND_CHECK(campaign.namePools().pool(999) == nullptr);
+    FOSSYND_CHECK_EQ(campaign.recruitAgent(0, 999), std::string());
+    FOSSYND_CHECK_EQ(campaign.agentName(0), std::string());
+
+    // An out-of-range slot is a no-op too.
+    FOSSYND_CHECK_EQ(campaign.recruitAgent(-1, 0), std::string());
+    FOSSYND_CHECK_EQ(campaign.recruitAgent(99, 0), std::string());
+}
+
+FOSSYND_TEST(Campaign, ParsesNamePoolsAndRejectsABadOne)
+{
+    std::string error;
+
+    // The shipped file loads and its pools are non-empty.
+    NamePools pools;
+    FOSSYND_CHECK(NamePools::loadFromFile(shipped("names.json"), pools, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(!pools.regions().empty());
+
+    // A duplicate region entry is rejected.
+    const std::string dup = writeTemp(
+        "{\"pools\":[{\"region\":0,\"names\":[\"A\"]},{\"region\":0,\"names\":[\"B\"]}]}");
+    FOSSYND_CHECK(!NamePools::loadFromFile(dup, pools, error));
+    std::remove(dup.c_str());
+
+    // An empty names array is rejected (a pool is never empty by parse).
+    const std::string empty = writeTemp("{\"pools\":[{\"region\":0,\"names\":[]}]}");
+    FOSSYND_CHECK(!NamePools::loadFromFile(empty, pools, error));
+    std::remove(empty.c_str());
+
+    // A negative region is rejected.
+    const std::string neg = writeTemp("{\"pools\":[{\"region\":-1,\"names\":[\"A\"]}]}");
+    FOSSYND_CHECK(!NamePools::loadFromFile(neg, pools, error));
+    std::remove(neg.c_str());
+}
+
+FOSSYND_TEST(Campaign, ShippedCampaignLoadsNamePoolsFromItsSibling)
+{
+    // The `names` sibling key in campaign.json is what wires the pools in; a
+    // shipped campaign must actually carry them, not just tolerate the file.
+    Campaign campaign = loadedCampaign();
+    FOSSYND_CHECK(!campaign.namePools().regions().empty());
+}
+
+FOSSYND_TEST(Campaign, SetAgentNamesRestoresARosterAndPadsTheSquad)
+{
+    // The contract the save overlay (#433/#458) calls to restore a roster: a short
+    // input pads with empty strings, a long one is truncated, so the roster is
+    // always exactly the squad size.
+    Campaign campaign = loadedCampaign();
+    campaign.setAgentNames({"Ada", "Bo"});
+    FOSSYND_CHECK_EQ(campaign.agentName(0), std::string("Ada"));
+    FOSSYND_CHECK_EQ(campaign.agentName(1), std::string("Bo"));
+    FOSSYND_CHECK_EQ(campaign.agentName(2), std::string());
+    FOSSYND_CHECK_EQ(campaign.agentName(3), std::string());
+    FOSSYND_CHECK_EQ(campaign.agentNames().size(),
+                     static_cast<std::size_t>(Equipment::kSquadSlots));
+
+    // A long input keeps only the first squad-size entries.
+    campaign.setAgentNames({"A", "B", "C", "D", "E", "F"});
+    FOSSYND_CHECK_EQ(campaign.agentName(3), std::string("D"));
+    FOSSYND_CHECK_EQ(campaign.agentNames().size(),
+                     static_cast<std::size_t>(Equipment::kSquadSlots));
+}

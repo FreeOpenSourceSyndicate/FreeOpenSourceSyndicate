@@ -97,6 +97,18 @@ public:
     // [0, maxTaxLevel]). A no-op unless a player-owned territory is selected.
     void adjustTax(int delta);
 
+    // Recruits the next unnamed squad agent from the selected region's name pool
+    // (issue #509): the agent takes a fixed name drawn from where it was
+    // recruited, and keeps it. Fills the lowest-numbered empty slot, so repeated
+    // recruits build a named squad. Returns true when a name was assigned; false
+    // when no territory is selected, the region has no pool, or the squad is
+    // already fully named (all safe no-ops, never fatal).
+    bool recruitSelected();
+
+    // The name assigned to squad `slot`, or empty when unnamed (issue #509).
+    // Read-only, for the panel and the deploy hand-off.
+    const std::string& squadName(int slot) const { return campaign_.agentName(slot); }
+
     // The territory currently selected on the map, or -1. Read-only, for the
     // engine layer (e.g. the deploy self-test).
     core::TerritoryId selectedTerritory() const { return selected_; }
