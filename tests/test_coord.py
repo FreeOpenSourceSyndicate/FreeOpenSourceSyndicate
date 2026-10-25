@@ -332,6 +332,56 @@ class TestCheckGate(CoordTestCase):
         self.assertIn("check OK", out)
 
 
+class TestHelperLeaseWarning(CoordTestCase):
+    """`claim` warns when it would set the helper-lease trap (issue #561).
+
+    A second area for one issue is a helper lease; it must be released at commit
+    time (FOCUS_AREAS 5.1.5) or `coord check` fails fleet-wide.  The warning is
+    loud at claim time instead of relying on a peer to catch it later.
+    """
+
+    def test_claim_warns_when_it_sets_a_helper_lease(self):
+        self.run_coord("claim", "--area", "input-ui", "--issue", 541, "--agent", "a")
+        out, err = self.run_coord("claim", "--area", "platform", "--issue", 541,
+                                  "--agent", "a")
+        self.assertIn("claimed platform / #541", out)
+        self.assertIn("warning", err)
+        self.assertIn("helper lease", err)
+        self.assertIn("input-ui", err)
+        # It must not hard-refuse: the overlap is legitimate between commit and
+        # release, so the claim still succeeds.
+        self.assertIn("refs/coord/leases/platform", self.remote_refs())
+
+    def test_claim_is_silent_without_a_helper_lease(self):
+        out, err = self.run_coord("claim", "--area", "input-ui", "--issue", 541,
+                                  "--agent", "a")
+        self.assertIn("claimed input-ui / #541", out)
+        self.assertNotIn("warning", err)
+
+    def test_a_second_area_for_another_issue_does_not_warn(self):
+        # Two different issues in two areas is normal work, not a helper lease.
+        self.run_coord("claim", "--area", "input-ui", "--issue", 541, "--agent", "a")
+        _, err = self.run_coord("claim", "--area", "platform", "--issue", 561,
+                                "--agent", "a")
+        self.assertNotIn("warning", err)
+
+    def test_a_peer_holding_the_other_area_does_not_warn(self):
+        # The trap is same-agent, same-issue: a peer's lease is not ours to release.
+        self.run_coord("claim", "--area", "input-ui", "--issue", 541, "--agent", "a")
+        _, err = self.run_coord("claim", "--area", "platform", "--issue", 541,
+                                "--agent", "b")
+        self.assertNotIn("warning", err)
+
+    def test_releasing_the_helper_lane_clears_the_warning(self):
+        self.run_coord("claim", "--area", "input-ui", "--issue", 541, "--agent", "a")
+        self.run_coord("claim", "--area", "platform", "--issue", 541, "--agent", "a")
+        self.run_coord("release", "--area", "platform", "--issue", 541, "--agent", "a")
+        self.run_coord("release", "--area", "input-ui", "--issue", 541, "--agent", "a")
+        _, err = self.run_coord("claim", "--area", "input-ui", "--issue", 541,
+                                "--agent", "a")
+        self.assertNotIn("warning", err)
+
+
 class TestStatusAndBoard(CoordTestCase):
     def test_status_reports_free_areas_and_holder(self):
         self.run_coord("claim", "--area", "world", "--issue", 157, "--agent", "a")

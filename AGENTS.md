@@ -1759,3 +1759,15 @@ Do not start work outside the scope fence (ADR-0024).
   (`docs/FOCUS_AREAS.md` §5.3.1); a claimant who is not that agent picks other
   work. The marker is a convention, not a lock (the ledger is the only lock); the
   `coord claim`/`next` enforcement half is a `platform` Rule 4 (#542).
+- **`coord claim` warns when it sets the helper-lease trap (issue #561).** A
+  second area for the *same* issue is a **helper lease**: legitimate while the
+  edit is in flight, but it must be released at commit time
+  (`docs/FOCUS_AREAS.md` §5.1.5). If it is not, the issue has two live leases and
+  `coord check` fails — and that gate is **fleet-wide**, so it reddens the *Lease
+  ledger check* on every open PR until a peer notices. This recurred five times in
+  one shift (#499, #527, #502, #541, #557), so `coord claim` now prints a warning
+  (to stderr) when the claiming agent already holds a live lease for the target
+  issue in another area; it does **not** hard-refuse, because the brief overlap
+  between commit and release is legitimate. Guarded by
+  `tests/test_coord.py::TestHelperLeaseWarning`. The rule is unchanged — this only
+  makes the trap loud at the moment it is set.
