@@ -390,6 +390,15 @@ PlayerLoadout Campaign::selectedLoadout() const
             // ignored, because R1's LoadoutSlot carries at most one of each.
         }
         loadout.slots.push_back(std::move(entry));
+
+        // The bought drug-bar ceilings ride along with the slots (ADR-0043,
+        // #553). They live in a separate `ceilings` vector, so returning them
+        // from a second call would let a caller forget them and ship a bought
+        // regulator that is inert in play (the #99/#101 trap). Building the whole
+        // deploy payload here keeps it atomic; the loader's `DrugBarCeilings` is
+        // field-for-field the metagame's `DrugCeilings`.
+        const DrugCeilings ceiling = equipment_.ceilings(kPlayerSyndicate, slot, catalogue_);
+        loadout.ceilings.push_back({ceiling.adrenalin, ceiling.intelligence, ceiling.physical});
     }
     return loadout;
 }

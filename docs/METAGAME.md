@@ -546,11 +546,14 @@ new item of the same kind replaces the old): `Equipment::ceilings(syndicate,
 slot, catalogue)` sums the slot's ceilings into a `DrugCeilings`
 (`adrenalin`/`intelligence`/`physical`, each `0.0` when no ceiling of that bar is
 equipped), and the higher of two ceilings for one bar wins. `Campaign::
-selectedCeilings()` returns one `DrugCeilings` per selected squad slot, parallel
-to `selectedLoadout()`, so the deploy path knows how high each bar may be
-regulated. **Carrying those ceilings onto the deployed agents is a Rule 4 request
-to `focus: tactical`** (the `LoadoutSlot`/`Mission` half, #499): this side only
-sells and resolves them.
+selectedLoadout()` returns one `LoadoutSlot` **and** one `DrugBarCeilings` per
+selected squad slot — the two vectors are parallel, so the whole deploy payload
+is atomic and a caller cannot carry the weapons but forget the ceilings.
+`Campaign::selectedCeilings()` returns the same ceilings on their own (the
+`DrugCeilings` view). **The ceilings reach the deployed agents end to end**
+(#553): `selectedLoadout().ceilings` → `PlayerLoadout::ceilings` →
+`applyLoadout` → `Mission::setDrugCeiling` (the tactical clamp landed in #552).
+This side sells and resolves them; the clamp rule is `focus: tactical`'s.
 
 ### 5.4 `campaign.json`
 
