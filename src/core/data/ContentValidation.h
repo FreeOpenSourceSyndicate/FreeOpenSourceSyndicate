@@ -37,6 +37,10 @@ struct ValidationReport
     bool ok() const { return problems.empty(); }
 };
 
+// The metagame world map's filename, under `dataDir/world/`. `campaign.json`
+// also names it in its `world` field; this is the default the guard reads.
+inline const char* const kWorldMapFileName = "world.json";
+
 namespace detail
 {
 
@@ -218,10 +222,65 @@ inline void validateWorldData(const std::filesystem::path& dir, const WeaponCata
     }
 }
 
+// Cross-checks the world map's region→mission links. `world.json` names a
+// `missionId` per territory; nothing else validated that the id resolves to a
+// shipped mission file, so a typo shipped a region the player could never attack
+// (the silent-break class of the closed #369). A missing `world.json` is
+// skipped (tolerant, like the other optional world files); a present file is
+// checked, and a missing `missions/` directory means every non-empty id is
+// dangling. Only the file's existence is required - the mission's own validity
+// is `validateMissionFile`'s job.
+inline void validateWorldMapMissions(const std::filesystem::path& worldDir,
+                                     const std::filesystem::path& missionsDir,
+                                     ValidationReport& report)
+{
+    const std::filesystem::path worldPath = worldDir / kWorldMapFileName;
+    std::string text;
+    std::string error;
+    if (!detail::readFile(worldPath, text, error))
+    {
+        return; // absent (or unreadable) world file: nothing to cross-check
+    }
+
+    const Json root = Json::parse(text, error);
+    if (!error.empty())
+    {
+        report.problems.push_back({worldPath.string(), error});
+        return;
+    }
+
+    const Json& territories = root["territories"];
+    for (std::size_t i = 0; i < territories.size(); ++i)
+    {
+        const Json& territory = territories[i];
+        if (!territory.isObject())
+        {
+            continue; // shape errors are the map loader's to report
+        }
+        const std::string missionId = territory["missionId"].asString();
+        if (missionId.empty())
+        {
+            continue; // a region with no mission is a valid state
+        }
+        std::error_code ec;
+        if (std::filesystem::exists(missionsDir / (missionId + ".json"), ec))
+        {
+            continue;
+        }
+        const std::string name = territory["name"].asString();
+        report.problems.push_back(
+            {worldPath.string(),
+             "territory '" + (name.empty() ? std::to_string(territory["id"].asInt()) : name) +
+                 "' names missionId '" + missionId + "', but missions/" + missionId +
+                 ".json does not exist"});
+    }
+}
+
 // Loads `weapons.json`/`agents.json`/`vehicles.json` from `dataDir` (missing
-// files are fine: the catalogues stay empty), then validates every `*.json`
-// under `dataDir/missions`. `dataDir` is the directory holding the catalogues
-// and the `missions/` subdirectory (`assets/data`).
+// files are fine: the catalogues stay empty), cross-checks the metagame world
+// data and the map's region→mission links, then validates every `*.json` under
+// `dataDir/missions`. `dataDir` is the directory holding the catalogues and the
+// `missions/` subdirectory (`assets/data`).
 inline ValidationReport validateContentDir(const std::string& dataDir)
 {
     ValidationReport report;
@@ -255,6 +314,7 @@ inline ValidationReport validateContentDir(const std::string& dataDir)
     report.cataloguesChecked = weapons.size() + agents.size() + vehicles.size();
 
     validateWorldData(dir, weapons, report);
+    validateWorldMapMissions(dir / "world", dir / "missions", report);
 
     for (const std::filesystem::path& mission : detail::sortedJsonFiles(dir / "missions"))
     {

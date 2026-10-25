@@ -334,6 +334,63 @@ FOSSYND_TEST(ContentValidation, MissingWorldDataIsNotAProblem)
     FOSSYND_CHECK(report.ok());
 }
 
+// A world map whose regions all name missions that exist must pass. This is the
+// positive half of the region→mission guard.
+FOSSYND_TEST(ContentValidation, WorldMapMissionIdsResolve)
+{
+    TempContent content("world_ids_ok");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    content.write("missions/alpha.json", R"({
+        "name": "Alpha", "width": 8, "height": 6,
+        "agents": [{"team": "player", "x": 1, "y": 1, "weaponId": "rifle"}]
+    })");
+    content.write("world/world.json", R"({"territories": [
+        {"id": 0, "name": "A", "neighbours": [1], "owner": 0,  "missionId": "alpha"},
+        {"id": 1, "name": "B", "neighbours": [0], "owner": -1, "missionId": "alpha"}
+    ]})");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(report.ok());
+}
+
+// A `missionId` that names no shipped mission file is reported: otherwise the
+// region ships a deploy target the player can never attack (#369's silent-break
+// class). The message names the territory and the missing file.
+FOSSYND_TEST(ContentValidation, DanglingWorldMissionIdIsReported)
+{
+    TempContent content("world_ids_dangling");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    content.write("world/world.json", R"({"territories": [
+        {"id": 0, "name": "Westmarch", "neighbours": [1], "owner": 0,  "missionId": "demo"},
+        {"id": 1, "name": "Nordhelm",  "neighbours": [0], "owner": -1, "missionId": "ghost"}
+    ]})");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(!report.ok());
+    FOSSYND_CHECK(reportMentions(report, "Nordhelm"));
+    FOSSYND_CHECK(reportMentions(report, "missionId 'ghost'"));
+    FOSSYND_CHECK(reportMentions(report, "missions/ghost.json"));
+    FOSSYND_CHECK(reportMentions(report, "world.json"));
+}
+
+// A region with an empty (or absent) missionId is a valid state (the original
+// leaves some regions with no battle), so it must not be reported.
+FOSSYND_TEST(ContentValidation, WorldRegionWithoutMissionIsAllowed)
+{
+    TempContent content("world_ids_empty");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    content.write("world/world.json", R"({"territories": [
+        {"id": 0, "name": "A", "neighbours": [1], "owner": 0, "missionId": ""},
+        {"id": 1, "name": "B", "neighbours": [0], "owner": 0}
+    ]})");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(report.ok());
+}
+
 // The shipped content must always be valid: this is the guard that keeps a
 // broken mission or catalogue out of `main`.
 FOSSYND_TEST(ContentValidation, ShippedContentPasses)
