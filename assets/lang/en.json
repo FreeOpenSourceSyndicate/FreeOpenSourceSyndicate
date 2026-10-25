@@ -68,6 +68,12 @@
   "mission.vault.desc": "Crack the vault on the far shelf and carry the ledger back to the extraction tile through the guard line.",
   "mission.uprising.name": "Uprising",
   "mission.uprising.desc": "Turn the crowd with the Compliance Beacon and bring five of them over before the riot squad closes in.",
+  "mission.arsenal.name": "Arsenal",
+  "mission.arsenal.desc": "Hijack the van and drive the squad across the depot yard to the exfil pad before the garrison cuts the route.",
+  "mission.gauntlet.name": "Gauntlet",
+  "mission.gauntlet.desc": "Breach the bunker wall with sustained fire and blow the magazine behind it before the defenders rally.",
+  "mission.stockade.name": "Stockade",
+  "mission.stockade.desc": "Hold the stockade courtyard against the raiders and survive their assault until the clock runs out.",
 
   "weapon.pistol.name": "Pistol",
   "weapon.rifle.name": "Rifle",

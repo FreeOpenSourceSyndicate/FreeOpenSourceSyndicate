@@ -4459,3 +4459,165 @@ FOSSYND_TEST(Mission, ShippedUprisingPersuadeIsWinnable)
     FOSSYND_CHECK(mission.followerCount(0) >= static_cast<std::size_t>(target));
 }
 
+// --- Shipped campaign mission set, slice 3 (issue #563) --------------------
+//
+// The third wave of authored campaign missions. Two of them exercise the
+// tactical systems Milestone A added and the campaign had never shown: a
+// hijackable *vehicle* (arsenal) and a *destructible-wall breach* objective
+// (gauntlet). Each case loads its file through the real loader, builds the real
+// grid, populates the real mission, and drives the objective's own mechanic to
+// the win, so an unreachable, walled-off, or inert board fails here.
+
+FOSSYND_TEST(Mission, ShippedArsenalReachByVehicleIsWinnable)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("arsenal"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::ReachTile);
+
+    // The board must actually place a vehicle, or the "drive to the pad" premise
+    // is a walk on foot and the Milestone A system stays out of the campaign.
+    FOSSYND_CHECK_EQ(data.vehicles.size(), 1u);
+
+    TileGrid grid = buildGrid(data);
+    const TilePos goal{data.objective.tileX, data.objective.tileY};
+    FOSSYND_CHECK(grid.isWalkable(goal.x, goal.y));
+
+    Mission mission(grid, 51u);
+    populateMission(data, mission);
+
+    // The parsed `vehicles[]` must reach the board with its catalogue stats.
+    FOSSYND_CHECK_EQ(mission.vehicles().size(), 1u);
+    if (mission.vehicles().size() != 1u)
+    {
+        return;
+    }
+    const Vehicle& van = mission.vehicles().front();
+    FOSSYND_CHECK(van.kind() == VehicleKind::Car);
+    FOSSYND_CHECK_EQ(van.name(), std::string("Van"));
+    FOSSYND_CHECK(grid.isWalkable(van.tile().x, van.tile().y));
+    FOSSYND_CHECK(!van.isOccupied());
+
+    // The pad must be reachable from the squad, or the mission is silently
+    // unwinnable (the #212 trap).
+    const TilePos start{static_cast<int>(data.agents.front().x),
+                        static_cast<int>(data.agents.front().y)};
+    FOSSYND_CHECK(!findPath(grid, start, goal, /*allowDiagonal=*/true).empty());
+
+    // The player's real action: hijack the van and drive it to the exfil pad.
+    // The squad is ordered onto the pad too, so if the van is wrecked en route
+    // its ejected driver can still finish on foot — the reach objective is what
+    // ends the mission, and the vehicle is the fast route, not the only one.
+    FOSSYND_CHECK(mission.orderHijack(0, 0));
+    for (int guard = 0; guard < 60 && mission.state() == MissionState::Running; ++guard)
+    {
+        mission.orderDrive(0, goal);
+        for (std::size_t i = 0; i < mission.agents().size(); ++i)
+        {
+            if (mission.agents()[i].team() == Team::Player && mission.agents()[i].isAlive() &&
+                !mission.isDriving(i))
+            {
+                mission.orderMove(i, goal);
+            }
+        }
+        runUntilDone(mission, 4.0f);
+    }
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+}
+
+FOSSYND_TEST(Mission, ShippedGauntletBreachIsWinnable)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("gauntlet"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Destroy);
+
+    TileGrid grid = buildGrid(data);
+    const TilePos goal{data.objective.tileX, data.objective.tileY};
+    // The objective names a destructible wall, not a floor tile: without a
+    // breachable target the mission could never be won.
+    FOSSYND_CHECK(grid.isDestructible(goal.x, goal.y));
+    FOSSYND_CHECK(!grid.isWalkable(goal.x, goal.y));
+
+    Mission mission(grid, 52u);
+    populateMission(data, mission);
+    FOSSYND_CHECK(mission.objective().kind == ObjectiveSpec::Kind::Destroy);
+
+    // A defender must stand directly behind the wall on the objective's column,
+    // so the squad's line of fire crosses the objective tile first and chips it.
+    const int warden = indexOfAgentNamed(mission, "WARDEN");
+    FOSSYND_CHECK(warden >= 0);
+
+    FOSSYND_CHECK(!grid.isRubble(goal.x, goal.y));
+    for (int guard = 0; guard < 90 && mission.state() == MissionState::Running; ++guard)
+    {
+        for (std::size_t i = 0; i < mission.agents().size(); ++i)
+        {
+            if (mission.agents()[i].team() != Team::Player || !mission.agents()[i].isAlive())
+            {
+                continue;
+            }
+            if (warden >= 0)
+            {
+                mission.orderAttack(i, static_cast<std::size_t>(warden));
+            }
+        }
+        runUntilDone(mission, 4.0f);
+    }
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK(grid.isRubble(goal.x, goal.y));
+}
+
+FOSSYND_TEST(Mission, ShippedStockadeSurviveIsWinnable)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("stockade"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Survive);
+    FOSSYND_CHECK(data.objective.seconds > 0.0f);
+
+    // A survive objective with no live enemy is a walkover, so require a real
+    // garrison that the squad must hold off.
+    std::size_t enemies = 0;
+    for (const AgentSpec& spec : data.agents)
+    {
+        if (spec.team == Team::Enemy)
+        {
+            ++enemies;
+        }
+    }
+    FOSSYND_CHECK(enemies >= 2);
+
+    TileGrid grid = buildGrid(data);
+    Mission mission(grid, 53u);
+    populateMission(data, mission);
+
+    // The player's real action: fight the raiders off while the clock runs. The
+    // mission is won by *surviving*, not by wiping the garrison, so the win must
+    // land on the timer even if the enemies are still alive.
+    for (int guard = 0; guard < 120 && mission.state() == MissionState::Running; ++guard)
+    {
+        for (std::size_t i = 0; i < mission.agents().size(); ++i)
+        {
+            if (mission.agents()[i].team() != Team::Player || !mission.agents()[i].isAlive())
+            {
+                continue;
+            }
+            const int target = nearestLivingEnemy(mission, i);
+            if (target >= 0)
+            {
+                mission.orderAttack(i, static_cast<std::size_t>(target));
+            }
+        }
+        runUntilDone(mission, 2.0f);
+    }
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK(mission.elapsedSeconds() >= data.objective.seconds);
+}
+
