@@ -92,6 +92,29 @@ std::string Game::objectiveBannerText(bool& urgent) const
             {{"count", std::to_string(remaining > 0 ? remaining : 0)}});
         break;
     }
+    case core::ObjectiveSpec::Kind::Assassinate:
+    {
+        // Name the target when it is known; fall back to a generic label so a
+        // hand-built spec without a valid index still renders (mirrors Escort).
+        const int index = mission_.objective().agentIndex;
+        std::string name = "TARGET";
+        if (index >= 0 && static_cast<std::size_t>(index) < mission_.agents().size())
+        {
+            name = mission_.agents()[static_cast<std::size_t>(index)].name();
+        }
+        objective = hudstyle::substitute(
+            tr("hud.objective.assassinate", "OBJECTIVE: ASSASSINATE {name}"), {{"name", name}});
+        break;
+    }
+    case core::ObjectiveSpec::Kind::Retrieve:
+        // The item's tile and the exit tile it must be brought to.
+        objective = hudstyle::substitute(
+            tr("hud.objective.retrieve", "OBJECTIVE: RETRIEVE ITEM ({ix},{iy}) TO ({x},{y})"),
+            {{"ix", std::to_string(mission_.objective().itemX)},
+             {"iy", std::to_string(mission_.objective().itemY)},
+             {"x", std::to_string(mission_.objective().tileX)},
+             {"y", std::to_string(mission_.objective().tileY)}});
+        break;
     case core::ObjectiveSpec::Kind::EliminateAll:
     default:
     {
