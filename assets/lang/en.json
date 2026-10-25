@@ -11,6 +11,8 @@
   "hud.objective.escort": "OBJECTIVE: ESCORT {name} TO ({x},{y})",
   "hud.objective.destroy": "OBJECTIVE: DESTROY ({x},{y})",
   "hud.objective.persuade": "OBJECTIVE: RECRUIT {count} FOLLOWERS",
+  "hud.objective.assassinate": "OBJECTIVE: ASSASSINATE {name}",
+  "hud.objective.retrieve": "OBJECTIVE: RETRIEVE ITEM ({ix},{iy}) TO ({x},{y})",
   "hud.controls": "[SHIFT+CLICK] QUEUE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   [P] PERSUADE   [F] FREE   [H] MEDKIT   [S] SHIELD   [C] SCAN   [B] DRUGS   [E] HIJACK   [R] RESTART",
   "hud.followers": "FOLLOWERS: {count}",
   "hud.collateral": "COLLATERAL: {count}",
