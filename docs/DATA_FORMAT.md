@@ -524,15 +524,16 @@ older or foreign file is rejected instead of mis-read:
 
 - a mandatory top-level `"format"` tag whose value must be `"fossynd-save"`, and
 - an integer `"version"`. `parse` **rejects a missing/wrong `format` and any
-  `version` other than the one this build reads** (currently `2`) — it does not
+  `version` other than the one this build reads** (currently `3`) — it does not
   try to upgrade an old file. Bump the version when the schema changes
-  incompatibly: v2 added `syndicateLogo`, so a v1 build refuses a v2 file rather
-  than silently dropping the chosen logo.
+  incompatibly: v2 added `syndicateLogo`, and v3 added the recruited `roster`, so
+  an older build refuses a newer file rather than silently dropping the chosen
+  logo or the squad's names.
 
 ```json
 {
   "format": "fossynd-save",
-  "version": 2,
+  "version": 3,
   "syndicate": "Riverside Combine",
   "syndicateLogo": "cog",
   "territories": [
@@ -547,7 +548,8 @@ older or foreign file is rejected instead of mis-read:
   ],
   "loadouts": [
     {"syndicate": 0, "slot": 0, "items": ["uzi", "medkit"]}
-  ]
+  ],
+  "roster": ["Aldmarch", "Skarn", "", ""]
 }
 ```
 
@@ -574,6 +576,11 @@ Fields:
   `(syndicate, slot)`: `syndicate`, `slot` (must be `< Equipment::kSquadSlots`),
   and `items` (item ids in assignment order; a non-empty array of non-empty
   strings — resolving an id against the catalogue is `applyLoadout`'s job).
+- `roster` — the recruited squad's names (`Campaign::agentNames()`), one string
+  per squad slot in **ascending slot** order (`Equipment::kSquadSlots` entries);
+  `""` is an unnamed slot. Added in v3. Optional on parse — a file without it
+  leaves every slot unnamed — and restored on load via `Campaign::setAgentNames`.
+  Always written, so a round-trip is exact.
 
 Floats are written with 9 significant digits (`%.9g`), so a value round-trips
 exactly. The writer is deterministic — the same snapshot always yields the same
