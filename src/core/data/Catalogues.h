@@ -129,6 +129,11 @@ inline bool parseWeaponNode(const Json& node, Weapon& out, std::string& error)
     // Optional: an explosive weapon sets a blast radius; omitted keeps the
     // inherited/default value (0 = single-target).
     out.areaRadius = node["areaRadius"].asFloat(out.areaRadius);
+    // Optional: a fused weapon arms on impact and detonates after this many
+    // seconds; omitted keeps the inherited/default value (0 = immediate). This is
+    // what lets a data-only time bomb (`time-bomb`, #446) carry a real fuse
+    // (issue #461) rather than firing as a plain blast.
+    out.fuseSeconds = node["fuseSeconds"].asFloat(out.fuseSeconds);
     // Field ranges: a bad catalogue number must fail the load, not misbehave at
     // play time (issue #190). Callers prefix the offending entry's id, so the
     // message names the file (validator), the entry, and the field.
@@ -155,6 +160,11 @@ inline bool parseWeaponNode(const Json& node, Weapon& out, std::string& error)
     if (out.areaRadius < 0.0f)
     {
         error = "'areaRadius' must not be negative";
+        return false;
+    }
+    if (out.fuseSeconds < 0.0f)
+    {
+        error = "'fuseSeconds' must not be negative";
         return false;
     }
     return true;

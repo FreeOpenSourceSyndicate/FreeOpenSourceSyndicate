@@ -551,6 +551,65 @@ FOSSYND_TEST(ContentValidation, ShippedTimeBombLoads)
     FOSSYND_CHECK(timeBomb->range < rifle->range);
 }
 
+// `parseWeaponNode` must read an optional `fuseSeconds` (issue #461), so a
+// data-only time bomb can carry a real fuse instead of firing as an immediate
+// blast. Omitted keeps the default 0 (immediate) — the field is additive and
+// must change no existing weapon.
+FOSSYND_TEST(ContentValidation, WeaponFuseSecondsIsParsedAndDefaultsToZero)
+{
+    TempContent content("fuse_parsed");
+    content.write("weapons.json", R"({"weapons": [
+        {"id": "plain", "name": "Plain", "damage": 8, "range": 9, "fireRate": 4, "accuracy": 0.65},
+        {"id": "fused", "name": "Fused", "damage": 60, "range": 5, "fireRate": 1,
+         "accuracy": 0.9, "areaRadius": 2, "fuseSeconds": 3.5}
+    ]})");
+    content.write("agents.json", kAgentsJson);
+    content.write("missions/good.json", R"({
+        "name": "Good", "width": 8, "height": 6,
+        "agents": [{"team": "player", "x": 1, "y": 1}]
+    })");
+
+    WeaponCatalogue catalogue;
+    bool found = false;
+    std::string error;
+    FOSSYND_CHECK(catalogue.loadFromFile(content.dir() + "/weapons.json", found, error));
+    FOSSYND_CHECK(found);
+
+    const Weapon* plain = catalogue.find("plain");
+    const Weapon* fused = catalogue.find("fused");
+    FOSSYND_CHECK(plain != nullptr);
+    FOSSYND_CHECK(fused != nullptr);
+    if (plain == nullptr || fused == nullptr)
+    {
+        return;
+    }
+
+    FOSSYND_CHECK_EQ(fused->fuseSeconds, 3.5f); // parsed, not dropped
+    FOSSYND_CHECK_EQ(plain->fuseSeconds, 0.0f); // omitted -> immediate, unchanged
+}
+
+// A negative `fuseSeconds` must fail the load with the entry and field named,
+// like the other catalogue field ranges (issue #190), not misbehave at play time.
+FOSSYND_TEST(ContentValidation, NegativeFuseSecondsIsReportedWithFileEntryAndField)
+{
+    TempContent content("bad_fuse");
+    content.write("weapons.json", R"({"weapons": [
+        {"id": "backwards", "name": "Backwards", "damage": 8, "range": 9,
+         "fireRate": 4, "accuracy": 0.65, "fuseSeconds": -1}
+    ]})");
+    content.write("agents.json", kAgentsJson);
+    content.write("missions/good.json", R"({
+        "name": "Good", "width": 8, "height": 6,
+        "agents": [{"team": "player", "x": 1, "y": 1}]
+    })");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(!report.ok());
+    FOSSYND_CHECK(reportMentions(report, "weapons.json")); // the file
+    FOSSYND_CHECK(reportMentions(report, "backwards"));    // the entry
+    FOSSYND_CHECK(reportMentions(report, "fuseSeconds"));  // the field
+}
+
 // The #446 `police` enemy template the Definition of Done names
 // (`docs/ROADMAP.md`: "Enemies: police, ..."). It must be an enemy that carries a
 // catalogue weapon by id, so a mission can deploy one by data alone. The

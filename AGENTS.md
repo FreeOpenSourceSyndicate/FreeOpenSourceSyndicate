@@ -1212,7 +1212,13 @@ Do not start work outside the scope fence (ADR-0024).
   `cataloguesChecked` count in `tests/test_content_validation.cpp` (currently 29:
   13 weapons + 12 templates + 4 vehicles) and a new weapon should add a carrier
   template so it is mission-referenceable, not inert. Schema in
-  `docs/DATA_FORMAT.md` ("Shared catalogues").
+  `docs/DATA_FORMAT.md` ("Shared catalogues"). **`parseWeaponNode` reads an
+  optional `fuseSeconds` (issue #461)** (`>= 0`, default `0` = immediate,
+  validated beside `areaRadius`), so a data-only fused weapon — the `time-bomb`
+  (#446/#449) — carries a real fuse from the catalogue instead of firing as an
+  immediate blast; omitted keeps the default and changes no existing weapon.
+  Setting a fuse on the shipped `time-bomb` entry is a separate Tactical/Content
+  balance call, not part of #461.
 - **The metagame world data is cross-checked against the weapon catalogue
   (issue #369):** `content::validateContentDir` now also reads
   `assets/data/world/equipment.json` and `research.json` (when present) and
