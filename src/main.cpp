@@ -54,6 +54,7 @@ void printUsage()
         "      --shield               Raise a shield on the squad before rendering.\n"
         "      --drugs                Take performance drugs on the squad before rendering.\n"
         "      --vehicle              Spawn a demo car and train before rendering.\n"
+        "      --bomb                 Plant a demo time bomb on the squad before rendering.\n"
         "      --zoom <n>             Set the integer zoom level (1-3).\n"
         "      --headless             Run without a display.\n"
         "      --frames <n>           Run n frames, then exit.\n"
@@ -74,6 +75,7 @@ void printUsage()
         "      --check-scanner        Validate the scanner ping overlay.\n"
         "      --check-shield         Validate the personal shield overlay.\n"
         "      --check-drugs          Validate the performance-drug aura overlay.\n"
+        "      --check-bomb           Validate the time-bomb demo hook.\n"
         "      --check-vehicles       Validate vehicle rendering.\n"
         "      --check-vehicle-input  Validate the hijack/drive/exit keys.\n"
         "      --check-audio          Validate the sound-effect cue table.\n"
@@ -189,6 +191,7 @@ int main(int argc, char** argv)
     bool shieldSquad = false;             // --shield
     bool drugsSquad = false;              // --drugs
     bool spawnVehicles = false;           // --vehicle
+    bool plantBomb = false;               // --bomb
     bool checkVehicles = false;           // --check-vehicles
     bool checkVehicleInput = false;       // --check-vehicle-input
     bool checkAudio = false;              // --check-audio
@@ -207,6 +210,7 @@ int main(int argc, char** argv)
     bool checkScanner = false;
     bool checkShield = false;
     bool checkDrugs = false;
+    bool checkBomb = false;               // --check-bomb
     bool checkObjectives = false;
     bool checkCampaign = false;
     bool checkDeploy = false;
@@ -295,6 +299,10 @@ int main(int argc, char** argv)
         {
             spawnVehicles = true;
         }
+        else if (std::strcmp(argv[i], "--bomb") == 0)
+        {
+            plantBomb = true;
+        }
         else if (std::strcmp(argv[i], "--demo") == 0)
         {
             demo = true;
@@ -366,6 +374,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-drugs") == 0)
         {
             checkDrugs = true;
+        }
+        else if (std::strcmp(argv[i], "--check-bomb") == 0)
+        {
+            checkBomb = true;
         }
         else if (std::strcmp(argv[i], "--check-vehicles") == 0)
         {
@@ -682,6 +694,14 @@ int main(int argc, char** argv)
         game.addVehiclesForDemo();
     }
 
+    // `--bomb` plants one time bomb on the squad up front so a headless
+    // screenshot/guard exercises the real `Mission::orderTimeBomb` path without a
+    // mission that ships one (issue #460). Kept beside `--scan` as a demo hook.
+    if (plantBomb)
+    {
+        game.plantDemoTimeBomb();
+    }
+
     if (checkSprites)
     {
         // Headless guard for the sprite pipeline: the authored sheet must bake
@@ -843,6 +863,17 @@ int main(int argc, char** argv)
         // game_drugs ctest.
         const bool ok = game.drugsSelfTest();
         std::printf(ok ? "drugs: ok\n" : "drugs: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkBomb)
+    {
+        // Headless guard for the time-bomb demo hook (issue #460): no bomb before,
+        // exactly one armed after planting through the real order path, a civilian
+        // cannot plant one, a second bomb on the same agent is refused, and the
+        // bomb clears once its fuse runs out. Used by the game_bomb ctest.
+        const bool ok = game.bombSelfTest();
+        std::printf(ok ? "bomb: ok\n" : "bomb: FAILED\n");
         return ok ? 0 : 1;
     }
 

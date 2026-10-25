@@ -273,6 +273,17 @@ if(BUILD_TESTS)
     # headlessly, so a drug-aura capture is a real artefact (issue #387).
     add_test(NAME game_drugs_screenshot
              COMMAND FOSSynd --headless --drugs --screenshot drugs.bmp --frames 2)
+    # Time-bomb demo hook (issue #460): no bomb before, exactly one armed after
+    # planting through the real `Mission::orderTimeBomb` path, a civilian cannot
+    # plant one, a second bomb on the same agent is refused, and the bomb clears
+    # once its fuse runs out. Exits non-zero on a broken invariant.
+    add_test(NAME game_bomb
+             COMMAND FOSSynd --headless --check-bomb)
+    # `--bomb` plants a demo time bomb and must still render and write a
+    # screenshot headlessly, so the real order path is exercised (issue #460).
+    add_test(NAME game_bomb_screenshot
+             COMMAND FOSSynd --headless --bomb
+                     --screenshot ${CMAKE_CURRENT_BINARY_DIR}/bomb.bmp --frames 2)
     # Vehicle rendering (issue #363): every vehicle must yield a draw entry at its
     # tile with the right kind, and a destroyed vehicle must still draw as a
     # wreck. Exits non-zero on a broken invariant.

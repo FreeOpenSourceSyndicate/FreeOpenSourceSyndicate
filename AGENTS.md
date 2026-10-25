@@ -1168,6 +1168,21 @@ Do not start work outside the scope fence (ADR-0024).
   foot. The HUD/title control hints need the `E` key added — filed as a
   cross-area request for `text`/`render` (issue #377), since those files are not
   Input/UI's to edit.
+- **The time bomb is reachable in play (issue #460):** the fused time-bomb
+  mechanic (#449: `Weapon::fuseSeconds` + `Mission::orderTimeBomb`/
+  `pendingDetonations`) had complete, tested core logic but **no way to reach
+  it** — no mission ships a bomb and no hotkey arms one — the "capability landed
+  but never wired in" trap of #99/#101. `--bomb` plants one bomb on the first
+  living player combatant's tile through the real `Mission::orderTimeBomb` path
+  (a demo hook beside `--scan`/`--shield`/`--drugs`/`--vehicle`), so a headless
+  screenshot/guard exercises it. `Game::plantDemoTimeBomb` only picks the agent
+  and hands the order over; the fuse, blast, and one-bomb-per-agent rules stay in
+  core (golden rule 1). `--check-bomb` (ctest `game_bomb`) drives the real path
+  and fails if the demo hook does not arm exactly one bomb, a civilian plants
+  one, a second bomb stacks on the same agent, or the bomb survives its fuse
+  (proven non-vacuous by neutering the hook: the guard then exits 1). `--bomb`
+  (ctest `game_bomb_screenshot`) renders it. A shipped mission that arms one (a
+  Tactical fragment) is the remaining DoD half.
 - **The minimap is `game/Minimap.*` (Phase 2):** a whole-board overview panel in
   the top-right HUD corner. The static terrain is baked once into a one-texel-
   per-tile texture (`Minimap::init`), and only per-agent and per-vehicle blips
@@ -1290,11 +1305,13 @@ Do not start work outside the scope fence (ADR-0024).
   `--headless --check-scanner`,
   `--headless --check-shield`,
   `--headless --check-drugs`,
+  `--headless --check-bomb`,
   `--headless --check-vehicles`,
   `--headless --check-audio`,
   `--headless --scan [--screenshot out.bmp]`,
   `--headless --shield [--screenshot out.bmp]`,
   `--headless --drugs [--screenshot out.bmp]`,
+  `--headless --bomb [--screenshot out.bmp]`,
   `--headless --vehicle [--screenshot out.bmp]`,
   `--headless --map --frames N`, and
   `--headless [--frames N] --screenshot out.bmp`. ctests `game_smoke`,
@@ -1305,7 +1322,8 @@ Do not start work outside the scope fence (ADR-0024).
   `game_map_flag`, `game_objectives`, `game_scanner`,
   `game_scanner_screenshot`, `game_vehicles`, and
   `game_vehicles_screenshot`, `game_shield`, and `game_shield_screenshot`,
-  `game_drugs`, and `game_drugs_screenshot`, and `game_audio`
+  `game_drugs`, and `game_drugs_screenshot`, `game_bomb`, and
+  `game_bomb_screenshot`, and `game_audio`
   cover the SDL layer
   headlessly.
 - **Queued-route overlay (issue #89):** the view draws a selected agent's

@@ -318,6 +318,21 @@ public:
     // without a hotkey. Not a gameplay rule — the dose rules stay in core.
     void takeDrugsForSquad();
 
+    // Plants one time bomb on the first living player combatant's tile (issue
+    // #460). A demo/verification hook (like `--scan`): the fused time-bomb
+    // mechanic (#449) is complete in core but no mission ships one and no hotkey
+    // arms one, so `--bomb` makes the real `Mission::orderTimeBomb` path
+    // reachable for a headless guard/screenshot. Not a gameplay rule — the fuse,
+    // blast, and one-bomb-per-agent rules stay in core.
+    void plantDemoTimeBomb();
+
+    // Headless guard for the time-bomb demo hook (issue #460): no bomb before,
+    // exactly one armed after planting through the real order path, a civilian
+    // cannot plant one, a second bomb on the same agent is refused (no stacking),
+    // and the bomb clears once its fuse runs out. Returns false on a broken
+    // invariant. Used by game_bomb.
+    bool bombSelfTest();
+
     // Headless guard for the objective banner (issue #281): every objective kind
     // must render a non-empty, kind-specific, localised banner with no unsubstituted
     // `{placeholder}` left in it. Returns false on a broken invariant. Used by
