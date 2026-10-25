@@ -46,8 +46,8 @@ old hardware, that is a bug — please report it.
 
 The whole point of the profile is a **small** binary, so CI enforces a cap on it
 (issue #222, AGENTS.md §1b, ADR-0008): the **stripped low-spec binary must be
-<= 384 KiB**. As measured today, the low-spec build is ~343 KiB and the default
-Release build is ~667 KiB, so the budget still fails loudly if the profile flags
+<= 384 KiB**. As measured today, the low-spec build is ~375 KiB and the default
+Release build is ~963 KiB, so the budget still fails loudly if the profile flags
 are ever dropped or a heavy dependency sneaks in. The cap was raised from 288 KiB
 when the third shared catalogue (`assets/data/vehicles.json`, #319/#342) left only
 ~2 KiB of headroom; to 336 KiB (issue #413) once `main` reached 318 KiB; to
@@ -56,6 +56,22 @@ when the save/load wiring (#433) linked `core::CampaignSave` for ~24 KiB — mor
 than one 16 KiB step, so a single step would again have left a 2 KiB margin that a
 single 4 KiB ELF page step would cross, and the next real PR would fail spuriously
 rather than on a genuine regression.
+
+The last breach was fixed by **reclaiming space rather than raising the cap
+again**: two PRs that each passed alone merged seconds apart and crossed the cap
+at 386 KiB, so the low-spec profile now builds with function/data sections
+(`-ffunction-sections -fdata-sections`) plus linker `--gc-sections`, and gates
+link-time optimisation on the compiler supporting IPO — together dropping the
+binary by ~40 KiB (issue #512). The check now also **warns** (still exit 0) when
+less than one ELF page (4 KiB) of headroom remains, so the next author reclaims
+space or raises the cap deliberately instead of rediscovering a red lane.
+
+> **The v1.0.0 size target is the whole game, not this binary.** ADR-0045 (the
+> maintainer's directive) sets the v1.0.0 target at **the whole shipped game
+> ≤ ~60 MiB** — the scale of a Syndicate Plus install — because targeting only
+> post-2000 machines is fine; a low-spec *profile* is needed only if the game
+> significantly exceeds that. Issue #524 re-scopes the gate accordingly; until it
+> lands, the binary cap above is still enforced.
 
 The CI `low-spec` job runs the check as a named step:
 
@@ -213,7 +229,8 @@ fund research, buy equipment, and deploy missions to take the world map.
 | **`H`** | Use a medikit on the selection (heal the most-wounded agent) |
 | **`S`** | Raise a shield on the selection (absorbs the next hit) |
 | **`C`** | Run a scanner pulse for the selection (marks nearby enemies) |
-| **`B`** | Take performance drugs on the selection (timed speed/hit buff) |
+| **`[` / `]`** | Cycle the active drug bar (adrenalin / intelligence / physical) |
+| **`;` / `'`** | Lower / raise the active drug bar for the selection (ADR-0043) |
 | **`E`** | Hijack the nearest vehicle in range with the selection, or step out if the selected agent is already driving |
 | **Arrow keys** | Scroll the camera |
 | **`+` / `-` or the mouse wheel** | Zoom the view in whole steps (1x/2x/3x; wheel up = in) |
@@ -238,6 +255,8 @@ frozen while the screen is up, and the campaign clock ticks instead.
 | **`-` / `+`** | Lower / raise the selected territory's tax |
 | **`D`** | Deploy the selected territory's mission with your bought loadout |
 | **`B`** | Open the R&D shop (fund research, buy + assign equipment) |
+| **`R`** | Recruit an agent (takes a fixed name from the region's pool) |
+| **`F5`** / **`F9`** | Save / load the campaign (the in-play save path) |
 | **`M`** | Return to the tactical board |
 | **`Esc`** | Quit |
 
@@ -245,9 +264,16 @@ In the R&D shop: **Up/Down** move through the research tree and catalogue,
 **Left/Right** pick the squad slot, and **Enter** funds a research node or buys
 and assigns the selected gear. **`Esc`**/`B` closes it.
 
-Win the deployed mission to claim the territory; take them all and a centred
-`CAMPAIGN WON` panel appears (or `CAMPAIGN LOST` if the syndicate falls). The
-map then freezes — the end state is final.
+Win the deployed mission to claim the territory. Owning every region wins the
+campaign (`CAMPAIGN WON`); when the campaign names a `finalMission` with
+`winCondition: "final-mission"`, winning *that* board wins instead and a distinct
+`FINAL CONFRONTATION WON` panel appears — even with neutrals left on the map.
+Losing the syndicate shows `CAMPAIGN LOST`. The map then freezes — the end state
+is final.
+
+Your **progress survives quitting**: **`F5`** saves the campaign and **`F9`**
+loads it on the map screen (the CLI takes `--save`/`--load`), and a new campaign
+opens a **new-game screen** to name the syndicate and pick a logo.
 
 Recruited civilians ("followers") trail their recruiter in cyan. They are not
 combatants: they are never targeted, never fire, and never affect win/lose, so
@@ -272,6 +298,9 @@ They flee when gunfire starts nearby. Civilian deaths you cause are counted as
 | `--mission PATH` | Load the given mission file (overrides the config default) |
 | `--campaign PATH` | Load the given campaign file (the world map) |
 | `--config PATH` | Load the given config file; a missing file is a hard error |
+| `--save PATH` | Save campaign progress to `PATH` on exit (the CLI save path) |
+| `--load PATH` | Restore campaign progress from `PATH` at launch (a missing file is a hard error) |
+| `--new-game` | Force the new-game screen (syndicate name + logo) before play |
 | `--lang CODE` | Set the UI language (e.g. `en`, `de`) |
 | `--demo` | Attract mode: the squad advances on the nearest enemy automatically |
 | `--title` | Force the pixel-art title card (used to capture it headlessly) |
@@ -284,7 +313,9 @@ They flee when gunfire starts nearby. Civilian deaths you cause are counted as
 | `--breach` | Breach every destructible wall before rendering (for rubble screenshots) |
 | `--scan` | Fire a scanner pulse on the squad before rendering (for scanner screenshots) |
 | `--shield` | Raise a shield on the squad before rendering (for shield screenshots) |
+| `--drugs` | Take performance drugs on the squad before rendering (for drug screenshots) |
 | `--vehicle` | Spawn a demo car and train before rendering (for vehicle screenshots) |
+| `--bomb` | Plant a demo time bomb on the squad before rendering (for time-bomb screenshots) |
 | `--headless` | Use the dummy video driver (no display needed) |
 | `--frames N` | Run N frames then exit (must be a positive integer) |
 | `--screenshot PATH` | Render one frame to a BMP and exit (with `--frames` first, simulates then captures) |
@@ -313,6 +344,14 @@ wired into `ctest`.
 | `--check-rubble` | Run the breached-tile rubble self-check and exit (ctest `game_rubble`) |
 | `--check-scanner` | Run the scanner-ping overlay self-check and exit (ctest `game_scanner`) |
 | `--check-shield` | Exit non-zero if the personal shield overlay fails to draw (ctest `game_shield`) |
+| `--check-drugs` | Exit non-zero if the performance-drug aura fails to draw (ctest `game_drugs`) |
+| `--check-drug-bars` | Validate the three drug-bar HUD for the selection (ctest `game_drug_bars`) |
+| `--check-drug-controls` | Drive the three drug-bar controls (`[`/`]`, `;`/`'`) and exit (ctest `game_drug_controls`) |
+| `--check-bomb` | Validate the time-bomb demo hook (`--bomb`) and exit (ctest `game_bomb`) |
+| `--check-audio` | Drive the real SFX synthesis, mixing, and event mapping with no device (ctest `game_audio`) |
+| `--check-save-load` | Run the campaign save/load round-trip and exit (ctest `game_save_load`) |
+| `--check-save-hotkeys` | Drive the in-game `F5`/`F9` save/load keys headlessly (ctest `game_save_hotkeys`) |
+| `--check-newgame` | Drive the new-game name/logo decision and apply it to the campaign (ctest `game_newgame`) |
 | `--check-objectives` | Validate the objective banner for every objective kind (ctest `game_objectives`) |
 | `--check-campaign` | Drive the whole management loop (funds → tax → research → buy → deploy → win) and exit (ctest `game_campaign`) |
 | `--check-deploy` | Drive the deploy round-trip (map → mission → result → map) and exit (ctest `game_deploy`) |
@@ -377,6 +416,15 @@ driver:
 ```bash
 ./build/src/FOSSynd --headless --frames 30
 ```
+
+### No sound / `audio: disabled (...)` on stderr
+
+Sound effects need an audio device (ADR-0040). When none can be opened — a
+headless run, CI, no sound card, or a driver that cannot provide the baked format
+— the game prints one `audio: disabled (...)` line and **runs silently**. This is
+expected, not an error. To force a driver for testing, set `SDL_AUDIODRIVER`
+(`dummy` for a no-op device, `disk` to write raw PCM to `sdlaudio.raw`). Music is
+out of scope for v1.0.0; only SFX play. Issue #440.
 
 ### Clean rebuild
 
