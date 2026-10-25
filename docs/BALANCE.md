@@ -103,12 +103,20 @@ tracks the gun; both tree sums (7600 cost / 795 time) are unchanged.
 Pin: `tests/test_research.cpp` — `ShippedWeaponLadderCostsTrackCombatValue`
 (fails under the pre-#528 inversion).
 
-**Open (Rule 4 → `content`/`tactical`).** The `minigun`'s raw DPS (32) is the
-highest in the catalogue — it is a *cheap tier-1* gun whose DPS beats the tier-2
-and tier-3 rifles, which makes the ladder's *damage* axis (not its cost axis)
-incoherent. `weapons.json` is `focus: content`/`tactical` (`src/core/sim/Weapon.h`
-is Tactical's), so retuning the weapon **stats** is a Rule 4 request, not part of
-this metagame pass. Filed separately.
+**Resolved (issue #539, Rule 4 → `content`/`tactical`).** The `minigun`'s raw DPS
+is the highest in the catalogue, but that is its **close-quarters niche, not an
+inversion**: a gun's `damage * fireRate * accuracy` is its output at point-blank
+range, and a short-ranged weapon must close the distance to fire at all. The
+catalogue's extremes are the flamethrower (shortest range, highest DPS) and the
+sniper (longest range, lowest DPS), and the tier-1 `minigun` deliberately
+out-DPSes every higher-tier rifle it is an upgrade *from* — the rifles pay for
+reach and per-shot punch instead. So the ladder is coherent on **both** axes: the
+**price** axis (`damage * range`) rises with tier, and the **DPS** axis trades
+against reach, by design. No stat change was needed. Pinned by
+`tests/test_content_validation.cpp` — `ShippedDpsTradesAgainstRange` (fails if a
+later edit "fixes" the minigun by lowering its rate so DPS rises with tier,
+re-opening the decision); the trade-off is documented in `docs/DATA_FORMAT.md`
+("Shared catalogues").
 
 ## 5. What "winnable but not trivial" means
 
