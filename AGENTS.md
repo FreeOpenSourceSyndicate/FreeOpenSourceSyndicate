@@ -1005,15 +1005,15 @@ Do not start work outside the scope fence (ADR-0024).
   no-ops for a civilian, a dead agent, or when already active. Deterministic,
   RNG-free. `gadgetChargesForId` (`PlayerLoadout.h`) accepts `"scanner"` and
   `"drugs"`, so a bought gadget deploys like the medkit/shield.
-  **The performance-drug buff is now drawn** (issue #387):
-  `Game::renderDrugAura` draws a hollow amber diamond rim around each agent
-  whose `Mission::drugsTimer` is live, fading as the dose runs out — the buff is
-  a *timed* state, so the fade itself is the expiry cue. The overlay decision is
-  `Game::drugMarks()` (a pure read of `drugsTimer`, shared with the headless
-  guard), and `Game::updateDrugSnapshot` tracks each agent's peak timer so the
-  fraction can be shown without core exposing `kDrugDurationSeconds` (core-private).
-  `--drugs` doses the squad up front (a demo hook beside `--shield`). The hotkey
-  is `B` (Input/UI, issue #339).
+  **The performance-drug aura is retired** (issue #541, ADR-0043): the ADR-0028
+  single-dose buff had a `drugsTimer`, so `Game::renderDrugAura`/`drugMarks`/
+  `updateDrugSnapshot` drew a fading amber rim while it ran. The bars have no
+  timer (they drift), so the aura went with the consumable and the HUD bars
+  (#502) are the only drug readout. `--drugs` now spikes the squad's three bars
+  to their ceilings (a demo hook beside `--shield`) and `B` spikes the active bar
+  for the selection (`Game::spikeDrugBarOnSelection`, beside the `;`/`'` steps).
+  The core consumable (`Mission::useDrugs`/`setDrugs`/`drugs_`/`drugsTimer_`) is
+  tactical's to delete once the engine no longer references it.
 - **Regulated drug bars, S1 — the foundation** (issue #496, ADR-0043): drugs are
   becoming the original's **three regulated bars** (adrenalin/intelligence/
   physical), not the single-dose consumable above. `Drug`/`DrugState` live in
@@ -1107,11 +1107,14 @@ Do not start work outside the scope fence (ADR-0024).
   assassinate objectives (#444) are its intended consumer. The physical effects
   are **combatant-only** (like adrenalin/panic), so a civilian is unaffected.
   `applyCybernetic` keeps `physicalBaseMaxHealth_` in step, so the `chest` upgrade
-  and the live bar compose. Deterministic; no RNG. **Still to do (not this
-  slice):** retire the legacy `useDrugs`/`drugs_`/`drugsTimer_` consumable and
-  repoint the `--drugs` demo hook + `game_drugs` ctest at the bar model — that is
-  cross-lane (`Game.cpp`/`main.cpp` are input-ui/render, the ctest is platform),
-  filed as a Rule 4 request from tactical.
+  and the live bar compose. Deterministic; no RNG. The **engine half of the
+  retirement has landed** (issue #541, cross-lane Rule 4): `Game::renderDrugAura`
+  / `drugMarks` / `updateDrugSnapshot` are gone, `--drugs` spikes the squad's
+  three bars, and `B` spikes the active bar (`Game::spikeDrugBarOnSelection`);
+  `game_drugs`/`game_drugs_screenshot` now guard the bar model. **Still to do
+  (tactical):** delete `Mission::useDrugs`/`setDrugs`/`drugs_`/`drugsTimer_` and
+  `kDrugDurationSeconds`/`kDrugSpeedMultiplier`/`kDrugAccuracyMultiplier` once no
+  engine caller remains (it no longer references them).
 - **Regulated drug bars — the metagame-bought ceiling** (issue #518, ADR-0043):
   a bar can be regulated only up to the **ceiling** the metagame sold for it
   (`Campaign::selectedCeilings()`, PR #517). The tactical clamp landed as

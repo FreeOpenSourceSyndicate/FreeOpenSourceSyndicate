@@ -344,7 +344,7 @@ wired into `ctest`.
 | `--check-rubble` | Run the breached-tile rubble self-check and exit (ctest `game_rubble`) |
 | `--check-scanner` | Run the scanner-ping overlay self-check and exit (ctest `game_scanner`) |
 | `--check-shield` | Exit non-zero if the personal shield overlay fails to draw (ctest `game_shield`) |
-| `--check-drugs` | Exit non-zero if the performance-drug aura fails to draw (ctest `game_drugs`) |
+| `--check-drugs` | Exit non-zero if the drug-bar demo hook or the `B` bar spike fails (ctest `game_drugs`) |
 | `--check-drug-bars` | Validate the three drug-bar HUD for the selection (ctest `game_drug_bars`) |
 | `--check-drug-controls` | Drive the three drug-bar controls (`[`/`]`, `;`/`'`) and exit (ctest `game_drug_controls`) |
 | `--check-bomb` | Validate the time-bomb demo hook (`--bomb`) and exit (ctest `game_bomb`) |

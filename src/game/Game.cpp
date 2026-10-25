@@ -56,12 +56,6 @@ constexpr int kShieldFieldAlpha = 70;
 constexpr int kShieldRimAlpha = 200;
 constexpr float kShieldAbsorbFlashSeconds = 0.3f;
 
-// Performance-drug aura (issue #387). The buff is a timed state, so the rim
-// fades from a bright amber to nothing as the dose runs out — an expiry cue the
-// flat overlay would not give. Alpha spans this range across the buff's life.
-constexpr int kDrugRimAlphaMin = 60;
-constexpr int kDrugRimAlphaMax = 230;
-
 // How far one press of `;`/`'` moves the active drug bar (issue #503). A tenth
 // of the bar per press: ten presses cross the full range, fine enough to hold a
 // bar "in reserve" without being tedious. `Mission::setDrugLevel` clamps to
@@ -1128,25 +1122,6 @@ bool Game::gadgetSelfTest()
         return false;
     }
 
-    // Performance drugs (B): starts a timed buff and spends a dose; an uncharged
-    // agent takes none.
-    mission_.setDrugs(user, 1);
-    selectOnly(user);
-    useDrugsOnSelection();
-    if (mission_.drugs(user) != 0 || mission_.drugsTimer(user) <= 0.0f)
-    {
-        std::fprintf(stderr, "gadget self-test: drugs not taken or not spent\n");
-        return false;
-    }
-    mission_.setDrugs(ally, 0);
-    selectOnly(ally);
-    useDrugsOnSelection();
-    if (mission_.drugsTimer(ally) > 0.0f)
-    {
-        std::fprintf(stderr, "gadget self-test: drugs taken with no dose\n");
-        return false;
-    }
-
     // Leave a clean selection behind, like the other self-tests.
     selectAllPlayers();
     return true;
@@ -1293,6 +1268,11 @@ void Game::raiseShieldForSquad()
 
 void Game::takeDrugsForSquad()
 {
+    // Spike every living player agent's three bars to their ceilings (issue #541,
+    // ADR-0043). `setDrugLevel` clamps to the bar's ceiling, so a metagame-bought
+    // regulator is respected and the demo cannot overshoot it.
+    const core::Drug bars[core::kDrugCount] = {core::Drug::Adrenalin, core::Drug::Intelligence,
+                                               core::Drug::Physical};
     for (std::size_t i = 0; i < mission_.agents().size(); ++i)
     {
         const core::Agent& agent = mission_.agents()[i];
@@ -1300,13 +1280,11 @@ void Game::takeDrugsForSquad()
         {
             continue;
         }
-        if (mission_.drugs(i) <= 0)
+        for (core::Drug bar : bars)
         {
-            mission_.setDrugs(i, 1);
+            mission_.setDrugLevel(i, bar, mission_.drugCeiling(i, bar));
         }
-        mission_.useDrugs(i);
     }
-    updateDrugSnapshot();
 }
 
 void Game::plantDemoTimeBomb()
@@ -2031,7 +2009,6 @@ bool Game::campaignKeySelfTest()
     mission_.setMedikits(user, 1);
     mission_.setShields(user, 1);
     mission_.setScanners(user, 1);
-    mission_.setDrugs(user, 1);
 
     bool alive = true;
 
@@ -2047,15 +2024,19 @@ bool Game::campaignKeySelfTest()
     // A fingerprint of every piece of board/view state a tactical key touches:
     // the mission identity (R rebuilds it and re-seeds), pause, zoom, camera, the
     // whole selection (so a leaked select-all or ordinal is caught, not just a
-    // size change), the selected agent's position, and the four gadget charges.
+    // size change), the selected agent's position, the three gadget charges, the
+    // active drug bar cursor, and that bar's level (so a leaked `B` spike, `;`/`'`
+    // adjust, or `[`/`]` cycle is caught — the charges alone would not move for a
+    // bar, and the cursor is what a cycle changes).
     auto fingerprint = [&]() {
         const core::Vec2 p = mission_.agents()[user].position();
         std::string s;
         char buf[192];
-        std::snprintf(buf, sizeof(buf), "%llu|%d|%d|%.2f|%.2f|%.2f,%.2f|%d%d%d%d",
+        std::snprintf(buf, sizeof(buf), "%llu|%d|%d|%.2f|%.2f|%.2f,%.2f|%d%d%d|%d|%.2f",
                       static_cast<unsigned long long>(seed_), paused_ ? 1 : 0, zoom_, cameraX_,
                       cameraY_, p.x, p.y, mission_.medikits(user), mission_.shields(user),
-                      mission_.scanners(user), mission_.drugs(user));
+                      mission_.scanners(user), static_cast<int>(activeDrugBar_),
+                      mission_.drugLevel(user, activeDrugBar_));
         s = buf;
         for (std::size_t idx : selected_)
         {
@@ -2068,9 +2049,12 @@ bool Game::campaignKeySelfTest()
 
     // Every tactical binding that must not act behind the map. Pushed one event
     // at a time so a failure names the key, and the allow-list guard is the only
-    // thing that can stop it.
-    const int blockedKeys[] = {SDLK_r, SDLK_SPACE, SDLK_h, SDLK_s, SDLK_c, SDLK_a,
-                               SDLK_p, SDLK_f, SDLK_1,   SDLK_5,  SDLK_LEFT, SDLK_RIGHT,
+    // thing that can stop it. `B` is deliberately absent: on the map it opens the
+    // R&D shop (the screen's own binding), so it is swallowed before the
+    // allow-list rather than by it.
+    const int blockedKeys[] = {SDLK_r, SDLK_SPACE, SDLK_h, SDLK_s, SDLK_c,
+                               SDLK_LEFTBRACKET, SDLK_RIGHTBRACKET, SDLK_SEMICOLON, SDLK_QUOTE,
+                               SDLK_a, SDLK_p, SDLK_f, SDLK_1, SDLK_5, SDLK_LEFT, SDLK_RIGHT,
                                SDLK_UP, SDLK_DOWN};
     for (int sym : blockedKeys)
     {
@@ -2138,7 +2122,6 @@ bool Game::campaignKeySelfTest()
     mission_.setMedikits(user, 0);
     mission_.setShields(user, 0);
     mission_.setScanners(user, 0);
-    mission_.setDrugs(user, 0);
     selected_ = savedSelection;
     campaign_.setVisible(savedVisible);
     return true;
@@ -2853,11 +2836,15 @@ void Game::activateScannerOnSelection()
     }
 }
 
-void Game::useDrugsOnSelection()
+void Game::spikeDrugBarOnSelection()
 {
+    // `B` (issue #541, ADR-0043): drive the active bar to its ceiling for every
+    // selected agent. `Mission::setDrugLevel` clamps to the bar's ceiling, so a
+    // metagame-bought regulator is respected and this is a safe no-op at the top.
+    const core::Drug drug = activeDrugBar_;
     for (const std::size_t index : selected_)
     {
-        mission_.useDrugs(index);
+        mission_.setDrugLevel(index, drug, mission_.drugCeiling(index, drug));
     }
 }
 
@@ -3126,8 +3113,8 @@ void Game::handleEvents(bool& running)
                 activateScannerOnSelection();
                 break;
             case SDLK_b:
-                // Take performance drugs on the selection (issue #339).
-                useDrugsOnSelection();
+                // Spike the active drug bar for the selection (issue #541).
+                spikeDrugBarOnSelection();
                 break;
             case SDLK_LEFTBRACKET:
                 // Cycle the active drug bar backwards (issue #503, ADR-0043).
@@ -3425,7 +3412,6 @@ void Game::update(float frameSeconds)
     }
     updateAgentViews(frameSeconds);
     updateShieldSnapshot(frameSeconds);
-    updateDrugSnapshot();
 
     // Sound effects (issue #423, ADR-0040): turn this frame's mission events
     // (new kills, a decided outcome) into cues. View-only, after the sim. The
@@ -4186,78 +4172,6 @@ bool Game::shieldSelfTest()
     return true;
 }
 
-void Game::renderDrugAura()
-{
-    // Performance-drug aura (issue #387): an amber rim around each agent with a
-    // live buff, fading as the dose runs out. View-only: it reads
-    // `Mission::drugsTimer` and never writes it (golden rule 4).
-    const std::vector<DrugMark> marks = drugMarks();
-    if (marks.empty())
-    {
-        return;
-    }
-
-    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
-    for (const DrugMark& mark : marks)
-    {
-        // The rim dims across the buff's life, so the last seconds read as a
-        // warning that the boost is about to drop.
-        const float clamped = std::max(0.0f, std::min(1.0f, mark.fraction));
-        const int alpha =
-            kDrugRimAlphaMin + static_cast<int>((kDrugRimAlphaMax - kDrugRimAlphaMin) * clamped);
-        strokeDiamondWorld(mark.world, 0.62f, hudstyle::kDrugAura[0], hudstyle::kDrugAura[1],
-                           hudstyle::kDrugAura[2], static_cast<std::uint8_t>(alpha));
-    }
-}
-
-std::vector<Game::DrugMark> Game::drugMarks() const
-{
-    // The drug auras the overlay should draw, from the live mission state
-    // (issue #387). An aura only while an agent's buff is running, with the
-    // remaining fraction so the renderer can fade it. Pure read of core.
-    std::vector<DrugMark> marks;
-    const auto& agents = mission_.agents();
-    for (std::size_t i = 0; i < agents.size(); ++i)
-    {
-        const float timer = mission_.drugsTimer(i);
-        if (timer <= 0.0f)
-        {
-            continue;
-        }
-        const core::Vec2 position = agents[i].interpolatedPosition(clock_.alpha());
-        const core::Vec2 world =
-            core::tileToWorld(position.x, position.y, kTileWidth, kTileHeight);
-        // The buff's full duration is core-private, so the fraction is against the
-        // peak timer this view observed (set the moment the buff was taken).
-        const float peak = i < drugPeak_.size() ? drugPeak_[i] : 0.0f;
-        const float fraction = peak > 0.0f ? timer / peak : 0.0f;
-        const DrugMark mark{i, world, fraction};
-        marks.push_back(mark);
-    }
-    return marks;
-}
-
-void Game::updateDrugSnapshot()
-{
-    // Records each agent's peak drug timer so drugMarks() can report a remaining
-    // fraction, and clears it when the buff ends (issue #387). View-only.
-    const auto& agents = mission_.agents();
-    if (drugPeak_.size() != agents.size())
-    {
-        drugPeak_.assign(agents.size(), 0.0f);
-    }
-    for (std::size_t i = 0; i < agents.size(); ++i)
-    {
-        const float timer = mission_.drugsTimer(i);
-        if (timer <= 0.0f)
-        {
-            drugPeak_[i] = 0.0f;
-            continue;
-        }
-        drugPeak_[i] = std::max(drugPeak_[i], timer);
-    }
-}
-
 void Game::updateAudio()
 {
     // Turns mission events since the last frame into sound cues (issue #423,
@@ -4553,85 +4467,101 @@ bool Game::audioSelfTest()
 
 bool Game::drugsSelfTest()
 {
-    // Headless guard for the drug aura overlay (issue #387): drive the shared
-    // drugMarks() decision the render pass uses, and prove the invariants a
-    // broken overlay would violate — no aura before a dose, one aura on the dosed
-    // combatant with the full remaining fraction, no aura for a civilian dose,
-    // and the aura clearing once the buff expires through the real update path.
+    // Headless guard for the drug-bar demo hook (issue #541, ADR-0043). The old
+    // single-dose consumable is retired: `--drugs` now spikes every living player
+    // agent's three bars, and `B` spikes the active bar for the selection. This
+    // drives those real handlers and proves the bars move and respect the ceiling
+    // — the aura overlay it used to guard is gone, so the observable is the bar
+    // level itself.
     const auto& agents = mission_.agents();
-    if (!drugMarks().empty())
-    {
-        std::fprintf(stderr, "drugs self-test: an aura was drawn before any dose\n");
-        return false;
-    }
-
-    std::size_t user = agents.size();
+    std::vector<std::size_t> players;
     for (std::size_t i = 0; i < agents.size(); ++i)
     {
         if (agents[i].isAlive() && agents[i].team() == core::Team::Player)
         {
-            user = i;
-            break;
+            players.push_back(i);
         }
     }
-    if (user == agents.size())
+    if (players.empty())
     {
         std::fprintf(stderr, "drugs self-test: no living player agent\n");
         return false;
     }
 
-    // A dose on a living combatant: exactly one aura, at (near) full strength.
-    mission_.setDrugs(user, 1);
-    if (!mission_.useDrugs(user))
-    {
-        std::fprintf(stderr, "drugs self-test: could not take the dose\n");
-        return false;
-    }
-    updateDrugSnapshot();
-    std::vector<DrugMark> marks = drugMarks();
-    if (marks.size() != 1 || marks[0].index != user)
-    {
-        std::fprintf(stderr, "drugs self-test: expected one aura on the dosed agent\n");
-        return false;
-    }
-    if (marks[0].fraction < 0.9f)
-    {
-        std::fprintf(stderr, "drugs self-test: a fresh dose did not read as near-full\n");
-        return false;
-    }
+    const std::vector<std::size_t> savedSelection = selected_;
+    const core::Drug savedBar = activeDrugBar_;
 
-    // A civilian is never dosed: useDrugs is a no-op, so it adds no aura.
-    for (std::size_t i = 0; i < agents.size(); ++i)
+    const core::Drug bars[core::kDrugCount] = {core::Drug::Adrenalin, core::Drug::Intelligence,
+                                               core::Drug::Physical};
+
+    // Drive every bar to its floor first, so the spike below has room to move and
+    // the assertion is not satisfied by the authored level.
+    for (std::size_t i : players)
     {
-        if (agents[i].isAlive() && agents[i].team() == core::Team::Civilian)
+        for (core::Drug bar : bars)
         {
-            mission_.setDrugs(i, 1);
-            if (mission_.useDrugs(i))
-            {
-                std::fprintf(stderr, "drugs self-test: a civilian took a dose\n");
-                return false;
-            }
-            if (drugMarks().size() != 1)
-            {
-                std::fprintf(stderr, "drugs self-test: a civilian dose changed the overlay\n");
-                return false;
-            }
-            break;
+            mission_.setDrugLevel(i, bar, 0.0f);
         }
     }
 
-    // Let the buff expire through the real update path: the aura clears. Step in
-    // small increments so the guard does not depend on core's buff duration.
-    for (int step = 0; step < 400 && mission_.drugsTimer(user) > 0.0f; ++step)
+    // `--drugs`: every living player agent's bars reach their ceilings; a
+    // civilian's do not move (the hook only touches the player team).
+    takeDrugsForSquad();
+    for (std::size_t i : players)
     {
-        mission_.update(0.5f);
-        updateDrugSnapshot();
+        for (core::Drug bar : bars)
+        {
+            if (mission_.drugLevel(i, bar) != mission_.drugCeiling(i, bar))
+            {
+                std::fprintf(stderr, "drugs self-test: the squad spike missed a bar\n");
+                selected_ = savedSelection;
+                activeDrugBar_ = savedBar;
+                return false;
+            }
+        }
     }
-    if (mission_.drugsTimer(user) > 0.0f || !drugMarks().empty())
+
+    // `B`: the active bar spikes for the selection only, and the other bars stay
+    // where they were.
+    const std::size_t user = players.front();
+    for (core::Drug bar : bars)
     {
-        std::fprintf(stderr, "drugs self-test: aura survived the buff expiry\n");
+        mission_.setDrugLevel(user, bar, 0.0f);
+    }
+    activeDrugBar_ = core::Drug::Intelligence;
+    selectOnly(user);
+    spikeDrugBarOnSelection();
+    if (mission_.drugLevel(user, core::Drug::Intelligence) !=
+        mission_.drugCeiling(user, core::Drug::Intelligence))
+    {
+        std::fprintf(stderr, "drugs self-test: `B` did not spike the active bar\n");
+        selected_ = savedSelection;
+        activeDrugBar_ = savedBar;
         return false;
     }
+    if (mission_.drugLevel(user, core::Drug::Adrenalin) != 0.0f ||
+        mission_.drugLevel(user, core::Drug::Physical) != 0.0f)
+    {
+        std::fprintf(stderr, "drugs self-test: `B` spiked a bar other than the active one\n");
+        selected_ = savedSelection;
+        activeDrugBar_ = savedBar;
+        return false;
+    }
+
+    // A lowered ceiling is respected: the spike lands on the ceiling, not 1.0.
+    mission_.setDrugCeiling(user, core::Drug::Intelligence, 0.3f);
+    mission_.setDrugLevel(user, core::Drug::Intelligence, 0.0f);
+    spikeDrugBarOnSelection();
+    if (std::fabs(mission_.drugLevel(user, core::Drug::Intelligence) - 0.3f) > 1e-4f)
+    {
+        std::fprintf(stderr, "drugs self-test: the spike overshot a lowered ceiling\n");
+        selected_ = savedSelection;
+        activeDrugBar_ = savedBar;
+        return false;
+    }
+
+    selected_ = savedSelection;
+    activeDrugBar_ = savedBar;
     return true;
 }
 
@@ -5529,7 +5459,6 @@ void Game::render()
     renderWaypointPath();
     renderScannerPing();
     renderShield();
-    renderDrugAura();
     renderSelectionBox();
     if (titleCardActive_)
     {

@@ -100,7 +100,7 @@ void Game::renderTitleCard()
         tr("title.controls.move", "CLICK  MOVE THE SQUAD"),
         tr("title.controls.attack", "RIGHT-CLICK  FOCUS FIRE"),
         tr("title.controls.select", "1-4 RECALL  CTRL+1-4 SET  A  ALL"),
-        tr("title.controls.gadgets", "H  MEDKIT   S  SHIELD   C  SCAN   B  DRUGS   [/] BAR   ;/' ADJUST"),
+        tr("title.controls.gadgets", "H  MEDKIT   S  SHIELD   C  SCAN   B  SPIKE   [/] BAR   ;/' ADJUST"),
         tr("title.controls.misc", "ARROWS  SCROLL   SPACE  PAUSE   R  RESTART   E  HIJACK   ESC  QUIT"),
     };
     int cy = static_cast<int>(static_cast<float>(h) * 0.68f);
