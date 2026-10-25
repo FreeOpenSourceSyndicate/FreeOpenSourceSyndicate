@@ -1,11 +1,13 @@
 /* AI/LLM-generated file. Do not treat as human-written source documentation. */
 #include "TestHarness.h"
+#include "core/data/Catalogues.h"
 #include "core/economy/Economy.h"
 #include "core/economy/Equipment.h"
 #include "core/economy/Research.h"
 
 #include <cmath>
 #include <cstddef>
+#include <vector>
 
 using namespace fossynd::core;
 
@@ -372,6 +374,73 @@ FOSSYND_TEST(Research, ShippedResearchAndSquadAreAffordableWithinACampaign)
     FOSSYND_CHECK(treeTicks <= 30);
     FOSSYND_CHECK(squadTicks >= 15);
     FOSSYND_CHECK(squadTicks <= 30);
+}
+
+FOSSYND_TEST(Research, ShippedWeaponLadderCostsTrackCombatValue)
+{
+    // The spine of the weapon price curve: a player pays for *reach and punch*,
+    // not for a name. The total cost of a weapon (its research node plus the
+    // item) must rise with its combat value (damage x range), so a more
+    // expensive gun is never the weaker one. #419 originally inverted gauss and
+    // longshot (gauss cost more but reached less and hit softer); this pins the
+    // corrected ladder against a silent re-inversion.
+    const ResearchTree tree = shippedTree();
+    std::string error;
+
+    Json eqRoot;
+    const std::string eqPath = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/world/equipment.json";
+    FOSSYND_CHECK(Json::parseFile(eqPath, eqRoot, error));
+    FOSSYND_CHECK(error.empty());
+    EquipmentCatalogue catalogue;
+    FOSSYND_CHECK(EquipmentCatalogue::fromJson(eqRoot, catalogue, error));
+    FOSSYND_CHECK(error.empty());
+
+    WeaponCatalogue weapons;
+    bool found = false;
+    const std::string wPath = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/weapons.json";
+    FOSSYND_CHECK(weapons.loadFromFile(wPath, found, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(found);
+
+    // Walk the researched weapon ladder in intended order: each entry is
+    // strictly better in combat value and strictly dearer in total cost.
+    const char* const ladder[] = {"minigun", "gauss", "longshot", "railgun"};
+    float prevValue = -1.0f;
+    float prevTotal = -1.0f;
+    for (const char* id : ladder)
+    {
+        const EquipmentItem* item = catalogue.find(id);
+        const Weapon* weapon = weapons.find(id);
+        const ResearchNode* node = tree.find(id);
+        FOSSYND_CHECK(item != nullptr && weapon != nullptr && node != nullptr);
+        if (item == nullptr || weapon == nullptr || node == nullptr)
+        {
+            return;
+        }
+        // A gated weapon's node must unlock exactly it, or the price is a lie.
+        FOSSYND_CHECK_EQ(node->unlocks, item->id);
+
+        const float value = weapon->damage * weapon->range;
+        const float total = item->cost + node->cost;
+        FOSSYND_CHECK(value > prevValue); // strictly better combat value
+        FOSSYND_CHECK(total > prevTotal); // strictly dearer in total
+        prevValue = value;
+        prevTotal = total;
+    }
+
+    // The two second-tier guns are the pair that used to be inverted: longshot
+    // out-reaches and out-punches gauss, so it must also cost more, both in
+    // research and in the shop.
+    const Weapon* gauss = weapons.find("gauss");
+    const Weapon* longshot = weapons.find("longshot");
+    FOSSYND_CHECK(gauss != nullptr && longshot != nullptr);
+    if (gauss != nullptr && longshot != nullptr)
+    {
+        FOSSYND_CHECK(longshot->range > gauss->range);
+        FOSSYND_CHECK(longshot->damage > gauss->damage);
+        FOSSYND_CHECK(tree.find("longshot")->cost > tree.find("gauss")->cost);
+        FOSSYND_CHECK(catalogue.find("longshot")->cost > catalogue.find("gauss")->cost);
+    }
 }
 
 // --- Restore (save/load half, issue #431) ----------------------------------
