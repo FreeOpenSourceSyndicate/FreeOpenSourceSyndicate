@@ -719,14 +719,18 @@ From the tracking issue (#249):
 3. **Squad ↔ mission mapping.** R1's exact shape (override specs vs. a separate
    deploy step) is Tactical/Content's call; this contract only requires that a
    bought loadout reaches the deployed agents.
-4. **Money scaling.** *(settled — #419, the balance pass.)* The shipped
-   `campaign.json` is tuned so a fresh campaign (2 owned regions) reaches the win
-   in a reasonable number of ticks, and over-taxation is a real gamble: at
-   `revoltChancePerTick` 0.06 the risky max tax stops out-earning the safe tax
-   after ~38 ticks, so the decision is live but not a trap. The pins live in
-   `tests/test_economy.cpp` and `tests/test_research.cpp`, which read the shipped
-   files. Further tuning is still a data question — edit `campaign.json`, not
-   code.
+4. **Money scaling.** *(settled — #419, the balance pass; recorded in
+   `docs/BALANCE.md`.)* The shipped `campaign.json` is tuned so a fresh campaign
+   (2 owned regions) reaches the win in a reasonable number of ticks, and
+   over-taxation is a real gamble: at `revoltChancePerTick` 0.06 the risky max
+   tax stops out-earning the safe tax after ~38 ticks, so the decision is live
+   but not a trap. The pins live in `tests/test_economy.cpp` and
+   `tests/test_research.cpp`, which read the shipped files. The weapon/equipment
+   price ladder is pinned there too (`ShippedWeaponLadderCostsTrackCombatValue`,
+   #528: total cost must track `damage * range`, so the dearer gun is never the
+   weaker one). Further tuning is still a data question — edit the JSON under
+   `assets/data/world/**`, not code — and the target curve is in
+   `docs/BALANCE.md`.
 5. **Player syndicate identity.** *(settled — #445.)* The original lets the
    player name the syndicate and pick a logo at the start. The core now carries
    the choice (`Campaign::syndicateName`/`syndicateLogo`, with data-authored
