@@ -454,9 +454,9 @@ use `jsonc` for annotation only, exactly as `docs/DATA_FORMAT.md` does).
 ```jsonc
 {
   "territories": [
-    { "id": 0, "name": "Riverside", "neighbours": [1, 2], "owner": 0, "missionId": "demo" },
-    { "id": 1, "name": "The Docks",  "neighbours": [0, 2], "owner": -1, "missionId": "demo" },
-    { "id": 2, "name": "Old Town",  "neighbours": [0, 1], "owner": -1, "missionId": "demo" }
+    { "id": 0, "name": "Westmarch", "neighbours": [1, 2], "owner": 0,  "missionId": "demo" },
+    { "id": 1, "name": "Nordhelm",  "neighbours": [0, 2], "owner": 0,  "missionId": "demo" },
+    { "id": 2, "name": "Vostara",   "neighbours": [0, 1], "owner": -1, "missionId": "blackout" }
   ]
 }
 ```
@@ -467,11 +467,25 @@ use `jsonc` for annotation only, exactly as `docs/DATA_FORMAT.md` does).
 - `missionId` — optional; must match a mission's `id` (or file stem) when present.
   A neutral region needs one to be attackable, and the same `missionId` may be
   shared by several regions (ADR-0029), so a small mission set covers a larger map.
-  In the **shipped** `world.json` every one of the six regions carries a mission
-  drawn from the tactical mission set (`demo`, `escort`, `blackout`, `assembly`,
-  `overpass`) and each is listed in `campaign.json`'s `missions`, so the whole map
-  is playable rather than five regions replaying two boards (#418). The mapping is
-  pinned by `tests/test_campaign.cpp`.
+  In the **shipped** `world.json` every region carries a mission drawn from the
+  tactical mission set (`demo`, `escort`, `blackout`, `assembly`, `overpass`) and
+  each is listed in `campaign.json`'s `missions`, so the whole map is playable
+  rather than five regions replaying two boards (#418). The mapping is pinned by
+  `tests/test_campaign.cpp`.
+
+**The shipped map is a world map (issue #448).** v1.0.0 replaces the original
+six city-district regions with **twelve culturally-flavoured regions** — evocative
+of real-world regions and cultures, never real country or brand names
+(`docs/LEGAL.md`): `Westmarch` (the home region, player-owned), `Nordhelm`,
+`Vostara`, `Sahari`, `Khoras`, `Sahelia`, `Zambara`, `Andura`, `Indara`, `Sinara`,
+`Sundara`, `Pelagia`. Region `0` and `1` start player-owned; the rest are neutral
+and are claimed inward from the frontier (ADR-0029). The graph is a fully
+connected, symmetric, no-self-loop map whose BFS rings from region `0` lay out
+legibly on the map screen (the layout guard in `CampaignScreen::selfTest`
+enforces a minimum node separation, so a future edit cannot collapse the map).
+Structural validity is pinned by `WorldMap.ShippedWorldIsAConnectedPlayableWorldMap`
+in `tests/test_worldmap.cpp`. The region names are also recorded in
+`docs/LORE.md` (text lane).
 
 ### 5.2 `research.json`
 

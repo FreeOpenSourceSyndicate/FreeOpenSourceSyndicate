@@ -688,15 +688,17 @@ Do not start work outside the scope fence (ADR-0024).
 - **The campaign pacing is tuned and pinned (issue #419, Milestone C).** The
   shipped `assets/data/world/campaign.json` no longer uses the placeholder
   economy: `incomePerTaxLevel` 60 (was 100) and `revoltChancePerTick` 0.06 (was
-  0.02). Rationale: a fresh campaign holds 2 of 6 regions, so at the old values
-  the whole 6100-fund research tree was affordable in ~13 ticks (a walkover) and
-  over-taxing at max tax out-earned the safe tax for ~112 ticks (no decision). At
-  the new values the opening safe path (tax 2 → 240/tick) affords the first
-  research node immediately and the whole tree in ~22 ticks, while max tax (5)
-  pays 2.5× but its expected value falls below the safe path after ~38 ticks — a
-  real tax-vs-revolt gamble. **The values are pinned by tests that read the
-  shipped files**, so a later edit that silently unbalances them fails
-  `ctest` instead of a playtest: `tests/test_economy.cpp`
+  0.02). Rationale: a fresh campaign holds 2 of the map's regions, so at the old
+  values the whole 6100-fund research tree was affordable in ~13 ticks (a
+  walkover) and over-taxing at max tax out-earned the safe tax for ~112 ticks (no
+  decision). At the new values the opening safe path (tax 2 → 240/tick) affords
+  the first research node immediately and the whole tree in ~22 ticks, while max
+  tax (5) pays 2.5× but its expected value falls below the safe path after ~38
+  ticks — a real tax-vs-revolt gamble. (These relationships are per-territory and
+  per-tick, so they are unaffected by the map growing from 6 to 12 regions in
+  #448; only the fully-taxed end-game bracket scales.) **The values are pinned by
+  tests that read the shipped files**, so a later edit that silently unbalances
+  them fails `ctest` instead of a playtest: `tests/test_economy.cpp`
   (`ShippedConfigHasTheTunedPacing`, `ShippedIncomePerTickAtEachTaxLevel`,
   `ShippedRevoltIsARealTradeOffNotAFormality`,
   `ShippedStartingFundsCoverTheFirstResearchNode`) and `tests/test_research.cpp`
@@ -707,8 +709,8 @@ Do not start work outside the scope fence (ADR-0024).
   retuning. Docs: `docs/METAGAME.md` §5.4 / §10.4.
 
 - **The campaign map is wired to the mission set (issue #418, Milestone C).**
-  Every one of the six regions in `assets/data/world/world.json` now names a
-  `missionId`, and `campaign.json`'s `missions` list holds all five
+  Every region in `assets/data/world/world.json` now names a `missionId`, and
+  `campaign.json`'s `missions` list holds all five
   (`demo`, `escort`, `blackout`, `assembly`, `overpass` — the three new ones came
   from the tactical slice #416/PR #437). Before this, The Docks had no mission
   (a dead-end region) and five regions replayed just `demo`/`escort`, so most of
@@ -718,12 +720,30 @@ Do not start work outside the scope fence (ADR-0024).
   #369. `tests/test_campaign.cpp` pins it: `EveryShippedRegionNamesAMissionThatExists`
   (no empty id, every id has a file), `CampaignMissionsListCoversEveryRegionMission`
   (the map names only ids in the shipped list), and
-  `TheMapUsesTheWholeMissionSetNotJustTheDemo` (the six regions cover all five
+  `TheMapUsesTheWholeMissionSetNotJustTheDemo` (the regions cover all five
   missions). `ShippedCampaignCanBeWonByClaimingTheFrontier` and the
   `game_campaign` self-test still win a full run through the new mapping. Data
   only, no code change (golden rule 7). A content-side guard that *validates*
   every `world.json` `missionId` against the mission files is #420 (`focus:
   content`).
+
+- **The shipped map is a world map (issue #448, Milestone C).** v1.0.0 replaces
+  the original six city-district regions with **twelve culturally-flavoured
+  regions** in `assets/data/world/world.json` — evocative of real-world regions
+  and cultures, never real country or brand names (`docs/LEGAL.md`): `Westmarch`
+  (the home region), `Nordhelm`, `Vostara`, `Sahari`, `Khoras`, `Sahelia`,
+  `Zambara`, `Andura`, `Indara`, `Sinara`, `Sundara`, `Pelagia`. Regions `0`/`1`
+  start player-owned; the rest are neutral and claimed inward from the frontier
+  (ADR-0029). The graph is fully connected, symmetric, and self-loop free, and
+  its BFS rings from region `0` lay out legibly on the map screen — the layout
+  guard in `CampaignScreen::selfTest` enforces a minimum node separation
+  (0.10 normalised ≈ 58px at the default 960-wide window, above the 44px click
+  diameter), so a future edit cannot collapse the map into overlapping nodes.
+  `WorldMap.ShippedWorldIsAConnectedPlayableWorldMap` in
+  `tests/test_worldmap.cpp` pins the structural invariants (dense ids, symmetric
+  adjacency, no self-loop, connected, a mission on every region). Data + a
+  metagame-owned layout guard only, no core rule change. The names are recorded
+  in `docs/LORE.md` §3a (text lane, helper-claimed for this one change).
 
 - The game now has a **playable vertical slice** with authored pixel-art
   sprites: an SDL2 isometric mission with a four-agent squad, live combat

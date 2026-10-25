@@ -105,7 +105,7 @@ FOSSYND_TEST(Campaign, LoadsShippedCampaignAndSiblings)
 {
     const Campaign campaign = loadedCampaign();
 
-    FOSSYND_CHECK_EQ(campaign.map().size(), std::size_t{6});
+    FOSSYND_CHECK_EQ(campaign.map().size(), std::size_t{12});
     FOSSYND_CHECK(campaign.researchTree().size() >= std::size_t{4});
     FOSSYND_CHECK(campaign.catalogue().size() >= std::size_t{4});
     FOSSYND_CHECK_NEAR(campaign.economy().config().tickSeconds, 30.0f);
@@ -424,7 +424,7 @@ FOSSYND_TEST(Campaign, CampaignMissionsListCoversEveryRegionMission)
 FOSSYND_TEST(Campaign, TheMapUsesTheWholeMissionSetNotJustTheDemo)
 {
     // The point of #418: the map should exercise the tactical mission set, not
-    // replay the opening two boards. Count the distinct missions the six regions
+    // replay the opening two boards. Count the distinct missions the regions
     // name and require most of the shipped set to be reachable from the map.
     const Campaign campaign = loadedCampaign();
 
@@ -611,7 +611,7 @@ FOSSYND_TEST(Campaign, WinningTheFinalMissionEndsTheCampaign)
     std::remove(path.c_str());
 
     const int player = Campaign::kPlayerSyndicate;
-    // "overpass" is the shipped mission on territory 5 (The Sprawl), a neutral.
+    // "overpass" is the shipped mission on a far neutral region (Sinara).
     // Find it via the map rather than hard-coding the index.
     TerritoryId finalTerritory = -1;
     for (const Territory& territory : campaign.map().territories())
@@ -679,7 +679,7 @@ FOSSYND_TEST(Campaign, ANonFinalWinDoesNotEndAFinalMissionCampaign)
     std::remove(path.c_str());
 
     const int player = Campaign::kPlayerSyndicate;
-    // Territory 2 (Old Town) is a neutral on the frontier with a non-final
+    // Territory 2 (Vostara) is a neutral on the frontier with a non-final
     // mission; winning it must not end the campaign.
     FOSSYND_CHECK(campaign.canDeployTo(2));
     FOSSYND_CHECK(campaign.map().find(2)->missionId != campaign.finalMission());

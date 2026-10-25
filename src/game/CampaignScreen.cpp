@@ -1060,6 +1060,41 @@ bool CampaignScreen::selfTest()
         return false;
     }
 
+    // 9. Layout legibility (issue #448): the world map now has twelve regions,
+    // so a graph whose BFS rings crowd two nodes on top of each other would draw
+    // an unreadable map (and an ambiguous click target — nodeAtScreen's tolerance
+    // is 22px). Require a minimum separation in the normalised layout the screen
+    // actually uses, so a future world.json cannot quietly collapse the layout.
+    // 0.10 in normalised space is ~58px across the ~576px map region at the
+    // default 960-wide window, comfortably above the 44px click diameter.
+    if (layout_.size() != campaign_.map().size())
+    {
+        std::fprintf(stderr, "campaign self-test: layout does not cover every region\n");
+        return false;
+    }
+    float closest = 1.0f;
+    for (std::size_t i = 0; i < layout_.size(); ++i)
+    {
+        for (std::size_t j = i + 1; j < layout_.size(); ++j)
+        {
+            const float dx = layout_[i].nx - layout_[j].nx;
+            const float dy = layout_[i].ny - layout_[j].ny;
+            const float d = std::sqrt(dx * dx + dy * dy);
+            if (d < closest)
+            {
+                closest = d;
+            }
+        }
+    }
+    if (closest < 0.10f)
+    {
+        std::fprintf(stderr,
+                     "campaign self-test: world-map layout is too crowded "
+                     "(closest nodes %.3f < 0.10)\n",
+                     static_cast<double>(closest));
+        return false;
+    }
+
     return true;
 }
 

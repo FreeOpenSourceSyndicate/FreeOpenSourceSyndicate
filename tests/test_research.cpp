@@ -253,7 +253,8 @@ FOSSYND_TEST(Research, ShippedTreePacingIsBracketed)
     FOSSYND_CHECK_NEAR(totalTime, 615.0f);
 
     // At the shipped tick length the whole tree is a meaningful number of income
-    // ticks (not one) but not a grind (the campaign is 6 regions).
+    // ticks (not one) but not a grind (the world map is twelve regions, so the
+    // economy scales up over the campaign).
     const EconomyConfig economy = shippedEconomyConfig();
     const float totalTicks = totalTime / economy.tickSeconds;
     FOSSYND_CHECK(totalTicks > 15.0f);
