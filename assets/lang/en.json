@@ -3,7 +3,7 @@
 
   "app.title": "FOSSYND",
   "app.version": "v{version}",
-  "app.tagline": "DOMINION",
+  "app.tagline": "CAMPAIGN IS REAL",
 
   "hud.objective.eliminate": "OBJECTIVE: ELIMINATE ALL {count} ENEMY AGENTS",
   "hud.objective.reach": "OBJECTIVE: REACH TILE ({x},{y})",
