@@ -19,6 +19,19 @@
 namespace fossynd::game
 {
 
+namespace
+{
+// Drug-bar HUD geometry (issue #502, ADR-0043). Fixed so the layout is
+// predictable: the name column is clamped, the three bars share the leftover
+// width, and a bar narrower than the minimum is not drawn rather than rendered
+// unreadably.
+constexpr int kDrugBarPanelWidth = 400;
+constexpr int kDrugBarNameChars = 6;
+constexpr int kDrugBarLabelChars = 3;
+constexpr int kDrugBarGap = 6;
+constexpr int kDrugBarMinTrack = 20;
+} // namespace
+
 std::string Game::objectiveBannerText(bool& urgent) const
 {
     urgent = false;
@@ -266,6 +279,166 @@ void Game::renderHud()
         SDL_RenderFillRect(renderer_, &band);
         font_.draw(renderer_, cx - font_.textWidth(label) / 2, screenHeight_ / 2 - lineH / 2,
                    label, hudstyle::kHudText);
+    }
+}
+
+std::vector<Game::DrugBar> Game::drugBars() const
+{
+    // The drug bars the HUD should draw (issue #502, ADR-0043): three per
+    // selected living player agent, in bar order, with the level and drifting
+    // neutral point read from the live mission. Pure read of core (golden rule
+    // 4); the renderer and drugBarSelfTest() share this decision.
+    std::vector<DrugBar> bars;
+    const auto& agents = mission_.agents();
+    for (const std::size_t index : selected_)
+    {
+        if (index >= agents.size())
+        {
+            continue;
+        }
+        const core::Agent& agent = agents[index];
+        if (!agent.isAlive() || agent.team() != core::Team::Player)
+        {
+            continue;
+        }
+        for (int slot = 0; slot < core::kDrugCount; ++slot)
+        {
+            const core::Drug drug = static_cast<core::Drug>(slot);
+            DrugBar bar;
+            bar.index = index;
+            bar.drug = drug;
+            bar.level = mission_.drugLevel(index, drug);
+            bar.neutral = mission_.drugNeutral(index, drug);
+            bar.active = drug == activeDrugBar_;
+            bars.push_back(bar);
+        }
+    }
+    return bars;
+}
+
+void Game::renderDrugBars()
+{
+    // Drug-bar HUD (issue #502, ADR-0043): three regulated bars per selected
+    // agent, each showing the level (the fill) and the drifting neutral point
+    // (the tick). Presentation-only: a few filled rectangles, no per-pixel work
+    // (AGENTS.md 1b). It reads `Mission::drugLevel`/`drugNeutral` and never
+    // writes them (golden rule 4).
+    const std::vector<DrugBar> bars = drugBars();
+    if (bars.empty())
+    {
+        return;
+    }
+
+    const int margin = 8;
+    const int lineH = font_.lineHeight();
+    const int panelW = std::min(kDrugBarPanelWidth, screenWidth_ - 2 * margin);
+    const int nameW = font_.textWidth(std::string(kDrugBarNameChars, 'M'));
+    const int labelW = font_.textWidth(std::string(kDrugBarLabelChars + 1, 'M'));
+    const int left = margin + margin / 2;
+    const int barX = left + nameW + kDrugBarGap + labelW + kDrugBarGap;
+    const int barW = panelW - (barX - margin) - margin / 2;
+    if (barW < kDrugBarMinTrack)
+    {
+        // Too narrow for a readable bar; skip rather than draw noise (the
+        // low-spec window is 320 px wide).
+        return;
+    }
+
+    // Anchor the panel above the squad panel (bottom-left), which renderHud()
+    // sizes from the player count, so the two never overlap. Both panels are
+    // drawn in this file, so the shared layout stays in one place.
+    int playerCount = 0;
+    for (const core::Agent& agent : mission_.agents())
+    {
+        if (agent.team() == core::Team::Player)
+        {
+            ++playerCount;
+        }
+    }
+    const int squadPanelH = lineH * (1 + playerCount) + margin;
+    const int bottom = screenHeight_ - squadPanelH;
+
+    // One title line, one header line per agent, one line per bar.
+    const int bodyLines = static_cast<int>(bars.size()) + static_cast<int>(bars.size() / core::kDrugCount);
+    int panelH = lineH * (bodyLines + 1) + margin;
+    panelH = std::min(panelH, bottom - margin);
+    if (panelH <= 0)
+    {
+        return;
+    }
+    const int panelY = bottom - panelH;
+
+    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 170);
+    SDL_Rect panel{margin, panelY, panelW, panelH};
+    SDL_RenderFillRect(renderer_, &panel);
+
+    const int barH = std::max(2, lineH - 4);
+    int y = panelY + margin / 2;
+    font_.draw(renderer_, left, y, tr("hud.drugBars", "DRUG BARS"), hudstyle::kHudText);
+    y += lineH;
+
+    std::size_t previousAgent = static_cast<std::size_t>(-1);
+    for (const DrugBar& bar : bars)
+    {
+        if (y + lineH > panelY + panelH)
+        {
+            // Out of room (a narrow low-spec window); the topmost agents win.
+            break;
+        }
+        if (bar.index != previousAgent)
+        {
+            previousAgent = bar.index;
+            const std::string name = mission_.agents()[bar.index].name();
+            font_.draw(renderer_, left, y, name, hudstyle::kHudDim);
+            y += lineH;
+            if (y + lineH > panelY + panelH)
+            {
+                break;
+            }
+        }
+
+        const char* key = "hud.drug.adrenalin";
+        const char* fallback = "ADR";
+        if (bar.drug == core::Drug::Intelligence)
+        {
+            key = "hud.drug.intelligence";
+            fallback = "INT";
+        }
+        else if (bar.drug == core::Drug::Physical)
+        {
+            key = "hud.drug.physical";
+            fallback = "PHY";
+        }
+        const std::string label = (bar.active ? ">" : " ") + tr(key, fallback);
+        font_.draw(renderer_, left, y, label, bar.active ? hudstyle::kHudText : hudstyle::kHudDim);
+
+        SDL_SetRenderDrawColor(renderer_, hudstyle::kDrugBarTrack[0], hudstyle::kDrugBarTrack[1],
+                               hudstyle::kDrugBarTrack[2], 255);
+        SDL_Rect track{barX, y, barW, barH};
+        SDL_RenderFillRect(renderer_, &track);
+
+        const float level = std::max(0.0f, std::min(1.0f, bar.level));
+        const int fillW = std::min(barW, static_cast<int>(level * static_cast<float>(barW) + 0.5f));
+        if (fillW > 0)
+        {
+            const std::uint8_t* colour =
+                bar.level >= bar.neutral ? hudstyle::kDrugBarFillUp : hudstyle::kDrugBarFillDown;
+            SDL_SetRenderDrawColor(renderer_, colour[0], colour[1], colour[2], 255);
+            SDL_Rect fill{barX, y, fillW, barH};
+            SDL_RenderFillRect(renderer_, &fill);
+        }
+
+        // The neutral tick marks the point the level is measured against, so a
+        // bar sitting on its tick reads as "no effect".
+        const float neutral = std::max(0.0f, std::min(1.0f, bar.neutral));
+        const int tickX = std::min(barX + barW - 2, barX + static_cast<int>(neutral * static_cast<float>(barW) + 0.5f));
+        SDL_SetRenderDrawColor(renderer_, hudstyle::kDrugBarTick.r, hudstyle::kDrugBarTick.g,
+                               hudstyle::kDrugBarTick.b, 255);
+        SDL_Rect tick{tickX, y, 2, barH};
+        SDL_RenderFillRect(renderer_, &tick);
+
+        y += lineH;
     }
 }
 

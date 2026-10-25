@@ -281,6 +281,13 @@ if(BUILD_TESTS)
     add_test(NAME game_drug_controls
              COMMAND FOSSynd --headless --check-drug-controls)
     set_tests_properties(game_drug_controls PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    # Drug-bar HUD (issue #502, ADR-0043): three bars per selected agent with the
+    # level and neutral point read from the live mission, the bars tracking
+    # `Mission::setDrugLevel`, and an empty selection drawing none. Drives the
+    # shared drugBars() decision the render pass uses. Exits non-zero on a broken
+    # invariant.
+    add_test(NAME game_drug_bars
+             COMMAND FOSSynd --headless --check-drug-bars)
     # Time-bomb demo hook (issue #460): no bomb before, exactly one armed after
     # planting through the real `Mission::orderTimeBomb` path, a civilian cannot
     # plant one, a second bomb on the same agent is refused, and the bomb clears

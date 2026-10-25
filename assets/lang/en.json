@@ -18,6 +18,10 @@
   "hud.collateral": "COLLATERAL: {count}",
   "hud.squad": "SQUAD",
   "hud.agentRow": "{marker}{name}  {weapon}  HP {hp}",
+  "hud.drugBars": "DRUG BARS",
+  "hud.drug.adrenalin": "ADR",
+  "hud.drug.intelligence": "INT",
+  "hud.drug.physical": "PHY",
   "hud.winSub": "PRESS R TO RUN IT AGAIN",
   "hud.loseSub": "PRESS R TO RETRY",
 
