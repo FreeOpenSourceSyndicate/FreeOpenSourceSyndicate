@@ -80,6 +80,27 @@ constexpr float kDrugAccuracyMultiplier = 1.35f;
 // drifts — the player regulates it. Deterministic; no RNG.
 constexpr float kDrugNormalisationRate = 0.25f;
 
+// Adrenalin (S2). The effect scales movement speed by `1 + k * effect` (so it is
+// the base speed at effect 0, faster above, slower below), and the AI think
+// cadence by `1 - k * effect` (shorter = faster reaction above 0, longer below).
+// The panic threshold falls linearly with the effect; at effect <= 0 it is
+// infinite, so a calm agent never panics. All deterministic; no RNG.
+constexpr float kAdrenalinSpeedGain = 0.5f;    // ±50% at full effect
+constexpr float kAdrenalinReactionGain = 0.5f; // ±50% cadence at full effect
+constexpr float kAdrenalinAccuracyLoss = 0.4f; // -40% hit chance at full effect
+constexpr float kPanicThresholdBase = 40.0f;   // threat units at effect 0+
+constexpr float kPanicThresholdDrop = 35.0f;   // threshold at effect 1
+constexpr float kPanicClearFraction = 0.7f;    // hysteresis: clear below 70%
+// Threat-model tuning. A weapon's base threat is `damage * (1 + area)` (a
+// blast weapon projects more); situational modifiers are multiplied in.
+constexpr float kThreatBlastWeight = 1.0f;
+constexpr float kThreatRangeTiles = 12.0f;      // distance falloff scale
+constexpr float kThreatTargetingMe = 1.5f;
+constexpr float kThreatTargetingAlly = 1.25f;
+constexpr float kThreatApproaching = 1.25f;
+constexpr float kThreatHasSeenMe = 1.25f;
+constexpr float kThreatApproachSpeed = 0.05f;   // tiles/s that counts as "towards me"
+
 // Vehicles: how close (tiles) an agent must be to a vehicle's tile to hijack it,
 // so both "stand on the tile" and "step up to it" work. A destroyed vehicle is
 // a wreck (occupants are thrown clear), so it damages agents within this blast
@@ -131,6 +152,10 @@ std::size_t Mission::addAgent(Agent agent)
     drugs_.push_back(0);
     drugsTimer_.push_back(0.0f);
     drugStates_.push_back(DrugState{});
+    // The adrenalin base is the agent's speed with no adrenalin effect applied.
+    // `applyCybernetic` refreshes it if a legs upgrade later changes the speed.
+    adrenalinBaseSpeed_.push_back(agents_.back().speed());
+    panicking_.push_back(false);
     return agents_.size() - 1;
 }
 
@@ -149,6 +174,11 @@ void Mission::orderMove(std::size_t index, TilePos goal)
     }
     Agent& agent = agents_[index];
     if (!agent.isAlive())
+    {
+        return;
+    }
+    // A panicking agent ignores the player's orders until it settles (ADR-0043).
+    if (panicking_[index])
     {
         return;
     }
@@ -171,6 +201,11 @@ void Mission::orderAttack(std::size_t index, std::size_t targetIndex)
     Agent& agent = agents_[index];
     Agent& target = agents_[targetIndex];
     if (!agent.isAlive() || !target.isAlive() || index == targetIndex)
+    {
+        return;
+    }
+    // A panicking agent ignores the player's orders until it settles (ADR-0043).
+    if (panicking_[index])
     {
         return;
     }
@@ -560,8 +595,11 @@ bool Mission::useDrugs(std::size_t index)
     }
     --drugs_[index];
     drugsTimer_[index] = kDrugDurationSeconds;
-    // Speed is multiplied once here and restored when the buff expires (see
-    // update), so the sim's movement code stays unchanged.
+    // The buff is folded into the adrenalin base speed, not multiplied onto the
+    // live speed: the adrenalin path recomputes speed from that base every tick,
+    // so a one-off multiply here would be overwritten (and the expiry divide
+    // would then corrupt the base). Folding it in keeps both systems composing.
+    adrenalinBaseSpeed_[index] *= kDrugSpeedMultiplier;
     user.setSpeed(user.speed() * kDrugSpeedMultiplier);
     return true;
 }
@@ -595,6 +633,199 @@ float Mission::drugEffect(std::size_t index, Drug drug) const
     return std::clamp(drugLevel(index, drug) - drugNeutral(index, drug), -1.0f, 1.0f);
 }
 
+float Mission::threatLevel(std::size_t index) const
+{
+    if (index >= agents_.size() || !agents_[index].isCombatant())
+    {
+        return 0.0f;
+    }
+    const Weapon& weapon = agents_[index].weapon();
+    // A blast weapon projects threat over its whole radius, so it counts for
+    // more than its raw damage suggests.
+    return weapon.damage * (1.0f + kThreatBlastWeight * weapon.areaRadius);
+}
+
+float Mission::threatTo(std::size_t index) const
+{
+    if (index >= agents_.size() || !agents_[index].isCombatant())
+    {
+        return 0.0f;
+    }
+    const Agent& self = agents_[index];
+    const Team enemyTeam = opposingTeam(self.team());
+    float total = 0.0f;
+    for (std::size_t i = 0; i < agents_.size(); ++i)
+    {
+        const Agent& other = agents_[i];
+        if (i == index || !other.isAlive() || other.team() != enemyTeam)
+        {
+            continue;
+        }
+        // Only what the agent can actually see contributes threat.
+        if (!seesTarget(index, i))
+        {
+            continue;
+        }
+        const float base = threatLevel(i);
+        const float distance = distanceBetween(index, i);
+        // Distance: a threat at zero range is double a threat at the falloff
+        // scale, and never below 1x within sight.
+        const float distanceModifier = 1.0f + (1.0f - std::min(1.0f, distance / kThreatRangeTiles));
+
+        // Is it aiming at me, or at one of my team-mates? "At me" is worse; a
+        // team-mate being targeted is worse the closer that team-mate is to me
+        // (the fire is landing near me), so that modifier is distance-weighted.
+        const int ordered = other.orderedTarget();
+        float targetingModifier = 1.0f;
+        if (ordered == static_cast<int>(index))
+        {
+            targetingModifier = kThreatTargetingMe;
+        }
+        else if (ordered >= 0 && static_cast<std::size_t>(ordered) < agents_.size() &&
+                 agents_[static_cast<std::size_t>(ordered)].team() == self.team())
+        {
+            const float allyDistance = distanceBetween(index, static_cast<std::size_t>(ordered));
+            const float closeness = 1.0f - std::min(1.0f, allyDistance / kThreatRangeTiles);
+            targetingModifier = 1.0f + (kThreatTargetingAlly - 1.0f) * closeness;
+        }
+
+        // Has it seen me? The relationship is asymmetric: I can see a threat that
+        // has not noticed me yet, which is less dangerous than one that has.
+        float seenModifier = 1.0f;
+        if (seesTarget(i, index))
+        {
+            seenModifier = kThreatHasSeenMe;
+        }
+
+        // Is it closing on me? The delta of its distance to me over its last step
+        // (the movement the sim just applied) — deterministic, no RNG.
+        float approachingModifier = 1.0f;
+        const float previousDistance =
+            length(other.previousPosition() - self.position());
+        if (previousDistance - distance > kThreatApproachSpeed)
+        {
+            approachingModifier = kThreatApproaching;
+        }
+
+        total += base * distanceModifier * targetingModifier * seenModifier * approachingModifier;
+    }
+    return total;
+}
+
+float Mission::reactionInterval(std::size_t index) const
+{
+    if (index >= agents_.size())
+    {
+        return kThinkInterval;
+    }
+    const float effect = drugEffect(index, Drug::Adrenalin);
+    // Higher adrenalin -> shorter interval (faster reaction); the clamp keeps it
+    // positive so a full low bar cannot produce a zero or negative cadence.
+    return kThinkInterval * std::max(0.2f, 1.0f - kAdrenalinReactionGain * effect);
+}
+
+bool Mission::isPanicking(std::size_t index) const
+{
+    return index < panicking_.size() && panicking_[index];
+}
+
+float Mission::adrenalinAccuracyScale(std::size_t index) const
+{
+    if (index >= agents_.size())
+    {
+        return 1.0f;
+    }
+    // Symmetric about effect 0: high adrenalin loses precision, low gains it.
+    return std::max(0.0f, 1.0f - kAdrenalinAccuracyLoss * drugEffect(index, Drug::Adrenalin));
+}
+
+void Mission::applyAdrenalinSpeed(std::size_t index)
+{
+    if (index >= agents_.size() || index >= adrenalinBaseSpeed_.size())
+    {
+        return;
+    }
+    const float effect = drugEffect(index, Drug::Adrenalin);
+    // Recompute from the base every time: the effect drifts as the bar
+    // normalises, so multiplying the *current* speed would compound the drift.
+    agents_[index].setSpeed(std::max(0.1f, adrenalinBaseSpeed_[index] * (1.0f + kAdrenalinSpeedGain * effect)));
+}
+
+void Mission::updatePanic(std::size_t index)
+{
+    if (index >= agents_.size() || index >= panicking_.size())
+    {
+        return;
+    }
+    Agent& agent = agents_[index];
+    if (!agent.isAlive() || !agent.isCombatant())
+    {
+        panicking_[index] = false;
+        return;
+    }
+    const float effect = drugEffect(index, Drug::Adrenalin);
+    // A calm agent (effect <= 0) never panics: the threshold is effectively
+    // infinite. This is the "low adrenalin = rational AI" half of ADR-0043.
+    if (effect <= 0.0f)
+    {
+        panicking_[index] = false;
+        return;
+    }
+    const float threat = threatTo(index);
+    const float threshold = kPanicThresholdBase - kPanicThresholdDrop * effect;
+    if (!panicking_[index])
+    {
+        if (threat > threshold)
+        {
+            panicking_[index] = true;
+        }
+    }
+    else if (threat < threshold * kPanicClearFraction)
+    {
+        // Hysteresis: settle only once the threat has clearly fallen, so panic
+        // does not flicker on and off around the threshold.
+        panicking_[index] = false;
+    }
+    if (panicking_[index])
+    {
+        // Order-ignoring flee reaction: drop the player's order and run from the
+        // nearest visible threat. Reuses AiState::Retreat so the existing
+        // step-away behaviour and the "hold fire" rule apply unchanged.
+        agent.setAiState(AiState::Retreat);
+        agent.clearOrderedTarget();
+        agent.clearMoveQueue();
+        // Flee the nearest threat the agent can actually see (the panic trigger
+        // only counted visible ones), not merely the nearest with line of sight.
+        int threatIndex = -1;
+        float bestDistance = 0.0f;
+        const Team enemyTeam = opposingTeam(agent.team());
+        for (std::size_t j = 0; j < agents_.size(); ++j)
+        {
+            if (j == index || !agents_[j].isAlive() || agents_[j].team() != enemyTeam ||
+                !seesTarget(index, j))
+            {
+                continue;
+            }
+            const float distance = distanceBetween(index, j);
+            if (threatIndex < 0 || distance < bestDistance)
+            {
+                threatIndex = static_cast<int>(j);
+                bestDistance = distance;
+            }
+        }
+        if (threatIndex < 0)
+        {
+            agent.stop();
+        }
+        else if (!agent.hasPath())
+        {
+            // Re-path only when the current flee path is exhausted, so panic does
+            // not run an A* search every tick.
+            stepAwayFrom(index, static_cast<std::size_t>(threatIndex));
+        }
+    }
+}
+
 bool Mission::applyCybernetic(std::size_t index, const std::string& id)
 {
     if (index >= agents_.size())
@@ -616,6 +847,9 @@ bool Mission::applyCybernetic(std::size_t index, const std::string& id)
     if (effect.speedMultiplier != 1.0f)
     {
         agent.setSpeed(agent.speed() * effect.speedMultiplier);
+        // Keep the adrenalin base in step, so the legs upgrade and the live
+        // adrenalin effect compose instead of one overwriting the other.
+        adrenalinBaseSpeed_[index] = agent.speed();
     }
     // Maximum health (chest). setMaxHealth refills to the new maximum, so the
     // upgrade is a clean gain rather than a wound.
@@ -951,6 +1185,9 @@ void Mission::update(float dt)
             drugsTimer_[i] = std::max(0.0f, drugsTimer_[i] - dt);
             if (drugsTimer_[i] <= 0.0f)
             {
+                // Restore the base too, since the adrenalin path recomputes the
+                // live speed from it every tick.
+                adrenalinBaseSpeed_[i] /= kDrugSpeedMultiplier;
                 agents_[i].setSpeed(agents_[i].speed() / kDrugSpeedMultiplier);
             }
         }
@@ -969,6 +1206,21 @@ void Mission::update(float dt)
             const float step = std::min(std::abs(delta), normalisationStep);
             state.neutral[bar] += delta > 0.0f ? step : -step;
         }
+    }
+
+    // Adrenalin (S2): recompute each combatant's speed from its base and the
+    // live effect, then evaluate panic. Runs *after* the normalisation drift, so
+    // the speed matches the effect the player will see this tick, and *before*
+    // `updateAI`, so a panicking agent's flee reaction wins over its AI decision
+    // and over any player order issued since the last tick.
+    for (std::size_t i = 0; i < agents_.size(); ++i)
+    {
+        if (!agents_[i].isAlive() || !agents_[i].isCombatant())
+        {
+            continue;
+        }
+        applyAdrenalinSpeed(i);
+        updatePanic(i);
     }
 
     elapsedSeconds_ += dt;
@@ -1023,7 +1275,13 @@ void Mission::updateAI(float dt)
         {
             continue;
         }
-        agent.setThinkTimer(kThinkInterval);
+        // A panicking agent ignores its AI as well as the player's orders: the
+        // flee reaction `updatePanic` set stands until the panic settles.
+        agent.setThinkTimer(reactionInterval(i));
+        if (panicking_[i])
+        {
+            continue;
+        }
         updateCombatantAI(i);
     }
 }
@@ -1494,11 +1752,13 @@ void Mission::resolveFire()
         attacker.beginFireCooldown();
 
         // Accuracy falls off linearly with distance; nearer shots hit more. A
-        // performance-drug buff raises the base chance (clamped to 1.0).
+        // performance-drug buff raises the base chance (clamped to 1.0); a high
+        // adrenalin effect *lowers* it (high = low precision, ADR-0043).
         const float falloff = 1.0f - (distance / range);
-        const float baseAccuracy =
-            drugsTimer_[i] > 0.0f ? std::min(1.0f, attacker.weapon().accuracy * kDrugAccuracyMultiplier)
-                                  : attacker.weapon().accuracy;
+        float baseAccuracy = drugsTimer_[i] > 0.0f
+                                 ? std::min(1.0f, attacker.weapon().accuracy * kDrugAccuracyMultiplier)
+                                 : attacker.weapon().accuracy;
+        baseAccuracy = std::clamp(baseAccuracy * adrenalinAccuracyScale(i), 0.0f, 1.0f);
         const float hitChance =
             baseAccuracy * (kAccuracyAtMaxRange + (1.0f - kAccuracyAtMaxRange) * falloff);
         if (!rng_.chance(hitChance))

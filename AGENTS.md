@@ -1026,6 +1026,40 @@ Do not start work outside the scope fence (ADR-0024).
   `drugsTimer_` consumable (and `kDrugDurationSeconds`); until then both models
   coexist. The HUD bars (Render), the controls (Input/UI), and the research
   ceilings (Metagame) are the cross-lane follow-ups (#502/#503/#504).
+- **Regulated drug bars, S2 — adrenalin** (issue #497, ADR-0043): the first bar
+  with real behaviour, on the S1 foundation. The **threat model** is
+  `Mission::threatTo(index)` — the sum over every **visible** living enemy of
+  `threatLevel(other)` (equipment-derived: `damage * (1 + areaRadius)`) times
+  situational modifiers: distance (closer is higher), "has seen me"
+  (`kThreatHasSeenMe`, asymmetric: a threat that has not noticed you is less
+  dangerous), "is targeting me" (`kThreatTargetingMe`), "is targeting a team-mate"
+  (distance-weighted toward the threatened ally), and "is moving towards me" (from
+  `Agent::previousPosition()` vs. the current position — deterministic, no RNG).
+  `threatLevel`/`threatTo` are pure reads, exposed for tests. **Panic** is
+  `Mission::isPanicking(index)`: a **latched** flag (`panicking_`, one per agent,
+  kept in sync by `addAgent`) set
+  when `threatTo` exceeds a threshold that **falls with adrenalin**
+  (`kPanicThresholdBase - kPanicThresholdDrop * effect`), cleared with
+  **hysteresis** (`kPanicClearFraction`) once the threat drops. An agent with
+  adrenalin effect **<= 0 never panics** (the threshold is effectively infinite) —
+  the "low adrenalin = rational AI" half of ADR-0043. While panicking the agent
+  **ignores the player's orders** (`orderMove`/`orderAttack` are no-ops) and
+  **its AI** (`updateAI` skips `updateCombatantAI`): `updatePanic` latches
+  `AiState::Retreat`, clears the order and the move queue, and flees the nearest
+  **visible** threat (`stepAwayFrom`, re-pathed only when the current flee path is
+  exhausted, so panic does not run an A* per tick). **Effects** (`drugEffect` =
+  level − neutral, so normalisation applies): movement speed
+  (`1 + kAdrenalinSpeedGain * effect`) and reaction cadence
+  (`Mission::reactionInterval`, shorter above 0) both **recomputed** each tick;
+  hit chance (`Mission::adrenalinAccuracyScale`, in `resolveFire`) **lowered** as
+  adrenalin rises (high = low precision) and raised as it falls. **Speed is
+  recomputed from `adrenalinBaseSpeed_` (one per agent, synced by `addAgent`),
+  never multiplied in place** — the drift changes the effect every tick, so a
+  multiply-in-place would compound and corrupt the base. The legacy `useDrugs`
+  speed buff and the `legs` cybernetic therefore fold into that base instead of
+  the live speed (both systems compose; the buff's expiry divides the base back
+  out). All deterministic; no RNG. S3 (intelligence) and S4 (physical) follow; the
+  HUD bars/controls/ceilings are #502/#503/#504.
 - **Cybernetic upgrades** (issue #313, ADR-0031): Milestone A's passive stat
   upgrades. `CyberneticEffect` (`src/core/sim/Cybernetic.h`, header-only) holds
   four **multipliers** (all default 1.0); `cyberneticEffectForId(id, out)`
