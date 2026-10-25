@@ -7,6 +7,7 @@
 #include "core/data/Json.h"
 #include "core/economy/Economy.h"
 #include "core/economy/Equipment.h"
+#include "core/economy/NamePools.h"
 #include "core/economy/Research.h"
 #include "core/economy/WorldMap.h"
 #include "core/sim/PlayerLoadout.h"
@@ -142,6 +143,36 @@ public:
     // agents is a Rule 4 request to `focus: tactical` (#499).
     std::vector<DrugCeilings> selectedCeilings() const;
 
+    // --- recruitment (issue #509) ---
+
+    // The per-region agent-name pools loaded from the campaign's `names` sibling
+    // (empty when none). A region with no pool assigns no name.
+    const NamePools& namePools() const { return namePools_; }
+
+    // Recruits an agent for squad `slot` (0..Equipment::kSquadSlots-1) in
+    // `region`, assigning it a fixed name drawn from that region's pool. The name
+    // is chosen deterministically: the first name in the pool not already used by
+    // the roster, so a fresh squad gets distinct names and a repeated call with
+    // the same roster is stable. When the pool is absent or exhausted the agent
+    // gets no name (a documented, non-crashing fallback). Returns the assigned
+    // name (empty when none). A no-op returning "" for an out-of-range slot.
+    std::string recruitAgent(int slot, TerritoryId region);
+
+    // The name assigned to squad `slot`, or empty when none. Names persist on the
+    // campaign and never change once assigned, so a save/load overlay can carry
+    // them (the persistence half is a Rule 4 request to `focus: world`).
+    const std::string& agentName(int slot) const;
+
+    // Every assigned squad name, indexed by slot (empty strings for unnamed
+    // slots). A read-only view for the screen and the save overlay.
+    const std::vector<std::string>& agentNames() const { return agentNames_; }
+
+    // Restores a roster of names, e.g. from a save overlay. Sizes to the squad and
+    // pads with empty strings, so a short or over-long input cannot leave the
+    // roster the wrong length. The persistence half (CampaignSave) is a Rule 4
+    // request to `focus: world` (#433/#458); this is the contract it calls.
+    void setAgentNames(const std::vector<std::string>& names);
+
     // --- progression ---
 
     // Records the result of the selected mission. A win claims the territory for
@@ -184,6 +215,10 @@ private:
     std::string worldFile_;
     std::string researchFile_;
     std::string equipmentFile_;
+    std::string namesFile_;      // per-region agent-name pools (issue #509); may be empty
+
+    NamePools namePools_;
+    std::vector<std::string> agentNames_; // indexed by squad slot; "" = unnamed
 
     TerritoryId selectedTerritory_ = -1;
     std::string selectedMissionId_;

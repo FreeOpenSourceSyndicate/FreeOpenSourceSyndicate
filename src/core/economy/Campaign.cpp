@@ -85,9 +85,14 @@ bool Campaign::fromJson(const Json& root, Campaign& out, std::string& error)
     out.worldFile_ = root.has("world") ? root["world"].asString() : std::string();
     out.researchFile_ = root.has("research") ? root["research"].asString() : std::string();
     out.equipmentFile_ = root.has("equipment") ? root["equipment"].asString() : std::string();
+    out.namesFile_ = root.has("names") ? root["names"].asString() : std::string();
     out.winCondition_ = root.has("winCondition") ? root["winCondition"].asString() : std::string();
     out.finalMission_ = root.has("finalMission") ? root["finalMission"].asString() : std::string();
     out.finalMissionWon_ = false;
+
+    // A fresh campaign has no recruited agents; a save/load overlay restores the
+    // names (issue #509, the persistence half is a Rule 4 request to `world`).
+    out.agentNames_.assign(static_cast<std::size_t>(Equipment::kSquadSlots), std::string());
 
     out.missions_.clear();
     const Json& missions = root["missions"];
@@ -186,6 +191,20 @@ bool Campaign::loadFromFile(const std::string& path, Campaign& out, std::string&
         }
     }
 
+    const std::string namesPath = siblingPath(path, out.namesFile_);
+    if (!namesPath.empty() && fileExists(namesPath))
+    {
+        Json node;
+        if (!Json::parseFile(namesPath, node, error))
+        {
+            return false;
+        }
+        if (!NamePools::fromJson(node, out.namePools_, error))
+        {
+            return false;
+        }
+    }
+
     // Start the corporation: the player begins with the campaign's
     // `startingFunds`, so the loop "tax -> research -> buy" has money from the
     // first frame. Granted here rather than in fromJson so that parsing a config
@@ -216,6 +235,71 @@ void Campaign::setSyndicateLogo(const std::string& id)
         return;
     }
     chosenSyndicateLogo_ = id;
+}
+
+// Recruits an agent for `slot` in `region`, assigning the first name in the
+// region's pool not already used by the roster. A slot that already has a name
+// keeps it (a name never changes once assigned), so this is idempotent per slot.
+// Deterministic (no RNG): the same roster and region always yield the same name,
+// so a re-run is stable and a save overlay can reproduce it. An absent or
+// exhausted pool assigns no name.
+std::string Campaign::recruitAgent(int slot, TerritoryId region)
+{
+    if (slot < 0 || slot >= Equipment::kSquadSlots)
+    {
+        return {};
+    }
+    if (agentNames_.size() != static_cast<std::size_t>(Equipment::kSquadSlots))
+    {
+        agentNames_.assign(static_cast<std::size_t>(Equipment::kSquadSlots), std::string());
+    }
+
+    // A name, once assigned, never changes: re-recruiting a named slot returns the
+    // name it already holds (the recruit screen only fills empty slots anyway).
+    std::string& assigned = agentNames_[static_cast<std::size_t>(slot)];
+    if (!assigned.empty())
+    {
+        return assigned;
+    }
+
+    const std::vector<std::string>* pool = namePools_.pool(region);
+    if (pool == nullptr)
+    {
+        return {};
+    }
+
+    for (const std::string& candidate : *pool)
+    {
+        const bool used = std::find(agentNames_.begin(), agentNames_.end(), candidate) != agentNames_.end();
+        if (!used)
+        {
+            assigned = candidate;
+            return candidate;
+        }
+    }
+
+    // The pool is exhausted (every name already taken): leave the slot unnamed
+    // rather than duplicate an identity.
+    return {};
+}
+
+const std::string& Campaign::agentName(int slot) const
+{
+    static const std::string kEmpty;
+    if (slot < 0 || slot >= static_cast<int>(agentNames_.size()))
+    {
+        return kEmpty;
+    }
+    return agentNames_[static_cast<std::size_t>(slot)];
+}
+
+void Campaign::setAgentNames(const std::vector<std::string>& names)
+{
+    agentNames_.assign(static_cast<std::size_t>(Equipment::kSquadSlots), std::string());
+    for (std::size_t i = 0; i < names.size() && i < agentNames_.size(); ++i)
+    {
+        agentNames_[i] = names[i];
+    }
 }
 
 bool Campaign::canDeployTo(TerritoryId territory) const

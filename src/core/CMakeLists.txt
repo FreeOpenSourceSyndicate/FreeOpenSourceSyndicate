@@ -16,6 +16,7 @@ set(FOSSYND_CORE_SOURCES
     economy/Economy.cpp
     economy/Research.cpp
     economy/Equipment.cpp
+    economy/NamePools.cpp
     economy/Campaign.cpp
     data/Json.cpp
     data/MissionData.cpp

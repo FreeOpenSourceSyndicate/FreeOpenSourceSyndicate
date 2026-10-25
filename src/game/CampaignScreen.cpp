@@ -324,6 +324,30 @@ void CampaignScreen::adjustTax(int delta)
     campaign_.map().setTaxLevel(selected_, level);
 }
 
+bool CampaignScreen::recruitSelected()
+{
+    // A finished campaign is terminal: no new recruits change the final board.
+    if (campaign_.finished())
+    {
+        return false;
+    }
+    const core::Territory* territory = campaign_.map().find(selected_);
+    if (territory == nullptr)
+    {
+        return false;
+    }
+    // Fill the lowest-numbered unnamed slot, so recruits build the squad in order.
+    for (int slot = 0; slot < core::Equipment::kSquadSlots; ++slot)
+    {
+        if (!campaign_.agentName(slot).empty())
+        {
+            continue;
+        }
+        return !campaign_.recruitAgent(slot, territory->id).empty();
+    }
+    return false; // the squad is already fully named
+}
+
 bool CampaignScreen::deploySelected()
 {
     // The squad is the four fixed slots, all of them; the loadout resolved from
@@ -461,6 +485,14 @@ bool CampaignScreen::handleKey(int sym)
     if (sym == SDLK_b)
     {
         toggleShop();
+        return true;
+    }
+    if (sym == SDLK_r)
+    {
+        // Recruit a named agent from the selected region (issue #509). Consumed
+        // here (before the global `R` restart binding) so it acts on the map, not
+        // on the frozen tactical board.
+        recruitSelected();
         return true;
     }
     return false;
@@ -753,7 +785,22 @@ void CampaignScreen::render(SDL_Renderer* renderer, const BitmapFont& font, int 
     font.draw(renderer, margin, y, researchLine, hudstyle::kHudText);
     y += lineH * 2;
 
-    font.draw(renderer, margin, y, "[M] TACTICAL   [-/+] TAX   [D] DEPLOY   [B] R&D",
+    // The recruited squad (issue #509): one line per slot, showing the fixed name
+    // a recruit assigned (or "-" while unnamed). Names are stable and never change
+    // once assigned, so this is a read of campaign state, not view state.
+    font.draw(renderer, margin, y, "SQUAD", hudstyle::kHudText);
+    y += lineH;
+    for (int slot = 0; slot < core::Equipment::kSquadSlots; ++slot)
+    {
+        const std::string& name = campaign_.agentName(slot);
+        font.draw(renderer, margin, y,
+                  std::to_string(slot + 1) + ": " + (name.empty() ? "-" : name),
+                  name.empty() ? hudstyle::kHudDim : hudstyle::kHudText);
+        y += lineH;
+    }
+    y += lineH;
+
+    font.draw(renderer, margin, y, "[M] TACTICAL   [-/+] TAX   [D] DEPLOY   [B] R&D   [R] RECRUIT",
               hudstyle::kHudDim);
 
     // R&D shop overlay (Milestone B): the research tree and the equipment
@@ -1067,7 +1114,48 @@ bool CampaignScreen::selfTest()
         return false;
     }
 
-    // 9. Layout legibility (issue #448): the world map now has twelve regions,
+    // 9. Recruitment assigns a fixed, region-based name (issue #509) through the
+    // screen key, not just the core call. On a pristine copy, select an owned
+    // region, press `R`, and require every squad slot to fill with a distinct
+    // name from that region's pool; a second `R` must not rename anyone.
+    const core::Campaign savedCampaign3 = campaign_;
+    const core::TerritoryId savedSelected3 = selected_;
+    campaign_ = pristine;
+    selected_ = taxable;
+    const std::vector<std::string>* pool = campaign_.namePools().pool(taxable);
+    bool recruitOk = pool != nullptr && !pool->empty();
+    std::vector<std::string> recruited;
+    for (int slot = 0; recruitOk && slot < core::Equipment::kSquadSlots; ++slot)
+    {
+        recruitOk = handleKey(SDLK_r) && !campaign_.agentName(slot).empty();
+        recruited.push_back(campaign_.agentName(slot));
+    }
+    // Distinct names across the squad, and each drawn from the region's pool.
+    for (std::size_t i = 0; recruitOk && i < recruited.size(); ++i)
+    {
+        for (std::size_t j = i + 1; recruitOk && j < recruited.size(); ++j)
+        {
+            recruitOk = recruited[i] != recruited[j];
+        }
+        if (recruitOk && pool != nullptr)
+        {
+            recruitOk = std::find(pool->begin(), pool->end(), recruited[i]) != pool->end();
+        }
+    }
+    // A fully-named squad refuses a further recruit, and `R` never renames: the
+    // screen key is consumed but recruitSelected() reports no assignment.
+    const std::string kept = campaign_.agentName(0);
+    handleKey(SDLK_r);
+    recruitOk = recruitOk && !recruitSelected() && campaign_.agentName(0) == kept;
+    campaign_ = savedCampaign3;
+    selected_ = savedSelected3;
+    if (!recruitOk)
+    {
+        std::fprintf(stderr, "campaign self-test: recruitment did not assign region names\n");
+        return false;
+    }
+
+    // 10. Layout legibility (issue #448): the world map now has twelve regions,
     // so a graph whose BFS rings crowd two nodes on top of each other would draw
     // an unreadable map (and an ambiguous click target — nodeAtScreen's tolerance
     // is 22px). Require a minimum separation in the normalised layout the screen

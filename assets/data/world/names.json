@@ -1,0 +1,17 @@
+{
+  "//": "AI/LLM-generated file. Per-region agent-name pools (issue #509): recruiting an agent in a region gives it a fixed name from that region's pool. Coined, original, ASCII-only names evocative of each region's cultural register (docs/LORE.md 3a); never a real personal name (docs/LEGAL.md).",
+  "pools": [
+    { "region": 0,  "names": ["Aldmarch", "Bregan", "Corvel", "Daelin", "Evrand", "Farlow"] },
+    { "region": 1,  "names": ["Skarn", "Voldar", "Hesk", "Norval", "Tyrn", "Ulfar"] },
+    { "region": 2,  "names": ["Voskar", "Draven", "Korvyn", "Zelmar", "Rostik", "Vanev"] },
+    { "region": 3,  "names": ["Sahrik", "Dovaan", "Kelmir", "Zahran", "Nuriq", "Sabek"] },
+    { "region": 4,  "names": ["Khorin", "Sarif", "Dornai", "Vasha", "Kalem", "Orenz"] },
+    { "region": 5,  "names": ["Sahelan", "Obari", "Makede", "Zubari", "Fendai", "Nakoro"] },
+    { "region": 6,  "names": ["Zambar", "Tandi", "Mboko", "Saro", "Kwelu", "Ndara"] },
+    { "region": 7,  "names": ["Andur", "Kavaro", "Zorel", "Ibaro", "Quelan", "Tavan"] },
+    { "region": 8,  "names": ["Indar", "Vashen", "Kalid", "Suran", "Miren", "Deval"] },
+    { "region": 9,  "names": ["Sinar", "Renko", "Hwan", "Sevan", "Liren", "Okaru"] },
+    { "region": 10, "names": ["Sundar", "Bayan", "Lumir", "Sento", "Pahari", "Renau"] },
+    { "region": 11, "names": ["Pelag", "Tano", "Maroa", "Kailo", "Nerev", "Soleh"] }
+  ]
+}

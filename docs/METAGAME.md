@@ -560,6 +560,7 @@ sells and resolves them.
   "world": "world.json",
   "research": "research.json",
   "equipment": "equipment.json",
+  "names": "names.json",
   "missions": ["demo"],
   "winCondition": "own-all-territories",
   "finalMission": "overpass"
@@ -572,11 +573,12 @@ sells and resolves them.
 schema errors otherwise, so a typo cannot leave the campaign unwinnable
 (issue #456).
 
-Sibling file names (`world`, `research`, `equipment`) resolve **relative to the
-campaign file**, the same way the mission loader resolves catalogue paths
-(`core/data/Catalogues.h` → `cataloguePathForMission`). A missing optional file
-is not an error; the system starts empty (matching the mission/catalogue
-tolerance, so the game still starts with no data files, `AGENTS.md` §1b).
+Sibling file names (`world`, `research`, `equipment`, `names`) resolve
+**relative to the campaign file**, the same way the mission loader resolves
+catalogue paths (`core/data/Catalogues.h` → `cataloguePathForMission`). A missing
+optional file is not an error; the system starts empty (matching the
+mission/catalogue tolerance, so the game still starts with no data files,
+`AGENTS.md` §1b).
 
 **Player syndicate identity (issue #445).** `syndicate` is the display name and
 `logo` the default logo id; `logos` is the pickable set. All three are plain data
@@ -586,6 +588,33 @@ slice. A player choice (name + logo) overrides the default and is carried by the
 save (§8); an empty name, or an empty/unknown logo id, falls back to the default
 rather than leaving the map without an identity, and is never fatal. `logos` must
 be an array of non-empty strings if present; a malformed list is a schema error.
+
+### 5.5 `names.json` — region-based agent names (issue #509)
+
+```jsonc
+{
+  "pools": [
+    { "region": 0, "names": ["Aldmarch", "Bregan", "Corvel"] },
+    { "region": 1, "names": ["Skarn", "Voldar", "Hesk"] }
+  ]
+}
+```
+
+Each entry gives one region's **agent-name pool**. Recruiting an agent
+(`Campaign::recruitAgent`, the map screen's **`R`** key) assigns it the first
+name in the selected region's pool not already used by the roster, so a squad
+member's identity is tied to where it was recruited and never changes once
+assigned (`Campaign::agentName`). A region with no pool, or an exhausted pool,
+assigns **no** name — a documented fallback, never fatal. The assignment is
+**deterministic** (no RNG), so a re-run and a save overlay reproduce it.
+
+`region` must be a non-negative integer; a duplicate region entry, an empty or
+missing `names` array, or a non-empty-string violation is a schema error
+(`NamePools`). Names are coined, original, and ASCII-only — the same
+renderability rule as the string table (`AGENTS.md` §10): the embedded 5x7 font
+draws ASCII 32–126, so a non-ASCII glyph renders blank. The shape and the
+content-side validation belong to `focus: content` (#510); the loader and the
+recruit rule are here.
 
 ## 6. How the systems compose
 
