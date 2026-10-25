@@ -2681,6 +2681,156 @@ FOSSYND_TEST(Mission, SmartAgentNeverTargetsItsOwnTeamEvenIfTheObjectiveNamesIt)
     FOSSYND_CHECK_EQ(mission.selectTarget(shooter, Team::Enemy), static_cast<int>(foe));
 }
 
+// --- physical behaviour (ADR-0043, S4, issue #499) ---------------------------
+
+namespace
+{
+// An unarmed, far, unkillable enemy: it keeps the mission Running (so update()
+// does its work) without ever threatening the hero or ending the mission.
+Agent makeDistantBystander() { return makeAgent(18.0f, 18.0f, Team::Enemy, 100000.0f,
+                                                Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}); }
+} // namespace
+
+FOSSYND_TEST(Mission, PhysicalHighRaisesHealthSpeedAndCarryingCapacity)
+{
+    // The physical bar's gains: max health, speed, and carrying capacity all rise
+    // with the effect. Capacity is a pure read of the effect; health and speed are
+    // applied by update() from their bases.
+    TileGrid grid(20, 20);
+    Mission mission(grid, 300u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    mission.addAgent(makeDistantBystander());
+
+    mission.setDrugLevel(hero, Drug::Physical, 1.0f);
+    // Effect is 1.0 - 0.5 = 0.5; capacity = 1 + kPhysicalCarryGain(1.0) * 0.5.
+    FOSSYND_CHECK_NEAR(mission.carryCapacity(hero), 1.5f);
+
+    mission.update(0.05f);
+    // Read the effect *after* the tick's normalisation drift, then assert the
+    // stats were computed from exactly that effect (base 100 hp, base 2 tiles/s).
+    const float effect = mission.drugEffect(hero, Drug::Physical);
+    FOSSYND_CHECK(effect > 0.0f);
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].maxHealth(), 100.0f * (1.0f + 0.4f * effect));
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].speed(), 2.0f * (1.0f + 0.3f * effect));
+}
+
+FOSSYND_TEST(Mission, PhysicalLowLowersHealthSpeedAndCarryingCapacity)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 301u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    mission.addAgent(makeDistantBystander());
+
+    mission.setDrugLevel(hero, Drug::Physical, 0.0f);
+    // Effect 0.0 - 0.5 = -0.5; capacity falls below the base of 1.
+    FOSSYND_CHECK_NEAR(mission.carryCapacity(hero), 0.5f);
+
+    mission.update(0.05f);
+    const float effect = mission.drugEffect(hero, Drug::Physical);
+    FOSSYND_CHECK(effect < 0.0f);
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].maxHealth(), 100.0f * (1.0f + 0.4f * effect));
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].speed(), 2.0f * (1.0f + 0.3f * effect));
+}
+
+FOSSYND_TEST(Mission, PhysicalHealsSlowlyWhilePositiveAndPreservesTheWound)
+{
+    // A wounded agent on a high physical bar heals slowly, but the max-health
+    // recompute must not grant free healing: the fraction rises only by the heal.
+    TileGrid grid(20, 20);
+    Mission mission(grid, 302u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    mission.addAgent(makeDistantBystander());
+
+    mission.agents()[hero].applyDamage(50.0f); // 50/100 = 0.5
+    mission.setDrugLevel(hero, Drug::Physical, 1.0f);
+
+    // One second at the (drifting) positive effect heals a little, not a lot.
+    for (int i = 0; i < 20; ++i)
+    {
+        mission.update(0.05f);
+    }
+    const float fraction = mission.agents()[hero].healthFraction();
+    FOSSYND_CHECK(fraction > 0.5f); // it healed
+    FOSSYND_CHECK(fraction < 0.6f); // slowly — nowhere near a full heal
+    FOSSYND_CHECK(mission.agents()[hero].maxHealth() > 100.0f);
+}
+
+FOSSYND_TEST(Mission, PhysicalAtOrBelowNeutralHealsNothing)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 303u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    mission.addAgent(makeDistantBystander());
+
+    mission.agents()[hero].applyDamage(50.0f);
+    mission.setDrugLevel(hero, Drug::Physical, 0.0f); // effect negative
+
+    for (int i = 0; i < 20; ++i)
+    {
+        mission.update(0.05f);
+    }
+    // No healing: the fraction is preserved exactly, and the shrinking maximum
+    // lowered the absolute health (the recompute never refills).
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].healthFraction(), 0.5f);
+    FOSSYND_CHECK(mission.agents()[hero].maxHealth() < 100.0f);
+}
+
+FOSSYND_TEST(Mission, PhysicalAndAdrenalinSpeedCompose)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 304u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    mission.addAgent(makeDistantBystander());
+
+    mission.setDrugLevel(hero, Drug::Physical, 1.0f);
+    mission.setDrugLevel(hero, Drug::Adrenalin, 1.0f);
+    mission.update(0.05f);
+
+    const float physical = mission.drugEffect(hero, Drug::Physical);
+    const float adrenalin = mission.drugEffect(hero, Drug::Adrenalin);
+    // Both bars scale the shared pre-drug base, so they compose multiplicatively.
+    FOSSYND_CHECK_NEAR(mission.agents()[hero].speed(),
+                       2.0f * (1.0f + 0.3f * physical) * (1.0f + 0.5f * adrenalin));
+}
+
+FOSSYND_TEST(Mission, PhysicalCapacityReachesZeroAtTheFloorAndInvalidIndexIsZero)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 305u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    mission.addAgent(makeDistantBystander());
+
+    // Hold the bar maxed until the neutral point adapts up to it (2 s at 0.25/s),
+    // then drop the bar: the effect is -1 and the capacity bottoms out at 0.
+    mission.setDrugLevel(hero, Drug::Physical, 1.0f);
+    for (int i = 0; i < 60; ++i) // 3 s
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK_NEAR(mission.drugNeutral(hero, Drug::Physical), 1.0f);
+    mission.setDrugLevel(hero, Drug::Physical, 0.0f);
+    FOSSYND_CHECK_NEAR(mission.drugEffect(hero, Drug::Physical), -1.0f);
+    FOSSYND_CHECK_NEAR(mission.carryCapacity(hero), 0.0f);
+
+    // An out-of-range index has no capacity rather than reading garbage.
+    FOSSYND_CHECK_NEAR(mission.carryCapacity(99u), 0.0f);
+}
+
+FOSSYND_TEST(Mission, PhysicalStatsApplyToCombatantsOnly)
+{
+    // The physical effects are combat policy (like adrenalin/panic): a civilian
+    // with the bar maxed gets no health boost, so bystanders stay fragile.
+    TileGrid grid(20, 20);
+    Mission mission(grid, 306u);
+    const std::size_t bystander =
+        mission.addAgent(makeAgent(2.0f, 2.0f, Team::Civilian, 20.0f));
+    mission.addAgent(makeDistantBystander());
+
+    mission.setDrugLevel(bystander, Drug::Physical, 1.0f);
+    mission.update(0.05f);
+    FOSSYND_CHECK_NEAR(mission.agents()[bystander].maxHealth(), 20.0f);
+}
+
 // --- cybernetic upgrades (Milestone A, issue #313) ---------------------------
 
 FOSSYND_TEST(Mission, CyberneticVocabularyRejectsUnknown)

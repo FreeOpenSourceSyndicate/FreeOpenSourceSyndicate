@@ -1089,6 +1089,29 @@ Do not start work outside the scope fence (ADR-0024).
   friendly — a neutral-or-low agent takes the shot, so no S2/shipped-mission
   outcome changes. All deterministic; no RNG; `Agent` untouched. S4 (physical)
   follows.
+- **Regulated drug bars, S4 — physical** (issue #499, ADR-0043): the third bar.
+  The physical effect scales **max health** (`1 + kPhysicalHealthGain * effect`),
+  **movement speed** (`1 + kPhysicalSpeedGain * effect`), and **carrying
+  capacity** (`1 + kPhysicalCarryGain * effect`, base 1), and while the effect is
+  **positive** it heals `kPhysicalHealPerSecond * effect` health per second
+  (capped at max; zero/negative effect heals nothing). Health and speed are
+  **recomputed from their bases each tick** (`physicalBaseMaxHealth_` and the
+  shared pre-drug `adrenalinBaseSpeed_`), never multiplied in place, so the
+  normalisation drift cannot corrupt the base stat; the two drug speed effects
+  compose multiplicatively (`applyDrugSpeed` reads both bars).
+  `Mission::applyPhysicalStats(index, dt)` recomputes max health via the new
+  **additive** `Agent::setMaxHealthPreservingFraction` (which keeps the health
+  *fraction*, so a wounded agent stays wounded — unlike `setMaxHealth`, which
+  fills), then heals. `Mission::carryCapacity(index)` is a pure read (0 for an
+  invalid index) that objectives/missions can gate a load on; the retrieve/
+  assassinate objectives (#444) are its intended consumer. The physical effects
+  are **combatant-only** (like adrenalin/panic), so a civilian is unaffected.
+  `applyCybernetic` keeps `physicalBaseMaxHealth_` in step, so the `chest` upgrade
+  and the live bar compose. Deterministic; no RNG. **Still to do (not this
+  slice):** retire the legacy `useDrugs`/`drugs_`/`drugsTimer_` consumable and
+  repoint the `--drugs` demo hook + `game_drugs` ctest at the bar model — that is
+  cross-lane (`Game.cpp`/`main.cpp` are input-ui/render, the ctest is platform),
+  filed as a Rule 4 request from tactical.
 - **Cybernetic upgrades** (issue #313, ADR-0031): Milestone A's passive stat
   upgrades. `CyberneticEffect` (`src/core/sim/Cybernetic.h`, header-only) holds
   four **multipliers** (all default 1.0); `cyberneticEffectForId(id, out)`

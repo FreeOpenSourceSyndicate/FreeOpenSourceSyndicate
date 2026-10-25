@@ -270,6 +270,16 @@ public:
     // Read by `resolveFire`; exposed for tests. Deterministic.
     bool shouldTakeAreaShot(std::size_t self, std::size_t targetIndex) const;
 
+    // --- physical behaviour (ADR-0043, S4) -----------------------------------
+
+    // The agent's carrying capacity, in item units: `1 + kPhysicalCarryGain *
+    // physical effect`, so it rises with physical and falls below 1 (down to
+    // `1 - kPhysicalCarryGain`) as the bar drops. A mission/objective can gate
+    // what one agent may carry on this. Base capacity is one item; a
+    // non-combatant still reports its capacity (a civilian has no objective role
+    // but the primitive is uniform). 0 for an invalid index.
+    float carryCapacity(std::size_t index) const;
+
     // --- cybernetic upgrades -------------------------------------------------
 
     // Applies a cybernetic upgrade to the agent at `index`: its `effect`
@@ -561,10 +571,16 @@ private:
     bool seesTarget(std::size_t observer, std::size_t target) const;
 
     // Recomputes the agent's movement speed from `adrenalinBaseSpeed_` and the
-    // live adrenalin effect (faster as effect rises). Recompute, never
-    // multiply in place: the effect drifts as the bar normalises, so a
+    // live adrenalin and physical effects (faster as either rises). Recompute,
+    // never multiply in place: the effects drift as the bars normalise, so a
     // multiply-in-place would compound every tick and corrupt the base speed.
-    void applyAdrenalinSpeed(std::size_t index);
+    void applyDrugSpeed(std::size_t index);
+
+    // Recomputes the agent's maximum health from `physicalBaseMaxHealth_` and the
+    // live physical effect, preserving the current health fraction (so a wounded
+    // agent stays wounded). Then heals `kPhysicalHealPerSecond * effect` per
+    // second while the effect is positive. Recompute, never multiply in place.
+    void applyPhysicalStats(std::size_t index, float dt);
 
     // Evaluates panic for `index` and, when it triggers, puts the agent into its
     // order-ignoring flee reaction. Called once per update, before the AI thinks,
@@ -609,6 +625,12 @@ private:
     // multiplied in place, or the normalisation drift corrupts the base stat
     // (S4's physical slice must do the same for health/speed).
     std::vector<float> adrenalinBaseSpeed_;
+    // Physical (S4). The agent's maximum health before the live physical effect
+    // is applied, so health is *recomputed* from this each tick, never multiplied
+    // in place (the drift changes the effect every tick). Kept in sync by
+    // `addAgent` and refreshed by `applyCybernetic`. Speed shares
+    // `adrenalinBaseSpeed_` above — it is the pre-drug base for every bar.
+    std::vector<float> physicalBaseMaxHealth_;
     // Latched panic flag per agent. Panic clears with hysteresis, so a latching
     // flag (not a recomputation) is needed; kept in sync by `addAgent`.
     std::vector<bool> panicking_;

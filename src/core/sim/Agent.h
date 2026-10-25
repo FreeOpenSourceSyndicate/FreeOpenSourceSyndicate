@@ -141,6 +141,13 @@ public:
     // Fraction of health remaining in [0, 1] (1 for a full-health agent).
     float healthFraction() const;
 
+    // Sets the maximum health to `maxHealth` (clamped to >= 1 like
+    // `setMaxHealth`) while **preserving the current health fraction**, so a
+    // wounded agent stays wounded. Unlike `setMaxHealth`, which fills to the new
+    // maximum, this lets a live, drifting stat (e.g. the physical drug bar) be
+    // recomputed from a base every tick without granting free healing.
+    void setMaxHealthPreservingFraction(float maxHealth);
+
     // Applies damage and returns the amount actually dealt. Sets the hit-flash
     // timer used by the renderer. Damage never raises health above max.
     float applyDamage(float amount);
