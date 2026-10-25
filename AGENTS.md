@@ -1397,6 +1397,7 @@ Do not start work outside the scope fence (ADR-0024).
   `--headless --check-scanner`,
   `--headless --check-shield`,
   `--headless --check-drugs`,
+  `--headless --check-drug-controls`,
   `--headless --check-bomb`,
   `--headless --check-vehicles`,
   `--headless --check-audio`,
@@ -1410,7 +1411,7 @@ Do not start work outside the scope fence (ADR-0024).
   `game_demo`, `game_low_spec`, `game_title`, `game_sprites`, `game_minimap`,
   `game_selection`, `game_waypoints`, `game_waypoint_path`, `game_pause`,
   `game_pause_flag`, `game_gadgets`, `game_campaign`, `game_deploy`,
-  `game_campaign_keys`, `game_save_load`,
+  `game_campaign_keys`, `game_save_load`, `game_drug_controls`,
   `game_map_flag`, `game_objectives`, `game_scanner`,
   `game_scanner_screenshot`, `game_vehicles`, and
   `game_vehicles_screenshot`, `game_shield`, and `game_shield_screenshot`,
@@ -1569,6 +1570,25 @@ Do not start work outside the scope fence (ADR-0024).
   (`src/core/economy/**` + the map screen in `src/game/**`, `docs/FOCUS_AREAS.md`
   §2). Tests: `tests/test_campaign.cpp` (parse, bad data, a final win ends it, a
   non-final win does not, `own-all-territories` is not a final win).
+- **The view regulates the three drug bars (issue #503, ADR-0043).** The
+  performance-drug model is a **three-bar physiological model** (Adrenalin,
+  Intelligence, Physical), not an inventory item; per-agent bars live on the
+  `Mission` (S1, #496). The view now drives them: **`[` / `]`** cycle which bar is
+  active, **`;` / `'`** lower/raise the active bar for the current selection by one
+  step (`kDrugBarStep`, 0.1). The handlers
+  (`Game::cycleDrugBar`/`Game::adjustActiveDrugBar`) only pick the agents and the
+  delta and call the frozen `core::Mission::setDrugLevel` — the core clamps to
+  [0, 1] and stores (golden rule 1/4), so a press at an end is a safe no-op and an
+  empty selection does nothing. The active-bar cursor (`Game::activeDrugBar_`) is
+  view-only state, like `selected_`; it never feeds the simulation. The keys are
+  swallowed by the map screen (`mapScreenAllowsKey`, #364), so a drug key cannot
+  mutate the frozen board. `B` (`useDrugsOnSelection`, the old consumable) is left
+  alone until S4 (#499) retires it. `--check-drug-controls` (ctest
+  `game_drug_controls`) drives the **real handlers on the real Mission** and fails
+  if a bar does not move, does not clamp, another bar moves, an empty selection
+  changes a bar, the active bar does not wrap, or a drug key leaks through the map.
+  The controls strings (`hud.controls`, `title.controls.gadgets`) advertise the
+  keys.
 - **Sound effects are a hand-rolled SDL2 layer (issue #423, ADR-0040).**
   `game::Audio` (`src/game/Audio.{h,cpp}`, its own translation unit — do not grow
   the shared `Game.cpp`) owns one `SDL_OpenAudioDevice` and a small fixed set of

@@ -61,6 +61,12 @@ constexpr float kShieldAbsorbFlashSeconds = 0.3f;
 constexpr int kDrugRimAlphaMin = 60;
 constexpr int kDrugRimAlphaMax = 230;
 
+// How far one press of `;`/`'` moves the active drug bar (issue #503). A tenth
+// of the bar per press: ten presses cross the full range, fine enough to hold a
+// bar "in reserve" without being tedious. `Mission::setDrugLevel` clamps to
+// [0, 1], so the view never has to.
+constexpr float kDrugBarStep = 0.1f;
+
 void setPixel(SDL_Surface* surface, int x, int y, std::uint32_t color)
 {
     if (x < 0 || y < 0 || x >= surface->w || y >= surface->h)
@@ -2545,6 +2551,28 @@ void Game::useDrugsOnSelection()
     }
 }
 
+void Game::cycleDrugBar(int delta)
+{
+    // Step the active-bar cursor and wrap it around the three bars (issue #503).
+    // View-only: the cursor picks which bar `;`/`'` act on, and never touches the
+    // simulation (golden rule 4).
+    const int count = core::kDrugCount;
+    int slot = static_cast<int>(core::drugSlot(activeDrugBar_));
+    slot = ((slot + delta) % count + count) % count;
+    activeDrugBar_ = static_cast<core::Drug>(slot);
+}
+
+void Game::adjustActiveDrugBar(float delta)
+{
+    // The view picks the agents and the delta; `Mission::setDrugLevel` clamps to
+    // [0, 1] and stores (golden rule 1/4), so a press at an end is a safe no-op.
+    const core::Drug drug = activeDrugBar_;
+    for (const std::size_t index : selected_)
+    {
+        mission_.setDrugLevel(index, drug, mission_.drugLevel(index, drug) + delta);
+    }
+}
+
 void Game::fillDiamond(SDL_Surface* surface, int centerX, int centerY, float halfW, float halfH,
                        std::uint32_t color)
 {
@@ -2781,6 +2809,22 @@ void Game::handleEvents(bool& running)
             case SDLK_b:
                 // Take performance drugs on the selection (issue #339).
                 useDrugsOnSelection();
+                break;
+            case SDLK_LEFTBRACKET:
+                // Cycle the active drug bar backwards (issue #503, ADR-0043).
+                cycleDrugBar(-1);
+                break;
+            case SDLK_RIGHTBRACKET:
+                // Cycle the active drug bar forwards (issue #503, ADR-0043).
+                cycleDrugBar(1);
+                break;
+            case SDLK_SEMICOLON:
+                // Lower the active drug bar for the selection (issue #503).
+                adjustActiveDrugBar(-kDrugBarStep);
+                break;
+            case SDLK_QUOTE:
+                // Raise the active drug bar for the selection (issue #503).
+                adjustActiveDrugBar(kDrugBarStep);
                 break;
             case SDLK_e:
                 // Hijack a nearby vehicle with the selection, or step out if the
@@ -4269,6 +4313,257 @@ bool Game::drugsSelfTest()
         std::fprintf(stderr, "drugs self-test: aura survived the buff expiry\n");
         return false;
     }
+    return true;
+}
+
+bool Game::drugControlSelfTest()
+{
+    // Headless guard for the drug-bar controls (issue #503, ADR-0043). Drives the
+    // *real* handlers on the real Mission (not the core API directly), so it
+    // proves the keys are wired: `[`/`]` cycle the active bar, `;`/`'` move it
+    // for every selected agent, a press at an end clamps, an empty selection is a
+    // safe no-op, and the map screen swallows the keys (#364).
+    const auto& agents = mission_.agents();
+    std::vector<std::size_t> players;
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (agents[i].isAlive() && agents[i].team() == core::Team::Player)
+        {
+            players.push_back(i);
+        }
+    }
+    if (players.size() < 2)
+    {
+        std::fprintf(stderr, "drug-control self-test: needs at least two player agents\n");
+        return false;
+    }
+    const std::size_t user = players[0];
+    const std::size_t ally = players[1];
+
+    // The map-isolation half needs a loaded campaign; without one the guard would
+    // pass vacuously, so fail loudly instead (the ctest runs from the repo root).
+    if (!campaign_.valid())
+    {
+        std::fprintf(stderr, "drug-control self-test: no campaign loaded (run from the repo root?)\n");
+        return false;
+    }
+
+    const std::vector<std::size_t> savedSelection = selected_;
+    const core::Drug savedBar = activeDrugBar_;
+    const float savedUserLevel[core::kDrugCount] = {
+        mission_.drugLevel(user, core::Drug::Adrenalin),
+        mission_.drugLevel(user, core::Drug::Intelligence),
+        mission_.drugLevel(user, core::Drug::Physical)};
+    const float savedAllyLevel[core::kDrugCount] = {
+        mission_.drugLevel(ally, core::Drug::Adrenalin),
+        mission_.drugLevel(ally, core::Drug::Intelligence),
+        mission_.drugLevel(ally, core::Drug::Physical)};
+
+    // Restore every bar to the neutral start so the assertions below are exact,
+    // whatever the shipped mission authored.
+    const core::Drug bars[core::kDrugCount] = {core::Drug::Adrenalin, core::Drug::Intelligence,
+                                               core::Drug::Physical};
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        for (core::Drug bar : bars)
+        {
+            mission_.setDrugLevel(i, bar, core::kDrugNeutralStart);
+        }
+    }
+
+    auto restore = [&]() {
+        selected_ = savedSelection;
+        activeDrugBar_ = savedBar;
+        mission_.setDrugLevel(user, core::Drug::Adrenalin, savedUserLevel[0]);
+        mission_.setDrugLevel(user, core::Drug::Intelligence, savedUserLevel[1]);
+        mission_.setDrugLevel(user, core::Drug::Physical, savedUserLevel[2]);
+        mission_.setDrugLevel(ally, core::Drug::Adrenalin, savedAllyLevel[0]);
+        mission_.setDrugLevel(ally, core::Drug::Intelligence, savedAllyLevel[1]);
+        mission_.setDrugLevel(ally, core::Drug::Physical, savedAllyLevel[2]);
+    };
+
+    // `[`/`]` cycle the active bar and wrap around the three bars.
+    activeDrugBar_ = core::Drug::Adrenalin;
+    cycleDrugBar(1);
+    if (activeDrugBar_ != core::Drug::Intelligence)
+    {
+        std::fprintf(stderr, "drug-control self-test: `]` did not advance the active bar\n");
+        restore();
+        return false;
+    }
+    cycleDrugBar(-1);
+    if (activeDrugBar_ != core::Drug::Adrenalin)
+    {
+        std::fprintf(stderr, "drug-control self-test: `[` did not step the active bar back\n");
+        restore();
+        return false;
+    }
+    cycleDrugBar(-1);
+    if (activeDrugBar_ != core::Drug::Physical)
+    {
+        std::fprintf(stderr, "drug-control self-test: the active bar did not wrap backwards\n");
+        restore();
+        return false;
+    }
+    cycleDrugBar(1);
+    if (activeDrugBar_ != core::Drug::Adrenalin)
+    {
+        std::fprintf(stderr, "drug-control self-test: the active bar did not wrap forwards\n");
+        restore();
+        return false;
+    }
+
+    // `'` raises the active bar for the whole selection by one step; the other
+    // bars must not move.
+    activeDrugBar_ = core::Drug::Intelligence;
+    selectOnly(user);
+    selected_.push_back(ally); // both players, so the loop covers the selection
+    adjustActiveDrugBar(kDrugBarStep);
+    const float raised = core::kDrugNeutralStart + kDrugBarStep;
+    if (std::fabs(mission_.drugLevel(user, core::Drug::Intelligence) - raised) > 1e-4f ||
+        std::fabs(mission_.drugLevel(ally, core::Drug::Intelligence) - raised) > 1e-4f)
+    {
+        std::fprintf(stderr, "drug-control self-test: `'` did not raise the bar for the selection\n");
+        restore();
+        return false;
+    }
+    if (std::fabs(mission_.drugLevel(user, core::Drug::Adrenalin) - core::kDrugNeutralStart) > 1e-4f ||
+        std::fabs(mission_.drugLevel(user, core::Drug::Physical) - core::kDrugNeutralStart) > 1e-4f)
+    {
+        std::fprintf(stderr, "drug-control self-test: adjusting one bar moved another\n");
+        restore();
+        return false;
+    }
+
+    // `;` lowers it again.
+    adjustActiveDrugBar(-kDrugBarStep);
+    if (std::fabs(mission_.drugLevel(user, core::Drug::Intelligence) - core::kDrugNeutralStart) >
+        1e-4f)
+    {
+        std::fprintf(stderr, "drug-control self-test: `;` did not lower the bar\n");
+        restore();
+        return false;
+    }
+
+    // Clamping: drive the active bar hard past both ends and prove it stops at
+    // 0 and 1 (Mission::setDrugLevel owns the clamp; the view must not overshoot).
+    for (int i = 0; i < 20; ++i)
+    {
+        adjustActiveDrugBar(kDrugBarStep);
+    }
+    if (mission_.drugLevel(user, core::Drug::Intelligence) != 1.0f)
+    {
+        std::fprintf(stderr, "drug-control self-test: the bar did not clamp at 1.0\n");
+        restore();
+        return false;
+    }
+    for (int i = 0; i < 20; ++i)
+    {
+        adjustActiveDrugBar(-kDrugBarStep);
+    }
+    if (mission_.drugLevel(user, core::Drug::Intelligence) != 0.0f)
+    {
+        std::fprintf(stderr, "drug-control self-test: the bar did not clamp at 0.0\n");
+        restore();
+        return false;
+    }
+
+    // An empty selection is a safe no-op: nothing moves and nothing crashes.
+    selected_.clear();
+    adjustActiveDrugBar(kDrugBarStep);
+    if (mission_.drugLevel(user, core::Drug::Intelligence) != 0.0f)
+    {
+        std::fprintf(stderr, "drug-control self-test: an empty selection changed a bar\n");
+        restore();
+        return false;
+    }
+
+    // The *binding*, not just the handler (issue #503): push the real SDL events
+    // through handleEvents with the map hidden and prove the keys reach the
+    // handlers. `]` advances the active bar and `'` raises it for the selection.
+    {
+        const bool savedVisible = campaign_.visible();
+        campaign_.setVisible(false);
+        selectOnly(user);
+        activeDrugBar_ = core::Drug::Adrenalin;
+        mission_.setDrugLevel(user, core::Drug::Intelligence, core::kDrugNeutralStart);
+        bool alive = true;
+        const int bindingKeys[] = {SDLK_RIGHTBRACKET, SDLK_QUOTE};
+        for (int sym : bindingKeys)
+        {
+            if (!pushKeyDown(sym))
+            {
+                std::fprintf(stderr, "drug-control self-test: could not push a key event\n");
+                campaign_.setVisible(savedVisible);
+                restore();
+                return false;
+            }
+            handleEvents(alive);
+            if (!alive)
+            {
+                std::fprintf(stderr, "drug-control self-test: a drug key quit the game\n");
+                campaign_.setVisible(savedVisible);
+                restore();
+                return false;
+            }
+        }
+        const bool barAdvanced = activeDrugBar_ == core::Drug::Intelligence;
+        const bool barRaised =
+            std::fabs(mission_.drugLevel(user, core::Drug::Intelligence) -
+                      (core::kDrugNeutralStart + kDrugBarStep)) < 1e-4f;
+        campaign_.setVisible(savedVisible);
+        if (!barAdvanced || !barRaised)
+        {
+            std::fprintf(stderr,
+                         "drug-control self-test: the keys are not bound to the handlers\n");
+            restore();
+            return false;
+        }
+    }
+
+    // The map screen must swallow the drug keys (issue #364): push the real SDL
+    // events through handleEvents with the map up and prove neither the bar nor
+    // the active-bar cursor moves. The board is restored to neutral first so a
+    // leak is visible.
+    {
+        const bool savedVisible = campaign_.visible();
+        campaign_.setVisible(true);
+        selectOnly(user);
+        activeDrugBar_ = core::Drug::Adrenalin;
+        const float before = mission_.drugLevel(user, core::Drug::Adrenalin);
+        bool alive = true;
+        const int drugKeys[] = {SDLK_LEFTBRACKET, SDLK_RIGHTBRACKET, SDLK_SEMICOLON, SDLK_QUOTE};
+        for (int sym : drugKeys)
+        {
+            if (!pushKeyDown(sym))
+            {
+                std::fprintf(stderr, "drug-control self-test: could not push a key event\n");
+                campaign_.setVisible(savedVisible);
+                restore();
+                return false;
+            }
+            handleEvents(alive);
+            if (!alive)
+            {
+                std::fprintf(stderr, "drug-control self-test: a drug key quit the game\n");
+                campaign_.setVisible(savedVisible);
+                restore();
+                return false;
+            }
+        }
+        if (mission_.drugLevel(user, core::Drug::Adrenalin) != before ||
+            activeDrugBar_ != core::Drug::Adrenalin)
+        {
+            std::fprintf(stderr, "drug-control self-test: a drug key leaked through the map\n");
+            campaign_.setVisible(savedVisible);
+            restore();
+            return false;
+        }
+        campaign_.setVisible(savedVisible);
+    }
+
+    // Leave the live state as it was found.
+    restore();
     return true;
 }
 

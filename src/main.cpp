@@ -75,6 +75,7 @@ void printUsage()
         "      --check-scanner        Validate the scanner ping overlay.\n"
         "      --check-shield         Validate the personal shield overlay.\n"
         "      --check-drugs          Validate the performance-drug aura overlay.\n"
+        "      --check-drug-controls  Validate the three drug-bar controls.\n"
         "      --check-bomb           Validate the time-bomb demo hook.\n"
         "      --check-vehicles       Validate vehicle rendering.\n"
         "      --check-vehicle-input  Validate the hijack/drive/exit keys.\n"
@@ -210,6 +211,7 @@ int main(int argc, char** argv)
     bool checkScanner = false;
     bool checkShield = false;
     bool checkDrugs = false;
+    bool checkDrugControls = false;       // --check-drug-controls
     bool checkBomb = false;               // --check-bomb
     bool checkObjectives = false;
     bool checkCampaign = false;
@@ -374,6 +376,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-drugs") == 0)
         {
             checkDrugs = true;
+        }
+        else if (std::strcmp(argv[i], "--check-drug-controls") == 0)
+        {
+            checkDrugControls = true;
         }
         else if (std::strcmp(argv[i], "--check-bomb") == 0)
         {
@@ -863,6 +869,17 @@ int main(int argc, char** argv)
         // game_drugs ctest.
         const bool ok = game.drugsSelfTest();
         std::printf(ok ? "drugs: ok\n" : "drugs: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkDrugControls)
+    {
+        // Headless guard for the drug-bar controls (issue #503, ADR-0043): `[`/`]`
+        // cycle the active bar, `;`/`'` move it for the selection, it clamps at
+        // both ends, an empty selection is a no-op, and the map screen swallows
+        // the keys. Used by the game_drug_controls ctest.
+        const bool ok = game.drugControlSelfTest();
+        std::printf(ok ? "drug-controls: ok\n" : "drug-controls: FAILED\n");
         return ok ? 0 : 1;
     }
 

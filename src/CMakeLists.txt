@@ -273,6 +273,14 @@ if(BUILD_TESTS)
     # headlessly, so a drug-aura capture is a real artefact (issue #387).
     add_test(NAME game_drugs_screenshot
              COMMAND FOSSynd --headless --drugs --screenshot drugs.bmp --frames 2)
+    # Drug-bar controls (issue #503, ADR-0043): `[`/`]` must cycle the active bar,
+    # `;`/`'` must move it for the selection and clamp at both ends, an empty
+    # selection must be a no-op, and the map screen must swallow the keys. Exits
+    # non-zero on a broken invariant. Run from the repo root so the shipped
+    # campaign loads (the map-isolation half needs it).
+    add_test(NAME game_drug_controls
+             COMMAND FOSSynd --headless --check-drug-controls)
+    set_tests_properties(game_drug_controls PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     # Time-bomb demo hook (issue #460): no bomb before, exactly one armed after
     # planting through the real `Mission::orderTimeBomb` path, a civilian cannot
     # plant one, a second bomb on the same agent is refused, and the bomb clears
