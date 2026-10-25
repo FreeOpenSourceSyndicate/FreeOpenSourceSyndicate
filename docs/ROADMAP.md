@@ -144,12 +144,16 @@ Close out the 1993 tactical feature set (the tail of the old Phase 3).
       destructible tile in the blast radius via `Mission::breachTilesInBlast`, so
       a rocket opens a room, not just the one tile a point shot lands on. A solid
       wall stays unbreakable._
-- [x] **Mission objectives**: complete the set — persuade, escort/retrieve,
-      destroy (eliminate and reach are done). _Done in #281: `ObjectiveSpec`
-      gained `Escort`, `Destroy`, and `Persuade`, parsed from mission JSON and
-      evaluated in `Mission::evaluateOutcome`; `assets/data/missions/escort.json`
-      is now the first escort mission. Assassinate/retrieve remain as a thin
-      variant of eliminate/escort._
+- [x] **Mission objectives**: complete the set — assassinate, eliminate,
+      persuade, escort/retrieve, destroy. _Done in #281 (Escort, Destroy,
+      Persuade) and #444 (Assassinate, Retrieve): `ObjectiveSpec` carries the
+      full kind set, parsed from mission JSON (`#472`) and evaluated in
+      `Mission::evaluateOutcome`. The shipped mission set exercises every kind:
+      `escort.json` (escort), `blackout.json` (destroy), `assembly.json`
+      (persuade), `overpass.json` (reach), `precinct.json`/`demo.json`
+      (eliminate), `decapitation.json` (assassinate, #473) and
+      `extraction.json` (retrieve, #473). The HUD banner for the two newest
+      kinds is the remaining render follow-up (#474)._
 
 ### Milestone B — The metagame (the long pole; start now)
 

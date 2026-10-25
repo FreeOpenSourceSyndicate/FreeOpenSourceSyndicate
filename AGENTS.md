@@ -1103,7 +1103,13 @@ Do not start work outside the scope fence (ADR-0024).
   `"assassinate"` (numeric `agentIndex`, `>= 0`, bounds-checked against the agent
   list like `escort`) and `"retrieve"` (numeric `itemX`/`itemY` and
   `tileX`/`tileY`, both tiles bounds-checked on the map), so a mission using
-  either kind now loads. **The HUD banner half is still open (render, #474):**
+  either kind now loads. **The missions half has landed (issue #473):** the two
+  shipped missions `assets/data/missions/decapitation.json` (`assassinate`) and
+  `extraction.json` (`retrieve`) exercise both kinds end to end, guarded by
+  `Mission.ShippedDecapitationAssassinateIsWinnable` /
+  `Mission.ShippedExtractionRetrieveIsWinnable` in `tests/test_mission.cpp`
+  (load the real file, check the target is real/reachable, drive the mechanic to
+  the win). **The HUD banner half is still open (render, #474):**
   `Game::objectiveBannerText` + the `--check-objectives` self-test must gain a
   branch per new kind, or a mission using it will render the wrong banner.
 - **Sprites are authored text (ADR-0013):** agent and prop art lives in
