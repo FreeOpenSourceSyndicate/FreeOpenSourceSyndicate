@@ -310,6 +310,16 @@ PlayerLoadout Campaign::selectedLoadout() const
     return loadout;
 }
 
+std::vector<DrugCeilings> Campaign::selectedCeilings() const
+{
+    std::vector<DrugCeilings> result;
+    for (const int slot : selectedSlots_)
+    {
+        result.push_back(equipment_.ceilings(kPlayerSyndicate, slot, catalogue_));
+    }
+    return result;
+}
+
 void Campaign::recordResult(bool won, int syndicate)
 {
     // The end state is terminal: once won or lost, a later result cannot change

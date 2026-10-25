@@ -259,6 +259,158 @@ FOSSYND_TEST(Equipment, LoadoutsAreIndependentPerSyndicate)
     FOSSYND_CHECK_EQ(equipment.loadout(1, 0)[0], std::string("shield"));
 }
 
+// --- Drug bar ceilings (ADR-0043, issue #504) -----------------------------
+
+// A catalogue with the three bar ceilings plus a weapon/gadget, for the ceiling
+// rules.
+const char* kCatalogueJsonWithDrugs = R"({
+  "items": [
+    { "id": "pistol", "kind": "weapon", "name": "Pistol", "cost": 0 },
+    { "id": "medkit", "kind": "gadget", "name": "Medkit", "cost": 200 },
+    { "id": "adrenalin-ceiling", "kind": "drug", "name": "Adrenalin",
+      "bar": "adrenalin", "ceiling": 0.8, "cost": 700, "requiresResearch": "a" },
+    { "id": "intelligence-ceiling", "kind": "drug", "name": "Intelligence",
+      "bar": "intelligence", "ceiling": 0.9, "cost": 700, "requiresResearch": "a" },
+    { "id": "physical-ceiling", "kind": "drug", "name": "Physical",
+      "bar": "physical", "ceiling": 1.0, "cost": 800, "requiresResearch": "a" }
+  ]
+})";
+
+FOSSYND_TEST(Equipment, ParsesDrugCeilings)
+{
+    const EquipmentCatalogue catalogue = catalogueOrFail(kCatalogueJsonWithDrugs);
+
+    const EquipmentItem* adrenalin = catalogue.find("adrenalin-ceiling");
+    FOSSYND_CHECK(adrenalin != nullptr);
+    FOSSYND_CHECK(adrenalin->kind == EquipmentKind::Drug);
+    FOSSYND_CHECK_EQ(adrenalin->bar, std::string("adrenalin"));
+    FOSSYND_CHECK_NEAR(adrenalin->ceiling, 0.8f);
+    FOSSYND_CHECK_EQ(adrenalin->requiresResearch, std::string("a"));
+
+    // A non-drug item ignores the drug-only fields (defaults, not garbage).
+    FOSSYND_CHECK(catalogue.find("pistol")->kind == EquipmentKind::Weapon);
+    FOSSYND_CHECK_EQ(catalogue.find("pistol")->bar, std::string(""));
+}
+
+FOSSYND_TEST(Equipment, RejectsDrugWithAnUnknownBar)
+{
+    // A ceiling that names no real bar could be bought yet raise nothing.
+    std::string error;
+    const Json root = Json::parse(R"({
+      "items": [ { "id": "x", "kind": "drug", "name": "X", "bar": "charisma",
+                   "ceiling": 0.5, "requiresResearch": "a" } ]
+    })",
+                                   error);
+    FOSSYND_CHECK(error.empty());
+    EquipmentCatalogue catalogue;
+    FOSSYND_CHECK(!EquipmentCatalogue::fromJson(root, catalogue, error));
+    FOSSYND_CHECK(!error.empty());
+}
+
+FOSSYND_TEST(Equipment, RejectsDrugCeilingOutOfRange)
+{
+    std::string error;
+    const Json root = Json::parse(R"({
+      "items": [ { "id": "x", "kind": "drug", "name": "X", "bar": "adrenalin",
+                   "ceiling": 0, "requiresResearch": "a" } ]
+    })",
+                                   error);
+    FOSSYND_CHECK(error.empty());
+    EquipmentCatalogue catalogue;
+    FOSSYND_CHECK(!EquipmentCatalogue::fromJson(root, catalogue, error));
+    FOSSYND_CHECK(!error.empty());
+
+    const Json tooBig = Json::parse(R"({
+      "items": [ { "id": "x", "kind": "drug", "name": "X", "bar": "adrenalin",
+                   "ceiling": 1.5, "requiresResearch": "a" } ]
+    })",
+                                    error);
+    FOSSYND_CHECK(error.empty());
+    EquipmentCatalogue catalogue2;
+    FOSSYND_CHECK(!EquipmentCatalogue::fromJson(tooBig, catalogue2, error));
+    FOSSYND_CHECK(!error.empty());
+}
+
+FOSSYND_TEST(Equipment, RejectsUngatedDrugCeiling)
+{
+    // A ceiling with no research gate would bypass the tree that paces it.
+    std::string error;
+    const Json root = Json::parse(R"({
+      "items": [ { "id": "x", "kind": "drug", "name": "X", "bar": "adrenalin",
+                   "ceiling": 0.5 } ]
+    })",
+                                   error);
+    FOSSYND_CHECK(error.empty());
+    EquipmentCatalogue catalogue;
+    FOSSYND_CHECK(!EquipmentCatalogue::fromJson(root, catalogue, error));
+    FOSSYND_CHECK(!error.empty());
+}
+
+FOSSYND_TEST(Equipment, CeilingsSumPerBarAndDefaultToZero)
+{
+    const EquipmentCatalogue catalogue = catalogueOrFail(kCatalogueJsonWithDrugs);
+    Equipment equipment;
+
+    // No drug equipped: no bar may be raised.
+    const DrugCeilings none = equipment.ceilings(0, 0, catalogue);
+    FOSSYND_CHECK(!none.any());
+    FOSSYND_CHECK_NEAR(none.adrenalin, 0.0f);
+    FOSSYND_CHECK_NEAR(none.intelligence, 0.0f);
+    FOSSYND_CHECK_NEAR(none.physical, 0.0f);
+
+    // One ceiling raises exactly its own bar.
+    FOSSYND_CHECK(equipment.equip(0, 0, "adrenalin-ceiling", catalogue));
+    const DrugCeilings one = equipment.ceilings(0, 0, catalogue);
+    FOSSYND_CHECK_NEAR(one.adrenalin, 0.8f);
+    FOSSYND_CHECK_NEAR(one.intelligence, 0.0f);
+    FOSSYND_CHECK_NEAR(one.physical, 0.0f);
+
+    // All three coexist in one slot (one ceiling per bar).
+    FOSSYND_CHECK(equipment.equip(0, 0, "intelligence-ceiling", catalogue));
+    FOSSYND_CHECK(equipment.equip(0, 0, "physical-ceiling", catalogue));
+    const DrugCeilings all = equipment.ceilings(0, 0, catalogue);
+    FOSSYND_CHECK_NEAR(all.adrenalin, 0.8f);
+    FOSSYND_CHECK_NEAR(all.intelligence, 0.9f);
+    FOSSYND_CHECK_NEAR(all.physical, 1.0f);
+    FOSSYND_CHECK(all.any());
+}
+
+FOSSYND_TEST(Equipment, ASecondCeilingForOneBarReplacesTheFirst)
+{
+    // A ceiling replaces only a ceiling for the *same* bar, so an upgrade swaps
+    // in and the other bars are untouched.
+    const EquipmentCatalogue catalogue = catalogueOrFail(kCatalogueJsonWithDrugs);
+    Equipment equipment;
+    FOSSYND_CHECK(equipment.equip(0, 0, "adrenalin-ceiling", catalogue));
+    FOSSYND_CHECK(equipment.equip(0, 0, "intelligence-ceiling", catalogue));
+    // Re-equipping the same ceiling is a no-op, not a duplicate.
+    FOSSYND_CHECK(equipment.equip(0, 0, "adrenalin-ceiling", catalogue));
+    const std::vector<std::string> slot = equipment.loadout(0, 0);
+    FOSSYND_CHECK_EQ(slot.size(), std::size_t{2});
+
+    const DrugCeilings ceilings = equipment.ceilings(0, 0, catalogue);
+    FOSSYND_CHECK_NEAR(ceilings.adrenalin, 0.8f);
+    FOSSYND_CHECK_NEAR(ceilings.intelligence, 0.9f);
+    FOSSYND_CHECK_NEAR(ceilings.physical, 0.0f);
+}
+
+FOSSYND_TEST(Equipment, ADrugCeilingDoesNotDisplaceAWeaponOrGadget)
+{
+    // A ceiling is its own kind, so it coexists with a weapon and a gadget in a
+    // slot (the loadout carries one of each kind, plus one ceiling per bar).
+    const EquipmentCatalogue catalogue = catalogueOrFail(kCatalogueJsonWithDrugs);
+    Equipment equipment;
+    FOSSYND_CHECK(equipment.equip(0, 0, "pistol", catalogue));
+    FOSSYND_CHECK(equipment.equip(0, 0, "medkit", catalogue));
+    FOSSYND_CHECK(equipment.equip(0, 0, "adrenalin-ceiling", catalogue));
+
+    const std::vector<std::string> slot = equipment.loadout(0, 0);
+    FOSSYND_CHECK_EQ(slot.size(), std::size_t{3});
+    FOSSYND_CHECK(std::find(slot.begin(), slot.end(), "pistol") != slot.end());
+    FOSSYND_CHECK(std::find(slot.begin(), slot.end(), "medkit") != slot.end());
+    FOSSYND_CHECK(std::find(slot.begin(), slot.end(), "adrenalin-ceiling") != slot.end());
+}
+
 FOSSYND_TEST(Equipment, LoadsShippedCatalogueFile)
 {
     std::string error;
@@ -271,10 +423,11 @@ FOSSYND_TEST(Equipment, LoadsShippedCatalogueFile)
 
     // A gadget the catalogue sells must be in the deploy vocabulary, or it can be
     // bought and equipped yet silently grants nothing when the squad deploys
-    // (gadgetChargesForId rejects an unknown id). The scanner and drugs landed in
-    // core with #314; guard that the catalogue keeps up.
+    // (gadgetChargesForId rejects an unknown id). The scanner landed in core with
+    // #314; guard that the catalogue keeps up. The `"drugs"` consumable is gone
+    // (ADR-0043): drugs are now bar ceilings, checked below.
     FOSSYND_CHECK(catalogue.find("scanner") != nullptr);
-    FOSSYND_CHECK(catalogue.find("drugs") != nullptr);
+    FOSSYND_CHECK(catalogue.find("drugs") == nullptr);
     for (const EquipmentItem& item : catalogue.items())
     {
         if (item.kind == EquipmentKind::Gadget)
@@ -283,14 +436,33 @@ FOSSYND_TEST(Equipment, LoadsShippedCatalogueFile)
         }
     }
 
-    // A cybernetic the catalogue sells must be in the tactical deploy vocabulary
-    // (cyberneticEffectForId) and gated by a research node that unlocks it, or it
-    // can be bought yet applyLoadout rejects it (issue #341). Both ends must agree.
+    // Every drug the catalogue sells is a bar ceiling (ADR-0043): it names a real
+    // bar, sits in (0, 1], and is gated by a research node that unlocks it — or it
+    // can be bought yet can never raise a bar, or bypasses the tree that paces it.
     std::string treeError;
     ResearchTree tree;
     const std::string treePath = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/world/research.json";
     FOSSYND_CHECK(ResearchTree::loadFromFile(treePath, tree, treeError));
     FOSSYND_CHECK(treeError.empty());
+    std::size_t drugItems = 0;
+    for (const EquipmentItem& item : catalogue.items())
+    {
+        if (item.kind != EquipmentKind::Drug)
+        {
+            continue;
+        }
+        ++drugItems;
+        FOSSYND_CHECK(item.bar == "adrenalin" || item.bar == "intelligence" ||
+                      item.bar == "physical");
+        FOSSYND_CHECK(item.ceiling > 0.0f && item.ceiling <= 1.0f);
+        FOSSYND_CHECK(!item.requiresResearch.empty());
+        const ResearchNode* node = tree.find(item.requiresResearch);
+        FOSSYND_CHECK(node != nullptr);
+        FOSSYND_CHECK_EQ(node->unlocks, item.id);
+    }
+    // All three bars can be raised: one ceiling item per bar.
+    FOSSYND_CHECK_EQ(drugItems, std::size_t{3});
+
     for (const EquipmentItem& item : catalogue.items())
     {
         if (item.kind != EquipmentKind::Cybernetic)

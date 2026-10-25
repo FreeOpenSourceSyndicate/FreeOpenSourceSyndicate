@@ -15,6 +15,12 @@
     { "id": "chest", "name": "Chest Cybernetics", "cost": 700, "time": 75,
       "requires": [], "unlocks": "chest" },
     { "id": "eyes", "name": "Eye Cybernetics", "cost": 500, "time": 45,
-      "requires": [], "unlocks": "eyes" }
+      "requires": [], "unlocks": "eyes" },
+    { "id": "adrenalin-ceiling", "name": "Adrenalin Regulator", "cost": 500, "time": 60,
+      "requires": [], "unlocks": "adrenalin-ceiling" },
+    { "id": "intelligence-ceiling", "name": "Intelligence Regulator", "cost": 500, "time": 60,
+      "requires": [], "unlocks": "intelligence-ceiling" },
+    { "id": "physical-ceiling", "name": "Physical Regulator", "cost": 500, "time": 60,
+      "requires": [], "unlocks": "physical-ceiling" }
   ]
 }
