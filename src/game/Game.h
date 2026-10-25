@@ -289,6 +289,14 @@ public:
     // Used by game_drug_controls.
     bool drugControlSelfTest();
 
+    // Headless guard for the drug-bar HUD (issue #502, ADR-0043): every selected
+    // agent must yield exactly three bars with the level and neutral point read
+    // from the live mission, the bars must track `Mission::setDrugLevel`, and an
+    // empty selection must yield none. Drives the shared drugBars() decision the
+    // render pass uses. Returns false on a broken invariant. Used by
+    // game_drug_bars.
+    bool drugBarSelfTest();
+
     // Headless guard for vehicle rendering (issue #363): every vehicle in the
     // mission must yield a draw entry at its interpolated tile with the right
     // kind, and a destroyed vehicle must still draw (as a wreck). Returns false
@@ -451,6 +459,11 @@ private:
     // with a live drug buff, fading as the dose runs out. Presentation-only; it
     // reads `Mission::drugsTimer` and never writes it (golden rule 4).
     void renderDrugAura();
+    // Drug-bar HUD (issue #502, ADR-0043): three regulated bars (adrenalin /
+    // intelligence / physical) per selected agent, each showing the level and the
+    // drifting neutral point. Presentation-only; it reads `Mission::drugLevel` /
+    // `drugNeutral` and never writes them (golden rule 4).
+    void renderDrugBars();
     void renderSelectionBox();
     void renderHud();
     void renderMinimap();
@@ -608,6 +621,25 @@ private:
     // decision (an aura only while the buff runs). View-only: pure read of core
     // (golden rule 4).
     std::vector<DrugMark> drugMarks() const;
+
+    // One drug bar the HUD draws for a selected agent (issue #502, ADR-0043):
+    // the regulated level, the drifting neutral point, and whether the bar is
+    // the one the `;`/`'` keys currently adjust. All three bars are drawn per
+    // selected agent so the normalisation is visible at a glance.
+    struct DrugBar
+    {
+        std::size_t index = 0;      // the agent
+        core::Drug drug = core::Drug::Adrenalin;
+        float level = 0.0f;         // [0, 1] player-regulated level
+        float neutral = 0.0f;       // [0, 1] drifting neutral point
+        bool active = false;        // the bar `;`/`'` act on (view-only cursor)
+    };
+
+    // The drug bars the HUD should draw: three per selected agent, from the live
+    // mission state. Shared by renderDrugBars() and drugBarSelfTest() so the
+    // guard checks the real decision. View-only: pure read of core (golden rule
+    // 4).
+    std::vector<DrugBar> drugBars() const;
 
     // Per-agent peak drug timer observed while its buff runs, so drugMarks() can
     // report the remaining fraction without core exposing the buff's full

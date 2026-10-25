@@ -4845,6 +4845,134 @@ bool Game::drugControlSelfTest()
     return true;
 }
 
+bool Game::drugBarSelfTest()
+{
+    // Headless guard for the drug-bar HUD (issue #502, ADR-0043). Drives the
+    // shared drugBars() decision the render pass uses, so it proves the real
+    // draw list: three bars per selected agent, the level and neutral point read
+    // from the live mission, the bars tracking `Mission::setDrugLevel`, an empty
+    // selection yielding none, and only living player agents contributing.
+    const auto& agents = mission_.agents();
+    std::vector<std::size_t> players;
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (agents[i].isAlive() && agents[i].team() == core::Team::Player)
+        {
+            players.push_back(i);
+        }
+    }
+    if (players.empty())
+    {
+        std::fprintf(stderr, "drug-bar self-test: no living player agent\n");
+        return false;
+    }
+
+    const std::vector<std::size_t> savedSelection = selected_;
+    const core::Drug savedBar = activeDrugBar_;
+    auto restore = [&]() {
+        selected_ = savedSelection;
+        activeDrugBar_ = savedBar;
+    };
+
+    // One selected agent -> exactly three bars, in enum order, all flagged with
+    // that agent and the level/neutral read straight from the mission.
+    selected_.clear();
+    selected_.push_back(players[0]);
+    activeDrugBar_ = core::Drug::Intelligence;
+    {
+        const std::vector<DrugBar> bars = drugBars();
+        if (bars.size() != static_cast<std::size_t>(core::kDrugCount))
+        {
+            std::fprintf(stderr, "drug-bar self-test: expected %d bars for one agent, got %zu\n",
+                         core::kDrugCount, bars.size());
+            restore();
+            return false;
+        }
+        for (int slot = 0; slot < core::kDrugCount; ++slot)
+        {
+            const DrugBar& bar = bars[static_cast<std::size_t>(slot)];
+            const core::Drug drug = static_cast<core::Drug>(slot);
+            if (bar.index != players[0] || bar.drug != drug)
+            {
+                std::fprintf(stderr, "drug-bar self-test: bar %d has the wrong agent/kind\n", slot);
+                restore();
+                return false;
+            }
+            if (std::fabs(bar.level - mission_.drugLevel(players[0], drug)) > 1e-6f ||
+                std::fabs(bar.neutral - mission_.drugNeutral(players[0], drug)) > 1e-6f)
+            {
+                std::fprintf(stderr, "drug-bar self-test: bar %d does not read the live level\n", slot);
+                restore();
+                return false;
+            }
+            // The active flag must follow the `;`/`'` cursor, not a fixed bar.
+            if (bar.active != (drug == core::Drug::Intelligence))
+            {
+                std::fprintf(stderr, "drug-bar self-test: the active flag does not follow the cursor\n");
+                restore();
+                return false;
+            }
+        }
+    }
+
+    // Raising a bar through the real core setter must move the drawn bar, and the
+    // neutral point must stay put (it drifts over time, not on a set).
+    const float before = mission_.drugLevel(players[0], core::Drug::Intelligence);
+    mission_.setDrugLevel(players[0], core::Drug::Intelligence, before + 0.2f);
+    {
+        const std::vector<DrugBar> bars = drugBars();
+        bool found = false;
+        for (const DrugBar& bar : bars)
+        {
+            if (bar.drug == core::Drug::Intelligence)
+            {
+                found = true;
+                if (std::fabs(bar.level - (before + 0.2f)) > 1e-6f)
+                {
+                    std::fprintf(stderr, "drug-bar self-test: the drawn bar did not track the level\n");
+                    restore();
+                    return false;
+                }
+            }
+        }
+        if (!found)
+        {
+            std::fprintf(stderr, "drug-bar self-test: the raised bar vanished\n");
+            restore();
+            return false;
+        }
+    }
+    // Put the level back so the guard leaves the mission as it found it.
+    mission_.setDrugLevel(players[0], core::Drug::Intelligence, before);
+
+    // Two selected agents -> six bars (three each), proving the count scales.
+    if (players.size() >= 2)
+    {
+        selected_.clear();
+        selected_.push_back(players[0]);
+        selected_.push_back(players[1]);
+        const std::size_t expected = 2 * static_cast<std::size_t>(core::kDrugCount);
+        if (drugBars().size() != expected)
+        {
+            std::fprintf(stderr, "drug-bar self-test: two agents did not yield %zu bars\n", expected);
+            restore();
+            return false;
+        }
+    }
+
+    // An empty selection draws no bars.
+    selected_.clear();
+    if (!drugBars().empty())
+    {
+        std::fprintf(stderr, "drug-bar self-test: an empty selection drew bars\n");
+        restore();
+        return false;
+    }
+
+    restore();
+    return true;
+}
+
 std::vector<Game::VehicleDraw> Game::vehicleDraws() const
 {
     // The draw decision for every vehicle in the mission (issue #363). A
@@ -5369,6 +5497,7 @@ void Game::render()
     else
     {
         renderHud();
+        renderDrugBars();
         renderMinimap();
     }
     // The new-game screen (issue #447) draws over the frame when it is up; it is

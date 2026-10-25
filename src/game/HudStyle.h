@@ -51,6 +51,16 @@ constexpr std::uint8_t kDrugAura[3] = {255, 170, 60};
 // Drag-box marquee (issue #94): the rectangle drawn while box-selecting.
 constexpr std::uint8_t kSelectionBox[3] = {120, 220, 255};
 
+// Drug-bar HUD (issue #502, ADR-0043): the track, the level fill, and the
+// neutral tick. The fill is amber while the bar is at or above its neutral
+// point (a boost) and a cool blue below it (a withdrawal), so the sign of the
+// drug effect reads at a glance; the tick marks the drifting neutral point the
+// level is measured against.
+constexpr std::uint8_t kDrugBarTrack[3] = {26, 28, 32};
+constexpr std::uint8_t kDrugBarFillUp[3] = {255, 170, 60};
+constexpr std::uint8_t kDrugBarFillDown[3] = {90, 150, 235};
+constexpr SDL_Color kDrugBarTick{235, 240, 235, 255};
+
 // Vehicle markers (issue #363): the no-art fallback diamond for a vehicle, and
 // the dark grey of a wreck. Steel grey reads as machinery, distinct from every
 // team colour.

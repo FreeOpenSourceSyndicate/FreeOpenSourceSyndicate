@@ -76,6 +76,7 @@ void printUsage()
         "      --check-shield         Validate the personal shield overlay.\n"
         "      --check-drugs          Validate the performance-drug aura overlay.\n"
         "      --check-drug-controls  Validate the three drug-bar controls.\n"
+        "      --check-drug-bars      Validate the three drug-bar HUD.\n"
         "      --check-bomb           Validate the time-bomb demo hook.\n"
         "      --check-vehicles       Validate vehicle rendering.\n"
         "      --check-vehicle-input  Validate the hijack/drive/exit keys.\n"
@@ -213,6 +214,7 @@ int main(int argc, char** argv)
     bool checkShield = false;
     bool checkDrugs = false;
     bool checkDrugControls = false;       // --check-drug-controls
+    bool checkDrugBars = false;           // --check-drug-bars
     bool checkBomb = false;               // --check-bomb
     bool checkObjectives = false;
     bool checkCampaign = false;
@@ -382,6 +384,10 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-drug-controls") == 0)
         {
             checkDrugControls = true;
+        }
+        else if (std::strcmp(argv[i], "--check-drug-bars") == 0)
+        {
+            checkDrugBars = true;
         }
         else if (std::strcmp(argv[i], "--check-bomb") == 0)
         {
@@ -886,6 +892,18 @@ int main(int argc, char** argv)
         // the keys. Used by the game_drug_controls ctest.
         const bool ok = game.drugControlSelfTest();
         std::printf(ok ? "drug-controls: ok\n" : "drug-controls: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkDrugBars)
+    {
+        // Headless guard for the drug-bar HUD (issue #502, ADR-0043): three bars
+        // per selected agent with the level and neutral point read from the live
+        // mission, the bars tracking `Mission::setDrugLevel`, and an empty
+        // selection drawing none. Drives the shared drugBars() decision the
+        // render pass uses. Used by the game_drug_bars ctest.
+        const bool ok = game.drugBarSelfTest();
+        std::printf(ok ? "drug-bars: ok\n" : "drug-bars: FAILED\n");
         return ok ? 0 : 1;
     }
 
