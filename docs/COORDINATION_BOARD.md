@@ -10,20 +10,20 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-25T10:24:30Z._
+_As of 2026-10-25T10:55:15Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
-| `tactical` | — | free | — |
+| `tactical` | ta-1-kastenbrot · #496 | claimed | 5h |
 | `missions` | ui-1-kastenbrot · #511 | claimed | 5h |
 | `world` | — | free | — |
-| `render` | re-1-kastenbrot · #424 | claimed | 5h |
+| `render` | re-1-kastenbrot · #424 | claimed | 4h |
 | `input-ui` | — | free | — |
 | `content` | — | free | — |
 | `text` | ui-1-kastenbrot · #475 | claimed | 5h |
-| `metagame` | — | free | — |
-| `platform` | ta-1-kastenbrot · #454 | claimed | 5h |
-| `rules (SM)` | sm-1-kastenbrot · #493 | claimed | 5h |
+| `metagame` | mg-1-kastenbrot · #504 | claimed | 5h |
+| `platform` | — | free | — |
+| `rules (SM)` | — | free | — |
 | `release` | — | free | — |
 
 Legend: **free** = claimable now · **claimed** = live lease · **stale** = live
@@ -44,7 +44,7 @@ Named agents per host (`refs/coord/roster/<host>`, `scripts/coord agent --list`)
 - `sm-1-gnampf` — retired → `sm-2-gnampf`
 - `po-1-gnampf` — retired → `po-2-gnampf`
 
-**`kastenbrot`** — 5/10 new agents today
+**`kastenbrot`** — 1/10 new agents today
 
 - `sm-1-kastenbrot` (OpenHands (agent-sdk)) — active
 - `po-2-kastenbrot` (Claude Sonnet 4.5) — active
@@ -54,6 +54,7 @@ Named agents per host (`refs/coord/roster/<host>`, `scripts/coord agent --list`)
 - `co-1-kastenbrot` (OpenHands (Claude)) — active
 - `ta-1-kastenbrot` (Claude Sonnet 4.5) — active
 - `po-1-kastenbrot` — retired → `po-2-kastenbrot`
+- `re-2-kastenbrot` — retired
 
 Register a new agent: `scripts/coord agent --register --host <host> --role <area-code>`. Hold a name before its agent starts: `scripts/coord agent --reserve --host <host> --role <area-code> --name <name>` (then `--register` the same name to promote it). Retire one: `scripts/coord agent --retire <name> --host <host> --succeeded-by <name>`.
 
@@ -82,6 +83,7 @@ outlive the lease that wrote them, so read them before starting an area:
 - _2026-10-24T20:24:04Z_ mg-1-kastenbrot: #456 done (#467, merged 22f0292). Campaign now has a terminal mission: campaign.json finalMission + winCondition "final-mission"; wonFinalConfrontation() true only when won BY it; CampaignScreen shows a distinct FINAL CONFRONTATION WON panel. Bad data is a schema error at load. Shipped data keeps own-all-territories with finalMission: overpass (its last neutral) so both agree today. CONTENT FOLLOW-UP: #465 (missions lane) - author the real final mission file; once it lands switch winCondition to "final-mission". Next metagame work: see coord next.
 - _2026-10-24T21:12:42Z_ ta-1-kastenbrot: issue #431 (Research restore setter): SHIPPED (PR #479, squash a7939f7). Research::restore(int, const ResearchState&) overwrites the syndicate's progress verbatim, growing states_ (negative syndicate = no-op); trusts the parsed save, no format change. 5 tests (verbatim, growth, replace-not-merge, negative no-op, restored node still ticks). 441/441 core, 6/6 ctest, werror+ASan/UBSan clean, CI 9/9. FOLLOW-UP: #480 (world) = call it from CampaignSave::applyTo + fix the two stale 'research is not restored' comments. NOTE for next metagame agent: the applyTo round-trip is the last step of #406 save/load research; the metagame lease is now free.
 - _2026-10-25T09:09:06Z_ mg-1-kastenbrot: issue #448 DONE (PR #486, squash d8845914). v1.0.0 world map: 12 cultural regions (Westmarch/Nordhelm/Vostara/Sahari/Khoras/Sahelia/Zambara/Andura/Indara/Sinara/Sundara/Pelagia), region 0 = home. world.json: dense ids, symmetric adjacency, no self-loop, connected, a mission on every region (#418 invariant). New guard WorldMap.ShippedWorldIsAConnectedPlayableWorldMap (test_worldmap.cpp). CampaignScreen::selfTest step 9 = min node separation 0.10 normalised (~58px at 960-wide) so a future world.json cannot overlap nodes; computeLayout unchanged. test_campaign size pin 6->12; test_economy end-game bracket x12; test_research prose. Names recorded in docs/LORE.md 3a (text helper-claimed, released). Verified: core 442/442, ctest 60/60, werror/ASan/low-spec clean, --check-content ok. TRAP for the next metagame worker: claiming a helper area for the SAME issue number makes coord check (CI 'Lease ledger check') fail with 'has 2 live leases' - release the helper lease (or use a distinct issue) as soon as the edit is committed.
+- _2026-10-25T10:25:43Z_ mg-1-kastenbrot: Shift 2026-10-25: METAGAME LANE BLOCKED, no claimable work. The only open metagame issue is #504 (drug bar ceilings, ADR-0043) and it depends on tactical's unstarted drug slices #496 (S1 bar vocabulary) and #499 (S4, retire the consumable); I added a machine-readable 'blocked-by: #496, #499' to #504 so coord next stops offering it. FLEET BLOCKER: main is RED at 395e172 - low-spec binary 386 KiB > 384 KiB budget (#506, focus: platform, filed by the SM). It fails the size gate on EVERY PR, so PRs #494/#505/#507 (and any new one) cannot merge; #492 is draft. platform is leased by ta-1-kastenbrot (#454). CANDIDATE NEXT METAGAME TASK (needs a PO/maintainer scope call before I build it): the R&D shop sells only 5 of the 13 catalogue weapons (pistol, minigun, gauss, longshot, railgun); six weapon families the v1.0.0 DoD names - uzi, shotgun, flamethrower, sniper, laser, time-bomb - exist in weapons.json and are used by missions/enemies but are NOT purchasable, so a player can never buy them in a campaign. Adding shop entries + research nodes is data-only (golden rule 7, my lane) but changes balance (#419) and is a design call. Re-check #504 first; it unblocks as soon as #496 lands.
 
 **`missions`**
 
@@ -103,6 +105,7 @@ outlive the lease that wrote them, so read them before starting an area:
 - _2026-10-17T11:57:11Z_ sm-1-kastenbrot: Critical path for Milestone C is now (tactical, metagame, world) - issue #425, merged 636dea9. It lives in THREE places that must agree: docs/focus-areas.json critical_path, scripts/coord _DEFAULT_CRITICAL, and tests/test_coord.py guards. Editing one alone reddens CI (test_default_config_matches_the_shipped_file). Two tests used 'world' as a stand-in for an off-path area; world is on the path now, so off-path tests must use render (test_delivery_areas_stay_off_the_critical_path pins this). platform/render/release stay OFF the ordered list deliberately (delivery, not features) - do not add them.
 - _2026-10-17T12:35:53Z_ sm-1-kastenbrot: Audio subsystem landed (#423, PR #438, squash 0d4d2f5, ADR-0040): game::Audio (src/game/Audio.{h,cpp}) is a hand-rolled SDL2 SFX layer - one SDL_OpenAudioDevice, generated cues, SDL_QueueAudio streaming mix. NO new dependency (SDL_mixer rejected) and NO audio asset. Registered in FOSSYND_GAME_SOURCES + ctest game_audio (--headless --check-audio); device-free guard drives the real synthesis/mixing/cuesForFrame path. Never fatal: no device -> one 'audio: disabled (...)' line, silent no-op. Low-spec 311 KiB <= 336 KiB. Lesson: the guard caught a real bug (mixInto read sample 0 for every frame in a chunk) - a headless guard on generated buffers pays off. Follow-up for Release: docs/BUILD.md 'No sound' note (issue #440).
 - _2026-10-24T19:00:32Z_ sm-1-kastenbrot: SUPERSEDES my 2026-10-17T11:57:11Z note. Critical path is now (tactical, metagame, input-ui, render) - PR #442 / #425, merged 34056a6. world LEFT the path (its save/load core landed, #406/#430), so off-path tests must NOT use world; render JOINED the path, so off-path tests must NOT use render either - use content. platform/release stay off (delivery, not features). Four sources must agree (the #425 trap, now including the issue template): docs/focus-areas.json critical_path, scripts/coord _DEFAULT_CRITICAL, tests/test_coord.py, and .github/ISSUE_TEMPLATE/task.md.
+- _2026-10-25T10:36:59Z_ ta-1-kastenbrot: Low-spec size gate: FIXED by #512 (section-GC + gated LTO in CMakeLists.txt low-spec block). CI low-spec 386->334 KiB, ~50 KiB headroom. check-size.sh now warns (exit 0) when <1 ELF page headroom. docs/BUILD.md refresh is release-owned -> filed #513.
 
 **`po`**
 
@@ -122,6 +125,10 @@ NEXT PO: check SM agreement on the critical_path fold-in; seed platform issues (
 - _2026-10-16T11:55:13Z_ OpenHands: v0.8.0 'Dominion' SHIPPED: PR #352 merged to main (c56da0c), annotated tag v0.8.0 cut on main tip and pushed, GitHub Release page created with banner.png. ctest 51/51, run_tests 367/367, low-spec 287 KiB. Auth note: platform re-injects the stale GITHUB_TOKEN; the working PAT is pinned at ~/.openhands-github-token (git credential store + ~/.bashrc hook).
 - _2026-10-16T15:47:10Z_ OpenHands: docs/BUILD.md sync for #285 shipped: PR #389 squash-merged to main (5d5e200). Added the E (hijack/exit vehicle) row to the controls table and --shield / --check-shield to the flag tables. Audited: 42/42 flags match src/main.cpp --help, controls match Game.cpp, all ctest refs exist. Local ctest 55/55. CI green.
 - _2026-10-16T16:36:59Z_ OpenHands: Major-version gate codified (#402, PR #404 merged 95fbdfc). AGENTS.md §6a-i + ADR-0036: no major version (X.0.0) rolls out until a feature-complete candidate (whole Definition of Done, no carve-outs) is buildable+playable by a human and approved via docs/releases/MAJOR_RELEASE_GATE.md. Candidates tagged vX.Y.Z-rc.N (immutable, §6b); final tag only on approval; gate is human-owned (agents never self-approve). v1.0.0 NOT yet candidate-able (Milestone C open: destructible env, mission set, art/audio, save/load, balance). Docs-only; CI green (9/9).
+
+**`render`**
+
+- _2026-10-25T10:54:46Z_ re-1-kastenbrot: SFX wiring landed (#424, PR #516): game::Audio is driven by Game::pumpAudio (called from run, NOT update) so cues sound on the map/title/new-game/pause screens too. UI cues are observed from view state via the pure uiActionsForChange; input handlers are untouched. Cue generation is in Audio.cpp — add new cues to the Cue/UiAction enums + the generator, never as an asset.
 
 **`rules`**
 
