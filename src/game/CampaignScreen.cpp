@@ -969,10 +969,13 @@ bool CampaignScreen::selfTest()
     }
 
     // 6. Win by *playing* the loop: attack a frontier region through a real
-    // mission selection and claim it, repeating until the map is won. This is the
-    // path a player takes, so the guard fails if the shipped data makes the
+    // mission selection and claim it, repeating until the campaign ends. This is
+    // the path a player takes, so the guard fails if the shipped data makes the
     // campaign unwinnable (e.g. a neutral region with no mission, or no
-    // player-held neighbour to attack it from).
+    // player-held neighbour to attack it from). Since #537 the shipped data wins
+    // by the *final confrontation* (the `conclave` board on a deep region), so
+    // the loop stops the moment the terminal mission is won — with neutrals still
+    // on the map — and the win must come from that mission.
     const std::size_t total = campaign.map().size();
     bool attackedFrontier = false;
     for (std::size_t guard = 0; guard < total * 4; ++guard)
@@ -1008,10 +1011,17 @@ bool CampaignScreen::selfTest()
         std::fprintf(stderr, "campaign self-test: no attackable territory on the frontier\n");
         return false;
     }
-    if (campaign.map().territoriesOwnedBy(player).size() != total ||
-        campaign.state() != core::CampaignState::Won)
+    if (campaign.state() != core::CampaignState::Won)
     {
         std::fprintf(stderr, "campaign self-test: the campaign could not be won by attacking\n");
+        return false;
+    }
+    // The shipped rule is the final confrontation, so the win must be *from* the
+    // terminal mission, not from a map sweep (which would leave this false).
+    if (campaign.winCondition() == "final-mission" && !campaign.wonFinalConfrontation())
+    {
+        std::fprintf(stderr,
+                     "campaign self-test: the win did not come from the final mission\n");
         return false;
     }
 

@@ -424,9 +424,15 @@ public:
   `own-all-territories`, even if the terminal mission happened to be among those
   won), and the screen draws a distinct, warmer "FINAL CONFRONTATION WON" panel
   for it. The end state stays terminal either way (`finished()` freezes the
-  board). Both conditions are supported: the shipped data keeps
-  `own-all-territories` (its last neutral is the named `finalMission`, so the two
-  agree today) until the final mission is authored as its own file.
+  board). **The shipped data now uses it (#537):** `winCondition` is
+  `"final-mission"`, `finalMission` is the dedicated `conclave` board
+  (#465/#536), and region 9 `Sinara` — the deepest neutral, four hops from home —
+  carries it, so the campaign is won by playing the terminal confrontation rather
+  than by sweeping the whole map. `Campaign::selectMission` deploys to a region
+  and its `missionId` is the mission played, so a `finalMission` that no region
+  carries would leave the campaign unwinnable: `world.json` names `conclave` on
+  region 9 and `campaign.json` lists it in `missions`. The `own-all-territories`
+  rule is still supported and still the default when no `winCondition` is given.
 - **Headless guard.** `--check-campaign` (ctest `game_campaign`) runs
   `CampaignScreen::selfTest`, which on a *copy* of the shipped campaign exercises
   starting funds → tax → income → research → buy → assign → attack the frontier
@@ -468,10 +474,11 @@ use `jsonc` for annotation only, exactly as `docs/DATA_FORMAT.md` does).
   A neutral region needs one to be attackable, and the same `missionId` may be
   shared by several regions (ADR-0029), so a small mission set covers a larger map.
   In the **shipped** `world.json` every region carries a mission drawn from the
-  tactical mission set (`demo`, `escort`, `blackout`, `assembly`, `overpass`) and
-  each is listed in `campaign.json`'s `missions`, so the whole map is playable
-  rather than five regions replaying two boards (#418). The mapping is pinned by
-  `tests/test_campaign.cpp`.
+  tactical mission set (`demo`, `escort`, `blackout`, `assembly`, `conclave`,
+  `holdout`, `caravan`, `relay`) and each is listed in `campaign.json`'s
+  `missions`, so the whole map is playable rather than five regions replaying two
+  boards (#418). Region 9 `Sinara` carries the terminal `conclave` board (#537).
+  The mapping is pinned by `tests/test_campaign.cpp`.
 
 **The shipped map is a world map (issue #448).** v1.0.0 replaces the original
 six city-district regions with **twelve culturally-flavoured regions** — evocative
@@ -561,9 +568,9 @@ sells and resolves them.
   "research": "research.json",
   "equipment": "equipment.json",
   "names": "names.json",
-  "missions": ["demo"],
-  "winCondition": "own-all-territories",
-  "finalMission": "overpass"
+  "missions": ["demo", "conclave"],
+  "winCondition": "final-mission",
+  "finalMission": "conclave"
 }
 ```
 
@@ -571,7 +578,8 @@ sells and resolves them.
 `finalMission` (optional) names the terminal mission; it must be one of
 `missions`, and a `"final-mission"` win condition **requires** it — both are
 schema errors otherwise, so a typo cannot leave the campaign unwinnable
-(issue #456).
+(issue #456). The shipped campaign uses `"final-mission"` with `conclave`
+(#537).
 
 Sibling file names (`world`, `research`, `equipment`, `names`) resolve
 **relative to the campaign file**, the same way the mission loader resolves

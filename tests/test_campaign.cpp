@@ -47,6 +47,8 @@ std::string writeTemp(const std::string& text)
 // A temp campaign file that reuses the shipped world/research/equipment via
 // absolute sibling paths (a sibling named relative to a temp file would not be
 // found) but switches the win condition to the terminal-mission rule (#456).
+// The shipped world map now names the dedicated `conclave` board on region 9, so
+// the temp file mirrors that; only the rule under test is varied.
 std::string finalMissionCampaignFile()
 {
     const std::string dir = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/world/";
@@ -61,8 +63,29 @@ std::string finalMissionCampaignFile()
                      "  \"equipment\": \"" +
                      dir +
                      "equipment.json\",\n"
-                     "  \"missions\": [\"demo\", \"escort\", \"blackout\", \"assembly\", \"overpass\", \"holdout\", \"caravan\", \"relay\"],\n"
-                     "  \"winCondition\": \"final-mission\", \"finalMission\": \"overpass\"\n"
+                     "  \"missions\": [\"demo\", \"escort\", \"blackout\", \"assembly\", \"overpass\", \"holdout\", \"caravan\", \"relay\", \"conclave\"],\n"
+                     "  \"winCondition\": \"final-mission\", \"finalMission\": \"conclave\"\n"
+                     "}");
+}
+
+// A temp campaign file that reuses the shipped world/research/equipment but
+// forces the `own-all-territories` rule, so that rule can be tested
+// independently of the shipped data (which now ships `final-mission`, #537).
+std::string ownAllCampaignFile()
+{
+    const std::string dir = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/world/";
+    return writeTemp("{\n"
+                     "  \"syndicate\": \"Riverside Combine\", \"startingFunds\": 1000,\n"
+                     "  \"world\": \"" +
+                     dir +
+                     "world.json\",\n"
+                     "  \"research\": \"" +
+                     dir +
+                     "research.json\",\n"
+                     "  \"equipment\": \"" +
+                     dir +
+                     "equipment.json\",\n"
+                     "  \"winCondition\": \"own-all-territories\"\n"
                      "}");
 }
 
@@ -306,13 +329,20 @@ FOSSYND_TEST(Campaign, SelectedCeilingsFollowTheSquadAndSumPerBar)
 FOSSYND_TEST(Campaign, ShippedCampaignCanBeWonByClaimingTheFrontier)
 {
     // The Definition of Done requires the loop to reach an end state. That is only
-    // possible if every non-player territory can actually be attacked, which in
-    // turn needs a mission on it and a player-held neighbour. Walk the real loop
-    // (deploy -> win -> claim) until the map is won, so a data file that leaves the
-    // campaign unwinnable fails here instead of in a playtest.
+    // possible if the terminal region can actually be attacked, which in turn
+    // needs a mission on it and a player-held neighbour. Walk the real loop
+    // (deploy -> win -> claim) until the campaign ends, so a data file that leaves
+    // the campaign unwinnable fails here instead of in a playtest.
+    //
+    // Since #537 the shipped data wins by the *final confrontation* (region 9
+    // Sinara, the `conclave` board), not by owning the whole map, so the loop
+    // stops the moment the terminal mission is won — with neutrals still on the
+    // map. The win must therefore come *from* that mission.
     Campaign campaign = loadedCampaign();
     const int player = Campaign::kPlayerSyndicate;
     const std::size_t total = campaign.map().size();
+    FOSSYND_CHECK_EQ(campaign.winCondition(), std::string("final-mission"));
+    FOSSYND_CHECK_EQ(campaign.finalMission(), std::string("conclave"));
 
     for (std::size_t guard = 0;
          guard < total * 4 && campaign.state() == CampaignState::Running; ++guard)
@@ -335,21 +365,36 @@ FOSSYND_TEST(Campaign, ShippedCampaignCanBeWonByClaimingTheFrontier)
         }
     }
 
-    FOSSYND_CHECK_EQ(campaign.map().territoriesOwnedBy(player).size(), total);
     FOSSYND_CHECK(campaign.state() == CampaignState::Won);
+    FOSSYND_CHECK(campaign.wonFinalConfrontation());
+    // The win came from the terminal mission, not from owning the map: the
+    // frontier loop stops the instant region 9 is claimed, leaving its
+    // higher-numbered neighbours neutral.
+    FOSSYND_CHECK(campaign.map().territoriesOwnedBy(player).size() < total);
 }
 
 FOSSYND_TEST(Campaign, RecordResultClaimsAndEvaluatesEndState)
 {
+    // These exercise the `own-all-territories` rule directly, so they load a
+    // temp campaign that forces it: the shipped data now ships `final-mission`
+    // (#537), under which owning the map is *not* a win.
     // Win: the player owns every territory.
     {
-        Campaign campaign = loadedCampaign();
+        const std::string path = ownAllCampaignFile();
+        Campaign campaign;
+        std::string error;
+        FOSSYND_CHECK(Campaign::loadFromFile(path, campaign, error));
+        FOSSYND_CHECK(error.empty());
+        std::remove(path.c_str());
+        FOSSYND_CHECK_EQ(campaign.winCondition(), std::string("own-all-territories"));
         for (TerritoryId id = 0; id < static_cast<TerritoryId>(campaign.map().size()); ++id)
         {
             campaign.map().setOwner(id, Campaign::kPlayerSyndicate);
         }
         campaign.recordResult(true, Campaign::kPlayerSyndicate);
         FOSSYND_CHECK(campaign.state() == CampaignState::Won);
+        // Owning the map is an ordinary victory, not a final confrontation.
+        FOSSYND_CHECK(!campaign.wonFinalConfrontation());
     }
 
     // Loss: every territory is owned, none neutral, and the player owns only one.
@@ -373,9 +418,16 @@ FOSSYND_TEST(Campaign, FinishedCampaignIsTerminal)
     const int player = Campaign::kPlayerSyndicate;
 
     // A win locks the campaign: canDeployTo refuses, recordResult is a no-op,
-    // and tick stops advancing the economy.
+    // and tick stops advancing the economy. Uses the `own-all-territories` rule
+    // (the shipped data ships `final-mission` since #537) so a direct map
+    // ownership sweep can win.
     {
-        Campaign campaign = loadedCampaign();
+        const std::string path = ownAllCampaignFile();
+        Campaign campaign;
+        std::string error;
+        FOSSYND_CHECK(Campaign::loadFromFile(path, campaign, error));
+        FOSSYND_CHECK(error.empty());
+        std::remove(path.c_str());
         for (TerritoryId id = 0; id < static_cast<TerritoryId>(campaign.map().size()); ++id)
         {
             campaign.map().setOwner(id, player);
@@ -504,8 +556,10 @@ FOSSYND_TEST(Campaign, TheMapUsesTheWholeMissionSetNotJustTheDemo)
     }
 
     // #519: regions 2/3/7 were repointed at the #511 frontier missions, so the
-    // map now names eight distinct boards.
-    FOSSYND_CHECK_EQ(used.size(), std::size_t{8}); // demo, escort, blackout, assembly, overpass, holdout, caravan, relay
+    // map now names eight distinct boards. #537 repointed region 9 from the
+    // ordinary `overpass` to the dedicated terminal `conclave` board, so the set
+    // is: demo, escort, blackout, assembly, conclave, holdout, caravan, relay.
+    FOSSYND_CHECK_EQ(used.size(), std::size_t{8});
     // Every id named by the map must also be in the campaign's shipped list.
     for (const std::string& id : used)
     {
@@ -655,6 +709,39 @@ FOSSYND_TEST(Campaign, ShippedCampaignNamesAFinalMissionInItsMissionList)
     FOSSYND_CHECK(listed);
 }
 
+FOSSYND_TEST(Campaign, ShippedFinalMissionIsCarriedByARegion)
+{
+    // #537: naming a `finalMission` in `campaign.json` is not enough — a region
+    // must actually carry that `missionId`, or no deployment can ever select it
+    // and the campaign is unwinnable (the "landed but never wired in" trap).
+    // The terminal board must also be reachable through the real frontier rule,
+    // not walled off behind an unreachable region.
+    Campaign campaign = loadedCampaign();
+    FOSSYND_CHECK_EQ(campaign.winCondition(), std::string("final-mission"));
+
+    TerritoryId carrier = -1;
+    for (const Territory& territory : campaign.map().territories())
+    {
+        if (territory.missionId == campaign.finalMission())
+        {
+            carrier = territory.id;
+            break;
+        }
+    }
+    FOSSYND_CHECK(carrier >= 0);
+    if (carrier < 0)
+    {
+        return; // no carrier: the checks below would dereference a missing region
+    }
+    // A deep region, so the climax is earned: the carrier is not adjacent to the
+    // home region and must be reached by claiming territory first.
+    FOSSYND_CHECK(carrier != 0);
+    for (const TerritoryId neighbour : campaign.map().find(carrier)->neighbours)
+    {
+        FOSSYND_CHECK(neighbour != 0);
+    }
+}
+
 FOSSYND_TEST(Campaign, WinningTheFinalMissionEndsTheCampaign)
 {
     // A `final-mission` campaign is won by winning *that* mission, independent of
@@ -670,8 +757,8 @@ FOSSYND_TEST(Campaign, WinningTheFinalMissionEndsTheCampaign)
     std::remove(path.c_str());
 
     const int player = Campaign::kPlayerSyndicate;
-    // "overpass" is the shipped mission on a far neutral region (Sinara).
-    // Find it via the map rather than hard-coding the index.
+    // The shipped terminal board (`conclave`) sits on region 9 Sinara, a deep
+    // neutral. Find it via the map rather than hard-coding the index.
     TerritoryId finalTerritory = -1;
     for (const Territory& territory : campaign.map().territories())
     {
@@ -751,11 +838,34 @@ FOSSYND_TEST(Campaign, ANonFinalWinDoesNotEndAFinalMissionCampaign)
 
 FOSSYND_TEST(Campaign, OwnAllTerritoriesWinIsNotAFinalConfrontation)
 {
-    // Under the shipped `own-all-territories` rule the campaign is won by owning
-    // the map; even though the shipped data also names a final mission, the win
-    // did not come *from* the final confrontation, so the screen must show the
-    // ordinary victory panel (issue #456).
-    Campaign campaign = loadedCampaign();
+    // The `own-all-territories` rule wins by owning the map, and that is not a
+    // final confrontation even when the campaign also names a final mission, so
+    // the screen must show the ordinary victory panel (issue #456). The shipped
+    // data ships `final-mission` since #537, so this loads a temp campaign that
+    // forces the own-all rule (with a named finalMission) to test it.
+    const std::string dir = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/world/";
+    const std::string path = writeTemp(
+        "{\n"
+        "  \"syndicate\": \"Riverside Combine\", \"startingFunds\": 1000,\n"
+        "  \"world\": \"" +
+        dir +
+        "world.json\",\n"
+        "  \"research\": \"" +
+        dir +
+        "research.json\",\n"
+        "  \"equipment\": \"" +
+        dir +
+        "equipment.json\",\n"
+        "  \"missions\": [\"conclave\"],\n"
+        "  \"winCondition\": \"own-all-territories\", \"finalMission\": \"conclave\"\n"
+        "}");
+
+    Campaign campaign;
+    std::string error;
+    FOSSYND_CHECK(Campaign::loadFromFile(path, campaign, error));
+    FOSSYND_CHECK(error.empty());
+    std::remove(path.c_str());
+
     const int player = Campaign::kPlayerSyndicate;
     for (TerritoryId id = 0; id < static_cast<TerritoryId>(campaign.map().size()); ++id)
     {
