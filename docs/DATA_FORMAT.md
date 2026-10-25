@@ -226,6 +226,16 @@ edited once and referenced by id instead of copied into every mission
 
 - Each entry needs a non-empty **`id`**, unique within its file; a duplicate or
   missing id is a readable error.
+- **Weapon stats trade sustained DPS against reach and per-shot punch** (issue
+  #539). A gun's `damage * fireRate * accuracy` is its *close-quarters* output:
+  a short-ranged weapon may out-DPS a longer-ranged one, because it must close
+  the distance to fire at all. The catalogue's extremes are the flamethrower
+  (shortest range, highest DPS) and the sniper (longest range, lowest DPS), and
+  the tier-1 `minigun` deliberately out-DPSes every higher-tier rifle it is an
+  upgrade *from* — the rifles pay for reach and per-shot damage instead. So the
+  ladder is coherent on **price** (`damage * range`, `docs/BALANCE.md` §4) even
+  though DPS does not rise with tier. Pinned by
+  `tests/test_content_validation.cpp` — `ShippedDpsTradesAgainstRange`.
 - A weapon entry takes the same fields as an inline `weapon` object (plus `id`),
   including an optional **`fuseSeconds`** (`>= 0`, default `0` = immediate). A
   weapon with `fuseSeconds > 0` **arms** on impact and **detonates** after the

@@ -813,6 +813,65 @@ FOSSYND_TEST(ContentValidation, ShippedMetagameWeaponsLoad)
     FOSSYND_CHECK(dps(*railgun) < dps(*flamethrower));
 }
 
+// The catalogue trades sustained DPS for reach and per-shot punch: a short-
+// ranged gun may out-DPS a longer-ranged one, because it must close the distance
+// to fire at all. This pins the *intended* relationship behind issue #539 — the
+// tier-1 `minigun` (range 6) has a higher raw DPS than every higher-tier rifle,
+// and that is its close-quarters niche, not a defect. The ladder's *price* axis
+// (`damage * range`, docs/BALANCE.md §4) already rises with the gun, so the two
+// axes are coherent once the DPS trade-off is stated. This guard fails if a
+// later edit "fixes" the minigun by lowering its rate so DPS rises with tier,
+// re-opening the decision instead of letting it drift silently.
+FOSSYND_TEST(ContentValidation, ShippedDpsTradesAgainstRange)
+{
+    const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/weapons.json";
+    WeaponCatalogue catalogue;
+    bool found = false;
+    std::string error;
+    FOSSYND_CHECK(catalogue.loadFromFile(path, found, error));
+    FOSSYND_CHECK(found);
+
+    const Weapon* rifle = catalogue.find("rifle");
+    const Weapon* minigun = catalogue.find("minigun");
+    const Weapon* gauss = catalogue.find("gauss");
+    const Weapon* longshot = catalogue.find("longshot");
+    const Weapon* railgun = catalogue.find("railgun");
+    const Weapon* flamethrower = catalogue.find("flamethrower");
+    const Weapon* sniper = catalogue.find("sniper");
+    FOSSYND_CHECK(rifle != nullptr);
+    FOSSYND_CHECK(minigun != nullptr);
+    FOSSYND_CHECK(gauss != nullptr);
+    FOSSYND_CHECK(longshot != nullptr);
+    FOSSYND_CHECK(railgun != nullptr);
+    FOSSYND_CHECK(flamethrower != nullptr);
+    FOSSYND_CHECK(sniper != nullptr);
+    if (rifle == nullptr || minigun == nullptr || gauss == nullptr || longshot == nullptr ||
+        railgun == nullptr || flamethrower == nullptr || sniper == nullptr)
+    {
+        return;
+    }
+
+    // Reach and per-shot punch both rise with tier ...
+    FOSSYND_CHECK(minigun->range < gauss->range);
+    FOSSYND_CHECK(gauss->range < longshot->range);
+    FOSSYND_CHECK(minigun->damage < gauss->damage);
+    FOSSYND_CHECK(gauss->damage < longshot->damage);
+    FOSSYND_CHECK(longshot->damage < railgun->damage);
+
+    // ... while sustained DPS does *not*: the cheap short-range spray out-DPSes
+    // every longer, harder-hitting rifle it is an upgrade *from*.
+    const auto dps = [](const Weapon& w) { return w.damage * w.fireRate * w.accuracy; };
+    FOSSYND_CHECK(dps(*minigun) > dps(*gauss));
+    FOSSYND_CHECK(dps(*minigun) > dps(*longshot));
+    FOSSYND_CHECK(dps(*minigun) > dps(*railgun));
+
+    // The two extremes of the same trade-off: the flamethrower is the shortest-
+    // ranged and highest-DPS gun, the sniper the longest-ranged and lowest-DPS.
+    FOSSYND_CHECK(flamethrower->range < rifle->range);
+    FOSSYND_CHECK(sniper->range > railgun->range);
+    FOSSYND_CHECK(dps(*flamethrower) > dps(*sniper));
+}
+
 // The #446 time bomb is the last weapon family the Definition of Done names
 // (`docs/ROADMAP.md`). The sim has no fuse/delay yet, so it ships as the
 // closest existing model: a high-damage area weapon. This pins that shape so a
