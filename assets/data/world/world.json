@@ -9,7 +9,7 @@
     { "id": 6,  "name": "Zambara",   "neighbours": [5, 8],        "owner": -1, "missionId": "assembly" },
     { "id": 7,  "name": "Andura",    "neighbours": [0, 11],       "owner": -1, "missionId": "relay" },
     { "id": 8,  "name": "Indara",    "neighbours": [4, 6, 9, 10], "owner": -1, "missionId": "escort" },
-    { "id": 9,  "name": "Sinara",    "neighbours": [8, 10],       "owner": -1, "missionId": "overpass" },
+    { "id": 9,  "name": "Sinara",    "neighbours": [8, 10],       "owner": -1, "missionId": "conclave" },
     { "id": 10, "name": "Sundara",   "neighbours": [8, 9, 11],    "owner": -1, "missionId": "blackout" },
     { "id": 11, "name": "Pelagia",   "neighbours": [7, 10],       "owner": -1, "missionId": "escort" }
   ]
