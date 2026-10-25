@@ -408,7 +408,6 @@ void Game::buildMission()
         core::i18n::localizeMissionText(lang_, core::i18n::missionNameKey(missionId), data.name);
     missionName_ = localizedName;
     missionNameLocalized_ = !localizedName.empty() && localizedName != data.name;
-
     selected_.clear();
     for (std::size_t i = 0; i < mission_.agents().size(); ++i)
     {
@@ -2145,6 +2144,19 @@ bool Game::campaignKeySelfTest()
     return true;
 }
 
+std::string Game::weaponDisplayName(const core::Weapon& weapon) const
+{
+    // A catalogue weapon carries its id, so prefer the localised key; an inline
+    // weapon (empty id) or a locale with no `weapon.<id>.name` key falls back to
+    // the authored name via `tr`, so the HUD never renders blank (#534/#557).
+    const std::string key = core::i18n::weaponNameKey(weapon.id);
+    if (key.empty())
+    {
+        return weapon.name;
+    }
+    return tr(key.c_str(), weapon.name.c_str());
+}
+
 bool Game::languageSelfTest() const
 {
     // The table must have loaded (from the external file or the embedded copy).
@@ -2190,6 +2202,30 @@ bool Game::languageSelfTest() const
     if (row.find('{') != std::string::npos || row.find("Ada") == std::string::npos)
     {
         std::fprintf(stderr, "language self-test: substitution failed ('%s')\n", row.c_str());
+        return false;
+    }
+
+    // A catalogue weapon's HUD name must resolve through `weapon.<id>.name`
+    // (issue #534/#557), so a localised run shows the locale's name, not the
+    // authored English one. The authored name is deliberately wrong here so a
+    // fallback cannot masquerade as a resolved key.
+    core::Weapon catalogueWeapon;
+    catalogueWeapon.id = "rifle";
+    catalogueWeapon.name = "AUTHORED-NAME-SHOULD-NOT-SHOW";
+    const std::string localised = weaponDisplayName(catalogueWeapon);
+    if (localised.empty() || localised == catalogueWeapon.name)
+    {
+        std::fprintf(stderr, "language self-test: weapon name did not resolve ('%s')\n",
+                     localised.c_str());
+        return false;
+    }
+    // A weapon with no id (an inline one) must fall back to its authored name —
+    // never blank.
+    core::Weapon inlineWeapon;
+    inlineWeapon.name = "Authored Gun"; // id stays empty
+    if (weaponDisplayName(inlineWeapon) != "Authored Gun")
+    {
+        std::fprintf(stderr, "language self-test: inline weapon name was not the fallback\n");
         return false;
     }
     return true;

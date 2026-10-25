@@ -393,6 +393,12 @@ public:
     // for the requested locale, not just that a locale file loaded.
     bool missionNameLocalized() const { return missionNameLocalized_; }
 
+    // The weapon name to show in the HUD (issue #534/#557). A weapon resolved
+    // from the shared catalogue carries its id, so its name is localised via
+    // `weapon.<id>.name`; an inline weapon (empty id) or a missing key falls back
+    // to the authored `Weapon::name`, so nothing ever renders blank.
+    std::string weaponDisplayName(const core::Weapon& weapon) const;
+
 private:
     // Looks up a localised UI string, falling back to the literal when the table
     // has no such key (an empty table therefore renders today's text).

@@ -39,6 +39,14 @@ struct Weapon
     // Deterministic; no RNG.
     float fuseSeconds = 0.0f;
 
+    // The catalogue id this weapon was resolved from (`assets/data/weapons.json`),
+    // or empty for an inline weapon or a built-in factory (`makePistol`). Additive
+    // and defaulted, so every existing construction is unchanged (Rule 3). It
+    // exists so the view can localise the HUD weapon name via
+    // `i18n::weaponNameKey(id)`; an empty id yields no key and the view falls back
+    // to `name` (issue #534/#557).
+    std::string id{};
+
     // Seconds between firing decisions by the AI (reaction cadence).
     float cooldown() const { return fireRate > 0.0f ? 1.0f / fireRate : 1.0f; }
 };
