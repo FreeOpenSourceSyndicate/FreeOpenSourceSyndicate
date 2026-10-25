@@ -61,7 +61,7 @@ std::string finalMissionCampaignFile()
                      "  \"equipment\": \"" +
                      dir +
                      "equipment.json\",\n"
-                     "  \"missions\": [\"demo\", \"escort\", \"blackout\", \"assembly\", \"overpass\"],\n"
+                     "  \"missions\": [\"demo\", \"escort\", \"blackout\", \"assembly\", \"overpass\", \"holdout\", \"caravan\", \"relay\"],\n"
                      "  \"winCondition\": \"final-mission\", \"finalMission\": \"overpass\"\n"
                      "}");
 }
@@ -503,7 +503,9 @@ FOSSYND_TEST(Campaign, TheMapUsesTheWholeMissionSetNotJustTheDemo)
         }
     }
 
-    FOSSYND_CHECK_EQ(used.size(), std::size_t{5}); // demo, escort, blackout, assembly, overpass
+    // #519: regions 2/3/7 were repointed at the #511 frontier missions, so the
+    // map now names eight distinct boards.
+    FOSSYND_CHECK_EQ(used.size(), std::size_t{8}); // demo, escort, blackout, assembly, overpass, holdout, caravan, relay
     // Every id named by the map must also be in the campaign's shipped list.
     for (const std::string& id : used)
     {
