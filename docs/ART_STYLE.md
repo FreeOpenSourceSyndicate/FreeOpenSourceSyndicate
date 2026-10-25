@@ -41,7 +41,7 @@ today where the two differ (an art slice raises it):
 | Ground tiles (floor, wall, destructible, rubble) | **32x16** | 16x8 | `assets/tiles/ground.txt` | One tile fills its diamond; the baker scales each to the 64x32 cell. A later art slice raises it. |
 | Agent (soldier) frames | **20x28** | **20x28** | `assets/sprites/agents.txt` | Front/back stand + step. The sheet's four agent frames must all be exactly this size. |
 | Props (crate, barrel) | **20x24** | 14x18 | `assets/sprites/agents.txt` | A later art slice raises them. |
-| Vehicles (car, train) | **28x24** | 14x18 | `assets/sprites/agents.txt` | A later art slice raises them. |
+| Vehicles (car, train, and their wrecks) | **28x24** | 14x18 | `assets/sprites/agents.txt` | Each vehicle bakes two frames — intact (0) and wreck (1); a later art slice raises both. |
 
 **Uniformity rule.** Every frame baked *together into one sheet* must be the
 same size — the baker rejects a ragged set. Agent frames are baked as a group of

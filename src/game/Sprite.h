@@ -49,11 +49,13 @@ public:
 
     int frameWidth() const { return frameWidth_; }
     int frameHeight() const { return frameHeight_; }
+    int frameCount() const { return frameCount_; }
 
 private:
     SDL_Texture* texture_ = nullptr;
     int frameWidth_ = 0;
     int frameHeight_ = 0;
+    int frameCount_ = 0;
     std::vector<int> anchorX_;
     std::vector<int> anchorY_;
 };

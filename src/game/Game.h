@@ -657,6 +657,16 @@ private:
         bool wreck = false;
     };
 
+    // The sheet frame a vehicle draw uses (issue #455, art slice A3): 0 = the
+    // intact vehicle, 1 = its authored wreck. Pure, so the headless guard checks
+    // the same choice the draw pass makes rather than a copy of it.
+    static constexpr int kVehicleIntactFrame = 0;
+    static constexpr int kVehicleWreckFrame = 1;
+    static int vehicleSheetFrame(bool wreck)
+    {
+        return wreck ? kVehicleWreckFrame : kVehicleIntactFrame;
+    }
+
     // Every vehicle the depth-sorted pass should draw, from the live mission
     // state. View-only: pure read of core (golden rule 4). A destroyed vehicle is
     // still drawn (as a wreck) — it stays on the board, unlike a dead agent.

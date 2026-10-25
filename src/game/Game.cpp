@@ -3692,19 +3692,10 @@ void Game::renderAgents()
             {
                 const AgentSprites::Vehicle kind = item.frame == 0 ? AgentSprites::VehicleCar
                                                                    : AgentSprites::VehicleTrain;
-                drawSpriteFrame(sprites_.vehicle(kind), 0, sx, sy);
-                if (item.wreck)
-                {
-                    // A wreck reads as a charred, darkened shell — a black veil
-                    // over the intact sprite (a sprite has no wreck frame yet).
-                    const SDL_Rect src = sprites_.vehicle(kind).frameRect(0);
-                    const int scale = kSpriteScale * zoom_;
-                    SDL_Rect rect{sx - sprites_.vehicle(kind).anchorX(0) * scale,
-                                  sy - sprites_.vehicle(kind).anchorY(0) * scale, src.w * scale,
-                                  src.h * scale};
-                    SDL_SetRenderDrawColor(renderer_, 20, 18, 16, 150);
-                    SDL_RenderFillRect(renderer_, &rect);
-                }
+                // Frame 0 is the intact vehicle, frame 1 its authored wreck (issue
+                // #455, art slice A3) — a destroyed shell the sheet bakes, not the
+                // black veil that used to be painted over the intact sprite.
+                drawSpriteFrame(sprites_.vehicle(kind), vehicleSheetFrame(item.wreck), sx, sy);
             }
             else
             {
@@ -4988,6 +4979,11 @@ bool Game::vehicleSelfTest()
             std::fprintf(stderr, "vehicle self-test: intact vehicle drawn as a wreck\n");
             return false;
         }
+        if (vehicleSheetFrame(draw.wreck) != kVehicleIntactFrame)
+        {
+            std::fprintf(stderr, "vehicle self-test: intact vehicle drew the wreck frame\n");
+            return false;
+        }
         if (draw.frame == AgentSprites::VehicleCar)
         {
             sawCar = true;
@@ -5008,6 +5004,24 @@ bool Game::vehicleSelfTest()
         return false;
     }
 
+    // Every vehicle sheet must bake a distinct wreck frame (issue #455, art slice
+    // A3): the draw pass paints frame 1 over a destroyed vehicle, so a sheet with
+    // no wreck art would draw the intact sprite or read past the texture.
+    for (int v = 0; v < AgentSprites::VehicleCount; ++v)
+    {
+        const AgentSprites::Vehicle kind = static_cast<AgentSprites::Vehicle>(v);
+        if (!sprites_.vehicle(kind).valid())
+        {
+            std::fprintf(stderr, "vehicle self-test: vehicle sheet %d did not bake\n", v);
+            return false;
+        }
+        if (sprites_.vehicle(kind).frameCount() < 2)
+        {
+            std::fprintf(stderr, "vehicle self-test: vehicle sheet %d has no wreck frame\n", v);
+            return false;
+        }
+    }
+
     // A destroyed vehicle must still draw — as a wreck, not by disappearing.
     core::Vehicle& car = mission_.vehicles().front();
     car.applyDamage(car.maxHealth() * 2.0f);
@@ -5025,6 +5039,11 @@ bool Game::vehicleSelfTest()
     if (!after.front().wreck)
     {
         std::fprintf(stderr, "vehicle self-test: destroyed vehicle not flagged as a wreck\n");
+        return false;
+    }
+    if (vehicleSheetFrame(after.front().wreck) != kVehicleWreckFrame)
+    {
+        std::fprintf(stderr, "vehicle self-test: wreck did not draw the wreck frame\n");
         return false;
     }
     return true;
