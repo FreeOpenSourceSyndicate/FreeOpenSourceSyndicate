@@ -215,12 +215,13 @@ Turn the systems into a game.
       item is **not done** until every other box in Milestone C is checked and the
       human gate opens._
 
-Shipped in **v0.9.0 "the campaign is real"**: save/load in play (CLI + `F5`/`F9`),
-sound effects, the twelve-region campaign with a distinct board per region, the
-dedicated final confrontation (`conclave`), the three regulated drug bars (with a
-HUD and a bought ceiling that reaches the deployed squad), the new-game syndicate
-name/logo, the assassinate/retrieve objective kinds (with their HUD banners),
-localised weapon names, the time bomb, and the first Syndicate Plus art slice.
+Shipped in **v0.9.0 "the campaign is real"**: save/load in play (CLI + `F5`/`F9`,
+with the recruited roster persisted, #532), sound effects, the twelve-region
+campaign with a distinct board per region, the dedicated final confrontation
+(`conclave`), the three regulated drug bars (with a HUD and a bought ceiling that
+reaches the deployed squad), the new-game syndicate name/logo, the
+assassinate/retrieve objective kinds (with their HUD banners), localised weapon
+names, the time bomb, and the first Syndicate Plus art slice.
 
 ---
 
