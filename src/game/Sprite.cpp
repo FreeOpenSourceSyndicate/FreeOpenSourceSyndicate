@@ -22,6 +22,7 @@ void SpriteSheet::destroy()
     }
     frameWidth_ = 0;
     frameHeight_ = 0;
+    frameCount_ = 0;
     anchorX_.clear();
     anchorY_.clear();
 }
@@ -37,6 +38,7 @@ bool SpriteSheet::build(SDL_Renderer* renderer, const core::BakedSheet& sheet)
     frameWidth_ = sheet.frames[0].width;
     frameHeight_ = sheet.frames[0].height;
     const int frameCount = static_cast<int>(sheet.frames.size());
+    frameCount_ = frameCount;
 
     // Lay the frames out left to right in one texture so a draw is a single
     // blit (cheap on the software renderer, AGENTS.md 1b).
@@ -180,11 +182,19 @@ bool AgentSprites::build(SDL_Renderer* renderer, const std::string& text, std::s
     // Vehicles are scenery too (issue #363): a neutral steel palette, not a team
     // colour, so a hijacked car does not recolour when its driver changes side.
     const core::SpritePalette vehiclePalette{{120, 128, 138}, {190, 198, 205}, {0, 0, 0}, {48, 54, 62}};
-    const char* const vehicleNames[] = {"car", "train"};
+    // Each vehicle sheet carries two frames: 0 = intact, 1 = wreck (issue #455,
+    // art slice A3). The wreck is a real authored frame, not the black veil the
+    // draw pass used to paint over the intact sprite. A missing wreck frame fails
+    // the bake, so the sheet is all-or-nothing (the flat-marker fallback covers a
+    // bad sheet).
+    const char* const vehicleFrames[VehicleCount][2] = {
+        {"car", "carWreck"},
+        {"train", "trainWreck"},
+    };
     for (int i = 0; i < VehicleCount; ++i)
     {
         core::BakedSheet baked;
-        std::vector<std::string> names{vehicleNames[i]};
+        const std::vector<std::string> names{vehicleFrames[i][0], vehicleFrames[i][1]};
         if (!core::bakeSheet(text, vehiclePalette, names, baked, error, /*requireAnchor=*/false))
         {
             destroy();
