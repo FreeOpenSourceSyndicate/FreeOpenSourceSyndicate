@@ -2561,3 +2561,53 @@ ever wants it gone, the delete is a self-contained removal of the three regexes,
     self-review (`AGENTS.md` §3a).
 
 ---
+
+## ADR-0045 — The v1.0.0 size target is the whole game (~60 MiB), not a tiny binary
+
+- **Status:** Accepted (2026-10-25) — v1.0.0 scope, maintainer directive
+- **Date:** 2026-10-25
+- **Context:** ADR-0008 created the low-spec profile for very old hardware, and
+  over time `scripts/check-size.sh` grew a strict **stripped-binary cap** (384 KiB
+  today; raised repeatedly 288 -> 336 -> 352 -> 384 KiB). That cap has become a
+  planning constraint that shapes design — it drove the section-GC + LTO work of
+  #512 and can fail `main` on a 2 KiB step. The maintainer has ruled this is
+  **too extreme**: *"A low spec limit of 384 KiB for the binary seems a little
+  extreme. While the game has to be able to run on low spec machines, it's
+  perfectly fine to target only computers from this millennium."* The reference
+  is the *Syndicate Plus* GOG install — **57 MiB including DOSBox**: *"If the game
+  is in a similar ball park, we are fine. We only need a low spec version, if we
+  significantly exceed 60 MiB for the whole game."*
+- **Options:**
+  1. **Keep the 384 KiB binary cap.** Rejected: the maintainer says it is extreme
+     and it distorts priorities; the real target is a playable game on 2000s+
+     hardware, not a 1990s footprint.
+  2. **Drop all size discipline.** Rejected: a heavy dependency (say a 100 MiB
+     framework) should still fail loudly. Keep a generous ceiling.
+  3. **Re-scope the gate to the whole game at ~60 MiB.** Chosen.
+- **Decision:** Option 3.
+  - The **v1.0.0 size target is the whole shipped game <= ~60 MiB** (binary +
+    assets + docs) — the *Syndicate Plus* ballpark. This is a **ceiling with wide
+    headroom**, not a micro-optimisation target.
+  - The **low-spec profile (ADR-0008) stands**: `-DFOSSYND_LOW_SPEC=ON` /
+    `--low-spec` still select a small window and the SDL software renderer, so old
+    hardware can run it. What is retired is the **384 KiB stripped-binary cap** as
+    the pass/fail bar.
+  - `scripts/check-size.sh` is re-scoped to measure the **whole game** (the
+    installed/package size) against `~60 MiB`, so a heavy dependency still fails
+    loudly. A much looser per-binary sanity cap may remain as a **warning**, but
+    must not fail `main`.
+  - "We only need a low-spec version if we significantly exceed 60 MiB" means the
+    low-spec **build profile** is no longer mandatory while the whole game fits
+    the ceiling; it remains available (and CI may still build it), but its *size*
+    is no longer the gate.
+- **Consequences:**
+  - `docs/BUILD.md`'s "binary-size budget" section is re-framed to the whole-game
+    ceiling (Release lane; #513).
+  - Platform owns the gate change (FOCUS_AREAS §2, Platform lane).
+  - The `low_spec_binary_size` ctest and the CI low-spec size step are
+    **re-scoped, not deleted** — they should guard the whole-game ceiling.
+  - Richer art (ADR-0044) no longer fights a 384 KiB budget; the headroom exists
+    for Plus-fidelity assets. The per-frame cost rules (AGENTS.md §1b) still hold.
+  - No gameplay or determinism change; this is a build/packaging policy.
+
+---
