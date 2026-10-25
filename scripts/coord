@@ -485,6 +485,25 @@ def list_leases(cwd: Optional[str] = None) -> list[Lease]:
     return leases
 
 
+def helper_lease_areas(agent: str, issue: int, exclude_area: str,
+                       at: Optional[int] = None) -> list[str]:
+    """Other live areas `agent` already holds for `issue`.
+
+    A second area for the same issue is a **helper lease**: legitimate while the
+    edit is in flight, but it must be released at commit time (FOCUS_AREAS
+    5.1.5).  Two live leases for one issue fail `coord check`, and that gate is
+    fleet-wide, so the trap reddens every open PR until a peer notices.  Callers
+    warn at claim time to make the trap loud when it is set (issue #561).
+    """
+    if at is None:
+        at = now()
+    return [
+        lease.area for lease in list_leases()
+        if lease.is_live(at) and lease.agent == agent and lease.issue == issue
+        and lease.area != exclude_area
+    ]
+
+
 def fetch_ledger(cwd: Optional[str] = None, *, required: bool = False) -> None:
     """Refresh the remote lease refs into the local namespace.
 
@@ -1329,6 +1348,18 @@ def cmd_claim(args: argparse.Namespace) -> int:
           f"(expires {iso(lease.expires)}, ttl {human_delta(ttl)})")
     if args.branch:
         print(f"branch: {args.branch}")
+
+    # Warn when this claim sets the helper-lease trap (issue #561): the same
+    # agent now holds this issue in two areas, so `coord check` will fail
+    # fleet-wide until the helper lane is released at commit time (5.1.5).
+    others = helper_lease_areas(args.agent, issue, area, at=at)
+    if others:
+        print(
+            f"warning: you also hold {', '.join(others)}/#{issue}; that is a "
+            f"helper lease - release it at commit time "
+            f"(FOCUS_AREAS 5.1.5) or `coord check` fails for the whole fleet.",
+            file=sys.stderr,
+        )
     return 0
 
 
