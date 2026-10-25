@@ -2691,9 +2691,15 @@ ever wants it gone, the delete is a self-contained removal of the three regexes,
     (AGENTS.md 1b); richer *authored* art must not add per-frame cost beyond the
     existing blit pass.
 - **Consequences:**
-  - **ADR-0009 still stands** (pixel art, no modernisation); this ADR only moves
-    the *fidelity bar* from base-1993 to Plus. Do not read it as permission for
-    vector art or QoL changes.
+  - **ADR-0009's pixel-art decision stands; this ADR supersedes only its
+    "higher-fidelity rendering is out of scope for v1.0.0" clause** — that clause
+    fenced the *base-1993 chunky* look, and the maintainer has moved the fidelity
+    bar to Plus (still pixel art, still the original's look). Everything else in
+    ADR-0009 and ADR-0024 is untouched: no vector/high-res art, no modernisation,
+    no quality-of-life changes. **The prose in `AGENTS.md` §1 and golden rule 8
+    still says "chunky"; reconciling that wording is the SM's `rules` issue
+    #508** — until it lands, this ADR and that prose disagree and #508 is the
+    fix. Do not read this ADR as permission for vector art or QoL changes.
   - **`docs/ASSETS.md`** gains the Plus-fidelity note and the new asset rows;
     `docs/ART_STYLE.md` (if added) records the palette/size rules so slices stay
     consistent.
