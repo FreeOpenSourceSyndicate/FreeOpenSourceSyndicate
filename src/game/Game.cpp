@@ -128,6 +128,19 @@ bool pushWheel(int y)
     return SDL_PushEvent(&event) == 1;
 }
 
+// Queues a synthetic text-input event so a headless self-test can drive the
+// new-game screen's real `SDL_TEXTINPUT` path (issue #447). Returns false if SDL
+// rejects it.
+bool pushTextInput(const char* text)
+{
+    SDL_Event event;
+    SDL_zero(event);
+    event.type = SDL_TEXTINPUT;
+    event.text.type = SDL_TEXTINPUT;
+    std::snprintf(event.text.text, sizeof(event.text.text), "%s", text);
+    return SDL_PushEvent(&event) == 1;
+}
+
 } // namespace
 
 Game::~Game()
@@ -232,6 +245,20 @@ bool Game::init(int width, int height, bool headless, bool lowSpec)
     titleCardActive_ = showTitleCard_;
     titleCardTime_ = 0.0f;
     titleCardStartRequested_ = false;
+
+    // The new-game screen (issue #447) opens after the title card, or straight
+    // away in a run with no card (a headless/`--new-game` run).
+    if (showNewGame_)
+    {
+        if (titleCardActive_)
+        {
+            newGame_.setPending(true);
+        }
+        else
+        {
+            openNewGameScreen();
+        }
+    }
 
     // Sound effects (issue #423, ADR-0040). Never fatal: a missing device leaves
     // audio a silent no-op and the game runs. A headless run opens no device at
@@ -2501,6 +2528,43 @@ void Game::handleEvents(bool& running)
     SDL_Event event;
     while (SDL_PollEvent(&event) != 0)
     {
+        // The new-game screen (issue #447) is modal: it owns text input and its
+        // own keys, and freezes everything else while it is up. It must run before
+        // the title card, because the card hands off to it.
+        if (newGame_.active())
+        {
+            if (event.type == SDL_QUIT)
+            {
+                running = false;
+            }
+            else if (event.type == SDL_TEXTINPUT)
+            {
+                newGame_.appendText(event.text.text);
+            }
+            else if (event.type == SDL_KEYDOWN)
+            {
+                const int sym = event.key.keysym.sym;
+                if (sym == SDLK_ESCAPE)
+                {
+                    running = false;
+                }
+                else if (sym == SDLK_F11)
+                {
+                    // Fullscreen toggle works here too (issue #194).
+                    toggleFullscreen();
+                }
+                else if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER)
+                {
+                    confirmNewGameScreen();
+                }
+                else
+                {
+                    newGame_.handleKey(sym);
+                }
+            }
+            continue;
+        }
+
         // While the title card is up, the first key or click starts the mission
         // instead of issuing orders.
         if (titleCardActive_)
@@ -2807,6 +2871,14 @@ void Game::handleEvents(bool& running)
 
 void Game::update(float frameSeconds)
 {
+    // The new-game screen (issue #447) is modal: freeze the board and only advance
+    // its caret blink, exactly like the title card.
+    if (newGame_.active())
+    {
+        newGame_.update(frameSeconds);
+        return;
+    }
+
     if (titleCardActive_)
     {
         titleCardTime_ += frameSeconds;
@@ -2815,6 +2887,12 @@ void Game::update(float frameSeconds)
         if (titleCardStartRequested_ || titleCardTime_ >= 6.0f)
         {
             titleCardActive_ = false;
+            // The card hands off to the new-game screen when one was requested
+            // (issue #447), so the player names the syndicate before playing.
+            if (newGame_.pending())
+            {
+                openNewGameScreen();
+            }
         }
         return;
     }
@@ -4192,6 +4270,156 @@ void Game::renderCampaignScreen()
     campaign_.render(renderer_, font_, screenWidth_, screenHeight_);
 }
 
+void Game::openNewGameScreen()
+{
+    if (!campaign_.valid())
+    {
+        // No identity to seed from: stay out of the way so the tactical game runs
+        // (AGENTS.md §1b). Clear the pending flag so the card does not retry.
+        newGame_.close();
+        return;
+    }
+    newGame_.begin(campaign_.syndicateName(), campaign_.syndicateLogos(), campaign_.syndicateLogo());
+    // The first text input in the tree: enable SDL text events while the field is
+    // up, or the OS never generates SDL_TEXTINPUT (a no-op on the dummy driver).
+    SDL_StartTextInput();
+}
+
+void Game::confirmNewGameScreen()
+{
+    // Hand the player's choice to the campaign through the frozen #445 setters
+    // (the rules live in the core), then start play.
+    campaign_.applySyndicateIdentity(newGame_.name(), newGame_.logo());
+    newGame_.close();
+    SDL_StopTextInput();
+    updateWindowTitle();
+}
+
+void Game::renderNewGameScreen()
+{
+    if (!newGame_.active())
+    {
+        return;
+    }
+    newGame_.render(renderer_, font_, screenWidth_, screenHeight_);
+}
+
+bool Game::newGameSelfTest()
+{
+    // The decision logic is window-free (NewGameScreen::selfTest); the engine adds
+    // the real apply-to-campaign path on top, so the guard fails if the choice
+    // never reaches the campaign.
+    if (!NewGameScreen::selfTest())
+    {
+        return false;
+    }
+    if (!campaign_.valid())
+    {
+        std::fprintf(stderr, "new-game self-test: no campaign loaded\n");
+        return false;
+    }
+
+    // Drive the real dispatch: clear the seeded field, type a fresh name, cycle
+    // the logo once, and confirm with Enter.
+    const std::string savedName = campaign_.syndicateName();
+    const std::string savedLogo = campaign_.syndicateLogo();
+
+    openNewGameScreen();
+    if (!newGame_.active())
+    {
+        std::fprintf(stderr, "new-game self-test: the screen did not open\n");
+        return false;
+    }
+
+    bool alive = true;
+    {
+        SDL_Event drain;
+        while (SDL_PollEvent(&drain) != 0)
+        {
+        }
+    }
+
+    // Key isolation (the #364 trap): while the new-game screen is modal it freezes
+    // the board, so a tactical hotkey must be swallowed — a leaked restart/pause/
+    // gadget/select would mutate a board the player cannot see. Fingerprint the
+    // state a leaked key would touch and confirm it does not move.
+    auto boardFingerprint = [&]() {
+        const core::Vec2 p = mission_.agents().empty() ? core::Vec2{} : mission_.agents().front().position();
+        char buf[160];
+        std::snprintf(buf, sizeof(buf), "%llu|%d|%d|%.2f|%.2f|%.2f,%.2f|%zu",
+                      static_cast<unsigned long long>(seed_), paused_ ? 1 : 0, zoom_, cameraX_,
+                      cameraY_, p.x, p.y, selected_.size());
+        return std::string(buf);
+    };
+    const std::string boardBefore = boardFingerprint();
+    const int leakedKeys[] = {SDLK_r, SDLK_SPACE, SDLK_h, SDLK_a, SDLK_p, SDLK_f, SDLK_1, SDLK_5};
+    for (int sym : leakedKeys)
+    {
+        if (!pushKeyDown(sym))
+        {
+            std::fprintf(stderr, "new-game self-test: could not push a key event\n");
+            newGame_.close();
+            campaign_.applySyndicateIdentity(savedName, savedLogo);
+            return false;
+        }
+        handleEvents(alive);
+        if (boardFingerprint() != boardBefore)
+        {
+            std::fprintf(stderr, "new-game self-test: key sym %d leaked onto the frozen board\n", sym);
+            newGame_.close();
+            campaign_.applySyndicateIdentity(savedName, savedLogo);
+            return false;
+        }
+    }
+
+    for (std::size_t i = 0; i < NewGameScreen::kMaxNameLength + 2; ++i)
+    {
+        if (!pushKeyDown(SDLK_BACKSPACE))
+        {
+            std::fprintf(stderr, "new-game self-test: could not push a backspace\n");
+            campaign_.applySyndicateIdentity(savedName, savedLogo);
+            return false;
+        }
+    }
+    if (!pushTextInput("ACME") || !pushKeyDown(SDLK_RIGHT) || !pushKeyDown(SDLK_RETURN))
+    {
+        std::fprintf(stderr, "new-game self-test: could not push an event\n");
+        campaign_.applySyndicateIdentity(savedName, savedLogo);
+        return false;
+    }
+    handleEvents(alive);
+    if (!alive)
+    {
+        std::fprintf(stderr, "new-game self-test: an event quit the game\n");
+        campaign_.applySyndicateIdentity(savedName, savedLogo);
+        return false;
+    }
+    // The screen must be down and the campaign must carry the typed name. The
+    // logo is whatever the campaign's first id is after one Right from its seed.
+    if (newGame_.active())
+    {
+        std::fprintf(stderr, "new-game self-test: Enter did not close the screen\n");
+        campaign_.applySyndicateIdentity(savedName, savedLogo);
+        return false;
+    }
+    if (campaign_.syndicateName() != "ACME")
+    {
+        std::fprintf(stderr, "new-game self-test: the name did not reach the campaign\n");
+        campaign_.applySyndicateIdentity(savedName, savedLogo);
+        return false;
+    }
+    if (campaign_.syndicateLogo().empty())
+    {
+        std::fprintf(stderr, "new-game self-test: the logo did not reach the campaign\n");
+        campaign_.applySyndicateIdentity(savedName, savedLogo);
+        return false;
+    }
+
+    // Leave the campaign as it was found.
+    campaign_.applySyndicateIdentity(savedName, savedLogo);
+    return true;
+}
+
 void Game::render()
 {
     SDL_SetRenderDrawColor(renderer_, 12, 13, 12, 255);
@@ -4225,6 +4453,9 @@ void Game::render()
         renderHud();
         renderMinimap();
     }
+    // The new-game screen (issue #447) draws over the frame when it is up; it is
+    // modal, so it hides the HUD/title card behind it.
+    renderNewGameScreen();
     // The campaign management screen draws over everything when it is up
     // (Milestone B). A no-op when hidden or no campaign loaded.
     renderCampaignScreen();

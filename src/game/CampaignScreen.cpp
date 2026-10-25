@@ -1063,6 +1063,19 @@ bool CampaignScreen::selfTest()
     return true;
 }
 
+void CampaignScreen::applySyndicateIdentity(const std::string& name, const std::string& logo)
+{
+    if (!valid_)
+    {
+        return;
+    }
+    // The rules live in the core (#445): an empty name clears to the authored
+    // default, and an unknown logo id falls back to the default art. This is only
+    // the engine-side hand-off.
+    campaign_.setSyndicateName(name);
+    campaign_.setSyndicateLogo(logo);
+}
+
 bool CampaignScreen::saveProgress(const std::string& path, std::string& error) const
 {
     error.clear();
