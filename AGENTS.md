@@ -46,12 +46,16 @@ name, or trademark. See `docs/LEGAL.md`.
 
 **v1.0.0 aims to reproduce the original 1993 game as closely as possible**
 within legal bounds: the same feel, the same systems, and — deliberately —
-the **same chunky pixel-art look**, because that *is* the original look and
-feel. So for v1.0.0, **prefer pixel graphics**: low-resolution raster art,
-palette-based, nearest-neighbour scaled, authored at the original's native
-scale. Vector art (e.g. SVG) and other "improved" graphics, higher-fidelity
-rendering, smoother/modern handling, and quality-of-life changes are **out of
-scope for v1.0.0** — they belong to a **v2.x.x** release or to a **fork**.
+the **original's pixel-art look**, because that *is* the original look and
+feel. The art target is **Syndicate Plus fidelity** (ADR-0044): the enhanced
+1993 release's style and detail — more detail per sprite, a wider palette,
+larger native tiles, a Plus-like UI — still authored as pixel art. So for
+v1.0.0, **prefer pixel graphics**: palette-based raster art, nearest-neighbour
+scaled, authored at the original's native scale (at Plus detail, not a
+deliberately coarse 320x200 approximation). Vector art (e.g. SVG), other
+"improved"/high-resolution rendering, smoother/modern handling, and
+quality-of-life changes are **out of scope for v1.0.0** — they belong to a
+**v2.x.x** release or to a **fork**.
 
 Rules that follow from this:
 
@@ -357,9 +361,10 @@ These are non-negotiable unless an ADR supersedes them.
    content without merge conflicts in C++.
 8. **Assets are original or explicitly licensed.** No ripped sprites, sounds,
    fonts, or names. See `docs/ASSETS.md`. **Prefer pixel art** for v1.0.0: the
-   goal is to match the original's chunky low-resolution look (§1). Author
-   sprites and tiles as low-resolution, palette-based raster images and scale
-   them nearest-neighbour. Vector/SVG art is not the v1.0.0 default; it is a
+   goal is to match the original's look at **Syndicate Plus fidelity** (§1,
+   ADR-0044) — pixel art, palette-based, nearest-neighbour scaled, but at the
+   Plus release's detail rather than a coarse base-1993 approximation. Vector/SVG
+   art and high-resolution rendering are not the v1.0.0 default; they are a
    v2.x.x (or fork) concern. Runtime-generated primitives remain the placeholder
    strategy until real pixel art exists.
 9. **Warnings are errors in spirit.** The build uses `-Wall -Wextra -Wpedantic`.
@@ -1659,3 +1664,16 @@ Do not start work outside the scope fence (ADR-0024).
   The `docs/BUILD.md`
   audio-troubleshooting note is a **Release**-owned follow-up (a Rule 4 request,
   not an edit from Platform).
+- **The v1.0.0 art target is *Syndicate Plus* fidelity (issue #508, ADR-0044).**
+  The maintainer moved the art bar from a coarse base-1993 "chunky" look to the
+  enhanced *Syndicate Plus* release's **style and detail** — more detail per
+  sprite, a wider palette, larger native tiles, a Plus-like UI — while it stays
+  **pixel art** (palette-based, nearest-neighbour, original art only). This is
+  **inside** the ADR-0024 fence: it is the original's look, not a modernisation.
+  `AGENTS.md` §1 and golden rule 8 now name the Plus target instead of "chunky",
+  and ADR-0009's status line records the **ADR-0044 amendment** (its *pixel-art*
+  decision stands; only its "higher-fidelity rendering is out of scope for
+  v1.0.0" clause is superseded). Vector/SVG art, high-resolution rendering, and
+  quality-of-life changes remain **out of scope for v1.0.0** (ADR-0009/ADR-0024).
+  `docs/ASSETS.md` still wants the Plus-fidelity note — a render/content
+  follow-up.

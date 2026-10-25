@@ -209,7 +209,12 @@ Status values: `Proposed` · `Accepted` · `Rejected` · `Superseded by ADR-NNNN
 
 ## ADR-0009 — v1.0.0 is a faithful, pixel-art reproduction; improvements are v2.x.x
 
-- **Status:** Accepted (2026-10-13)
+- **Status:** Accepted (2026-10-13); **amended by ADR-0044 (2026-10-25)** — the
+  *pixel-art* decision stands, but the **fidelity bar moves to *Syndicate Plus*
+  detail** (still pixel art, still the original's look), so this ADR's
+  "higher-fidelity rendering is out of scope for v1.0.0" clause no longer applies
+  to raising the authored pixel-art fidelity. Vector/high-resolution art and
+  modernisation remain out of scope (ADR-0024).
 - **Date:** 2026-10-13
 - **Context:** The project must decide what "done" means for v1.0.0 and how to
   treat visual and handling improvements. An earlier convention (AGENTS.md §6a)
