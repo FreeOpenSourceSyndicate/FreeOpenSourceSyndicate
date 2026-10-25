@@ -362,8 +362,11 @@ sure **no work waits and no capacity is wasted on conflicts**:
   the SM confirms and re-seeds.
 - **Drain the merge queue**: review and merge green, non-draft PRs that have
   waited (ADR-0035). A green PR sitting unmerged is the most expensive idle.
-- **Keep the backlog floor**: every critical-path area needs ≥1 open, claimable
-  issue. The fix for a stall is to **add issues, not agents** (ADR-0024).
+- **Keep scope small and stay in-lane** (ADR-0046): an agent works its one lane
+  with small, reviewable changes. The old **backlog floor** is retired — a free
+  area with no open issue is **not** a reason to file one. An empty lane is a
+  **stop**, not a signal to seed work or claim another area; new issues come from
+  the roadmap and the PO's plan (or a human).
 - **Watch for collisions**: two agents on one area is a `coord check` failure;
   resolve it by the rules, never by authority.
 - **Tune the stale window** (§6a): record run lengths and takeover outcomes on the
@@ -440,10 +443,10 @@ On this, your first call:
    the PO's duties. The PO does not start itself: the human pastes the prompt you
    write. This is your first deliverable.
 4. Then keep the machinery clean (section 7): watch the ledger, drain the merge
-   queue (merge green, non-draft PRs that have waited), keep the backlog floor,
-   and trigger the rules work yourself (coord next routes you there). Do NOT do
-   project work - platform (build/CI/packaging) and game features are other
-   agents' lanes (ADR-0041).
+   queue (merge green, non-draft PRs that have waited), keep scope small and
+   stay-in-lane (ADR-0046), and trigger the rules work yourself (coord next routes
+   you there). Do NOT do project work - platform (build/CI/packaging) and game
+   features are other agents' lanes (ADR-0041).
 
 Talk to peers directly with scripts/coord msg --to <their name> --agent
 sm-<n>-<host> --text "..." and read yours with scripts/coord inbox --agent

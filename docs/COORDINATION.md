@@ -144,7 +144,7 @@ breath.
    on the reversible path if one exists. There is **no relay** and no waiting
    silently (`docs/FOCUS_AREAS.md` §5.2).
 
-## 3a. Never idle: `coord next`
+## 3a. Staying in lane: `coord next`
 
 An agent that does not know what to do runs one command:
 
@@ -152,8 +152,9 @@ An agent that does not know what to do runs one command:
 scripts/coord next --agent "<role>-<n>-<host>"
 ```
 
-It **never prints nothing**. It walks a fixed ladder and stops at the first rung
-that applies, so there is always a next step:
+**An agent keeps its scope small and stays in its lane; an empty lane is a stop
+(ADR-0046).** `coord next` reports, in order, the only things an idle agent may
+do — and prints **stop** when none applies:
 
 1. **You hold a lease** → finish it, or `renew`/`release` it.
 1b. **You are the SM and your own lane is free** (`rules`; `docs/ORGANISATION.md`
@@ -169,22 +170,23 @@ that applies, so there is always a next step:
    commits a cycle and risks orphaning the PR that was already done. This is how
    the queue drains without a coordinator (ADR-0035). It never preempts a waiting
    blocker or the critical path (rung 2).
-4. **Any free area has an open issue** → claim the newest such issue.
-5. **The backlog is empty** → it prints the first unchecked `docs/ROADMAP.md`
-   items and tells you to **file an issue** (with a `focus: <area>` label) and
-   claim it. This is the fleet's only stop condition, and the fix is to **add
-   work, not agents** (`AGENTS.md` §1d, ADR-0024).
-6. **Every area is held** → it points at a **stale** holder to take over, or, if
-   none is stale, at the fleet's other durable job: **review and merge an open PR
-   you did not author** (`AGENTS.md` §3a).
+4. **Nothing above applies** → it prints **stop**. The agent ends its turn.
 
-Rungs 3, 5 and 6 are what make the fleet self-sustaining: even with every area
-taken, an agent is told to drain the queue, create work, or review — never to
-wait.
+Rungs 4–5 of the old ladder — "claim **any** free area's issue" and "**file a new
+issue** when the backlog is empty" — are **removed**: they pushed agents out of
+their lane and into larger scope (the helper-lease trap, five times in one shift),
+and an empty lane is a **stop**, not a signal to seed work. The fleet's only
+stop condition is now the agent's own lane being empty. (ADR-0046; the
+`scripts/coord next` code change is a `focus: platform` Rule 4.)
 
-**Only claimable work is offered.** Rungs 2 and 4 read open issues by their `focus:`
-label and skip any that are not claimable — `status: blocked` (waiting on another
-area), `question` (a human decision, §5.2), and `deferred: v2` (out of v1.0.0
+Rung 3 is what keeps the fleet's shared duty alive: even with every area taken, an
+agent is told to drain the merge queue — finished work one step from landing —
+rather than to start more. It never tells an agent to wait, and it no longer tells
+one to go find work in another lane.
+
+**Only claimable work is offered.** Rungs 1b and 2 read open issues by their
+`focus:` label and skip any that are not claimable — `status: blocked` (waiting on
+another area), `question` (a human decision, §5.2), and `deferred: v2` (out of v1.0.0
 scope, ADR-0024). A **Rule 4 request** (`status: needs-review`) is marked a
 *blocker*: another lane is *waiting* on it (§4 Rule 4), so it is offered **before**
 plain work — within its area, and across the critical path, where a waiting
