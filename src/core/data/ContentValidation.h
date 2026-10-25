@@ -41,8 +41,44 @@ struct ValidationReport
 // also names it in its `world` field; this is the default the guard reads.
 inline const char* const kWorldMapFileName = "world.json";
 
+// The region name pools' filename, under `dataDir/world/` (#509). Optional: an
+// absent file means the game assigns no names (a safe fallback), so the guard
+// tolerates it until the metagame ships values.
+inline const char* const kNamesFileName = "names.json";
+
 namespace detail
 {
+
+// The closed vocabulary of drug bars (ADR-0043), mirrored from the economy
+// loader. A ceiling must name one of these or the bar it raises is meaningless.
+inline bool isDrugBarName(const std::string& bar)
+{
+    return bar == "adrenalin" || bar == "intelligence" || bar == "physical";
+}
+
+// The embedded 5x7 font draws ASCII 32-126 only, so a name outside that range
+// renders blank. Applies to every drawable string (see AGENTS.md on the font).
+inline bool isAsciiPrintable(const std::string& text)
+{
+    for (unsigned char c : text)
+    {
+        if (c < 32 || c > 126)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// A drug bar-ceiling entry read from equipment.json (ADR-0043), held until the
+// research nodes are read so the `requiresResearch` link can be resolved.
+struct DrugEntry
+{
+    std::string id;
+    std::string bar;
+    float ceiling = 0.0f;
+    std::string requiresResearch;
+};
 
 inline bool hasJsonExtension(const std::filesystem::path& path)
 {
@@ -142,6 +178,8 @@ inline void validateWorldData(const std::filesystem::path& dir, const WeaponCata
 
     // Every equipment id, so a research `unlocks` can be resolved against it.
     std::vector<std::string> equipmentIds;
+    // Drug bar-ceilings, resolved against the research nodes once both are read.
+    std::vector<detail::DrugEntry> drugEntries;
 
     std::string text;
     std::string error;
@@ -178,10 +216,21 @@ inline void validateWorldData(const std::filesystem::path& dir, const WeaponCata
                              "' is not in the weapon catalogue (" + std::string(kWeaponsFileName) +
                              ")"});
                 }
+                if (kind == "drug")
+                {
+                    detail::DrugEntry entry;
+                    entry.id = id;
+                    entry.bar = item["bar"].asString();
+                    entry.ceiling = item["ceiling"].asFloat(0.0f);
+                    entry.requiresResearch = item["requiresResearch"].asString();
+                    drugEntries.push_back(entry);
+                }
             }
         }
     }
 
+    // Every research node id, so a drug's `requiresResearch` can be resolved.
+    std::vector<std::string> researchIds;
     const std::filesystem::path researchPath = worldDir / "research.json";
     if (detail::readFile(researchPath, text, error))
     {
@@ -200,6 +249,11 @@ inline void validateWorldData(const std::filesystem::path& dir, const WeaponCata
                 {
                     continue;
                 }
+                const std::string nodeId = node["id"].asString();
+                if (!nodeId.empty())
+                {
+                    researchIds.push_back(nodeId);
+                }
                 const std::string unlocks = node["unlocks"].asString();
                 if (unlocks.empty())
                 {
@@ -210,14 +264,49 @@ inline void validateWorldData(const std::filesystem::path& dir, const WeaponCata
                 if (std::find(equipmentIds.begin(), equipmentIds.end(), unlocks) ==
                     equipmentIds.end())
                 {
-                    const std::string id = node["id"].asString();
                     report.problems.push_back(
                         {researchPath.string(),
-                         "research node '" + id + "' unlocks '" + unlocks +
+                         "research node '" + nodeId + "' unlocks '" + unlocks +
                              "', which is not an equipment id (" + std::string("equipment.json") +
                              ")"});
                 }
             }
+        }
+    }
+
+    // A drug bar-ceiling (ADR-0043) is gated by research and names the bar it
+    // raises; the economy loader enforces the range, but the cross-file links
+    // (bar vocabulary, research gate) are this guard's job. A ceiling whose
+    // research node does not exist would be sold but never unlockable.
+    for (const detail::DrugEntry& drug : drugEntries)
+    {
+        if (!detail::isDrugBarName(drug.bar))
+        {
+            report.problems.push_back(
+                {equipmentPath.string(),
+                 "drug ceiling '" + drug.id + "' names bar '" + drug.bar +
+                     "', which is not one of 'adrenalin', 'intelligence', 'physical'"});
+        }
+        if (!(drug.ceiling > 0.0f) || drug.ceiling > 1.0f)
+        {
+            report.problems.push_back(
+                {equipmentPath.string(),
+                 "drug ceiling '" + drug.id + "' has ceiling " + std::to_string(drug.ceiling) +
+                     ", which must be greater than 0 and at most 1"});
+        }
+        if (drug.requiresResearch.empty())
+        {
+            report.problems.push_back(
+                {equipmentPath.string(),
+                 "drug ceiling '" + drug.id + "' needs a non-empty 'requiresResearch'"});
+        }
+        else if (std::find(researchIds.begin(), researchIds.end(), drug.requiresResearch) ==
+                 researchIds.end())
+        {
+            report.problems.push_back(
+                {equipmentPath.string(),
+                 "drug ceiling '" + drug.id + "' requires research '" + drug.requiresResearch +
+                     "', which is not a research node (" + std::string("research.json") + ")"});
         }
     }
 }
@@ -276,6 +365,131 @@ inline void validateWorldMapMissions(const std::filesystem::path& worldDir,
     }
 }
 
+// Cross-checks the region name pools (`dataDir/world/names.json`, #509). Each
+// pool names a territory id and a list of agent names the map may draw; nothing
+// else validated those references or the glyphs, so a typo'd region id or a
+// non-ASCII name shipped a blank label. An absent `names.json` is tolerated (the
+// game then assigns no names - a safe fallback), matching the other optional
+// world files; a present file is fully validated, including that every region in
+// `world.json` has a pool.
+inline void validateRegionNamePools(const std::filesystem::path& worldDir,
+                                    ValidationReport& report)
+{
+    const std::filesystem::path namesPath = worldDir / kNamesFileName;
+    std::string text;
+    std::string error;
+    if (!detail::readFile(namesPath, text, error))
+    {
+        return; // absent (or unreadable) name pools: the fallback, nothing to check
+    }
+
+    const Json root = Json::parse(text, error);
+    if (!error.empty())
+    {
+        report.problems.push_back({namesPath.string(), error});
+        return;
+    }
+
+    // The territory ids from world.json, so a pool can be resolved against them
+    // and a missing pool reported. Absent world.json leaves this empty.
+    std::vector<int> territoryIds;
+    std::string worldText;
+    std::string worldError;
+    const std::filesystem::path worldPath = worldDir / kWorldMapFileName;
+    if (detail::readFile(worldPath, worldText, worldError))
+    {
+        const Json world = Json::parse(worldText, worldError);
+        if (worldError.empty())
+        {
+            const Json& territories = world["territories"];
+            for (std::size_t i = 0; i < territories.size(); ++i)
+            {
+                const Json& territory = territories[i];
+                if (territory.isObject())
+                {
+                    territoryIds.push_back(territory["id"].asInt(-1));
+                }
+            }
+        }
+    }
+
+    std::vector<int> seenRegions;
+    const Json& pools = root["pools"];
+    for (std::size_t i = 0; i < pools.size(); ++i)
+    {
+        const Json& pool = pools[i];
+        if (!pool.isObject())
+        {
+            continue; // shape errors are the map loader's to report
+        }
+        const int region = pool["region"].asInt(-1);
+        if (region < 0)
+        {
+            report.problems.push_back(
+                {namesPath.string(),
+                 "name pool " + std::to_string(i) + " is missing an integer 'region'"});
+            continue;
+        }
+        if (std::find(seenRegions.begin(), seenRegions.end(), region) != seenRegions.end())
+        {
+            report.problems.push_back(
+                {namesPath.string(),
+                 "name pool for region " + std::to_string(region) + " is defined more than once"});
+            continue;
+        }
+        seenRegions.push_back(region);
+        if (!territoryIds.empty() &&
+            std::find(territoryIds.begin(), territoryIds.end(), region) == territoryIds.end())
+        {
+            report.problems.push_back(
+                {namesPath.string(),
+                 "name pool names region " + std::to_string(region) +
+                     ", which is not a territory in " + std::string(kWorldMapFileName)});
+        }
+
+        const Json& names = pool["names"];
+        if (!names.isArray() || names.size() == 0)
+        {
+            report.problems.push_back(
+                {namesPath.string(),
+                 "name pool for region " + std::to_string(region) +
+                     " must have a non-empty 'names' array"});
+            continue;
+        }
+        for (std::size_t n = 0; n < names.size(); ++n)
+        {
+            const std::string name = names[n].asString();
+            if (name.empty())
+            {
+                report.problems.push_back(
+                    {namesPath.string(),
+                     "name pool for region " + std::to_string(region) +
+                         " has an empty name"});
+            }
+            else if (!detail::isAsciiPrintable(name))
+            {
+                report.problems.push_back(
+                    {namesPath.string(),
+                     "name pool for region " + std::to_string(region) + " has name '" + name +
+                         "', which is not printable ASCII (the 5x7 font draws ASCII 32-126)"});
+            }
+        }
+    }
+
+    // Every region on the map must have a pool, so a region never ships without
+    // the names the screen draws for it.
+    for (int territory : territoryIds)
+    {
+        if (std::find(seenRegions.begin(), seenRegions.end(), territory) == seenRegions.end())
+        {
+            report.problems.push_back(
+                {namesPath.string(),
+                 "region " + std::to_string(territory) + " has no name pool (expected in " +
+                     std::string(kNamesFileName) + ")"});
+        }
+    }
+}
+
 // Loads `weapons.json`/`agents.json`/`vehicles.json` from `dataDir` (missing
 // files are fine: the catalogues stay empty), cross-checks the metagame world
 // data and the map's region→mission links, then validates every `*.json` under
@@ -315,6 +529,7 @@ inline ValidationReport validateContentDir(const std::string& dataDir)
 
     validateWorldData(dir, weapons, report);
     validateWorldMapMissions(dir / "world", dir / "missions", report);
+    validateRegionNamePools(dir / "world", report);
 
     for (const std::filesystem::path& mission : detail::sortedJsonFiles(dir / "missions"))
     {

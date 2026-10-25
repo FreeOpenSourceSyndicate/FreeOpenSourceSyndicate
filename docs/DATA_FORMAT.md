@@ -252,6 +252,79 @@ edited once and referenced by id instead of copied into every mission
   `assets/data/weapons.json`, `assets/data/agents.json`, and
   `assets/data/vehicles.json`.
 
+## Metagame world data (`assets/data/world/**`)
+
+The campaign's map, economy, research, and shop are data too (ADR-0003),
+validated by `validateContentDir` alongside the missions. `world.json` (the
+territory graph) and `campaign.json` (the balance knobs and file links) are
+described in `docs/METAGAME.md` §5; this section covers the two shapes that
+`validateContentDir` cross-checks and that a metagame data edit must respect.
+
+### Drug bar-ceilings (`equipment.json`, `research.json`)
+
+ADR-0043 replaces the single-dose `"drugs"` consumable with **three regulated
+bars** — `adrenalin`, `intelligence`, and `physical`. A shop item of
+`kind: "drug"` is a **bar ceiling**: it does not grant a charge (a gadget) or a
+one-off stat change (a cybernetic); it raises the maximum a squad member may
+regulate one bar to.
+
+```jsonc
+// assets/data/world/equipment.json
+{ "id": "adrenalin-ceiling", "kind": "drug", "name": "Adrenalin Regulator",
+  "bar": "adrenalin", "ceiling": 1.0, "cost": 700,
+  "requiresResearch": "adrenalin-ceiling" }
+```
+
+- `bar` — exactly one of `adrenalin`, `intelligence`, `physical`. A value
+  outside that vocabulary is reported: the item would raise no bar.
+- `ceiling` — the maximum level the bar may be raised to, in `(0, 1]`. A value
+  outside that range is reported.
+- `requiresResearch` — **required** and non-empty for a `drug`, and it must name
+  a real research node: a ceiling with no gate (or a gate that does not exist)
+  would be sold but never unlockable. The matching `research.json` node unlocks
+  the same equipment id, which the `unlocks` rule below already checks:
+
+```jsonc
+// assets/data/world/research.json
+{ "id": "adrenalin-ceiling", "name": "Adrenalin Regulator", "cost": 500,
+  "time": 60, "requires": [], "unlocks": "adrenalin-ceiling" }
+```
+
+The economy loader (`core/economy/Equipment.*`) also rejects a bad bar, an
+out-of-range ceiling, or a missing gate at load; the content guard is the
+**cross-file** layer, so a metagame edit that breaks the equipment↔research link
+fails `--check-content` rather than a playtest. Values are `focus: metagame`;
+the shape and its validation are `focus: content`.
+
+### Region name pools (`names.json`)
+
+Region-based agent names (#509) live in a dedicated file, `names.json` under
+`assets/data/world/`, so `world.json` stays a clean territory graph.
+`campaign.json` references it with a sibling `"names": "names.json"` key, the
+same pattern as `world`/`research`/`equipment`.
+
+```jsonc
+// assets/data/world/names.json
+{
+  "pools": [
+    { "region": 0, "names": ["Aldric", "Bram", "Corvin"] },
+    { "region": 1, "names": ["Dahlia", "Edric"] }
+  ]
+}
+```
+
+- `region` — a territory id that **must** exist in `world.json`; a pool naming an
+  unknown region is reported, and two pools for the same region are reported.
+- `names` — a **non-empty** array of **non-empty** names. Every name must be
+  printable ASCII (32–126): the embedded 5x7 font draws only that range, so a
+  non-ASCII glyph renders blank (the same rule as the string table, AGENTS.md).
+- Every region in `world.json` must have a pool, so no region ships without the
+  names the screen draws for it.
+
+**The file is optional.** An absent `names.json` is a safe fallback (the game
+assigns no names), not an error — matching the other optional world files — so
+this schema does not block #509's data landing.
+
 ## Loading
 
 ```cpp
@@ -305,10 +378,16 @@ An empty `weaponId`/`gadgetId`/`cyberneticId` (or a missing slot) keeps the
 mission's authored default, so a mission with no loadout is byte-for-byte
 unchanged. An id that is not in its catalogue is a **content error**
 (`applyLoadout` returns false), not a silent fallback. The gadget vocabulary is
-`medkit` (one heal), `shield` (one absorbed hit), `scanner` (one timed reveal of
-nearby enemies), and `drugs` (one timed speed/accuracy buff), matching the
-`kind: "gadget"` items in
+`medkit` (one heal), `shield` (one absorbed hit), and `scanner` (one timed reveal
+of nearby enemies), matching the `kind: "gadget"` items in
 `assets/data/world/equipment.json`.
+
+> **Note:** the single-dose `drugs` consumable of ADR-0028 is **retired** by
+> ADR-0043, which replaces it with three regulated drug bars and their ceilings
+> (see the "Drug bar-ceilings" section above). The shipped `equipment.json` no
+> longer sells a `drugs` gadget. `gadgetChargesForId` in
+> `src/core/sim/PlayerLoadout.h` still lists `drugs` until its tactical removal
+> lands (issue #499, `focus: tactical`); do not add new `drugs` gadgets to data.
 
 The cybernetic vocabulary (`CyberneticEffect`, `src/core/sim/Cybernetic.h`) maps
 a `kind: "cybernetic"` catalogue id to permanent stat **multipliers** applied
@@ -394,6 +473,13 @@ if (!report.ok())
   does not define (the pre-#369 `longshot`/`railgun`) would be bought and then
   make `applyLoadout` reject the **whole** squad loadout at deploy. The world
   files are optional, so a content dir that ships no campaign still validates.
+- **Drug bar-ceilings and region name pools are cross-checked too** (issue #510):
+  a `kind: "drug"` item must name a real `bar` (ADR-0043), sit in `(0, 1]`, and
+  resolve its `requiresResearch` to a real `research.json` node; and each pool in
+  `world/names.json` must name a real territory, carry a non-empty list of
+  printable-ASCII names, and cover every region in `world.json` (no duplicates).
+  An absent `names.json` is the safe fallback, not a problem. See the "Metagame
+  world data" section above for both shapes.
 - A `dataDir` with **no** catalogue files is reported, because then no mission
   reference could ever resolve — a likely misconfiguration.
 - The shipped content is covered by `tests/test_content_validation.cpp`
