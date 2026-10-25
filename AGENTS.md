@@ -852,10 +852,11 @@ Do not start work outside the scope fence (ADR-0024).
   gadgets had complete, tested core logic and reached a deployed squad through the
   loadout (`core::applyLoadout`, #311/#312), but **no hotkey activated them**, so
   the feature was unreachable — the "capability landed but never wired in" trap of
-  #99/#101. `H` uses a medkit, `S` raises a shield, `C` runs a scanner pulse, `B`
-  takes performance drugs, each on the current selection. The handlers
+  #99/#101. `H` uses a medkit, `S` raises a shield, `C` runs a scanner pulse, each
+  on the current selection. (`B` took performance drugs then; the drug consumable
+  was retired by S4 #499 — `B` now spikes a drug bar.) The handlers
   (`Game::useMedkitOnSelection`/`activateShieldOnSelection`/
-  `activateScannerOnSelection`/`useDrugsOnSelection`) iterate `selected_` and call
+  `activateScannerOnSelection`) iterate `selected_` and call
   the frozen `core::Mission` gadget API — the view picks the agents, the core
   spends the charge and decides the effect (golden rule 1/4). No core change; a
   charge-less (or civilian/dead) selection is a safe no-op. `--check-gadgets`
@@ -1004,25 +1005,25 @@ Do not start work outside the scope fence (ADR-0024).
   cyan. The overlay decision is `Game::scannerMarks()` — a pure read of the core
   state, shared by the renderer and the headless guard so the guard checks the
   real draw path. `--scan` fires a squad pulse up front (a demo hook beside
-  `--breach`) because no hotkey activates a gadget yet. `Mission::useDrugs(index)` spends
-  a dose for a `kDrugDurationSeconds` buff that multiplies movement speed by
-  `kDrugSpeedMultiplier` (multiplied in on activation, divided back out on expiry
-  in `Mission::update`) and the base hit chance by `kDrugAccuracyMultiplier`
-  (clamped to 1.0) in `resolveFire`; fire rate is untouched. Charges
-  (`scanners_`/`scannerTimer_`, `drugs_`/`drugsTimer_`) live on the **Mission**,
-  one slot per agent, kept in sync by `addAgent` — no `Agent` change. Both are
-  no-ops for a civilian, a dead agent, or when already active. Deterministic,
-  RNG-free. `gadgetChargesForId` (`PlayerLoadout.h`) accepts `"scanner"` and
-  `"drugs"`, so a bought gadget deploys like the medkit/shield.
-  **The performance-drug aura is retired** (issue #541, ADR-0043): the ADR-0028
-  single-dose buff had a `drugsTimer`, so `Game::renderDrugAura`/`drugMarks`/
-  `updateDrugSnapshot` drew a fading amber rim while it ran. The bars have no
-  timer (they drift), so the aura went with the consumable and the HUD bars
-  (#502) are the only drug readout. `--drugs` now spikes the squad's three bars
-  to their ceilings (a demo hook beside `--shield`) and `B` spikes the active bar
-  for the selection (`Game::spikeDrugBarOnSelection`, beside the `;`/`'` steps).
-  The core consumable (`Mission::useDrugs`/`setDrugs`/`drugs_`/`drugsTimer_`) is
-  tactical's to delete once the engine no longer references it.
+  `--breach`) because no hotkey activates a gadget yet. Charges
+  (`scanners_`/`scannerTimer_`) live on the **Mission**, one slot per agent, kept
+  in sync by `addAgent` — no `Agent` change. Both are no-ops for a civilian, a
+  dead agent, or when already active. Deterministic, RNG-free.
+  `gadgetChargesForId` (`PlayerLoadout.h`) accepts `"scanner"`, so a bought
+  gadget deploys like the medkit/shield.
+  **The performance-drug half of ADR-0028 is fully retired** (issues #541 engine,
+  #499 core, ADR-0043). The single-dose buff (`Mission::useDrugs`/`setDrugs`/
+  `drugs_`/`drugsTimer_`, `kDrugDurationSeconds`/`kDrugSpeedMultiplier`/
+  `kDrugAccuracyMultiplier`) is **deleted** — no C++ caller remains, and the
+  `"drugs"` id is no longer in the gadget vocabulary (`gadgetChargesForId`
+  rejects it; `applyLoadout` fails a loadout that names it, like any typo). Drugs
+  are now the three regulated bars below, and a bar's *maximum* is the
+  metagame-bought ceiling (`LoadoutSlot::ceilings` → `Mission::setDrugCeiling`),
+  never a charge. `Game::renderDrugAura`/`drugMarks`/`updateDrugSnapshot` went
+  with the timer; the HUD bars (#502) are the only drug readout. `--drugs` spikes
+  the squad's three bars to their ceilings (a demo hook beside `--shield`) and `B`
+  spikes the active bar for the selection (`Game::spikeDrugBarOnSelection`, beside
+  the `;`/`'` steps).
 - **Regulated drug bars, S1 — the foundation** (issue #496, ADR-0043): drugs are
   becoming the original's **three regulated bars** (adrenalin/intelligence/
   physical), not the single-dose consumable above. `Drug`/`DrugState` live in
@@ -1036,10 +1037,10 @@ Do not start work outside the scope fence (ADR-0024).
   high bar adapts away and dropping it becomes a real penalty; the **level never
   drifts** (the player regulates it). S1 is **pure state + drift — no behavioural
   effect yet**: `drugEffect` is the hook S2 (adrenalin), S3 (intelligence), and S4
-  (physical) read. Deterministic; no RNG. S4 retires the old `drugs_`/
-  `drugsTimer_` consumable (and `kDrugDurationSeconds`); until then both models
-  coexist. The HUD bars (Render), the controls (Input/UI), and the research
-  ceilings (Metagame) are the cross-lane follow-ups (#502/#503/#504).
+  (physical) read. Deterministic; no RNG. S4 retired the old `drugs_`/
+  `drugsTimer_` consumable (and `kDrugDurationSeconds`). The HUD bars (Render),
+  the controls (Input/UI), and the research ceilings (Metagame) are the cross-lane
+  follow-ups (#502/#503/#504).
 - **Regulated drug bars, S2 — adrenalin** (issue #497, ADR-0043): the first bar
   with real behaviour, on the S1 foundation. The **threat model** is
   `Mission::threatTo(index)` — the sum over every **visible** living enemy of
@@ -1116,14 +1117,16 @@ Do not start work outside the scope fence (ADR-0024).
   assassinate objectives (#444) are its intended consumer. The physical effects
   are **combatant-only** (like adrenalin/panic), so a civilian is unaffected.
   `applyCybernetic` keeps `physicalBaseMaxHealth_` in step, so the `chest` upgrade
-  and the live bar compose. Deterministic; no RNG. The **engine half of the
-  retirement has landed** (issue #541, cross-lane Rule 4): `Game::renderDrugAura`
-  / `drugMarks` / `updateDrugSnapshot` are gone, `--drugs` spikes the squad's
-  three bars, and `B` spikes the active bar (`Game::spikeDrugBarOnSelection`);
-  `game_drugs`/`game_drugs_screenshot` now guard the bar model. **Still to do
-  (tactical):** delete `Mission::useDrugs`/`setDrugs`/`drugs_`/`drugsTimer_` and
-  `kDrugDurationSeconds`/`kDrugSpeedMultiplier`/`kDrugAccuracyMultiplier` once no
-  engine caller remains (it no longer references them).
+  and the live bar compose. Deterministic; no RNG. The **retirement is complete**
+  (engine half #541, core half #499): `Game::renderDrugAura`/`drugMarks`/
+  `updateDrugSnapshot` are gone, `--drugs` spikes the squad's three bars, `B`
+  spikes the active bar (`Game::spikeDrugBarOnSelection`), and
+  `game_drugs`/`game_drugs_screenshot` guard the bar model. The core consumable
+  (`Mission::useDrugs`/`setDrugs`/`drugs_`/`drugsTimer_` and
+  `kDrugDurationSeconds`/`kDrugSpeedMultiplier`/`kDrugAccuracyMultiplier`) is
+  **deleted**, and `"drugs"` left the gadget vocabulary
+  (`gadgetChargesForId`/`applyLoadout` now reject it) — a bar's maximum is the
+  metagame-bought ceiling, never a charge.
 - **Regulated drug bars — the metagame-bought ceiling** (issue #518, ADR-0043):
   a bar can be regulated only up to the **ceiling** the metagame sold for it
   (`Campaign::selectedCeilings()`, PR #517). The tactical clamp landed as
@@ -1698,8 +1701,9 @@ Do not start work outside the scope fence (ADR-0024).
   empty selection does nothing. The active-bar cursor (`Game::activeDrugBar_`) is
   view-only state, like `selected_`; it never feeds the simulation. The keys are
   swallowed by the map screen (`mapScreenAllowsKey`, #364), so a drug key cannot
-  mutate the frozen board. `B` (`useDrugsOnSelection`, the old consumable) is left
-  alone until S4 (#499) retires it. `--check-drug-controls` (ctest
+  mutate the frozen board. `B` no longer takes a consumable (S4, #499 retired it):
+  it now spikes the active bar to its ceiling (`Game::spikeDrugBarOnSelection`).
+  `--check-drug-controls` (ctest
   `game_drug_controls`) drives the **real handlers on the real Mission** and fails
   if a bar does not move, does not clamp, another bar moves, an empty selection
   changes a bar, the active bar does not wrap, or a drug key leaks through the map.

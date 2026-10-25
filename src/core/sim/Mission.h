@@ -158,28 +158,12 @@ public:
     // view draws. Deterministic; no RNG.
     std::vector<std::size_t> scanTargets(std::size_t index) const;
 
-    // --- Performance drugs ---------------------------------------------------
-
-    // Sets how many drug doses the agent at `index` carries (clamped to >= 0).
-    // Used by mission setup and tests. No-op for an invalid index.
-    void setDrugs(std::size_t index, int count);
-
-    // Number of drug doses the agent at `index` carries (0 if the index is
-    // invalid).
-    int drugs(std::size_t index) const;
-
-    // Spends one dose on the agent at `index` to raise a temporary buff for
-    // `kDrugDurationSeconds`: movement speed is multiplied by
-    // `kDrugSpeedMultiplier` and hit chance by `kDrugAccuracyMultiplier`.
-    // Returns true when the buff started, or false if there is no dose, the
-    // index is invalid, the user is not a living combatant, or a buff is
-    // already active (a dose is never wasted re-dosing).
-    bool useDrugs(std::size_t index);
-
-    // Remaining seconds of the agent's active drug buff (0 when none).
-    float drugsTimer(std::size_t index) const;
-
     // --- regulated drug bars (ADR-0043, v1.0.0 model) ------------------------
+
+    // The single-dose `setDrugs`/`drugs`/`useDrugs`/`drugsTimer` consumable of
+    // ADR-0028 was retired by S4 (#499): drugs are the three regulated bars below,
+    // not an inventory item. A bar's *maximum* is a metagame-bought ceiling
+    // (`setDrugCeiling`, carried by the deploy path), never a charge.
 
     // Sets one of the agent's three drug bars (see `Drug`). The level is clamped
     // to `[0, drugCeiling(index, drug)]`; no-op for an invalid index. This is the
@@ -627,11 +611,9 @@ private:
     std::vector<bool> shieldUp_; // raised shield per agent, sized to agents_
     std::vector<int> scanners_;      // charges carried, sized to agents_
     std::vector<float> scannerTimer_;// active scan pulse, sized to agents_
-    std::vector<int> drugs_;         // doses carried, sized to agents_
-    std::vector<float> drugsTimer_;  // active drug buff, sized to agents_
     // One three-bar drug state per agent (ADR-0043), sized to agents_ and kept in
-    // sync by `addAgent`. The old single-dose `drugs_`/`drugsTimer_` pair above is
-    // retired by S4; this is the regulated-bar model that replaces it.
+    // sync by `addAgent`. This replaced the single-dose `drugs_`/`drugsTimer_`
+    // pair that S4 (#499) retired.
     std::vector<DrugState> drugStates_;
     // Adrenalin (S2). The agent's speed before the live adrenalin effect is
     // applied: the speed must be *recomputed* from this each tick, never

@@ -66,14 +66,6 @@ constexpr float kMedikitHealAmount = 40.0f;
 constexpr float kScannerRadius = 8.0f;
 constexpr float kScannerPulseSeconds = 5.0f;
 
-// Performance drugs: how long the buff lasts and what it multiplies. Speed is
-// movement only (not fire rate); accuracy is the hit chance before the range
-// falloff, clamped to 1.0. Balance lives here until a data format is fixed
-// (ADR-0003).
-constexpr float kDrugDurationSeconds = 8.0f;
-constexpr float kDrugSpeedMultiplier = 1.5f;
-constexpr float kDrugAccuracyMultiplier = 1.35f;
-
 // Regulated drug bars (ADR-0043): how fast the neutral point drifts toward the
 // current level (per second). A sustained high hold lets the body adapt, so the
 // effect shrinks and dropping the bar becomes a penalty. The level itself never
@@ -168,8 +160,6 @@ std::size_t Mission::addAgent(Agent agent)
     shieldUp_.push_back(false);
     scanners_.push_back(0);
     scannerTimer_.push_back(0.0f);
-    drugs_.push_back(0);
-    drugsTimer_.push_back(0.0f);
     drugStates_.push_back(DrugState{});
     // The adrenalin base is the agent's speed with no adrenalin effect applied.
     // `applyCybernetic` refreshes it if a legs upgrade later changes the speed.
@@ -583,52 +573,6 @@ std::vector<std::size_t> Mission::scanTargets(std::size_t index) const
         }
     }
     return targets;
-}
-
-void Mission::setDrugs(std::size_t index, int count)
-{
-    if (index >= agents_.size())
-    {
-        return;
-    }
-    drugs_[index] = count < 0 ? 0 : count;
-}
-
-int Mission::drugs(std::size_t index) const
-{
-    return index < drugs_.size() ? drugs_[index] : 0;
-}
-
-bool Mission::useDrugs(std::size_t index)
-{
-    if (index >= agents_.size() || drugs_[index] <= 0)
-    {
-        return false;
-    }
-    Agent& user = agents_[index];
-    if (!user.isAlive() || !user.isCombatant())
-    {
-        return false;
-    }
-    if (drugsTimer_[index] > 0.0f)
-    {
-        // Already boosted: do not burn another dose.
-        return false;
-    }
-    --drugs_[index];
-    drugsTimer_[index] = kDrugDurationSeconds;
-    // The buff is folded into the adrenalin base speed, not multiplied onto the
-    // live speed: the adrenalin path recomputes speed from that base every tick,
-    // so a one-off multiply here would be overwritten (and the expiry divide
-    // would then corrupt the base). Folding it in keeps both systems composing.
-    adrenalinBaseSpeed_[index] *= kDrugSpeedMultiplier;
-    user.setSpeed(user.speed() * kDrugSpeedMultiplier);
-    return true;
-}
-
-float Mission::drugsTimer(std::size_t index) const
-{
-    return index < drugsTimer_.size() ? drugsTimer_[index] : 0.0f;
 }
 
 void Mission::setDrugLevel(std::size_t index, Drug drug, float level)
@@ -1383,25 +1327,13 @@ void Mission::update(float dt)
         agent.update(dt);
     }
 
-    // Gadget timers. A drug buff multiplies speed on activation and divides it
-    // back out here on expiry, so the movement code itself is untouched. The
-    // scanner pulse is presentation-only; the sim never reads its marks.
+    // Gadget timers. The scanner pulse is presentation-only; the sim never reads
+    // its marks. (The single-dose drug buff timer was retired by S4, #499.)
     for (std::size_t i = 0; i < agents_.size(); ++i)
     {
         if (scannerTimer_[i] > 0.0f)
         {
             scannerTimer_[i] = std::max(0.0f, scannerTimer_[i] - dt);
-        }
-        if (drugsTimer_[i] > 0.0f)
-        {
-            drugsTimer_[i] = std::max(0.0f, drugsTimer_[i] - dt);
-            if (drugsTimer_[i] <= 0.0f)
-            {
-                // Restore the base too, since the adrenalin path recomputes the
-                // live speed from it every tick.
-                adrenalinBaseSpeed_[i] /= kDrugSpeedMultiplier;
-                agents_[i].setSpeed(agents_[i].speed() / kDrugSpeedMultiplier);
-            }
         }
     }
 
@@ -1974,14 +1906,11 @@ void Mission::resolveFire()
 
         attacker.beginFireCooldown();
 
-        // Accuracy falls off linearly with distance; nearer shots hit more. A
-        // performance-drug buff raises the base chance (clamped to 1.0); a high
+        // Accuracy falls off linearly with distance; nearer shots hit more. A high
         // adrenalin effect *lowers* it (high = low precision, ADR-0043).
         const float falloff = 1.0f - (distance / range);
-        float baseAccuracy = drugsTimer_[i] > 0.0f
-                                 ? std::min(1.0f, attacker.weapon().accuracy * kDrugAccuracyMultiplier)
-                                 : attacker.weapon().accuracy;
-        baseAccuracy = std::clamp(baseAccuracy * adrenalinAccuracyScale(i), 0.0f, 1.0f);
+        const float baseAccuracy =
+            std::clamp(attacker.weapon().accuracy * adrenalinAccuracyScale(i), 0.0f, 1.0f);
         const float hitChance =
             baseAccuracy * (kAccuracyAtMaxRange + (1.0f - kAccuracyAtMaxRange) * falloff);
         if (!rng_.chance(hitChance))
