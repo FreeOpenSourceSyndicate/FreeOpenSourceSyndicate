@@ -13,7 +13,7 @@
   "hud.objective.persuade": "OBJECTIVE: RECRUIT {count} FOLLOWERS",
   "hud.objective.assassinate": "OBJECTIVE: ASSASSINATE {name}",
   "hud.objective.retrieve": "OBJECTIVE: RETRIEVE ITEM ({ix},{iy}) TO ({x},{y})",
-  "hud.controls": "[SHIFT+CLICK] QUEUE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   [P] PERSUADE   [F] FREE   [H] MEDKIT   [S] SHIELD   [C] SCAN   [B] DRUGS   [/] BAR   ;/' ADJUST   [E] HIJACK   [R] RESTART",
+  "hud.controls": "[SHIFT+CLICK] QUEUE   [CLICK ENEMY/RIGHT] ATTACK   [1-4] GROUP   [A]LL   [P] PERSUADE   [F] FREE   [H] MEDKIT   [S] SHIELD   [C] SCAN   [B] DRUGS   [/] BAR   ;/' ADJUST   [E] HIJACK   [R] RESTART   [F5] SAVE   [F9] LOAD",
   "hud.followers": "FOLLOWERS: {count}",
   "hud.collateral": "COLLATERAL: {count}",
   "hud.squad": "SQUAD",
