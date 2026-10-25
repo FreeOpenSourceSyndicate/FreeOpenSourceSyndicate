@@ -8,6 +8,7 @@
 #include "core/math/Vec2.h"
 #include "core/sim/Agent.h"
 #include "core/sim/Cybernetic.h"
+#include "core/sim/Drug.h"
 #include "core/sim/Objective.h"
 #include "core/util/Rng.h"
 #include "core/world/TileGrid.h"
@@ -177,6 +178,29 @@ public:
 
     // Remaining seconds of the agent's active drug buff (0 when none).
     float drugsTimer(std::size_t index) const;
+
+    // --- regulated drug bars (ADR-0043, v1.0.0 model) ------------------------
+
+    // Sets one of the agent's three drug bars (see `Drug`). The level is clamped
+    // to [0, 1]; no-op for an invalid index. This is the player's regulation of
+    // the bar — it does not touch the drifting neutral point.
+    void setDrugLevel(std::size_t index, Drug drug, float level);
+
+    // The agent's current level on `drug` (0 for an invalid index, matching the
+    // other gadget accessors; a valid agent is always at least `kDrugNeutralStart`
+    // by default, so 0 is unambiguous only as the invalid-index sentinel).
+    float drugLevel(std::size_t index, Drug drug) const;
+
+    // The agent's drifting neutral point on `drug` (starts at `kDrugNeutralStart`).
+    // The point moves toward the current level each tick (normalisation); the
+    // level itself never drifts. 0 for an invalid index.
+    float drugNeutral(std::size_t index, Drug drug) const;
+
+    // The effective drug effect on `drug`: `level - neutral`, clamped to [-1, 1].
+    // Positive means "above the body's adaptation" (a boost), negative means
+    // "below it" (a penalty). Exposed so S2-S4 and the HUD do not re-derive the
+    // rule. 0 for an invalid index.
+    float drugEffect(std::size_t index, Drug drug) const;
 
     // --- cybernetic upgrades -------------------------------------------------
 
@@ -497,6 +521,10 @@ private:
     std::vector<float> scannerTimer_;// active scan pulse, sized to agents_
     std::vector<int> drugs_;         // doses carried, sized to agents_
     std::vector<float> drugsTimer_;  // active drug buff, sized to agents_
+    // One three-bar drug state per agent (ADR-0043), sized to agents_ and kept in
+    // sync by `addAgent`. The old single-dose `drugs_`/`drugsTimer_` pair above is
+    // retired by S4; this is the regulated-bar model that replaces it.
+    std::vector<DrugState> drugStates_;
     Rng rng_;
     ObjectiveSpec objective_;
     // Retrieve: latched true once a living player agent has stood on the item

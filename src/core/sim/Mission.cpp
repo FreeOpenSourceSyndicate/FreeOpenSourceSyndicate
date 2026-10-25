@@ -74,6 +74,12 @@ constexpr float kDrugDurationSeconds = 8.0f;
 constexpr float kDrugSpeedMultiplier = 1.5f;
 constexpr float kDrugAccuracyMultiplier = 1.35f;
 
+// Regulated drug bars (ADR-0043): how fast the neutral point drifts toward the
+// current level (per second). A sustained high hold lets the body adapt, so the
+// effect shrinks and dropping the bar becomes a penalty. The level itself never
+// drifts — the player regulates it. Deterministic; no RNG.
+constexpr float kDrugNormalisationRate = 0.25f;
+
 // Vehicles: how close (tiles) an agent must be to a vehicle's tile to hijack it,
 // so both "stand on the tile" and "step up to it" work. A destroyed vehicle is
 // a wreck (occupants are thrown clear), so it damages agents within this blast
@@ -124,6 +130,7 @@ std::size_t Mission::addAgent(Agent agent)
     scannerTimer_.push_back(0.0f);
     drugs_.push_back(0);
     drugsTimer_.push_back(0.0f);
+    drugStates_.push_back(DrugState{});
     return agents_.size() - 1;
 }
 
@@ -564,6 +571,30 @@ float Mission::drugsTimer(std::size_t index) const
     return index < drugsTimer_.size() ? drugsTimer_[index] : 0.0f;
 }
 
+void Mission::setDrugLevel(std::size_t index, Drug drug, float level)
+{
+    if (index >= drugStates_.size())
+    {
+        return;
+    }
+    drugStates_[index].level[drugSlot(drug)] = std::clamp(level, 0.0f, 1.0f);
+}
+
+float Mission::drugLevel(std::size_t index, Drug drug) const
+{
+    return index < drugStates_.size() ? drugStates_[index].level[drugSlot(drug)] : 0.0f;
+}
+
+float Mission::drugNeutral(std::size_t index, Drug drug) const
+{
+    return index < drugStates_.size() ? drugStates_[index].neutral[drugSlot(drug)] : 0.0f;
+}
+
+float Mission::drugEffect(std::size_t index, Drug drug) const
+{
+    return std::clamp(drugLevel(index, drug) - drugNeutral(index, drug), -1.0f, 1.0f);
+}
+
 bool Mission::applyCybernetic(std::size_t index, const std::string& id)
 {
     if (index >= agents_.size())
@@ -922,6 +953,21 @@ void Mission::update(float dt)
             {
                 agents_[i].setSpeed(agents_[i].speed() / kDrugSpeedMultiplier);
             }
+        }
+    }
+
+    // Drug-bar normalisation (ADR-0043): the neutral point drifts toward the
+    // current level, so a held high bar adapts away and dropping it becomes a
+    // penalty. The level is player-regulated and never drifts. Pure state, no
+    // behavioural effect yet (S2-S4 read `drugEffect`).
+    const float normalisationStep = kDrugNormalisationRate * dt;
+    for (DrugState& state : drugStates_)
+    {
+        for (int bar = 0; bar < kDrugCount; ++bar)
+        {
+            const float delta = state.level[bar] - state.neutral[bar];
+            const float step = std::min(std::abs(delta), normalisationStep);
+            state.neutral[bar] += delta > 0.0f ? step : -step;
         }
     }
 
