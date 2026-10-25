@@ -13,8 +13,8 @@ contains no original assets, code, names, or trademarks.
 The campaign is real. v0.8.0 gave the war a **map**; v0.9.0 turns it into a game
 you can play across sessions, hear, and finish. **Save/load reaches play** — the
 campaign survives quitting, both from the CLI (`--save`/`--load`) and from the
-keyboard (`F5`/`F9`) — and the map is no longer a handful of reused boards: a
-**dozen regions** each carry a distinct authored mission, the run ends in a
+keyboard (`F5`/`F9`) — and the map is no longer a handful of reused boards: its
+**twelve regions** name **eleven distinct authored missions**, the run ends in a
 dedicated **final confrontation**, and the syndicate is yours to **name and
 badge**. Combat and menus now make **sound**. The tactical layer gains the last
 two objective kinds (**assassinate** and **retrieve**), the **time bomb**, and
@@ -51,11 +51,11 @@ the three **regulated drug bars** the maintainer specified.
   (#473/PR #489); the **final confrontation** — `conclave` (assassinate the enemy
   Overseer) (#465/PR #536); and **slice 2** — `cordon` (eliminate), `vault`
   (retrieve), `uprising` (persuade) (#529/PR #554). Fifteen mission files ship;
-  eight are wired into the twelve-region map today (the rest are playable via
-  `--mission`, and `conclave` becomes the terminal board with #537). The
-  region→mission wiring is pinned by `tests/test_campaign.cpp`
-  (`EveryShippedRegionNamesAMissionThatExists`) and `--check-content`. Issues
-  #416, #418, #437, #444, #448, #465, #473, #511, #529.
+  eleven distinct boards are wired into the twelve-region map today (the rest are
+  playable via `--mission`). The region→mission wiring is pinned by
+  `tests/test_campaign.cpp` (`EveryShippedRegionNamesAMissionThatExists`) and
+  `--check-content`. Issues #416, #418, #437, #444, #448, #465, #473, #511, #529,
+  #551.
 
 - **The campaign ends in a dedicated final confrontation.** Winning used to mean
   owning every region, with the same victory panel for any last one. The
@@ -64,9 +64,12 @@ the three **regulated drug bars** the maintainer specified.
   `CampaignScreen` draws a distinct, warmer **`FINAL CONFRONTATION WON`** panel
   for it (`Campaign::wonFinalConfrontation`). A `finalMission` not in the mission
   list, or a `final-mission` win condition with no `finalMission`, is a schema
-  error at load, so a typo cannot leave the campaign unwinnable (#467/PR
-  #467). The shipped data points `finalMission` at the dedicated `conclave`
-  board (#537). Issue #456.
+  error at load, so a typo cannot leave the campaign unwinnable (PR #467). The
+  shipped data points `finalMission` at the dedicated `conclave` board, carried by
+  region 9 (Sinara, the deepest neutral) and set to `winCondition:
+  "final-mission"` — naming a final mission no region carries would leave the
+  campaign unwinnable, so the repoint is required, not cosmetic (#537/PR #560).
+  Issue #456.
 
 - **Your syndicate, named and badged.** A new campaign now opens a **new-game
   screen** where the player types a syndicate name (printable ASCII, 24 chars —
@@ -99,7 +102,19 @@ the three **regulated drug bars** the maintainer specified.
   member may carry it out (#444/PR #471; reverses the #281 carve-out as an
   ADR-0014 amendment). The content parser learns both kinds (#472/PR #488) and
   the HUD has their banner text (#475/PR #507); both new fields default, so every
-  existing kind and mission is unchanged. Issues #444, #461, #472, #475.
+  existing kind and mission is unchanged. Issues #444, #461, #472, #475. Their
+  **HUD banners** are wired too — `objectiveBannerText` had no case for either
+  kind, so a mission using one rendered the *eliminate* banner (a wrong objective
+  shown to the player); both now have a banner (assassinate names the target,
+  retrieve shows the item and exit tiles) and the per-kind self-test guard covers
+  them (#474/PR #568).
+
+- **Weapon names are localised.** The HUD squad row rendered `agent.weapon().name`
+  verbatim, so a German run still showed the authored English name. Every weapon
+  id in `assets/data/weapons.json` now has a `weapon.<id>.name` key in `en` and
+  `de` (ASCII, transliterated), derived through the same pure helper as mission
+  names (`MissionText::weaponNameKey`), and the coverage guard fails if a
+  catalogue id has no key (#534/PR #558). Issues #270, #534.
 
 - **The time bomb.** A new fused weapon: `Weapon::fuseSeconds` (additive, default
   `0` = immediate, so every existing weapon is unchanged) arms a bomb at the
@@ -126,10 +141,14 @@ the three **regulated drug bars** the maintainer specified.
   (PR #531); **S4 physical** adds max-health-from-bar, slow self-heal, and
   carry capacity, composed multiplicatively with adrenalin speed (PR #540).
   The player keys `[`/`]` cycle the active bar and `;`/`'` lower/raise it for the
-  selection (#503/PR #525), and the R&D shop sells a **research-gated ceiling**
-  per bar so a deployed squad can be regulated higher (#504/PR #517). The bars
-  are validated end to end (#510/PR #526). Issues #495–#504, #510, #518, #525,
-  #531, #540, #541, #553.
+  selection (#503/PR #525), the HUD draws the three bars per selected agent — a
+  fill amber at/above the neutral point (a boost) and blue below it (a
+  withdrawal), with a tick for the neutral point (#502/PR #565) — and the R&D shop
+  sells a **research-gated ceiling** per bar so a deployed squad can be regulated
+  higher (#504/PR #517). A bought ceiling really clamps the deployed bars
+  (`Mission::setDrugCeiling`, applied at deploy by `applyLoadout`, #518/PR #552,
+  #553/PR #567). The bars are validated end to end (#510/PR #526). Issues
+  #495–#504, #510, #518, #525, #531, #540, #541, #553.
 
 - **Recruited agents have names from their region.** Recruiting an agent (the map
   screen's `R`) now draws a fixed name from the selected region's pool, so a

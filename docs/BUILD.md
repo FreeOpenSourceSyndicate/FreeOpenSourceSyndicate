@@ -46,8 +46,8 @@ old hardware, that is a bug — please report it.
 
 The whole point of the profile is a **small** binary, so CI enforces a cap on it
 (issue #222, AGENTS.md §1b, ADR-0008): the **stripped low-spec binary must be
-<= 384 KiB**. As measured today, the low-spec build is ~359 KiB and the default
-Release build is ~942 KiB, so the budget still fails loudly if the profile flags
+<= 384 KiB**. As measured today, the low-spec build is ~375 KiB and the default
+Release build is ~963 KiB, so the budget still fails loudly if the profile flags
 are ever dropped or a heavy dependency sneaks in. The cap was raised from 288 KiB
 when the third shared catalogue (`assets/data/vehicles.json`, #319/#342) left only
 ~2 KiB of headroom; to 336 KiB (issue #413) once `main` reached 318 KiB; to
@@ -345,10 +345,12 @@ wired into `ctest`.
 | `--check-scanner` | Run the scanner-ping overlay self-check and exit (ctest `game_scanner`) |
 | `--check-shield` | Exit non-zero if the personal shield overlay fails to draw (ctest `game_shield`) |
 | `--check-drugs` | Exit non-zero if the performance-drug aura fails to draw (ctest `game_drugs`) |
+| `--check-drug-bars` | Validate the three drug-bar HUD for the selection (ctest `game_drug_bars`) |
 | `--check-drug-controls` | Drive the three drug-bar controls (`[`/`]`, `;`/`'`) and exit (ctest `game_drug_controls`) |
 | `--check-bomb` | Validate the time-bomb demo hook (`--bomb`) and exit (ctest `game_bomb`) |
 | `--check-audio` | Drive the real SFX synthesis, mixing, and event mapping with no device (ctest `game_audio`) |
 | `--check-save-load` | Run the campaign save/load round-trip and exit (ctest `game_save_load`) |
+| `--check-save-hotkeys` | Drive the in-game `F5`/`F9` save/load keys headlessly (ctest `game_save_hotkeys`) |
 | `--check-newgame` | Drive the new-game name/logo decision and apply it to the campaign (ctest `game_newgame`) |
 | `--check-objectives` | Validate the objective banner for every objective kind (ctest `game_objectives`) |
 | `--check-campaign` | Drive the whole management loop (funds → tax → research → buy → deploy → win) and exit (ctest `game_campaign`) |

@@ -188,9 +188,9 @@ Shipped in **v0.8.0 "Dominion"**.
 Turn the systems into a game.
 
 - [ ] **Mission set**: enough missions to form a campaign (data-driven).
-      _Progress: fifteen missions ship and **every region of the twelve-region map
-      names one** (eight distinct boards are wired today; the rest are playable via
-      `--mission` and are being wired region-by-region, #550/#551)._
+      _Progress: fifteen missions ship and **eleven distinct boards are wired
+      into the twelve-region map** (the rest are playable via `--mission`; the
+      wiring continues region-by-region, #550)._
 - [ ] **Original art and audio** (`docs/ASSETS.md`); pixel art per ADR-0009.
       _The **audio subsystem** has landed (issue #423, ADR-0040): `game::Audio`
       plays generated SFX cues and degrades to silence when no device is present.
@@ -217,9 +217,10 @@ Turn the systems into a game.
 
 Shipped in **v0.9.0 "the campaign is real"**: save/load in play (CLI + `F5`/`F9`),
 sound effects, the twelve-region campaign with a distinct board per region, the
-dedicated final confrontation, the three regulated drug bars, the new-game
-syndicate name/logo, the assassinate/retrieve objective kinds, the time bomb, and
-the first Syndicate Plus art slice.
+dedicated final confrontation (`conclave`), the three regulated drug bars (with a
+HUD and a bought ceiling that reaches the deployed squad), the new-game syndicate
+name/logo, the assassinate/retrieve objective kinds (with their HUD banners),
+localised weapon names, the time bomb, and the first Syndicate Plus art slice.
 
 ---
 
