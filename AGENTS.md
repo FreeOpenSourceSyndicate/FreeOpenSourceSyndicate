@@ -1458,10 +1458,10 @@ Do not start work outside the scope fence (ADR-0024).
   --check-save-load` (ctest `game_save_load`) runs the round-trip on a scratch
   screen — progress a campaign, save, reload into a fresh base, confirm every
   captured field returns, then confirm a corrupt and a missing file are rejected.
-  A save is written/read with stdio, not `<fstream>`, to protect the low-spec
-  size budget (§1b). The save/load wiring newly links `core::CampaignSave` into
-  the game binary (~24 KiB), which the low-spec budget must absorb — a `platform`
-  concern (see the size-budget notes in `docs/BUILD.md`).
+  A save is written/read with stdio, not `<fstream>`, to keep the payload small
+  (§1b). The save/load wiring links `core::CampaignSave` into the game binary
+  (~24 KiB); the size gate now measures the whole game against the ADR-0045
+  ceiling (see the size-budget notes in `docs/BUILD.md`).
 - **In-game save/load keys (issue #527):** `F5` saves the campaign and `F9` loads
   it, so progress persists *during* play (the #433 CLI flags only saved on exit /
   restored at launch). Both delegate to the same `saveCampaignProgress`/
@@ -1534,8 +1534,8 @@ Do not start work outside the scope fence (ADR-0024).
   screen-space geometry, shared with the `--check-waypoint-path` self-test. It
   reads the core queue and never writes it (golden rule 4).
 - Engine-layer changes are covered by the CI `core + game` job (ADR-0005). The
-  CI `low-spec` job builds the old-hardware profile (ADR-0008) and enforces its
-  binary-size budget via `scripts/check-size.sh` (issue #222, AGENTS.md §1b), the
+  CI `low-spec` job builds the old-hardware profile (ADR-0008) and enforces the
+  whole-game size budget via `scripts/check-size.sh` (ADR-0045, AGENTS.md §1b), the
   CI `sanitizers` job runs the core tests under ASan + UBSan (ADR-0015), the CI
   `werror` job builds core + game with `-DFOSSYND_WERROR=ON` so a warning cannot
   land on `main` (issue #192), and the CI

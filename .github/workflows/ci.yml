@@ -206,13 +206,13 @@ jobs:
       - name: Report binary size
         run: ls -l build/src/FOSSynd
 
-      # Binary-size budget (issue #222, AGENTS.md 1b, ADR-0008): the low-spec
-      # profile exists to stay small on old hardware, so a regression fails CI
-      # rather than silently shipping a bigger binary. The cap's human-readable
-      # home is docs/BUILD.md (release lane; see #271). Raise it there, with
-      # justification, if it must change.
-      - name: Check the low-spec binary size budget
-        run: ./scripts/check-size.sh build/src/FOSSynd
+      # Whole-game size budget (ADR-0045, AGENTS.md 1b): the v1.0.0 target is the
+      # whole shipped game (binary + assets/) at <= ~60 MiB, replacing the retired
+      # 384 KiB binary cap (ADR-0008). A regression fails CI rather than silently
+      # shipping a bigger game. The budget's human-readable home is docs/BUILD.md
+      # (release lane). Raise it there, with justification, if it must change.
+      - name: Check the whole-game size budget
+        run: ./scripts/check-size.sh build/src/FOSSynd assets
 
   # Sanitizer lane (ADR-0015): builds the engine-agnostic core + tests with
   # AddressSanitizer and UndefinedBehaviorSanitizer and runs ctest. Core-only, so
