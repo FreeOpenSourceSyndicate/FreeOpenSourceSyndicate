@@ -25,6 +25,10 @@ constexpr int kDrugCount = 3;
 // bar has no drug effect at all.
 constexpr float kDrugNeutralStart = 0.5f;
 
+// The highest level a bar can ever hold, and the default ceiling (below): with no
+// metagame-bought regulator an agent's bar is unregulated up to this level.
+constexpr float kDrugMaxLevel = 1.0f;
+
 // Maps a bar to its array slot. The enum is contiguous and starts at 0, so this
 // is just a cast, but keeping it in one place means a future reorder stays safe.
 inline std::size_t drugSlot(Drug drug)
@@ -45,6 +49,11 @@ struct DrugState
 {
     float level[kDrugCount] = {kDrugNeutralStart, kDrugNeutralStart, kDrugNeutralStart};
     float neutral[kDrugCount] = {kDrugNeutralStart, kDrugNeutralStart, kDrugNeutralStart};
+    // The highest level each bar may be regulated to (ADR-0043). Defaults to
+    // `kDrugMaxLevel` (unregulated), so a mission with no metagame-bought ceiling
+    // behaves exactly as before; the deploy path may lower a bar's ceiling to a
+    // bought regulator's value (issue #518).
+    float ceiling[kDrugCount] = {kDrugMaxLevel, kDrugMaxLevel, kDrugMaxLevel};
 };
 
 } // namespace fossynd::core

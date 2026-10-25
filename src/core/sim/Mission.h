@@ -182,9 +182,22 @@ public:
     // --- regulated drug bars (ADR-0043, v1.0.0 model) ------------------------
 
     // Sets one of the agent's three drug bars (see `Drug`). The level is clamped
-    // to [0, 1]; no-op for an invalid index. This is the player's regulation of
-    // the bar — it does not touch the drifting neutral point.
+    // to `[0, drugCeiling(index, drug)]`; no-op for an invalid index. This is the
+    // player's regulation of the bar — it does not touch the drifting neutral point.
     void setDrugLevel(std::size_t index, Drug drug, float level);
+
+    // Sets the highest level `drug` may be regulated to (ADR-0043; the clamp rule
+    // of issue #518). The ceiling is clamped to [0, 1]; a no-op for an invalid
+    // index. If the agent's current level is above the new ceiling it is pulled
+    // down to it, so `level <= ceiling` is an invariant. Defaults to
+    // `kDrugMaxLevel` (1.0), so a mission that never calls this is unregulated and
+    // behaves exactly as before. The metagame-bought value is carried here by the
+    // deploy path (a Rule 4 to `focus: content`/`focus: input-ui`).
+    void setDrugCeiling(std::size_t index, Drug drug, float ceiling);
+
+    // The highest level `drug` may be regulated to: `kDrugMaxLevel` (1.0) unless
+    // `setDrugCeiling` lowered it. 0 for an invalid index.
+    float drugCeiling(std::size_t index, Drug drug) const;
 
     // The agent's current level on `drug` (0 for an invalid index, matching the
     // other gadget accessors; a valid agent is always at least `kDrugNeutralStart`

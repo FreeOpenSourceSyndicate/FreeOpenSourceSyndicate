@@ -637,7 +637,31 @@ void Mission::setDrugLevel(std::size_t index, Drug drug, float level)
     {
         return;
     }
-    drugStates_[index].level[drugSlot(drug)] = std::clamp(level, 0.0f, 1.0f);
+    // Clamp to the bar's ceiling, not just [0, 1]: a bar cannot be regulated
+    // above what the metagame sold (ADR-0043, #518). The ceiling defaults to
+    // `kDrugMaxLevel`, so an unregulated mission is unchanged.
+    const float cap = drugCeiling(index, drug);
+    drugStates_[index].level[drugSlot(drug)] = std::clamp(level, 0.0f, cap);
+}
+
+void Mission::setDrugCeiling(std::size_t index, Drug drug, float ceiling)
+{
+    if (index >= drugStates_.size())
+    {
+        return;
+    }
+    const float cap = std::clamp(ceiling, 0.0f, kDrugMaxLevel);
+    const std::size_t slot = drugSlot(drug);
+    drugStates_[index].ceiling[slot] = cap;
+    // A ceiling that drops below the current level pulls the level down with it,
+    // so `level <= ceiling` holds after every call (the invariant `setDrugLevel`
+    // relies on).
+    drugStates_[index].level[slot] = std::min(drugStates_[index].level[slot], cap);
+}
+
+float Mission::drugCeiling(std::size_t index, Drug drug) const
+{
+    return index < drugStates_.size() ? drugStates_[index].ceiling[drugSlot(drug)] : 0.0f;
 }
 
 float Mission::drugLevel(std::size_t index, Drug drug) const

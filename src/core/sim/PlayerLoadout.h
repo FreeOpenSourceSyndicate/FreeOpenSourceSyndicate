@@ -8,6 +8,19 @@
 namespace fossynd::core
 {
 
+// The metagame's per-slot drug bar ceilings (ADR-0043, issue #518), mirrored here
+// so the mission loader can consume them without depending on `core/economy`
+// (the loader sits *below* the metagame — golden rule 1). It is field-for-field
+// the metagame's `DrugCeilings` (`core/economy/Equipment.h`), which the deploy
+// path copies across; `0.0f` is the sentinel for "the metagame grants no ceiling
+// for this bar", so an all-zero value leaves the bar unregulated.
+struct DrugBarCeilings
+{
+    float adrenalin = 0.0f;
+    float intelligence = 0.0f;
+    float physical = 0.0f;
+};
+
 // A squad loadout chosen before a mission starts (Milestone B deployment,
 // request R1 of docs/METAGAME.md §7). Engine-agnostic and **data-only**: it
 // names catalogue ids, never a resolved `Weapon`, so `core/sim` stays free of
@@ -67,6 +80,13 @@ struct PlayerLoadout
     static constexpr std::size_t kMaxSlots = 4;
 
     std::vector<LoadoutSlot> slots;
+
+    // The metagame-bought drug bar ceilings, parallel to `slots` (ADR-0043,
+    // #518): `ceilings[i]` caps the bars of the agent that `slots[i]` loads. An
+    // empty vector (or a slot past its end) leaves every bar unregulated, so an
+    // absent value changes nothing. `applyLoadout` applies a non-zero field via
+    // `Mission::setDrugCeiling`.
+    std::vector<DrugBarCeilings> ceilings;
 };
 
 } // namespace fossynd::core

@@ -1112,6 +1112,25 @@ Do not start work outside the scope fence (ADR-0024).
   repoint the `--drugs` demo hook + `game_drugs` ctest at the bar model — that is
   cross-lane (`Game.cpp`/`main.cpp` are input-ui/render, the ctest is platform),
   filed as a Rule 4 request from tactical.
+- **Regulated drug bars — the metagame-bought ceiling** (issue #518, ADR-0043):
+  a bar can be regulated only up to the **ceiling** the metagame sold for it
+  (`Campaign::selectedCeilings()`, PR #517). The tactical clamp landed as
+  `Drug.h`'s `kDrugMaxLevel` (1.0) plus a per-bar `ceiling` on `DrugState`,
+  **defaulted to `kDrugMaxLevel`** so a mission that sets none is unregulated and
+  every S1-S4 behaviour is unchanged. `Mission::setDrugLevel` now clamps to
+  `drugCeiling(index, drug)`, not a bare `[0, 1]`; `Mission::setDrugCeiling`
+  clamps the ceiling to `[0, 1]` and **pulls the held level down** to it, so
+  `level <= ceiling` is an invariant; `Mission::drugCeiling` is the read (0 for a
+  bad index). `core::PlayerLoadout` gained `DrugBarCeilings` (mirrored from the
+  metagame's `DrugCeilings`, so `core/sim` stays **below** `core/economy` —
+  golden rule 1) and a `ceilings` vector **parallel to `slots`**, mirroring
+  `selectedCeilings()` next to `selectedLoadout()`. Prefer the parallel vector
+  over a per-`LoadoutSlot` field: the latter trips `-Wmissing-field-initializers`
+  at the existing aggregate init in `Game.cpp`. The **consumer** half
+  (`applyLoadout` reads `loadout.ceilings` -> `setDrugCeiling`, and the deploy
+  path fills `ceilings` from `Campaign::selectedCeilings()`) is a Rule 4 to
+  Content + Input/UI (#553), so the clamp is inert in play until that lands —
+  the #99/#101 "landed but never wired in" pattern.
 - **Cybernetic upgrades** (issue #313, ADR-0031): Milestone A's passive stat
   upgrades. `CyberneticEffect` (`src/core/sim/Cybernetic.h`, header-only) holds
   four **multipliers** (all default 1.0); `cyberneticEffectForId(id, out)`
