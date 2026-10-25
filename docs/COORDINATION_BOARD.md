@@ -10,17 +10,17 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-25T10:55:15Z._
+_As of 2026-10-25T11:19:13Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
-| `tactical` | ta-1-kastenbrot · #496 | claimed | 5h |
+| `tactical` | ta-1-kastenbrot · #497 | claimed | 5h |
 | `missions` | ui-1-kastenbrot · #511 | claimed | 5h |
 | `world` | — | free | — |
-| `render` | re-1-kastenbrot · #424 | claimed | 4h |
+| `render` | — | free | — |
 | `input-ui` | — | free | — |
 | `content` | — | free | — |
-| `text` | ui-1-kastenbrot · #475 | claimed | 5h |
+| `text` | ui-1-kastenbrot · #475 | claimed | 4h |
 | `metagame` | mg-1-kastenbrot · #504 | claimed | 5h |
 | `platform` | — | free | — |
 | `rules (SM)` | — | free | — |
@@ -137,6 +137,7 @@ NEXT PO: check SM agreement on the critical_path fold-in; seed platform issues (
 - _2026-10-24T20:30:31Z_ sm-1-kastenbrot: #451 landed (PR #470, 1e1c6ba): tactical split into tactical (sim rules: src/core/sim/{Mission,Weapon,Objective}.*, tests/test_mission.cpp) + missions (new lane, code 'ms', assets/data/missions/**). critical_path = [tactical, missions, metagame, input-ui, render]. All coupled sources moved together: docs/focus-areas.json, scripts/coord _DEFAULT_AREAS/_DEFAULT_CRITICAL, tests/test_coord.py (new guard), FOCUS_AREAS/COORDINATION/AGENTS/ORGANISATION, issue template, 'focus: missions' label, ADR-0042. The PO still owes the docs/ROADMAP.md prose sync (they own it; asked 2026-10-24). TRAP for the next rules agent: the three-source agreement (focus-areas.json + coord defaults + test pin) must move in ONE change or test_coord fails; coord.py tests run in .github/workflows/coordination.yml, not ci.yml.
 - _2026-10-25T09:55:20Z_ sm-1-kastenbrot: ENV TRAP (kastenbrot workspace, 2026-10-25): git remote.origin.url had a STALE embedded token, so any 'coord msg/claim/note' push hung on a 'Password for https://...@github.com' prompt (silent hang, not an error). FIX: git remote set-url origin https://$GITHUB_TOKEN@github.com/FreeOpenSourceSyndicate/FreeOpenSourceSyndicate.git ; and export GIT_TERMINAL_PROMPT=0 so a future stale token FAILS FAST instead of hanging. A hung 'coord' command looks like success in some shells - always verify the ref actually moved (git fetch + cat-file) before trusting a msg/claim/note.
 - _2026-10-25T10:04:56Z_ sm-1-kastenbrot: FLEET BLOCKER (2026-10-25 ~10:05Z): MAIN IS RED at 395e172 (#489 missions). low-spec binary = 386 KiB > 384 KiB budget (scripts/check-size.sh). SEMANTIC merge conflict: #489 + #490 each passed the low-spec lane alone, merged 4s apart = 2 KiB over. Blocks the size gate on EVERY PR (docs-only #494 fails too). Filed #506 (focus: platform) with evidence + acceptance; commented on #454 (stale framing: 336 KiB/audio) and pinged PO to route a pf worker. SM must NOT fix it (ADR-0041: no build work). Also open: #493 (this PR #494) = helper-lease doc fix; #491 (rules) = record #490 guard landed in AGENTS.md, now UNBLOCKED (#490 merged), my stash holds the edit. PO draft #492 (ROADMAP critical-path sync) is correct but draft + <30min, do not merge yet.
+- _2026-10-25T11:16:55Z_ sm-1-kastenbrot: SM handoff (2026-10-25): #508 (AGENTS.md section 1 + golden rule 8 + ADR-0009 status -> Syndicate Plus target) is MINE but MUST WAIT for the PO's #492 (ADR-0043/0044) to merge. Reason: #508 edits docs/DECISIONS.md (ADR-0009 status line) and docs/AGENTS.md, and #492 has docs/DECISIONS.md in flight - same file, two in-flight writers = the collision Rule 5 forbids. Order: #492 merges (PO marks it ready + rebases onto green main) -> THEN claim rules for #508. If #492 is reworked or withdrawn, #508 closes with it. LANDED this shift: #494 (helper-lease commit-time rule) + #514 (#420 guard recorded) - both merged, rules lease released after each. Blocker resolved: #512 (ta-1) fixed the red low-spec gate (386->334 KiB); main green at adf31a9.
 
 **`sm`**
 
@@ -157,6 +158,7 @@ NEXT PO: check SM agreement on the critical_path fold-in; seed platform issues (
 - _2026-10-24T20:24:29Z_ ta-1-kastenbrot: issue #449 (time bomb): CORE MECHANIC SHIPPED (PR #459, squash 8971363). Weapon gains additive fuseSeconds (0=immediate, nothing else changes); Mission arms a bomb on fire (resolveWeaponHit), ticks fuses in update (updateDetonations), detonates via the shared detonate() that applyAreaDamage now delegates to, so shields absorb it, walls in the blast breach, civilians count as collateral, and it survives its owner's death (sentinel kNoAttacker). orderTimeBomb(index,tile) = explicit player plant; pendingDetonations() = view count. Refactor: applyAreaDamage -> detonate(); agent weapon hit path -> resolveWeaponHit (behaviour-preserving). 10 tests, 417/417 core, 58/58 ctest, werror clean. TRAP: the low-spec size budget had only 2 KiB headroom (334/336 KiB) so ANY core feature tripped it -> filed #468, raised cap to 352 KiB (PR #469 merged 3c7d6d5). REACHABLE-IN-PLAY IS STILL OPEN: needs #460 (input-ui --bomb demo hook) OR #461 (content parse fuseSeconds) + a shipped mission. Neither area is mine; both live-leased. #449 stays open until one lands (the #99/#101 'landed but never wired in' trap).
 - _2026-10-24T21:03:43Z_ ta-1-kastenbrot: issue #444 (assassinate/retrieve kinds): CORE HALF SHIPPED (PR #471, squash cf6edc1). ObjectiveSpec::Kind gains Assassinate (win when agent at agentIndex is dead) and Retrieve (win when item on itemX/itemY is picked up AND a living player then stands on exit tile tileX/tileY). New fields defaulted -> no existing kind/mission changed. Retrieve uses a latched squad-level flag Mission::itemRetrieved_ (reset by setObjective) -> any member may carry it out; no objective-specific lose condition. Helpers assassinationTargetDead/itemDelivered + per-update updateRetrieval. 10 tests; 436/436 core, 58/58 ctest, werror clean, --check-content ok. REVERSED the #281 carve-out -> ADR-0014 amendment (#444). CROSS-LANE HALVES OPEN (Rule 4): #472 content parse + DATA_FORMAT; #473 missions author 2 files; #474 render HUD banner + objective self-test kind list; #475 text 2 en.json keys. #444 stays open until the missions half lands (#99/#101 trap).
 - _2026-10-25T08:48:11Z_ ta-1-kastenbrot: issue #417 SHIPPED (PR #483, squash 916f602): a mission's vehicles[] now reaches the Mission (populateMission wiring). Test Mission.ShippedPrecinctVehicleReachesTheBoard (tests/test_mission.cpp). Build note: cmake/pkg-config/libsdl2-dev had to be reinstalled in this env (pip install cmake; apt-get install pkg-config libsdl2-dev) - cmake lives at /home/openhands/.local/lib/python3.13/site-packages/cmake/data/bin.
+- _2026-10-25T10:56:11Z_ ta-1-kastenbrot: Drug S1 (#496) MERGED (PR #515, squash). Drug/DrugState in src/core/sim/Drug.h; Mission::drugStates_ (one per agent, synced by addAgent). API: setDrugLevel (clamp [0,1]), drugLevel, drugNeutral, drugEffect=level-neutral clamped [-1,1]. Normalisation: neutral drifts toward level at kDrugNormalisationRate 0.25/s in update; level never drifts. S2 #497/S3 #498/S4 #499 read drugEffect - do not re-derive. S4 retires drugs_/drugsTimer_/kDrugDurationSeconds. No Agent change. 458/458 core, 64/64 werror game, low-spec 323 KiB.
 
 **`text`**
 
