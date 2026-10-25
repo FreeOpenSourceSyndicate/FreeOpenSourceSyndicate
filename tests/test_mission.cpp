@@ -2829,6 +2829,43 @@ FOSSYND_TEST(Mission, ShippedPrecinctPoliceAndSaboteurAreReachableAndWinnable)
     }
 }
 
+// A shipped mission's `vehicles[]` must reach the board (issue #417). The
+// parser (`MissionData::parseVehicle`) filled `data.vehicles` from the start,
+// but `populateMission` never registered them with the `Mission`, so a placed
+// vehicle was silently inert — the "landed but never wired in" trap. This case
+// loads the real shipped mission, confirms the spec parsed, then asserts the
+// vehicle is on the `Mission` with its catalogue kind and its authored position.
+FOSSYND_TEST(Mission, ShippedPrecinctVehicleReachesTheBoard)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("precinct"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK_EQ(data.vehicles.size(), 1u);
+
+    TileGrid grid = buildGrid(data);
+    Mission mission(grid, 16u);
+    populateMission(data, mission);
+
+    FOSSYND_CHECK_EQ(mission.vehicles().size(), 1u);
+    if (mission.vehicles().size() != 1u)
+    {
+        return;
+    }
+    const Vehicle& car = mission.vehicles().front();
+    FOSSYND_CHECK(car.kind() == VehicleKind::Car);
+    FOSSYND_CHECK_EQ(car.name(), std::string("Car"));
+    FOSSYND_CHECK_NEAR(car.position().x, 6.5f);
+    FOSSYND_CHECK_NEAR(car.position().y, 21.5f);
+    FOSSYND_CHECK(car.isAlive());
+    FOSSYND_CHECK(!car.isOccupied());
+    // Placed on a walkable/drivable tile, not inside a building or wall.
+    FOSSYND_CHECK(grid.isWalkable(car.tile().x, car.tile().y));
+    // The vehicle is optional cover, not a required step: the eliminate
+    // objective is still satisfiable with it untouched.
+    FOSSYND_CHECK(car.hasPath() == false);
+}
+
 // --- time bomb (issue #449) ------------------------------------------------
 //
 // A fused charge: arming queues a detonation at a tile, it lands after the fuse,

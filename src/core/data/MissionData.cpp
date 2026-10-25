@@ -534,6 +534,17 @@ void populateMission(const MissionData& data, Mission& mission)
         agent.setMaxHealth(spec.health);
         mission.addAgent(std::move(agent));
     }
+    // A mission's optional `vehicles[]` must actually reach the board, or the
+    // parser's work is silently discarded and a placed vehicle is inert. Convert
+    // each parsed spec into the core entity and register it with the Mission.
+    for (const VehicleSpec& spec : data.vehicles)
+    {
+        Vehicle vehicle(spec.kind, spec.x, spec.y, spec.speed);
+        vehicle.setName(spec.name);
+        vehicle.setMaxHealth(spec.health);
+        vehicle.setMountedWeapon(spec.weapon);
+        mission.addVehicle(std::move(vehicle));
+    }
 }
 
 bool applyLoadout(const PlayerLoadout& loadout, Mission& mission, const WeaponCatalogue& weapons,
