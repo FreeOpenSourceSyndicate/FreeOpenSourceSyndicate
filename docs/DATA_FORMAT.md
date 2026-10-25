@@ -214,13 +214,19 @@ edited once and referenced by id instead of copied into every mission
 
 - Each entry needs a non-empty **`id`**, unique within its file; a duplicate or
   missing id is a readable error.
-- A weapon entry takes the same fields as an inline `weapon` object (plus `id`).
-- **The `time-bomb` entry is modelled as an area weapon for now.** The sim has no
-  fuse/delay field (`Weapon` is `damage`/`range`/`fireRate`/`accuracy`/
-  `areaRadius`), so the Definition of Done's time-bomb family ships as the
-  closest existing shape: a high-damage blast (`areaRadius` > 0). The fuse itself
-  (arm, wait, then detonate through the normal area-damage path) is a **Tactical**
-  follow-up (issue #449); no core field is added here (golden rule 3).
+- A weapon entry takes the same fields as an inline `weapon` object (plus `id`),
+  including an optional **`fuseSeconds`** (`>= 0`, default `0` = immediate). A
+  weapon with `fuseSeconds > 0` **arms** on impact and **detonates** after the
+  fuse through the normal area-damage path (shields still cover it, walls breach,
+  civilian collateral applies). `fuseSeconds` is parsed by `parseWeaponNode`
+  (issue #461), so the `time-bomb` entry can carry a real fuse from data alone.
+- **The `time-bomb` entry is a fused area weapon.** It ships as a high-damage
+  blast (`areaRadius` > 0), and it may now carry a **`fuseSeconds`** delay from
+  data (issue #461), so the Definition of Done's time-bomb family can be a planted
+  charge that arms and then detonates — the fuse mechanic itself lives in
+  **Tactical** (issue #449, `core::Mission`). Setting a fuse on the shipped entry
+  (so the saboteur arms a charge rather than firing an immediate blast) is a
+  **Tactical/Content** balance decision, not part of #461.
 - An agent entry takes the same fields as a mission agent (`id`, `name`, `team`,
   `speed`, `health`) plus `weapon` or `weaponId`; it has no `x`/`y`.
 - A vehicle entry takes the same fields as a mission vehicle (`id`, `name`,
