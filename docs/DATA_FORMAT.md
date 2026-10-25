@@ -44,12 +44,15 @@ A mission file describes one mission. Example:
   ],
 
   "objective": {               // optional; defaults to eliminate-all
-    "kind": "eliminate"        // "eliminate" | "reach" | "survive"
+    "kind": "eliminate"        // "eliminate" | "reach" | "survive" | "escort"
+                               // | "destroy" | "persuade" | "assassinate" | "retrieve"
     // "kind": "reach", "tileX": 20, "tileY": 20
     // "kind": "survive", "seconds": 60
     // "kind": "escort", "agentIndex": 3, "tileX": 20, "tileY": 20
     // "kind": "destroy", "tileX": 12, "tileY": 13
     // "kind": "persuade", "targetCount": 3
+    // "kind": "assassinate", "agentIndex": 2
+    // "kind": "retrieve", "itemX": 4, "itemY": 9, "tileX": 20, "tileY": 20
   },
 
   "agents": [                  // required, non-empty
@@ -126,6 +129,15 @@ A mission file describes one mission. Example:
   - `"persuade"` — win when at least `targetCount` (an integer, `>= 1`)
     civilians have been recruited as followers of the player's agents (the
     ComplianceBeacon). Counts living followers across the whole squad.
+  - `"assassinate"` — win when the single agent at `agentIndex` (an integer
+    index into the `agents` array, `>= 0`) is **dead**, not the whole garrison.
+    The index must name an agent in the mission (like `"escort"`, but with no
+    tile).
+  - `"retrieve"` — win when the item resting on the tile `(itemX, itemY)` has
+    been **picked up** and a living player agent then stands on the exit tile
+    `(tileX, tileY)`. All four are required integer tile coordinates and must be
+    on the map. The pickup is latched squad-wide, so any member may carry the
+    item out once it is taken.
   - The lose condition is universal and unchanged: every player agent dead (and,
     for `"escort"`, the escorted unit dying). Civilians never affect win/lose.
     `Mission::elapsedSeconds()` reports the mission clock (frozen once the

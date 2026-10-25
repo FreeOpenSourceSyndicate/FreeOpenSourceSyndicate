@@ -1098,11 +1098,14 @@ Do not start work outside the scope fence (ADR-0024).
   so any member may carry the item out). `Mission::elapsedSeconds()` is the
   frozen-on-end mission clock. New objectives need no C++ change beyond the enum
   — prefer data. Added the full set in #281; `Assassinate`/`Retrieve` in #444
-  (reversing the #281 carve-out — ADR-0014 amendment). **The parser and the HUD
-  banner are cross-lane:** `MissionData::parseObjectiveJson` (content) and
-  `Game::objectiveBannerText` + the `--check-objectives` self-test (render) must
-  gain a branch per new kind, or a mission using it will not load / will render
-  the wrong banner.
+  (reversing the #281 carve-out — ADR-0014 amendment). **The parser half has
+  landed (issue #472):** `MissionData::parseObjectiveJson` parses
+  `"assassinate"` (numeric `agentIndex`, `>= 0`, bounds-checked against the agent
+  list like `escort`) and `"retrieve"` (numeric `itemX`/`itemY` and
+  `tileX`/`tileY`, both tiles bounds-checked on the map), so a mission using
+  either kind now loads. **The HUD banner half is still open (render, #474):**
+  `Game::objectiveBannerText` + the `--check-objectives` self-test must gain a
+  branch per new kind, or a mission using it will render the wrong banner.
 - **Sprites are authored text (ADR-0013):** agent and prop art lives in
   `assets/sprites/agents.txt` as `frame` blocks of `B`/`T`/`S`/`D`/`.`/`A`
   pixels. `core::bakeSheet` (`core/data/AgentSprites.*`, SDL-free, unit-tested)
