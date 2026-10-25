@@ -35,8 +35,11 @@ the three **regulated drug bars** the maintainer specified.
   **fail soft** in play — a mis-keyed save prints a message rather than costing
   progress. The default slot is `SDL_GetPrefPath` (`$XDG_DATA_HOME/FOSSynd/…`),
   overridden by an explicit `--save`, then by the file a `--load` resumed.
-  Research progress is reapplied on load (#480/PR #481). Guards: `game_save_load`,
-  `game_cli_load_missing`, and `game_save_hotkeys`. Issues #406, #430, #433, #527.
+  Research progress is reapplied on load (#480/PR #481) and the recruited roster
+  is restored with it (#532/PR #574, schema v3). The HUD control hint lists the
+  keys (`[F5] SAVE   [F9] LOAD`) so a player can discover them (#555/#556/PR #572).
+  Guards: `game_save_load`, `game_cli_load_missing`, and `game_save_hotkeys`.
+  Issues #406, #430, #433, #527, #532, #555.
 
 - **A mission on every region — the map is a real campaign.** The campaign was a
   two-mission demo replayed across a few regions. It is now a **twelve-region
@@ -80,6 +83,9 @@ the three **regulated drug bars** the maintainer specified.
   schema went to v2), so the identity you choose is the identity you resume.
   `--new-game` forces the screen; `--load` skips it because the save restores an
   identity. This is the first SDL text-input path in the tree. Issues #445, #447.
+  The **recruited roster** persists too: the save carries each slot's region-derived
+  name (schema v3), so a reloaded campaign keeps the squad's identities (#532/PR
+  #574).
 
 - **The game has sound.** A hand-rolled SDL2 audio layer (`game::Audio`,
   ADR-0040) plays a small set of **procedurally generated** cues — Shoot, Hit,
@@ -114,7 +120,10 @@ the three **regulated drug bars** the maintainer specified.
   id in `assets/data/weapons.json` now has a `weapon.<id>.name` key in `en` and
   `de` (ASCII, transliterated), derived through the same pure helper as mission
   names (`MissionText::weaponNameKey`), and the coverage guard fails if a
-  catalogue id has no key (#534/PR #558). Issues #270, #534.
+  catalogue id has no key (#534/PR #558). The **HUD now uses it** — the resolved
+  weapon carries its catalogue id and `Game::weaponDisplayName()` resolves the key
+  with the authored name as a fallback, so a `--lang de` run really shows German
+  names (#557/PR #577). Issues #270, #534, #557.
 
 - **The time bomb.** A new fused weapon: `Weapon::fuseSeconds` (additive, default
   `0` = immediate, so every existing weapon is unchanged) arms a bomb at the
