@@ -2564,8 +2564,8 @@ ever wants it gone, the delete is a self-contained removal of the three regexes,
 
 ## ADR-0043 — Drugs are a three-bar physiological model, not an inventory item
 
-- **Status:** Accepted (2026-10-17) — v1.0.0 scope, maintainer directive
-- **Date:** 2026-10-17
+- **Status:** Accepted (2026-10-25) — v1.0.0 scope, maintainer directive
+- **Date:** 2026-10-25
 - **Context:** v1.0.0 reproduces the 1993 original (ADR-0024). The current
   implementation treats "performance drugs" as a **single-use gadget**: one dose
   gives a flat 8 s speed/accuracy buff (`Mission::useDrugs`, ADR-0028). The
@@ -2655,8 +2655,8 @@ ever wants it gone, the delete is a self-contained removal of the three regexes,
 
 ## ADR-0044 — v1.0.0 art target is Syndicate Plus fidelity, not base-1993 chunky
 
-- **Status:** Accepted (2026-10-17) — v1.0.0 scope, maintainer directive
-- **Date:** 2026-10-17
+- **Status:** Accepted (2026-10-25) — v1.0.0 scope, maintainer directive
+- **Date:** 2026-10-25
 - **Context:** ADR-0009 fixed v1.0.0 as a **faithful, pixel-art reproduction** and
   warned against "improved" graphics. The maintainer has now set a sharper target:
   **"the graphics in V1 should resemble the graphics of Syndicate Plus in style and
