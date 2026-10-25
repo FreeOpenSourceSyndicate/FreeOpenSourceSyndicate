@@ -101,6 +101,14 @@ constexpr float kThreatApproaching = 1.25f;
 constexpr float kThreatHasSeenMe = 1.25f;
 constexpr float kThreatApproachSpeed = 0.05f;   // tiles/s that counts as "towards me"
 
+// Intelligence (S3). The effect scales the felt threat (recognition): below 1 as
+// the effect falls (a low-intelligence agent under-detects threats, so it panics
+// less), above 1 as it rises. It also scales how strongly the target picker
+// prefers a hittable target, and at effect > 0 the agent recognises an
+// `assassinate` mission target as valid. All deterministic; no RNG.
+constexpr float kRecognitionGain = 0.6f;      // ±60% felt threat at full effect
+constexpr float kTargetPreferenceGain = 1.0f; // hittability weight at full effect
+
 // Vehicles: how close (tiles) an agent must be to a vehicle's tile to hijack it,
 // so both "stand on the tile" and "step up to it" work. A destroyed vehicle is
 // a wreck (occupants are thrown clear), so it damages agents within this blast
@@ -709,7 +717,133 @@ float Mission::threatTo(std::size_t index) const
 
         total += base * distanceModifier * targetingModifier * seenModifier * approachingModifier;
     }
-    return total;
+    // Recognition (S3): intelligence scales how much of the raw threat the agent
+    // actually perceives. A low-intelligence agent under-detects (panics less),
+    // a high one detects more. At effect 0 this is 1.0, so S2 is unchanged.
+    return total * recognitionScale(index);
+}
+
+float Mission::recognitionScale(std::size_t index) const
+{
+    const float effect = drugEffect(index, Drug::Intelligence);
+    const float scale = 1.0f + kRecognitionGain * effect;
+    return scale < 0.0f ? 0.0f : scale;
+}
+
+bool Mission::isAssassinationTarget(std::size_t index) const
+{
+    return objective_.kind == ObjectiveSpec::Kind::Assassinate && objective_.agentIndex >= 0 &&
+           static_cast<std::size_t>(objective_.agentIndex) == index;
+}
+
+int Mission::selectTarget(std::size_t self, Team enemyTeam) const
+{
+    if (self >= agents_.size() || !agents_[self].isCombatant())
+    {
+        return -1;
+    }
+    // At effect <= 0 this is exactly `nearestEnemy`, so a low-intelligence agent
+    // (and every S2 mission, where intelligence sits at neutral) is unchanged.
+    const float effect = drugEffect(self, Drug::Intelligence);
+    if (effect <= 0.0f)
+    {
+        return nearestEnemy(self, enemyTeam);
+    }
+
+    const Agent& attacker = agents_[self];
+    const float range = attacker.weapon().range;
+    const float weight = effect * kTargetPreferenceGain;
+    int best = -1;
+    float bestScore = 0.0f;
+    for (std::size_t i = 0; i < agents_.size(); ++i)
+    {
+        if (i == self || !agents_[i].isAlive())
+        {
+            continue;
+        }
+        // A mission target (assassinate) is recognised as a valid target at high
+        // intelligence even if it is a civilian, so the objective stays
+        // completable; otherwise only the enemy team qualifies. Only the player
+        // pursues the objective, so an enemy never diverts to it, and a unit on
+        // the agent's own team is never a target even if the objective names it.
+        const bool sameTeam = agents_[i].team() == agents_[self].team();
+        const bool missionTarget = agents_[self].team() == Team::Player &&
+                                   isAssassinationTarget(i) && !sameTeam;
+        if (agents_[i].team() != enemyTeam && !missionTarget)
+        {
+            continue;
+        }
+        // A wall blocks acquisition, matching `nearestEnemy`.
+        if (!hasClearShot(self, i))
+        {
+            continue;
+        }
+        const float distance = distanceBetween(self, i);
+        // A nearer target scores higher; so does one it can actually hit — in
+        // range and with no team-mate in the line (a shot it would hold fire on).
+        float score = 1.0f / (1.0f + distance);
+        if (distance <= range && !wouldHitFriendInBlast(self, i))
+        {
+            score += weight;
+        }
+        if (best == -1 || score > bestScore)
+        {
+            best = static_cast<int>(i);
+            bestScore = score;
+        }
+    }
+    return best;
+}
+
+bool Mission::wouldHitFriendInBlast(std::size_t self, std::size_t targetIndex) const
+{
+    if (self >= agents_.size() || targetIndex >= agents_.size())
+    {
+        return false;
+    }
+    const float radius = agents_[self].weapon().areaRadius;
+    if (radius <= 0.0f)
+    {
+        return false; // a single-target weapon catches no one else
+    }
+    const Vec2 impact = agents_[targetIndex].position();
+    const Team friendlyTeam = agents_[self].team();
+    for (std::size_t i = 0; i < agents_.size(); ++i)
+    {
+        if (i == self || i == targetIndex || !agents_[i].isAlive())
+        {
+            continue;
+        }
+        const bool friendly = agents_[i].team() == friendlyTeam;
+        // A civilian is a bystander to protect; a mission target (assassinate) is
+        // never protected, so the objective stays completable.
+        const bool bystander =
+            agents_[i].team() == Team::Civilian && !isAssassinationTarget(i);
+        if (!friendly && !bystander)
+        {
+            continue;
+        }
+        if (length(agents_[i].position() - impact) <= radius)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Mission::shouldTakeAreaShot(std::size_t self, std::size_t targetIndex) const
+{
+    if (self >= agents_.size())
+    {
+        return true;
+    }
+    // Only a high-intelligence agent is careful; at or below neutral it always
+    // takes the shot, so S2 and the shipped missions are unchanged.
+    if (drugEffect(self, Drug::Intelligence) <= 0.0f)
+    {
+        return true;
+    }
+    return !wouldHitFriendInBlast(self, targetIndex);
 }
 
 float Mission::reactionInterval(std::size_t index) const
@@ -1309,7 +1443,7 @@ void Mission::updateCombatantAI(std::size_t index)
         return;
     }
 
-    const int target = nearestEnemy(index, Team::Player);
+    const int target = selectTarget(index, Team::Player);
     if (target < 0)
     {
         // No target in sight (none reachable without a wall in the way): patrol
@@ -1715,7 +1849,7 @@ void Mission::resolveFire()
         }
         if (target < 0)
         {
-            target = nearestEnemy(i, enemyTeam);
+            target = selectTarget(i, enemyTeam);
         }
         if (target < 0)
         {
@@ -1746,6 +1880,15 @@ void Mission::resolveFire()
                 attacker.beginFireCooldown();
                 grid_->damageTile(wall.x, wall.y, static_cast<int>(attacker.weapon().damage));
             }
+            continue;
+        }
+
+        // Intelligence (S3): a high-intelligence agent holds fire on an area shot
+        // that would catch a team-mate or a civilian in the blast (unless the
+        // mission's target *is* that civilian). A neutral-or-low agent takes it,
+        // so this changes no S2/shipped-mission outcome. Deterministic; no RNG.
+        if (!shouldTakeAreaShot(i, targetIndex))
+        {
             continue;
         }
 

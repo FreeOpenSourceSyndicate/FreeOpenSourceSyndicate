@@ -1060,6 +1060,30 @@ Do not start work outside the scope fence (ADR-0024).
   the live speed (both systems compose; the buff's expiry divides the base back
   out). All deterministic; no RNG. S3 (intelligence) and S4 (physical) follow; the
   HUD bars/controls/ceilings are #502/#503/#504.
+- **Regulated drug bars, S3 — intelligence** (issue #498, ADR-0043): the second
+  bar, on the S2 threat model. **Recognition:** `Mission::recognitionScale`
+  multiplies the felt threat by `1 + kRecognitionGain * intelligence effect`, so a
+  low-intelligence agent **under-detects** threats (and so panics less) and a high
+  one detects more; `threatTo` returns `raw * recognitionScale`, and the scale is
+  exactly 1.0 at effect 0, so S2 and every shipped mission are unchanged.
+  **Target choice:** `Mission::selectTarget(self, enemyTeam)` replaces
+  `nearestEnemy` in `updateCombatantAI` and `resolveFire`. At intelligence effect
+  **<= 0 it is exactly `nearestEnemy`** (nearest enemy with a clear shot); above
+  neutral it scores each candidate by `1/(1+distance) + weight` where `weight =
+  effect * kTargetPreferenceGain` is added only for a target it can **actually
+  hit** — in weapon range and with no friendly in the blast (`wouldHitFriendInBlast`)
+  — so it prefers a hittable enemy over a nearer un-hittable one. A civilian named
+  by an `assassinate` objective (`isAssassinationTarget`) is recognised as a valid
+  target at high intelligence, but only by the **player** team (the objective is
+  the player's, so an enemy never diverts to it); a unit on the agent's own team is
+  **never** a target, even if the objective names it. **Friendly-fire avoidance:**
+  `Mission::wouldHitFriendInBlast` reports whether an area shot at a target would
+  catch a team-mate or a civilian in the blast (a mission target is never
+  protected); `shouldTakeAreaShot` (read in `resolveFire`, before the cooldown) is
+  false only when intelligence is above neutral and the blast would catch a
+  friendly — a neutral-or-low agent takes the shot, so no S2/shipped-mission
+  outcome changes. All deterministic; no RNG; `Agent` untouched. S4 (physical)
+  follows.
 - **Cybernetic upgrades** (issue #313, ADR-0031): Milestone A's passive stat
   upgrades. `CyberneticEffect` (`src/core/sim/Cybernetic.h`, header-only) holds
   four **multipliers** (all default 1.0); `cyberneticEffectForId(id, out)`
