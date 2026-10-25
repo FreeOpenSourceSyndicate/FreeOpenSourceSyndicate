@@ -57,5 +57,11 @@
   "mission.relay.name": "Relais",
   "mission.relay.desc": "Die Relaismauer von Andura durchbrechen und den Sender zerstoeren, bevor die Garnison den Pass sperrt.",
   "mission.conclave.name": "Das Konklave",
-  "mission.conclave.desc": "Das Syndikat-Konklave stuermen und den AUFSEHER toeten; die Praetorianergarde und seine Leibwaechter kaempfen bis zum Letzten."
+  "mission.conclave.desc": "Das Syndikat-Konklave stuermen und den AUFSEHER toeten; die Praetorianergarde und seine Leibwaechter kaempfen bis zum Letzten.",
+  "mission.cordon.name": "Absperrung",
+  "mission.cordon.desc": "Den Ring um die vier Depots durchbrechen und jeden Wachposten ausschalten, der ihn haelt.",
+  "mission.vault.name": "Tresor",
+  "mission.vault.desc": "Den Tresor auf dem fernen Sims knacken und das Buch durch die Wachlinie zum Bergungsfeld bringen.",
+  "mission.uprising.name": "Aufstand",
+  "mission.uprising.desc": "Die Menge mit dem Compliance-Beacon umdrehen und fuenf fuer sich gewinnen, bevor die Bereitschaft naht."
 }

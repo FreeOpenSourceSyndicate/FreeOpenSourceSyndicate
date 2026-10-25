@@ -57,5 +57,11 @@
   "mission.relay.name": "Relay",
   "mission.relay.desc": "Breach the Anduran relay wall and destroy the transmitter before the garrison seals the pass.",
   "mission.conclave.name": "The Conclave",
-  "mission.conclave.desc": "Storm the syndicate conclave and kill the OVERSEER; the praetorian guard and his bodyguards will fight to the last."
+  "mission.conclave.desc": "Storm the syndicate conclave and kill the OVERSEER; the praetorian guard and his bodyguards will fight to the last.",
+  "mission.cordon.name": "Cordon",
+  "mission.cordon.desc": "Break the cordon around the four depots and eliminate every sentry holding the ring.",
+  "mission.vault.name": "Vault",
+  "mission.vault.desc": "Crack the vault on the far shelf and carry the ledger back to the extraction tile through the guard line.",
+  "mission.uprising.name": "Uprising",
+  "mission.uprising.desc": "Turn the crowd with the Compliance Beacon and bring five of them over before the riot squad closes in."
 }
