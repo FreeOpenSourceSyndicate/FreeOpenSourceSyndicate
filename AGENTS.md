@@ -1705,3 +1705,12 @@ Do not start work outside the scope fence (ADR-0024).
   quality-of-life changes remain **out of scope for v1.0.0** (ADR-0009/ADR-0024).
   `docs/ASSETS.md` still wants the Plus-fidelity note — a render/content
   follow-up.
+- **A reserved-but-unstarted agent holds no lease, so its earmarked work looks
+  free (issue #542).** The PO earmarked #465 (missions) for the not-yet-started
+  `ms-1-kastenbrot`; because a reserved name is not a lease, `coord status` showed
+  the lane free and an idle worker self-claimed it (§3.14) — nobody broke a
+  rule, the *plan* was just not in the machine. Fix: when the PO earmarks an issue
+  for a **reserved** agent, it records `reserved-for: <agent>` in the issue body
+  (`docs/FOCUS_AREAS.md` §5.3.1); a claimant who is not that agent picks other
+  work. The marker is a convention, not a lock (the ledger is the only lock); the
+  `coord claim`/`next` enforcement half is a `platform` Rule 4 (#542).

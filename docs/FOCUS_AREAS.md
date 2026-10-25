@@ -461,6 +461,36 @@ The legacy `CLAIM:` / `LEASE:` / `TAKEOVER:` comment lines are **read** by
 `scripts/coord migrate` for the transition (`docs/COORDINATION_MIGRATION.md`) but
 are no longer the mechanism of record.
 
+#### 5.3.1 Earmarked work: the `reserved-for:` hold
+
+A lease is scoped to an **agent that exists**. A *reserved* name (a placeholder
+the SM holds for an agent the human has not started yet, `docs/ORGANISATION.md`
+§5) holds **no lease**, so the work the PO earmarked for it is invisible to the
+ledger and looks **free** to any idle worker — who then self-claims it under
+§3.14. That is how #465, earmarked for the unstarted `ms-1-kastenbrot`, was
+claimed by a Content worker (issue #542). Nobody broke a rule; the *plan* was
+simply not in the machine.
+
+So a PO that earmarks an issue for a **reserved** agent records it where the
+ledger can see it — a marker line in the **issue body**, mirroring `blocked-by:`:
+
+```
+reserved-for: ms-1-kastenbrot
+```
+
+- **The PO adds it** when it seeds or earmarks the issue, and **removes it** when
+  the named agent starts and claims the work (or the plan changes).
+- **A claimant honours it.** If you are not the named agent, do **not** claim that
+  issue; pick a different one in the area (or file the next roadmap item — the
+  backlog floor, `AGENTS.md` §1d). The marker is a *convention*, not a lock: the
+  ledger stays the only lock (§5.3), and `coord claim` may not enforce it until
+  the platform half lands (#542). Treat an unexpected `reserved-for:` as "ask the
+  PO / pick other work", not as a collision.
+- **It is not `status: blocked`.** Blocked means *waiting on another issue*; a
+  reserved hold means *waiting on an agent to start*. Keep them separate.
+- **If the earmarked agent never starts**, the hold is not a leak: the PO (or SM)
+  clears it at the next shift, and the work returns to the claimable pool.
+
 ### What an idle agent may do without being asked
 
 - **Review** open PRs from other areas (never a file edit; `AGENTS.md` §3a
