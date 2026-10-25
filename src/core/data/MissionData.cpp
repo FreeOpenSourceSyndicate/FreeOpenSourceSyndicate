@@ -294,10 +294,55 @@ bool MissionData::parseObjectiveJson(const Json& node, int mapWidth, int mapHeig
             return false;
         }
     }
+    else if (kind == "assassinate")
+    {
+        out.kind = ObjectiveSpec::Kind::Assassinate;
+        if (!node.has("agentIndex"))
+        {
+            error = "an 'assassinate' objective needs a numeric 'agentIndex'";
+            return false;
+        }
+        out.agentIndex = node["agentIndex"].asInt();
+        if (out.agentIndex < 0)
+        {
+            error = "an 'assassinate' objective needs an 'agentIndex' >= 0";
+            return false;
+        }
+        // No tile: `agentIndex` is bounds-checked against the agent list in
+        // `fromJson`, once the agents are parsed (the objective is parsed first).
+    }
+    else if (kind == "retrieve")
+    {
+        out.kind = ObjectiveSpec::Kind::Retrieve;
+        if (!node.has("itemX") || !node.has("itemY") || !node.has("tileX") || !node.has("tileY"))
+        {
+            error = "a 'retrieve' objective needs numeric 'itemX', 'itemY', 'tileX', and 'tileY'";
+            return false;
+        }
+        out.itemX = node["itemX"].asInt();
+        out.itemY = node["itemY"].asInt();
+        out.tileX = node["tileX"].asInt();
+        out.tileY = node["tileY"].asInt();
+        // The exit tile is checked by the shared helper; the pickup tile is
+        // checked the same way so an off-map item cannot make the mission
+        // silently unwinnable (issue #212).
+        if (!objectiveTileOnMap(out, mapWidth, mapHeight, "retrieve", error))
+        {
+            return false;
+        }
+        if (out.itemX < 0 || out.itemY < 0 || out.itemX >= mapWidth || out.itemY >= mapHeight)
+        {
+            error = "a 'retrieve' objective item (" + std::to_string(out.itemX) + ", " +
+                    std::to_string(out.itemY) + ") is outside the " + std::to_string(mapWidth) +
+                    "x" + std::to_string(mapHeight) + " map";
+            return false;
+        }
+    }
     else
     {
         error = "unknown objective kind '" + kind +
-                "' (expected eliminate, reach, survive, escort, destroy, or persuade)";
+                "' (expected eliminate, reach, survive, escort, destroy, persuade, assassinate, or "
+                "retrieve)";
         return false;
     }
     return true;
@@ -393,13 +438,16 @@ bool MissionData::fromJson(const Json& root, MissionData& out, const WeaponCatal
         }
     }
 
-    // The escorted unit must exist: an escort objective naming an agent that is
-    // not in the mission can never be won, so it is a content error (issue #212
-    // pattern). Checked here because the objective is parsed before the agents.
-    if (out.objective.kind == ObjectiveSpec::Kind::Escort &&
+    // The escorted / assassinated unit must exist: an objective naming an agent
+    // that is not in the mission can never be won, so it is a content error
+    // (issue #212 pattern). Checked here because the objective is parsed before
+    // the agents.
+    if ((out.objective.kind == ObjectiveSpec::Kind::Escort ||
+         out.objective.kind == ObjectiveSpec::Kind::Assassinate) &&
         static_cast<std::size_t>(out.objective.agentIndex) >= out.agents.size())
     {
-        error = "an 'escort' objective 'agentIndex' (" + std::to_string(out.objective.agentIndex) +
+        error = "an '" + std::string(objectiveKindName(out.objective.kind)) +
+                "' objective 'agentIndex' (" + std::to_string(out.objective.agentIndex) +
                 ") is outside the " + std::to_string(out.agents.size()) + "-agent mission";
         return false;
     }

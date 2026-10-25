@@ -328,6 +328,37 @@ FOSSYND_TEST(MissionData, ParsesPersuadeObjective)
     FOSSYND_CHECK_EQ(data.objective.targetCount, 3);
 }
 
+// --- Assassinate / retrieve (issue #444, parsed in #472) ------------------
+
+FOSSYND_TEST(MissionData, ParsesAssassinateObjective)
+{
+    std::string error;
+    const Json root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "assassinate", "agentIndex": 1 },
+        "agents": [{"team":"player","x":1,"y":1},{"team":"enemy","x":2,"y":1}]})", error);
+    MissionData data;
+    FOSSYND_CHECK(MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Assassinate);
+    FOSSYND_CHECK_EQ(data.objective.agentIndex, 1);
+}
+
+FOSSYND_TEST(MissionData, ParsesRetrieveObjective)
+{
+    std::string error;
+    const Json root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "retrieve", "itemX": 2, "itemY": 3, "tileX": 6, "tileY": 4 },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    MissionData data;
+    FOSSYND_CHECK(MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Retrieve);
+    FOSSYND_CHECK_EQ(data.objective.itemX, 2);
+    FOSSYND_CHECK_EQ(data.objective.itemY, 3);
+    FOSSYND_CHECK_EQ(data.objective.tileX, 6);
+    FOSSYND_CHECK_EQ(data.objective.tileY, 4);
+}
+
 FOSSYND_TEST(MissionData, RejectsInvalidNewObjectives)
 {
     std::string error;
@@ -376,6 +407,46 @@ FOSSYND_TEST(MissionData, RejectsInvalidNewObjectives)
     error.clear();
     root = Json::parse(R"({"width": 8, "height": 6,
         "objective": { "kind": "persuade", "targetCount": 0 },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
+
+    // Assassinate without an agent index.
+    error.clear();
+    root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "assassinate" },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
+
+    // Assassinate naming an agent that is not in the mission.
+    error.clear();
+    root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "assassinate", "agentIndex": 5 },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
+
+    // Retrieve missing its item or exit coordinates.
+    error.clear();
+    root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "retrieve", "itemX": 2, "itemY": 3, "tileX": 6 },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
+
+    // Retrieve with the exit tile off the map.
+    error.clear();
+    root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "retrieve", "itemX": 2, "itemY": 3, "tileX": 99, "tileY": 4 },
+        "agents": [{"team":"player","x":1,"y":1}]})", error);
+    FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
+    FOSSYND_CHECK(!error.empty());
+
+    // Retrieve with the item tile off the map.
+    error.clear();
+    root = Json::parse(R"({"width": 8, "height": 6,
+        "objective": { "kind": "retrieve", "itemX": 2, "itemY": 99, "tileX": 6, "tileY": 4 },
         "agents": [{"team":"player","x":1,"y":1}]})", error);
     FOSSYND_CHECK(!MissionData::fromJson(root, data, error));
     FOSSYND_CHECK(!error.empty());
