@@ -2738,6 +2738,36 @@ int indexOfAgentNamed(const Mission& mission, const std::string& name)
     return -1;
 }
 
+// The nearest living enemy to a player agent, or -1. `Mission::nearestEnemy` is
+// private, so a winnability test picks its own target; any living enemy keeps
+// the squad engaged, which is all the drive needs.
+int nearestLivingEnemy(const Mission& mission, std::size_t self)
+{
+    const std::vector<Agent>& agents = mission.agents();
+    if (self >= agents.size())
+    {
+        return -1;
+    }
+    int best = -1;
+    float bestDistance = 0.0f;
+    for (std::size_t i = 0; i < agents.size(); ++i)
+    {
+        if (agents[i].team() != Team::Enemy || !agents[i].isAlive())
+        {
+            continue;
+        }
+        const float dx = agents[i].position().x - agents[self].position().x;
+        const float dy = agents[i].position().y - agents[self].position().y;
+        const float distance = dx * dx + dy * dy;
+        if (best < 0 || distance < bestDistance)
+        {
+            best = static_cast<int>(i);
+            bestDistance = distance;
+        }
+    }
+    return best;
+}
+
 } // namespace
 
 FOSSYND_TEST(Mission, ShippedBlackoutDestroyIsWinnable)
@@ -3043,6 +3073,154 @@ FOSSYND_TEST(Mission, ShippedExtractionRetrieveIsWinnable)
     orderSquadTo(exit);
     runUntilDone(mission, 40.0f);
     FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+}
+
+// --- Shipped frontier mission set, slice 1 (issue #511) --------------------
+//
+// The campaign's first three frontier regions (2 Vostara, 3 Sahari, 7 Andura)
+// must ship *distinct* boards, not replay the opening shared set. Each case
+// loads the real file through the real loader, builds the real grid, and drives
+// the objective's own mechanic to the win — so an unwinnable layout fails here
+// rather than at a playtest. `holdout` is notable: it is the first shipped
+// mission to use the `survive` objective, so that kind is now reachable in play
+// rather than merely evaluated by the core.
+
+FOSSYND_TEST(Mission, ShippedHoldoutSurviveIsWinnable)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("holdout"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Survive);
+    FOSSYND_CHECK(data.objective.seconds > 0.0f);
+
+    // A survive objective with no live enemy is a walkover, and one with a
+    // trivially lethal garrison is unwinnable; require a real garrison so the
+    // mission is a genuine holdout.
+    std::size_t enemies = 0;
+    for (const AgentSpec& spec : data.agents)
+    {
+        if (spec.team == Team::Enemy)
+        {
+            ++enemies;
+        }
+    }
+    FOSSYND_CHECK(enemies >= 2);
+
+    TileGrid grid = buildGrid(data);
+    Mission mission(grid, 31u);
+    populateMission(data, mission);
+
+    // The player's real action: fight the garrison off while the clock runs. The
+    // mission is won by *surviving*, not by wiping the garrison, so the win must
+    // land on the timer even if the enemies are still alive.
+    for (int guard = 0; guard < 120 && mission.state() == MissionState::Running; ++guard)
+    {
+        for (std::size_t i = 0; i < mission.agents().size(); ++i)
+        {
+            if (mission.agents()[i].team() != Team::Player || !mission.agents()[i].isAlive())
+            {
+                continue;
+            }
+            const int target = nearestLivingEnemy(mission, i);
+            if (target >= 0)
+            {
+                mission.orderAttack(i, static_cast<std::size_t>(target));
+            }
+        }
+        runUntilDone(mission, 2.0f);
+    }
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK(mission.elapsedSeconds() >= data.objective.seconds);
+}
+
+FOSSYND_TEST(Mission, ShippedCaravanEscortIsWinnable)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("caravan"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Escort);
+
+    // The escorted unit must be a real player agent, and the exit must be
+    // reachable from the squad or the mission is silently unwinnable (#212).
+    const int escorted = data.objective.agentIndex;
+    FOSSYND_CHECK(escorted >= 0);
+    FOSSYND_CHECK(static_cast<std::size_t>(escorted) < data.agents.size());
+    FOSSYND_CHECK_EQ(data.agents[static_cast<std::size_t>(escorted)].team, Team::Player);
+
+    TileGrid grid = buildGrid(data);
+    const TilePos exit{data.objective.tileX, data.objective.tileY};
+    FOSSYND_CHECK(grid.isWalkable(exit.x, exit.y));
+    const TilePos start{static_cast<int>(data.agents.front().x),
+                        static_cast<int>(data.agents.front().y)};
+    FOSSYND_CHECK(!findPath(grid, start, exit, /*allowDiagonal=*/true).empty());
+
+    Mission mission(grid, 32u);
+    populateMission(data, mission);
+
+    // The player's real action: walk the squad to the exit. The escorted unit
+    // must reach it alive, so losing it loses the mission.
+    for (int guard = 0; guard < 60 && mission.state() == MissionState::Running; ++guard)
+    {
+        for (std::size_t i = 0; i < mission.agents().size(); ++i)
+        {
+            if (mission.agents()[i].team() == Team::Player && mission.agents()[i].isAlive())
+            {
+                mission.orderMove(i, exit);
+            }
+        }
+        runUntilDone(mission, 4.0f);
+    }
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK(mission.agents()[static_cast<std::size_t>(escorted)].isAlive());
+    FOSSYND_CHECK(mission.agents()[static_cast<std::size_t>(escorted)].tile() == exit);
+}
+
+FOSSYND_TEST(Mission, ShippedRelayDestroyIsWinnable)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("relay"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Destroy);
+
+    TileGrid grid = buildGrid(data);
+    const TilePos goal{data.objective.tileX, data.objective.tileY};
+    // The objective names a destructible wall, not a floor tile: without a
+    // breachable target the mission could never be won.
+    FOSSYND_CHECK(grid.isDestructible(goal.x, goal.y));
+    FOSSYND_CHECK(!grid.isWalkable(goal.x, goal.y));
+
+    Mission mission(grid, 33u);
+    populateMission(data, mission);
+    FOSSYND_CHECK(mission.objective().kind == ObjectiveSpec::Kind::Destroy);
+
+    // The player's real action: order the squad onto the defender behind the
+    // wall. The wall blocks the shot, so the agent chips the wall — the destroy
+    // objective's actual mechanic.
+    FOSSYND_CHECK(!grid.isRubble(goal.x, goal.y));
+    for (int guard = 0; guard < 60 && mission.state() == MissionState::Running; ++guard)
+    {
+        for (std::size_t i = 0; i < mission.agents().size(); ++i)
+        {
+            if (mission.agents()[i].team() != Team::Player || !mission.agents()[i].isAlive())
+            {
+                continue;
+            }
+            const int target = nearestLivingEnemy(mission, i);
+            if (target >= 0)
+            {
+                mission.orderAttack(i, static_cast<std::size_t>(target));
+            }
+        }
+        runUntilDone(mission, 2.0f);
+    }
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK(grid.isRubble(goal.x, goal.y));
 }
 
 // A shipped mission's `vehicles[]` must reach the board (issue #417). The
