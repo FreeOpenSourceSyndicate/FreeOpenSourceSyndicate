@@ -3,6 +3,10 @@
 
 #include "core/data/AgentSprites.h"
 
+#include <fstream>
+#include <sstream>
+#include <string>
+
 using namespace fossynd::core;
 
 namespace
@@ -135,4 +139,28 @@ FOSSYND_TEST(Sprites, AgentSheetHasFourFrames)
     FOSSYND_CHECK_EQ(AgentSpriteSheet::frameIndex(false, true), 1);
     FOSSYND_CHECK_EQ(AgentSpriteSheet::frameIndex(true, false), 2);
     FOSSYND_CHECK_EQ(AgentSpriteSheet::frameIndex(true, true), 3);
+}
+
+// The shipped sheet must author the four agent frames at the documented native
+// size (docs/ART_STYLE.md). The view's size check (game::kAgentFrameWidth/Height)
+// is the runtime guard; this pins the *shipped file* so a stale or mis-sized
+// sheet is caught by `ctest` even before the SDL target is built. The value
+// lives in src/game/Sprite.h (render-owned); keep the two in step.
+FOSSYND_TEST(Sprites, ShippedAgentFramesAreTheNativeSize)
+{
+    const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/sprites/agents.txt";
+    std::ifstream in(path);
+    FOSSYND_CHECK(in.good());
+    std::ostringstream buffer;
+    buffer << in.rdbuf();
+
+    AgentSpriteSheet agent;
+    std::string error;
+    FOSSYND_CHECK(bakeAgentSprites(buffer.str(), kPalette, agent, error));
+    FOSSYND_CHECK(agent.valid());
+    for (int i = 0; i < 4; ++i)
+    {
+        FOSSYND_CHECK_EQ(agent.sheet.frames[static_cast<std::size_t>(i)].width, 20);
+        FOSSYND_CHECK_EQ(agent.sheet.frames[static_cast<std::size_t>(i)].height, 28);
+    }
 }
