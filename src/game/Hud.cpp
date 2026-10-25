@@ -247,7 +247,7 @@ void Game::renderHud()
             hudstyle::substitute(tr("hud.agentRow", "{marker}{name}  {weapon}  HP {hp}"),
                        {{"marker", marker},
                         {"name", agent.name()},
-                        {"weapon", agent.weapon().name},
+                        {"weapon", weaponDisplayName(agent.weapon())},
                         {"hp", std::to_string(hp)}}) +
             groupTag;
         const SDL_Color color = agent.isAlive() ? (isSelected ? hudstyle::kHudText : hudstyle::kHudDim) : hudstyle::kHudDim;

@@ -301,6 +301,10 @@ public:
                 error = "weapon '" + entry.id + "': " + error;
                 return false;
             }
+            // Stamp the catalogue id onto the resolved weapon so a consumer (the
+            // HUD, via `i18n::weaponNameKey`) can localise its name; an inline
+            // mission weapon keeps an empty id and falls back to `name` (#534/#557).
+            entry.weapon.id = entry.id;
             entries_.push_back(std::move(entry));
         }
         return true;

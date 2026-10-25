@@ -1,6 +1,7 @@
 /* AI/LLM-generated file. Do not treat as human-written source documentation. */
 #include "TestHarness.h"
 #include "core/data/ContentValidation.h"
+#include "core/i18n/MissionText.h"
 
 #include <filesystem>
 #include <fstream>
@@ -647,6 +648,38 @@ FOSSYND_TEST(ContentValidation, ShippedContentPasses)
     // (#319). Pinned exactly so an entry cannot silently vanish from a shipped
     // catalogue; bump it when content is added on purpose.
     FOSSYND_CHECK_EQ(report.cataloguesChecked, static_cast<std::size_t>(29));
+}
+
+// A weapon resolved from the shared catalogue carries its own id, so the view
+// can localise its HUD name via `i18n::weaponNameKey(id)` (issue #534/#557). An
+// inline mission weapon has no id and keeps an empty one, so the HUD falls back
+// to the authored name. Pinned here because the stamp lives in the loader
+// (`WeaponCatalogue::loadFromJson`) and a regression would silently de-localise
+// every catalogue weapon in the HUD.
+FOSSYND_TEST(ContentValidation, CatalogueWeaponsCarryTheirId)
+{
+    const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/weapons.json";
+    WeaponCatalogue catalogue;
+    bool found = false;
+    std::string error;
+    FOSSYND_CHECK(catalogue.loadFromFile(path, found, error));
+    FOSSYND_CHECK(found);
+
+    // Every shipped entry's weapon id equals its catalogue key, and the id is a
+    // non-empty key-safe id (so `weaponNameKey` yields a real key, not "").
+    for (const WeaponEntry& entry : catalogue.entries())
+    {
+        FOSSYND_CHECK_EQ(entry.weapon.id, entry.id);
+        FOSSYND_CHECK(!i18n::weaponNameKey(entry.id).empty());
+    }
+
+    // The lookup path stamps the same id (a mission referencing `weaponId`).
+    const Weapon* rifle = catalogue.find("rifle");
+    FOSSYND_CHECK(rifle != nullptr);
+    if (rifle != nullptr)
+    {
+        FOSSYND_CHECK_EQ(rifle->id, std::string("rifle"));
+    }
 }
 
 // The Phase 3 weapon tiers (issue #124) must be present in the shipped catalogue
