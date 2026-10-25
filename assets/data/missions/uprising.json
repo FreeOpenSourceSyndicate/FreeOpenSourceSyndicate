@@ -1,0 +1,49 @@
+{
+  "name": "Uprising",
+  "id": "uprising",
+  "width": 24,
+  "height": 24,
+  "objective": { "kind": "persuade", "targetCount": 5 },
+  "buildings": [
+    { "x": 10, "y": 10, "width": 4, "height": 4 },
+    { "x": 19, "y": 4, "width": 3, "height": 3 },
+    { "x": 4, "y": 18, "width": 3, "height": 3 }
+  ],
+  "blocked": [
+    { "x": 8, "y": 8 }, { "x": 8, "y": 9 }, { "x": 8, "y": 10 }, { "x": 8, "y": 11 },
+    { "x": 15, "y": 12 }, { "x": 15, "y": 13 }, { "x": 15, "y": 14 }, { "x": 15, "y": 15 },
+    { "x": 6, "y": 14 }, { "x": 7, "y": 14 }
+  ],
+  "agents": [
+    { "name": "ALPHA", "team": "player", "x": 2.5, "y": 2.5, "health": 110,
+      "weapon": { "name": "Rifle", "damage": 8, "range": 9, "fireRate": 4, "accuracy": 0.65 } },
+    { "name": "BRAVO", "team": "player", "x": 3.5, "y": 2.5, "health": 100,
+      "weapon": { "name": "Laser", "damage": 22, "range": 12, "fireRate": 1, "accuracy": 0.9 } },
+    { "name": "CHARLIE", "team": "player", "x": 2.5, "y": 3.5, "health": 90,
+      "weapon": { "name": "Uzi", "damage": 5, "range": 5, "fireRate": 9, "accuracy": 0.55 } },
+    { "name": "DELTA", "team": "player", "x": 3.5, "y": 3.5, "health": 90,
+      "weapon": { "name": "Pistol", "damage": 10, "range": 6, "fireRate": 2.5, "accuracy": 0.72 } },
+
+    { "name": "CIVILIAN", "team": "civilian", "x": 5.5, "y": 2.5, "health": 20 },
+    { "name": "CIVILIAN", "team": "civilian", "x": 5.5, "y": 3.5, "health": 20 },
+    { "name": "CIVILIAN", "team": "civilian", "x": 4.5, "y": 4.5, "health": 20 },
+    { "name": "CIVILIAN", "team": "civilian", "x": 2.5, "y": 5.5, "health": 20 },
+    { "name": "CIVILIAN", "team": "civilian", "x": 3.5, "y": 5.5, "health": 20 },
+    { "name": "CIVILIAN", "team": "civilian", "x": 4.5, "y": 5.5, "health": 20 },
+    { "name": "CIVILIAN", "team": "civilian", "x": 5.5, "y": 4.5, "health": 20 },
+    { "name": "CIVILIAN", "team": "civilian", "x": 1.5, "y": 4.5, "health": 20 },
+
+    { "name": "RIOT-1", "team": "enemy", "x": 20.5, "y": 2.5, "health": 70,
+      "weapon": { "name": "Rifle", "damage": 8, "range": 9, "fireRate": 4, "accuracy": 0.65 } },
+    { "name": "RIOT-2", "team": "enemy", "x": 20.5, "y": 20.5, "health": 70,
+      "weapon": { "name": "Rifle", "damage": 8, "range": 9, "fireRate": 4, "accuracy": 0.65 } },
+    { "name": "RIOT-3", "team": "enemy", "x": 2.5, "y": 20.5, "health": 65,
+      "weapon": { "name": "Uzi", "damage": 5, "range": 5, "fireRate": 9, "accuracy": 0.55 } },
+    { "name": "RIOT-4", "team": "enemy", "x": 12.5, "y": 20.5, "health": 65,
+      "weapon": { "name": "Pistol", "damage": 10, "range": 6, "fireRate": 2.5, "accuracy": 0.72 } },
+    { "name": "RIOT-5", "team": "enemy", "x": 12.5, "y": 4.5, "health": 60,
+      "weapon": { "name": "Pistol", "damage": 10, "range": 6, "fireRate": 2.5, "accuracy": 0.72 } },
+    { "name": "SNIPER", "team": "enemy", "x": 21.5, "y": 12.5, "health": 55,
+      "weapon": { "name": "Sniper", "damage": 35, "range": 15, "fireRate": 0.5, "accuracy": 0.95 } }
+  ]
+}

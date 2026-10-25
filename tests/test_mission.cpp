@@ -4109,3 +4109,156 @@ FOSSYND_TEST(Mission, ShippedConclaveFinalConfrontationIsWinnable)
     FOSSYND_CHECK(mission.aliveCount(Team::Enemy) >= static_cast<std::size_t>(1));
 }
 
+// --- Shipped campaign mission set, slice 2 (issue #529) --------------------
+//
+// The second wave of authored campaign missions must load through the *real*
+// loader and be genuinely winnable, not merely parse. Each case loads its file
+// from the shipped tree, builds the real grid, populates the real mission, and
+// drives the objective's own mechanic to the win — so a mission that is
+// unreachable, walled off, or short of its own target count fails here instead
+// of in a playtest. The set is deliberately one objective kind per mission and
+// distinct from slice 1 (survive/escort/destroy): eliminate / retrieve /
+// persuade.
+
+FOSSYND_TEST(Mission, ShippedCordonEliminateIsWinnable)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("cordon"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::EliminateAll);
+
+    // A cordon must ship a real garrison to break, or the board is a walkover.
+    std::size_t enemies = 0;
+    for (const AgentSpec& spec : data.agents)
+    {
+        if (spec.team == Team::Enemy)
+        {
+            ++enemies;
+        }
+    }
+    FOSSYND_CHECK(enemies >= 4);
+
+    TileGrid grid = buildGrid(data);
+    // Every enemy must be reachable from the squad, not walled off, or the
+    // eliminate objective could never be satisfied (the #212 trap).
+    const TilePos start{static_cast<int>(data.agents.front().x),
+                        static_cast<int>(data.agents.front().y)};
+    for (const AgentSpec& spec : data.agents)
+    {
+        if (spec.team != Team::Enemy)
+        {
+            continue;
+        }
+        const TilePos foe{static_cast<int>(spec.x), static_cast<int>(spec.y)};
+        FOSSYND_CHECK(!findPath(grid, start, foe, /*allowDiagonal=*/true).empty());
+    }
+
+    Mission mission(grid, 41u);
+    populateMission(data, mission);
+
+    // The player's real action: order the squad onto every living enemy until
+    // the garrison is wiped — the eliminate objective's own mechanic.
+    for (int guard = 0; guard < 90 && mission.state() == MissionState::Running; ++guard)
+    {
+        for (std::size_t i = 0; i < mission.agents().size(); ++i)
+        {
+            if (mission.agents()[i].team() != Team::Player || !mission.agents()[i].isAlive())
+            {
+                continue;
+            }
+            const int target = nearestLivingEnemy(mission, i);
+            if (target >= 0)
+            {
+                mission.orderAttack(i, static_cast<std::size_t>(target));
+            }
+        }
+        runUntilDone(mission, 4.0f);
+    }
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK_EQ(mission.aliveCount(Team::Enemy), std::size_t{0});
+}
+
+FOSSYND_TEST(Mission, ShippedVaultRetrieveIsWinnable)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("vault"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Retrieve);
+
+    TileGrid grid = buildGrid(data);
+    const TilePos item{data.objective.itemX, data.objective.itemY};
+    const TilePos exit{data.objective.tileX, data.objective.tileY};
+    // Both legs must be walkable and reachable, or the mission is silently
+    // unwinnable (the #212 trap).
+    FOSSYND_CHECK(grid.isWalkable(item.x, item.y));
+    FOSSYND_CHECK(grid.isWalkable(exit.x, exit.y));
+    const TilePos start{static_cast<int>(data.agents.front().x),
+                        static_cast<int>(data.agents.front().y)};
+    FOSSYND_CHECK(!findPath(grid, start, item, /*allowDiagonal=*/true).empty());
+    FOSSYND_CHECK(!findPath(grid, item, exit, /*allowDiagonal=*/true).empty());
+
+    Mission mission(grid, 42u);
+    populateMission(data, mission);
+
+    const auto orderSquadTo = [&mission](TilePos goal) {
+        for (std::size_t i = 0; i < mission.agents().size(); ++i)
+        {
+            if (mission.agents()[i].team() == Team::Player && mission.agents()[i].isAlive())
+            {
+                mission.orderMove(i, goal);
+            }
+        }
+    };
+
+    // Leg 1: pick the item up. The mission must not end merely on pickup.
+    orderSquadTo(item);
+    runUntilDone(mission, 25.0f);
+    FOSSYND_CHECK(mission.state() == MissionState::Running);
+
+    // Leg 2: carry it to the exit. The mission is won when a living agent stands
+    // on the exit tile *after* the pickup.
+    orderSquadTo(exit);
+    runUntilDone(mission, 45.0f);
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+}
+
+FOSSYND_TEST(Mission, ShippedUprisingPersuadeIsWinnable)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("uprising"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Persuade);
+    FOSSYND_CHECK(data.objective.targetCount >= 1);
+
+    // The mission must actually ship enough civilians to meet its own target.
+    std::size_t civilians = 0;
+    for (const AgentSpec& spec : data.agents)
+    {
+        if (spec.team == Team::Civilian)
+        {
+            ++civilians;
+        }
+    }
+    FOSSYND_CHECK(civilians >= static_cast<std::size_t>(data.objective.targetCount));
+
+    TileGrid grid = buildGrid(data);
+    Mission mission(grid, 43u);
+    populateMission(data, mission);
+
+    // The player's real action: use the Compliance Beacon on the crowd. The
+    // beacon is a per-agent gadget with a cooldown, so pace the uses and let the
+    // mission decide the win.
+    const int target = mission.objective().targetCount;
+    for (int i = 0; i < 60 && mission.state() == MissionState::Running; ++i)
+    {
+        mission.persuade(0);
+        mission.update(1.05f);
+    }
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK(mission.followerCount(0) >= static_cast<std::size_t>(target));
+}
+
