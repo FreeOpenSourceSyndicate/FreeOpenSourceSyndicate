@@ -266,3 +266,49 @@ FOSSYND_TEST(Agent, SightRangeIsPerAgent)
     FOSSYND_CHECK(sharp.sightRange() > dull.sightRange());
     FOSSYND_CHECK_NEAR(dull.sightRange(), 3.0f);
 }
+
+FOSSYND_TEST(Agent, SetMaxHealthPreservingFractionKeepsAWoundedAgentWounded)
+{
+    // The physical drug bar recomputes max health from a base every tick. If the
+    // setter filled to the new maximum (as setMaxHealth does), a live bar would
+    // grant free healing each tick; this must preserve the fraction instead.
+    Agent agent(0.0f, 0.0f, 1.0f);
+    agent.setMaxHealth(100.0f);
+    agent.applyDamage(50.0f); // 50/100 = 0.5
+    FOSSYND_CHECK_NEAR(agent.healthFraction(), 0.5f);
+
+    agent.setMaxHealthPreservingFraction(140.0f);
+    FOSSYND_CHECK_NEAR(agent.maxHealth(), 140.0f);
+    FOSSYND_CHECK_NEAR(agent.health(), 70.0f); // still 0.5
+    FOSSYND_CHECK_NEAR(agent.healthFraction(), 0.5f);
+
+    // Lowering the maximum keeps the fraction too (no free wound beyond it).
+    agent.setMaxHealthPreservingFraction(60.0f);
+    FOSSYND_CHECK_NEAR(agent.maxHealth(), 60.0f);
+    FOSSYND_CHECK_NEAR(agent.health(), 30.0f);
+    FOSSYND_CHECK_NEAR(agent.healthFraction(), 0.5f);
+}
+
+FOSSYND_TEST(Agent, SetMaxHealthPreservingFractionClampsAndKeepsDeadDead)
+{
+    Agent agent(0.0f, 0.0f, 1.0f);
+    agent.setMaxHealth(100.0f);
+    // A maximum below 1 is clamped up, exactly like setMaxHealth.
+    agent.setMaxHealthPreservingFraction(0.0f);
+    FOSSYND_CHECK_NEAR(agent.maxHealth(), 1.0f);
+
+    // A full-health agent stays full after the recompute.
+    Agent full(0.0f, 0.0f, 1.0f);
+    full.setMaxHealth(100.0f);
+    full.setMaxHealthPreservingFraction(150.0f);
+    FOSSYND_CHECK_NEAR(full.health(), 150.0f);
+
+    // A dead agent (health 0) must not be revived by the recompute.
+    Agent dead(0.0f, 0.0f, 1.0f);
+    dead.setMaxHealth(100.0f);
+    dead.applyDamage(1000.0f);
+    FOSSYND_CHECK(!dead.isAlive());
+    dead.setMaxHealthPreservingFraction(200.0f);
+    FOSSYND_CHECK(!dead.isAlive());
+    FOSSYND_CHECK_NEAR(dead.health(), 0.0f);
+}

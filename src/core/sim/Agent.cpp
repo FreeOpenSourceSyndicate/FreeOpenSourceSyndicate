@@ -44,6 +44,13 @@ float Agent::healthFraction() const
     return std::max(0.0f, std::min(1.0f, health_ / maxHealth_));
 }
 
+void Agent::setMaxHealthPreservingFraction(float maxHealth)
+{
+    const float fraction = healthFraction();
+    maxHealth_ = std::max(1.0f, maxHealth);
+    health_ = std::max(0.0f, std::min(maxHealth_, maxHealth_ * fraction));
+}
+
 float Agent::applyDamage(float amount)
 {
     if (amount <= 0.0f || !isAlive())

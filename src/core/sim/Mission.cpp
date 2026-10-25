@@ -109,6 +109,17 @@ constexpr float kThreatApproachSpeed = 0.05f;   // tiles/s that counts as "towar
 constexpr float kRecognitionGain = 0.6f;      // ±60% felt threat at full effect
 constexpr float kTargetPreferenceGain = 1.0f; // hittability weight at full effect
 
+// Physical (S4). The effect scales max health, movement speed, carrying capacity,
+// and grants slow self-healing while positive. Health and speed are *recomputed*
+// from their base each tick (never multiplied in place), so the normalisation
+// drift cannot corrupt the base stat. Healing is `kPhysicalHealPerSecond * effect`
+// health per second, capped at max; effect <= 0 heals nothing. All deterministic;
+// no RNG.
+constexpr float kPhysicalHealthGain = 0.4f;    // ±40% max health at full effect
+constexpr float kPhysicalSpeedGain = 0.3f;     // ±30% speed at full effect
+constexpr float kPhysicalCarryGain = 1.0f;     // capacity 0..2 (base 1) at full effect
+constexpr float kPhysicalHealPerSecond = 2.0f; // hp/s at full effect (positive only)
+
 // Vehicles: how close (tiles) an agent must be to a vehicle's tile to hijack it,
 // so both "stand on the tile" and "step up to it" work. A destroyed vehicle is
 // a wreck (occupants are thrown clear), so it damages agents within this blast
@@ -162,7 +173,10 @@ std::size_t Mission::addAgent(Agent agent)
     drugStates_.push_back(DrugState{});
     // The adrenalin base is the agent's speed with no adrenalin effect applied.
     // `applyCybernetic` refreshes it if a legs upgrade later changes the speed.
+    // It is also the shared pre-drug speed base for the physical bar (S4), so the
+    // two bars compose: speed is always recomputed from this base.
     adrenalinBaseSpeed_.push_back(agents_.back().speed());
+    physicalBaseMaxHealth_.push_back(agents_.back().maxHealth());
     panicking_.push_back(false);
     return agents_.size() - 1;
 }
@@ -873,16 +887,54 @@ float Mission::adrenalinAccuracyScale(std::size_t index) const
     return std::max(0.0f, 1.0f - kAdrenalinAccuracyLoss * drugEffect(index, Drug::Adrenalin));
 }
 
-void Mission::applyAdrenalinSpeed(std::size_t index)
+void Mission::applyDrugSpeed(std::size_t index)
 {
     if (index >= agents_.size() || index >= adrenalinBaseSpeed_.size())
     {
         return;
     }
-    const float effect = drugEffect(index, Drug::Adrenalin);
-    // Recompute from the base every time: the effect drifts as the bar
-    // normalises, so multiplying the *current* speed would compound the drift.
-    agents_[index].setSpeed(std::max(0.1f, adrenalinBaseSpeed_[index] * (1.0f + kAdrenalinSpeedGain * effect)));
+    // Recompute from the base every time: the effects drift as the bars
+    // normalise, so multiplying the *current* speed would compound the drift.
+    // Adrenalin and physical compose (both scale the shared pre-drug base).
+    const float adrenalin = drugEffect(index, Drug::Adrenalin);
+    const float physical = drugEffect(index, Drug::Physical);
+    const float scale = (1.0f + kAdrenalinSpeedGain * adrenalin) *
+                        (1.0f + kPhysicalSpeedGain * physical);
+    agents_[index].setSpeed(std::max(0.1f, adrenalinBaseSpeed_[index] * scale));
+}
+
+float Mission::carryCapacity(std::size_t index) const
+{
+    if (index >= agents_.size())
+    {
+        return 0.0f;
+    }
+    const float effect = drugEffect(index, Drug::Physical);
+    const float capacity = 1.0f + kPhysicalCarryGain * effect;
+    return capacity < 0.0f ? 0.0f : capacity;
+}
+
+void Mission::applyPhysicalStats(std::size_t index, float dt)
+{
+    if (index >= agents_.size() || index >= physicalBaseMaxHealth_.size())
+    {
+        return;
+    }
+    Agent& agent = agents_[index];
+    if (!agent.isAlive() || !agent.isCombatant())
+    {
+        return;
+    }
+    const float effect = drugEffect(index, Drug::Physical);
+    // Recompute the maximum health from its base, preserving the health fraction
+    // so the drift cannot grant free healing (or a free wound) each tick.
+    agent.setMaxHealthPreservingFraction(
+        physicalBaseMaxHealth_[index] * (1.0f + kPhysicalHealthGain * effect));
+    // Slow self-healing while the effect is positive; zero effect heals nothing.
+    if (effect > 0.0f)
+    {
+        agent.heal(kPhysicalHealPerSecond * effect * dt);
+    }
 }
 
 void Mission::updatePanic(std::size_t index)
@@ -986,10 +1038,12 @@ bool Mission::applyCybernetic(std::size_t index, const std::string& id)
         adrenalinBaseSpeed_[index] = agent.speed();
     }
     // Maximum health (chest). setMaxHealth refills to the new maximum, so the
-    // upgrade is a clean gain rather than a wound.
+    // upgrade is a clean gain rather than a wound. Keep the physical base (S4) in
+    // step so the chest upgrade and the live physical effect compose.
     if (effect.healthMultiplier != 1.0f)
     {
         agent.setMaxHealth(agent.maxHealth() * effect.healthMultiplier);
+        physicalBaseMaxHealth_[index] = agent.maxHealth();
     }
     // Hit chance (arms). Clamped to 1.0: an upgrade must never make a shot
     // certain. The weapon is copied, not mutated in place, because `weapon()`
@@ -1342,18 +1396,20 @@ void Mission::update(float dt)
         }
     }
 
-    // Adrenalin (S2): recompute each combatant's speed from its base and the
-    // live effect, then evaluate panic. Runs *after* the normalisation drift, so
-    // the speed matches the effect the player will see this tick, and *before*
-    // `updateAI`, so a panicking agent's flee reaction wins over its AI decision
-    // and over any player order issued since the last tick.
+    // Adrenalin (S2) and physical (S4): recompute each combatant's speed and
+    // physical stats from their bases and the live effects, then evaluate panic.
+    // Runs *after* the normalisation drift, so the stats match the effect the
+    // player will see this tick, and *before* `updateAI`, so a panicking agent's
+    // flee reaction wins over its AI decision and over any player order issued
+    // since the last tick.
     for (std::size_t i = 0; i < agents_.size(); ++i)
     {
         if (!agents_[i].isAlive() || !agents_[i].isCombatant())
         {
             continue;
         }
-        applyAdrenalinSpeed(i);
+        applyDrugSpeed(i);
+        applyPhysicalStats(i, dt);
         updatePanic(i);
     }
 
