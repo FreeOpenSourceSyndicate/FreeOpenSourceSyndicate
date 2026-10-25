@@ -13,7 +13,7 @@
   "research": "research.json",
   "equipment": "equipment.json",
   "names": "names.json",
-  "missions": ["demo", "escort", "blackout", "assembly", "overpass", "holdout", "caravan", "relay", "conclave"],
+  "missions": ["demo", "escort", "blackout", "assembly", "overpass", "holdout", "caravan", "relay", "conclave", "cordon", "vault", "uprising"],
   "winCondition": "final-mission",
   "finalMission": "conclave"
 }

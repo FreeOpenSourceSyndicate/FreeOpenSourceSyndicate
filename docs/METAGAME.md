@@ -475,10 +475,11 @@ use `jsonc` for annotation only, exactly as `docs/DATA_FORMAT.md` does).
   shared by several regions (ADR-0029), so a small mission set covers a larger map.
   In the **shipped** `world.json` every region carries a mission drawn from the
   tactical mission set (`demo`, `escort`, `blackout`, `assembly`, `conclave`,
-  `holdout`, `caravan`, `relay`) and each is listed in `campaign.json`'s
-  `missions`, so the whole map is playable rather than five regions replaying two
-  boards (#418). Region 9 `Sinara` carries the terminal `conclave` board (#537).
-  The mapping is pinned by `tests/test_campaign.cpp`.
+  `holdout`, `caravan`, `relay`, `vault`, `cordon`, `uprising`) and each is
+  listed in `campaign.json`'s `missions`, so the whole map is playable rather
+  than many regions replaying the same boards (#418, #519, #551). Region 9
+  `Sinara` carries the terminal `conclave` board (#537). The mapping is pinned by
+  `tests/test_campaign.cpp`.
 
 **The shipped map is a world map (issue #448).** v1.0.0 replaces the original
 six city-district regions with **twelve culturally-flavoured regions** — evocative

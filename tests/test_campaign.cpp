@@ -555,11 +555,13 @@ FOSSYND_TEST(Campaign, TheMapUsesTheWholeMissionSetNotJustTheDemo)
         }
     }
 
-    // #519: regions 2/3/7 were repointed at the #511 frontier missions, so the
-    // map now names eight distinct boards. #537 repointed region 9 from the
-    // ordinary `overpass` to the dedicated terminal `conclave` board, so the set
-    // is: demo, escort, blackout, assembly, conclave, holdout, caravan, relay.
-    FOSSYND_CHECK_EQ(used.size(), std::size_t{8});
+    // #519: regions 2/3/7 were repointed at the #511 frontier missions; #537
+    // repointed region 9 from the ordinary `overpass` to the dedicated terminal
+    // `conclave` board; #551 repointed regions 8/10/11 at the #529 slice-2
+    // missions, so the map now names eleven distinct boards: demo, escort,
+    // blackout, assembly, conclave, holdout, caravan, relay, vault, cordon,
+    // uprising.
+    FOSSYND_CHECK_EQ(used.size(), std::size_t{11});
     // Every id named by the map must also be in the campaign's shipped list.
     for (const std::string& id : used)
     {
