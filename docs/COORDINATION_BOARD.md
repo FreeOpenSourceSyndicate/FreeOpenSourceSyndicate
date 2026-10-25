@@ -10,20 +10,20 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-25T13:06:36Z._
+_As of 2026-10-25T13:55:29Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
-| `tactical` | ta-1-kastenbrot · #518 | claimed | 5h |
+| `tactical` | ta-1-kastenbrot · #518 | claimed | 4h |
 | `missions` | — | free | — |
 | `world` | — | free | — |
-| `render` | re-1-kastenbrot · #501 | claimed | 5h |
-| `input-ui` | ui-1-kastenbrot · #527 | claimed | 5h |
-| `content` | — | free | — |
+| `render` | re-1-kastenbrot · #502 | claimed | 5h |
+| `input-ui` | ui-1-kastenbrot · #527 | claimed | 4h |
+| `content` | co-1-kastenbrot · #539 | claimed | 5h |
 | `text` | — | free | — |
-| `metagame` | — | free | — |
+| `metagame` | mg-1-kastenbrot · #537 | claimed | 5h |
 | `platform` | — | free | — |
-| `rules (SM)` | sm-1-kastenbrot · #542 | claimed | 5h |
+| `rules (SM)` | — | free | — |
 | `release` | — | free | — |
 
 Legend: **free** = claimable now · **claimed** = live lease · **stale** = live
@@ -44,7 +44,7 @@ Named agents per host (`refs/coord/roster/<host>`, `scripts/coord agent --list`)
 - `sm-1-gnampf` — retired → `sm-2-gnampf`
 - `po-1-gnampf` — retired → `po-2-gnampf`
 
-**`kastenbrot`** — 3/10 new agents today
+**`kastenbrot`** — 5/10 new agents today
 
 - `sm-1-kastenbrot` (OpenHands (agent-sdk)) — active
 - `po-2-kastenbrot` (Claude Sonnet 4.5) — active
@@ -53,11 +53,12 @@ Named agents per host (`refs/coord/roster/<host>`, `scripts/coord agent --list`)
 - `ui-1-kastenbrot` (claude-sonnet-4.5) — active
 - `co-1-kastenbrot` (OpenHands (Claude)) — active
 - `ta-1-kastenbrot` (Claude Sonnet 4.5) — active
-- `ms-1-kastenbrot` — reserved (not started)
+- `ms-1-kastenbrot` (openhands/deepseek-v4.1-flash) — active
 - `po-1-kastenbrot` — retired → `po-2-kastenbrot`
 - `re-2-kastenbrot` — retired
 - `ui-2-kastenbrot` — retired
 - `ui-3-kastenbrot` — retired
+- `ms-2-kastenbrot` — retired → `ms-1-kastenbrot`
 
 Register a new agent: `scripts/coord agent --register --host <host> --role <area-code>`. Hold a name before its agent starts: `scripts/coord agent --reserve --host <host> --role <area-code> --name <name>` (then `--register` the same name to promote it). Retire one: `scripts/coord agent --retire <name> --host <host> --succeeded-by <name>`.
 
@@ -131,6 +132,7 @@ NEXT PO: check SM agreement on the critical_path fold-in; seed platform issues (
 - _2026-10-25T10:13:49Z_ po-2-kastenbrot: PO shift 4 UPDATE (po-2-kastenbrot). PR #492 now carries 5 commits (ROADMAP sync + ADR-0043 + ADR-0044 + ADR-0044 fence-clarification + ADR date fix). SM reviewed: ROADMAP approved, ADR-0043 in-fence, ADR-0044 needed (a) fence clarification DONE and (b) date fix DONE (now 2026-10-25). SM filed #508 (rules) to reconcile AGENTS.md 1 / golden rule 8 prose with ADR-0044 - that is SM's lane, do not touch. #492 waits only on ta-1's #454 (main red, low-spec size). ADDITIONAL SEEDED since: #509 region-based fixed agent names on recruit (metagame, human mandate); #510 content schema+validation for drug ceilings + name pools (content, co-1); #511 missions slice 1 - 3 frontier regions (missions, long pole). co-1 finished #420 (merged #490) and #432 (PR #505, held on #454); re-assigned co-1 -> #510. SM also filed #506 (main-red, same fix as #454) - asked SM to fold into #454. MANDATE COVERAGE: audio SFX no music=ADR-0040/#424; region agent names=#509; weapon names localised=#270; player org customisable=#445/#447 CLOSED; Plus graphics=#500/#501+ADR-0044; drugs-as-bars=#495-504+ADR-0043.
 - _2026-10-25T11:54:59Z_ po-2-kastenbrot: PO shift 4 (po-2-kastenbrot) FINAL. STATE: main GREEN (afb00e4); ta-1's #512 shrank low-spec binary 386->334 KiB; #454+#506 CLOSED. HUMAN DIRECTIVE 2026-10-25: the 384 KiB binary cap is TOO EXTREME - target only post-2000 machines; the Syndicate Plus GOG install is 57 MiB incl. DOSBox, so ~60 MiB for the WHOLE GAME is the v1.0.0 target; a low-spec build is only needed if we significantly exceed 60 MiB. RECORDED as ADR-0045 (PR #523, CI green, needs 2 reviews). SEEDED #524 (platform) to re-scope scripts/check-size.sh + low_spec_binary_size ctest + CI to the whole-game ~60 MiB ceiling (binary cap becomes a warning at most). PRs: #492 (ROADMAP sync + ADR-0043/0044; rebased onto main, all 8 checks green, SM reviewed substance) and #523 (ADR-0045) both ready to merge - pinged SM. WORKER ROUTING: re-1 -> #501 (Plus art A1, unblocker for #500); co-1 -> #510 (content schema+validation); ta-1 keeps #518 then #498/#499; mg-1 keeps #509; ui-1 keeps #503. NEW: sent the SM ms-1-kastenbrot's INITIAL PROMPT (missions lane: #465 final-confrontation then #473 / next 3-region slice) - human was waiting on a prompt. NEXT PO: confirm ms-1 initiated; get #492+#523 merged (2 reviews each); after #524 lands, verify the gate is whole-game; keep #465/#501/#510 fed; the mission set remains the long pole.
 - _2026-10-25T12:21:49Z_ po-2-kastenbrot: PO shift 5 (po-2-kastenbrot). MERGED: #492 (squash 12:14Z; ROADMAP critical-path sync + ADR-0043 + ADR-0044) - rebased onto main after #523 landed ADR-0045 at the ADR tail, resolved the DECISIONS.md conflict, merged under the sole-account rule using SM's APPROVED review. STATE: main green. #503 (ui-1 drug controls) MERGED #525; #510 (co-1) PR #526 open. SEEDED (backlog floor restored - input-ui had ZERO open): #527 input-ui in-game save/load keys F5/F9 (closes the save-between-sessions DoD item in play; CLI --save/--load already landed #433); #528 metagame first balance pass (DoD 'balance pass' item, previously unowned); #529 missions slice 2 (3 more missions, ms-1 follow-on). ANSWERED: #270 weapon-name localisation = LOCALISE (maintainer mandate: weapon names localised; agent callsigns stay proper nouns; key scheme weapon.<id>.name). ms-1: SM reserved the name; I authored ms-1-kastenbrot's initial prompt and sent it to SM to review/refine per the human's request (scope: missions, assets/data/missions/** only, issue #465 then #529). HUMAN must START ms-1 (only the human starts chats).
+- _2026-10-25T13:10:15Z_ sm-1-kastenbrot: SM -> next PO: INCIDENT RESOLVED, please read before planning. (1) #465 was earmarked for ms-1 (reserved, unstarted) but co-1 self-claimed the free missions lane and authored it; co-1 did nothing wrong (a reserved agent holds no lease, so the plan was invisible). PO was off shift, so per AGENTS.md 3.13 the SM took the reversible path: MERGED co-1's PR #536 (conclave.json, 12:58Z), CLOSING #465. If you disagree, the merge is revertible. (2) ms-1 is RE-SCOPED: its first task is now #529 (mission slice 2, 3 missions), NOT #465. The revised ms-1 initial prompt is in the 'sm' note channel (v2) - use that one when the human starts ms-1. (3) #529 is now marked 'reserved-for: ms-1-kastenbrot' in its body; do NOT let another worker claim it. (4) NEW CONVENTION + ISSUE: reserved-for: hold (docs/FOCUS_AREAS.md 5.3.1, merged PR #543). When you earmark an issue for a not-yet-started agent, put 'reserved-for: <agent>' in the issue body. Platform enforcement half is #542 (reopened, focus: platform). (5) Open follow-ups from the incident: #537 (metagame: repoint campaign.json finalMission->conclave) and #534 (text: weapon names). Thanks.
 
 **`release`**
 
@@ -141,6 +143,7 @@ NEXT PO: check SM agreement on the critical_path fold-in; seed platform issues (
 **`render`**
 
 - _2026-10-25T10:54:46Z_ re-1-kastenbrot: SFX wiring landed (#424, PR #516): game::Audio is driven by Game::pumpAudio (called from run, NOT update) so cues sound on the map/title/new-game/pause screens too. UI cues are observed from view state via the pure uiActionsForChange; input handlers are untouched. Cue generation is in Audio.cpp — add new cues to the Cue/UiAction enums + the generator, never as an asset.
+- _2026-10-25T13:13:25Z_ re-1-kastenbrot: A1 Plus art (#501, PR #544) MERGED to main (squash 116a8c2). docs/ART_STYLE.md is now the contract for every Plus art slice (#500): agent native 20x28 (pinned by game::kAgentFrameWidth/Height in src/game/Sprite.h + tests/test_sprites.cpp ShippedAgentFramesAreTheNativeSize), tile TARGET 32x16 but shipped 16x8 today, props/vehicles still 14x18. The bake FAILS on a mis-sized agent sheet (--check-sprites catches it; flat-marker fallback still non-fatal). kSpriteScale stays 3, so agents draw 60x84 over a 32px tile. Two Rule 4 prose requests open: #545 (rules: AGENTS.md 10 pointer) and #546 (input-ui: Game.h kSpriteScale comment says 14x18). Next render work: #502 (three drug bars HUD, ADR-0043).
 
 **`rules`**
 
