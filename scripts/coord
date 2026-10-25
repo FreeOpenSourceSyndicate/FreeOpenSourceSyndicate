@@ -250,9 +250,6 @@ _EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
 # (CRITICAL_PATH_AREAS is derived from docs/focus-areas.json above.)
 
-# Unchecked roadmap items are the backlog seed when nothing is claimable.
-ROADMAP_PATH = "docs/ROADMAP.md"
-
 # Roster + agent-name conventions (docs/ORGANISATION.md sections 3-4).  An agent is
 # named <role>-<n>-<host>; the roster is one ref per host so the Product Owner
 # sees only its own computer's agents (a PO can only request agents on its host).
@@ -1601,30 +1598,12 @@ def _requested_area(text: str) -> Optional[str]:
     return m.group(1) if m else None
 
 
-def _roadmap_gaps(limit: int = 3) -> list[str]:
-    """The first unchecked roadmap items — the seed when the backlog is empty."""
-    try:
-        with open(ROADMAP_PATH, encoding="utf-8") as fh:
-            text = fh.read()
-    except OSError:
-        return []
-    gaps = []
-    for line in text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("- [ ]"):
-            gaps.append(stripped[len("- [ ]"):].strip())
-            if len(gaps) >= limit:
-                break
-    return gaps
-
-
 def cmd_next(args: argparse.Namespace) -> int:
-    """Print the single next action for an idle agent — never empty.
+    """Print the single next action for an idle agent — or the stop.
 
-    The fleet must never stall for want of something to do.  This walks a fixed
-    ladder and stops at the first rung that applies, so the answer is always an
-    actionable next step, even when every area is taken and the issue list is
-    empty:
+    An agent keeps its scope small and **stays in its lane** (ADR-0046).  This
+    walks a fixed ladder and stops at the first rung that applies; when none
+    applies it prints the **stop** and the agent ends its turn:
 
       1. you already hold a lease        -> renew / finish / release it
       1b. you are an SM and an SM-owned area is free
@@ -1633,11 +1612,8 @@ def cmd_next(args: argparse.Namespace) -> int:
       2. a critical-path area is free    -> claim its next claimable issue
       2b. a takeover request is open     -> pick up the quiet holder's work
       3. a green PR has waited           -> review and merge it (drain the queue)
-      4. any free area has an issue      -> claim its next claimable issue
-      5. any area is free but has no issue, or a live lease is stale
-                                         -> file the roadmap gap as a new issue
-      6. nothing is claimable at all     -> review an open PR you did not author
-                                            (the fleet's other durable job)
+      4. nothing above applies           -> STOP: the lane is empty.  Do **not**
+                                            claim another area or file filler work.
 
     "Next claimable" skips unclaimable issues (`status: blocked`, `question`,
     `deferred: v2`) and treats a Rule 4 request (`status: needs-review`) as a
@@ -1647,6 +1623,15 @@ def cmd_next(args: argparse.Namespace) -> int:
     *finished* work one step from landing, so merging it beats *starting* new work
     even in a free non-critical area, but it never preempts a waiting blocker or
     the critical path (ADR-0035).
+
+    Rungs 4-5 of the old never-idle ladder — "claim **any** free area's issue" and
+    "**file a new issue** when the backlog is empty" — are **gone** (ADR-0046).
+    They pushed agents out of their lane and into larger scope, and an empty lane
+    is a **stop**, not a signal to seed work: new issues come from the roadmap and
+    the PO's plan (or a human), never from an idle agent topping up a lane.  A
+    free area that still has an issue when rung 4 is reached is off the critical
+    path (a critical-path issue would have fired at rung 2), so it is not this
+    agent's to take.
 
     The SM-owned area (`rules`) is the Scrum Master's *own* lane - the process
     docs themselves, which are coordination work, not game content (ADR-0041).
@@ -1755,28 +1740,21 @@ def cmd_next(args: argparse.Namespace) -> int:
         print(f"     gh pr view {pr['number']} && gh pr merge {pr['number']} --squash")
         return 0
 
-    # 4. Any free area with work.
-    for area in free:
-        if by_area.get(area):
-            return _emit_claim(area, by_area[area][0][0])
-
-    # 5. Free areas exist but the backlog is empty -> seed it.
-    gaps = _roadmap_gaps()
+    # 4. A free area remains, but nothing claimable above fired.  That area is
+    #    off the critical path (a critical-path issue would have fired at rung 2),
+    #    so it is another lane's: the old ladder claimed it (rung 4) or, with an
+    #    empty backlog, told the agent to file a roadmap gap (rung 5).  Both are
+    #    gone (ADR-0046) - an empty lane is a *stop*, not a signal to claim another
+    #    area or seed filler work.  New issues come from the roadmap and the PO's
+    #    plan, never from an idle agent topping up a lane.
     if free:
-        area = next((a for a in CRITICAL_PATH_AREAS if a in free), free[0])
-        print(f"No open issue is claimable, but area '{area}' is free.")
-        if gaps:
-            print("Seed it from the roadmap (docs/ROADMAP.md), e.g.:")
-            for gap in gaps:
-                print(f"  - {gap}")
-            print(f"  -> file an issue with a `focus: {area}` label, then claim it.")
-        else:
-            print(f"  -> file an issue with a `focus: {area}` label, then claim it.")
-        print("  (Every area is idle: this is the fleet's only stop condition, and it")
-        print("   is fixed by adding work, not by adding agents.)")
+        print("Stop: your lane is empty (ADR-0046).")
+        print("  -> do not claim another area or file filler work; end your turn.")
+        print("     New issues come from the roadmap and the PO's plan (or a human).")
         return 0
 
-    # 6. Everything is held (or stale).  Fall through to the other durable job.
+    # 5. Every area is held.  Fall through to the fleet's other durable job: a
+    #    stale holder is a low-cost takeover, else review an open PR.
     stale = [l for l in leases if l.is_stale(at)]
     if stale:
         l = stale[0]

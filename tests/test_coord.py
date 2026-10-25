@@ -429,7 +429,12 @@ class TestStatusAndBoard(CoordTestCase):
 
 
 class TestNextAction(CoordTestCase):
-    """`coord next` must always print an actionable next step - never nothing.
+    """`coord next` prints the next step, or an explicit **stop** - never nothing.
+
+    An agent stays in its lane (ADR-0046): the ladder offers a lease you hold
+    (rung 1), the SM's own lane (1b), a free critical-path issue (2), or a
+    drainable green PR (3); when none applies it prints **stop** and never
+    routes the agent to another area or to seeding filler work.
 
     These tests stub the GitHub calls (`_open_issues_by_area`, `_drainable_prs`)
     so they run with no network, which is also the real fallback path.
@@ -437,7 +442,7 @@ class TestNextAction(CoordTestCase):
 
     def setUp(self):
         super().setUp()
-        # No drainable PR unless a test says otherwise, so rungs 3-5 are reached.
+        # No drainable PR unless a test says otherwise, so the stop is reached.
         self._stub_prs([])
 
     def test_next_returns_your_own_lease_first(self):
@@ -453,12 +458,18 @@ class TestNextAction(CoordTestCase):
         self.assertIn("metagame / #249", out)
         self.assertIn("critical path", out)
 
-    def test_next_falls_back_to_any_free_area_with_work(self):
-        # metagame held, so the critical-path rung is skipped.
-        self.run_coord("claim", "--area", "metagame", "--issue", 249, "--agent", "x")
-        self._stub_issues({"metagame": [(249, False)], "world": [(157, False)]})
+    def test_next_stops_when_only_a_non_critical_area_has_work(self):
+        # Rung 4 of the old ladder ("claim ANY free area") is gone (ADR-0046):
+        # every critical-path area is held and only `world` (off the path) has an
+        # issue, so there is nothing in this agent's lane - it stops rather than
+        # wandering into another lane.
+        for area in coord.CRITICAL_PATH_AREAS:
+            self.run_coord("claim", "--area", area, "--issue", 300, "--agent", "x")
+        self._stub_issues({"world": [(157, False)]})
         out, _ = self.run_coord("next", "--agent", "a")
-        self.assertIn("world / #157", out)
+        self.assertIn("Stop", out)
+        self.assertNotIn("claim world", out)
+        self.assertNotIn("claim content", out)
 
     def test_next_prefers_a_waiting_blocker_over_plain_critical_work(self):
         # metagame (first critical-path area) has only plain work; tactical has a
@@ -468,12 +479,15 @@ class TestNextAction(CoordTestCase):
         self.assertIn("tactical / #311", out)
         self.assertNotIn("#249", out)
 
-    def test_next_seeds_from_the_roadmap_when_the_backlog_is_empty(self):
+    def test_next_stops_when_the_backlog_is_empty(self):
+        # Rung 5 of the old ladder ("file a new issue") is gone (ADR-0046): with
+        # no claimable work at all, the agent stops - it must NOT be told to seed
+        # filler work from the roadmap.
         self._stub_issues({})  # no open issues at all
         out, _ = self.run_coord("next", "--agent", "a")
-        # Not a claim: it must tell the agent how to create work, not stall.
-        self.assertIn("file an issue", out)
-        self.assertIn("focus:", out)
+        self.assertIn("Stop", out)
+        self.assertNotIn("file an issue", out)
+        self.assertNotIn("Seed it from the roadmap", out)
 
     def test_next_offers_review_when_every_area_is_held(self):
         for i, area in enumerate(coord.AREAS):
@@ -504,7 +518,8 @@ class TestNextAction(CoordTestCase):
     def test_next_drains_a_green_pr_before_claiming_plain_work(self):
         # A non-critical area has claimable work, but a green PR has waited: the
         # finished work one step from landing is offered first (ADR-0035).
-        # `content` is off the critical path, so rung 2 cannot fire.
+        # `content` is off the critical path, so rung 2 cannot fire, and the
+        # merge-queue rung (3) still beats the rung-4 stop.
         self._stub_issues({"content": [(157, False)]})
         self._stub_prs([{"number": 336, "title": "test(i18n): guard ...",
                          "headRefName": "test/text-x", "_age": 3600}])
@@ -522,10 +537,9 @@ class TestNextAction(CoordTestCase):
         self.assertIn("metagame / #249", out)
         self.assertNotIn("Merge queue", out)
 
-    def test_next_drains_before_a_free_areas_plain_work(self):
-        # No critical-path work; a free area has work and a PR has waited.
-        # Hold every critical-path area and offer work only in an off-path area,
-        # so rung 4 (plain work) competes with the merge queue.
+    def test_next_drains_before_stopping_on_an_off_path_area(self):
+        # No critical-path work; an off-path area has work and a green PR has
+        # waited.  The merge queue (rung 3) still beats the rung-4 stop.
         for area in coord.CRITICAL_PATH_AREAS:
             self.run_coord("claim", "--area", area, "--issue", 300,
                            "--agent", "x")
@@ -533,13 +547,6 @@ class TestNextAction(CoordTestCase):
         self._stub_prs([{"number": 342, "title": "feat: vehicles", "_age": 7200}])
         out, _ = self.run_coord("next", "--agent", "a")
         self.assertIn("Merge queue: PR #342", out)
-
-    def test_next_reaches_claims_when_the_queue_is_empty(self):
-        self._stub_issues({"world": [(157, False)]})
-        self._stub_prs([])
-        out, _ = self.run_coord("next", "--agent", "a")
-        self.assertIn("world / #157", out)
-        self.assertNotIn("Merge queue", out)
 
     def test_next_keeps_your_own_lease_ahead_of_the_merge_queue(self):
         # Rung 1 is absolute: you finish your own lease before adopting a PR.
@@ -1706,8 +1713,8 @@ class TestFocusConfig(CoordTestCase):
         self.assertNotEqual("missions", "tactical")
 
     def test_delivery_areas_stay_off_the_critical_path(self):
-        # platform/release "do delivery, not features" (FOCUS_AREAS §2): they stay
-        # claimable at rung 4 but must not absorb critical-path capacity from the
+        # platform/release "do delivery, not features" (FOCUS_AREAS §2): they are
+        # off the path so they never absorb critical-path capacity from the
         # feature lanes (issue #425).  `render` was moved ONTO the path by the PO
         # (2026-10-17, second pass): the v0.9.0 release needs its SFX/art work, so
         # it is a feature lane here, not a delivery area - do not "fix" it back.
@@ -1796,19 +1803,22 @@ class TestSmOwnedRouting(CoordTestCase):
 
     def test_a_worker_is_never_routed_to_the_sm_lane(self):
         # Only `rules` (the SM's own lane) has work; a plain worker must not be
-        # offered it - and with no worker-area issue it falls through to review.
+        # offered it - and with no worker-area issue it stops (ADR-0046).
         self._stub_issues({"rules": [(347, False)]})
         self._stub_prs([])
         out, _ = self.run_coord("next", "--agent", "ta-1-kastenbrot")
         self.assertNotIn("claim rules", out)
-        self.assertIn("No open issue is claimable", out)
+        self.assertIn("Stop", out)
 
-    def test_a_worker_is_routed_to_platform(self):
-        # `platform` is a normal worker lane: a `pf` worker is offered it.
+    def test_a_worker_is_not_routed_to_an_off_path_area(self):
+        # `platform` is a normal worker lane, but it is off the critical path and
+        # there is no lease held: the never-idle rung that used to offer it is
+        # gone (ADR-0046), so a worker stops rather than claiming out of lane.
         self._stub_issues({"platform": [(347, False)]})
         self._stub_prs([])
         out, _ = self.run_coord("next", "--agent", "pf-1-kastenbrot")
-        self.assertIn("claim platform / #347", out)
+        self.assertNotIn("claim platform", out)
+        self.assertIn("Stop", out)
 
     def test_an_sm_is_routed_to_its_own_lane(self):
         self._stub_issues({"rules": [(347, False)]})
