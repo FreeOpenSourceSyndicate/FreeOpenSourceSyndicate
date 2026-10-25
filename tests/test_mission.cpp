@@ -2190,6 +2190,106 @@ FOSSYND_TEST(Mission, DrugsRaiseHitChance)
     FOSSYND_CHECK(buffedDamage > plainDamage);
 }
 
+// --- regulated drug bars (ADR-0043, issue #496) ------------------------------
+
+FOSSYND_TEST(Mission, DrugBarsStartAtNeutralWithZeroEffect)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 90u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+
+    for (Drug drug : {Drug::Adrenalin, Drug::Intelligence, Drug::Physical})
+    {
+        FOSSYND_CHECK_NEAR(mission.drugLevel(hero, drug), kDrugNeutralStart);
+        FOSSYND_CHECK_NEAR(mission.drugNeutral(hero, drug), kDrugNeutralStart);
+        FOSSYND_CHECK_NEAR(mission.drugEffect(hero, drug), 0.0f);
+    }
+}
+
+FOSSYND_TEST(Mission, DrugLevelClampsAndInvalidIndexIsNoOp)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 91u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+
+    mission.setDrugLevel(hero, Drug::Physical, 2.5f);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(hero, Drug::Physical), 1.0f);
+    mission.setDrugLevel(hero, Drug::Physical, -3.0f);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(hero, Drug::Physical), 0.0f);
+    mission.setDrugLevel(hero, Drug::Physical, 0.75f);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(hero, Drug::Physical), 0.75f);
+
+    // An out-of-range index is a safe no-op and reads back the sentinel 0.
+    const std::size_t bad = 99u;
+    mission.setDrugLevel(bad, Drug::Adrenalin, 1.0f);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(bad, Drug::Adrenalin), 0.0f);
+    FOSSYND_CHECK_NEAR(mission.drugNeutral(bad, Drug::Adrenalin), 0.0f);
+    FOSSYND_CHECK_NEAR(mission.drugEffect(bad, Drug::Adrenalin), 0.0f);
+}
+
+FOSSYND_TEST(Mission, DrugNeutralDriftsTowardTheHeldLevelAndShrinksTheEffect)
+{
+    // The normalisation property: hold a bar high and the body adapts, so the
+    // *effect* shrinks even though the player has not touched the level.
+    TileGrid grid(20, 20);
+    Mission mission(grid, 92u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    // A distant enemy keeps the mission Running (an empty enemy list would win).
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100000.0f,
+                               Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+
+    mission.setDrugLevel(hero, Drug::Adrenalin, 1.0f);
+    FOSSYND_CHECK_NEAR(mission.drugEffect(hero, Drug::Adrenalin), 0.5f);
+
+    // One second of drift at kDrugNormalisationRate (0.25/s): neutral rises by
+    // 0.25, so the effect falls from 0.5 to 0.25. The level is untouched.
+    for (int i = 0; i < 20; ++i)
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK_NEAR(mission.drugLevel(hero, Drug::Adrenalin), 1.0f);
+    FOSSYND_CHECK_NEAR(mission.drugNeutral(hero, Drug::Adrenalin), 0.75f);
+    FOSSYND_CHECK_NEAR(mission.drugEffect(hero, Drug::Adrenalin), 0.25f);
+}
+
+FOSSYND_TEST(Mission, DroppingABarAfterAHighHoldGivesANegativeEffect)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 93u);
+    const std::size_t hero = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    mission.addAgent(makeAgent(18.0f, 18.0f, Team::Enemy, 100000.0f,
+                               Weapon{"None", 0.0f, 1.0f, 1.0f, 0.0f}));
+
+    // Hold high long enough for the neutral point to climb, then drop the bar:
+    // the agent is now *below* its adapted level, so the effect is negative.
+    mission.setDrugLevel(hero, Drug::Physical, 1.0f);
+    for (int i = 0; i < 40; ++i) // 2 s: neutral rises by 0.5 toward 1.0
+    {
+        mission.update(0.05f);
+    }
+    FOSSYND_CHECK(mission.drugNeutral(hero, Drug::Physical) > kDrugNeutralStart);
+
+    mission.setDrugLevel(hero, Drug::Physical, 0.0f);
+    FOSSYND_CHECK(mission.drugEffect(hero, Drug::Physical) < 0.0f);
+}
+
+FOSSYND_TEST(Mission, AddAgentGrowsTheDrugStateWithTheRoster)
+{
+    TileGrid grid(20, 20);
+    Mission mission(grid, 94u);
+    const std::size_t first = mission.addAgent(makeAgent(2.0f, 2.0f, Team::Player, 100.0f));
+    mission.setDrugLevel(first, Drug::Intelligence, 0.9f);
+
+    // A second agent starts fresh at neutral; the first keeps its own bar.
+    const std::size_t second = mission.addAgent(makeAgent(3.0f, 2.0f, Team::Player, 100.0f));
+    FOSSYND_CHECK_NEAR(mission.drugLevel(second, Drug::Intelligence), kDrugNeutralStart);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(first, Drug::Intelligence), 0.9f);
+
+    // A civilian added later is kept in sync too (no crash, sane defaults).
+    const std::size_t bystander = mission.addAgent(makeAgent(4.0f, 2.0f, Team::Civilian, 20.0f));
+    FOSSYND_CHECK_NEAR(mission.drugLevel(bystander, Drug::Physical), kDrugNeutralStart);
+}
+
 // --- cybernetic upgrades (Milestone A, issue #313) ---------------------------
 
 FOSSYND_TEST(Mission, CyberneticVocabularyRejectsUnknown)

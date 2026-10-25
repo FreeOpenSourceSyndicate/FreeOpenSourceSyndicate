@@ -1009,6 +1009,23 @@ Do not start work outside the scope fence (ADR-0024).
   fraction can be shown without core exposing `kDrugDurationSeconds` (core-private).
   `--drugs` doses the squad up front (a demo hook beside `--shield`). The hotkey
   is `B` (Input/UI, issue #339).
+- **Regulated drug bars, S1 — the foundation** (issue #496, ADR-0043): drugs are
+  becoming the original's **three regulated bars** (adrenalin/intelligence/
+  physical), not the single-dose consumable above. `Drug`/`DrugState` live in
+  `src/core/sim/Drug.h` (header-only, core/SDL-free); `Mission` holds one
+  `DrugState` per agent (`drugStates_`, kept in sync by `addAgent` exactly like
+  `medikits_`/`shields_`/`scanners_` — no `Agent` change). `setDrugLevel` (clamps
+  to [0,1], no-op on a bad index), `drugLevel`, `drugNeutral`, and `drugEffect`
+  (`level - neutral`, clamped to [-1,1]) are the frozen API. **Normalisation:**
+  each `update`, the neutral point drifts toward the current level at
+  `kDrugNormalisationRate` (0.25/s, `Mission.cpp`-private), so a permanently-held
+  high bar adapts away and dropping it becomes a real penalty; the **level never
+  drifts** (the player regulates it). S1 is **pure state + drift — no behavioural
+  effect yet**: `drugEffect` is the hook S2 (adrenalin), S3 (intelligence), and S4
+  (physical) read. Deterministic; no RNG. S4 retires the old `drugs_`/
+  `drugsTimer_` consumable (and `kDrugDurationSeconds`); until then both models
+  coexist. The HUD bars (Render), the controls (Input/UI), and the research
+  ceilings (Metagame) are the cross-lane follow-ups (#502/#503/#504).
 - **Cybernetic upgrades** (issue #313, ADR-0031): Milestone A's passive stat
   upgrades. `CyberneticEffect` (`src/core/sim/Cybernetic.h`, header-only) holds
   four **multipliers** (all default 1.0); `cyberneticEffectForId(id, out)`
