@@ -400,6 +400,83 @@ if (!report.ok())
   (`ContentValidation.ShippedContentPasses`), so a broken mission or catalogue
   fails CI.
 
+## Save-game schema (`CampaignSave`)
+
+Campaign progress can be written to a save file and read back (ADR-0039, issue
+#406). The reader/writer is `core::CampaignSave`
+(`src/core/util/CampaignSave.h`, `.cpp`), engine-free and unit-tested in
+`tests/test_persistence.cpp`.
+
+A save is **an overlay, not a copy.** It stores only what the player *changed* —
+per-territory ownership and tax, the funds ledger, research progress, and squad
+loadouts. The **topology** (the territory graph, the research tree, and the
+equipment catalogue) is **not** saved; it is read from the base campaign named by
+`--campaign`. Loading therefore means *load the base campaign, then apply the
+save* (`CampaignSave::applyTo`). This keeps a save small and lets the map and the
+research tree change between versions without invalidating every save.
+
+The format is JSON (the project's schema style, ADR-0003) with two guards so an
+older or foreign file is rejected instead of mis-read:
+
+- a mandatory top-level `"format"` tag whose value must be `"fossynd-save"`, and
+- an integer `"version"`. `parse` **rejects a missing/wrong `format` and any
+  `version` other than the one this build reads** (currently `2`) — it does not
+  try to upgrade an old file. Bump the version when the schema changes
+  incompatibly: v2 added `syndicateLogo`, so a v1 build refuses a v2 file rather
+  than silently dropping the chosen logo.
+
+```json
+{
+  "format": "fossynd-save",
+  "version": 2,
+  "syndicate": "Riverside Combine",
+  "syndicateLogo": "cog",
+  "territories": [
+    {"id": 0, "owner": 0, "taxLevel": 2},
+    {"id": 1, "owner": -1, "taxLevel": 0}
+  ],
+  "funds": [
+    {"syndicate": 0, "amount": 1240}
+  ],
+  "research": [
+    {"syndicate": 0, "completed": ["legs"], "inProgress": "arms", "remainingSeconds": 12.5}
+  ],
+  "loadouts": [
+    {"syndicate": 0, "slot": 0, "items": ["uzi", "medkit"]}
+  ]
+}
+```
+
+Fields:
+
+- `format` / `version` — the tag and integer version described above.
+- `syndicate` — the player's display name (`Campaign::syndicateName()`); the
+  chosen identity.
+- `syndicateLogo` — a stable logo id (`Campaign::syndicateLogo()`, e.g. `cog`).
+  Added in v2.
+- `territories` — one object per saved territory, **ascending id**: `id` (the
+  territory id, must exist in the base campaign's `world.json`), `owner` (a
+  syndicate index, or `-1` for neutral; a negative value other than `-1` is
+  rejected), and `taxLevel` (`>= 0`). Only the *state* is saved; the territory
+  graph lives in `world.json`.
+- `funds` — one object per syndicate, **ascending syndicate**: `syndicate` (the
+  index) and `amount` (a float, `>= 0`).
+- `research` — one object per syndicate, **ascending syndicate**, only for
+  syndicates with progress: `syndicate`, `completed` (an array of completed node
+  ids), `inProgress` (the node id under way, or `""` if idle), and
+  `remainingSeconds` (a float, `>= 0`). Applied verbatim on load
+  (`Research::restore`).
+- `loadouts` — one object per **non-empty** squad slot, ascending
+  `(syndicate, slot)`: `syndicate`, `slot` (must be `< Equipment::kSquadSlots`),
+  and `items` (item ids in assignment order; a non-empty array of non-empty
+  strings — resolving an id against the catalogue is `applyLoadout`'s job).
+
+Floats are written with 9 significant digits (`%.9g`), so a value round-trips
+exactly. The writer is deterministic — the same snapshot always yields the same
+text — so two saves of the same state are byte-identical and easy to diff.
+`applyTo` rejects a save naming a territory the base campaign lacks, so a stale
+save against a changed map fails loudly rather than silently dropping progress.
+
 ## Adding content
 
 To add a mission, drop a new `assets/data/missions/<name>.json` file. Two agents
