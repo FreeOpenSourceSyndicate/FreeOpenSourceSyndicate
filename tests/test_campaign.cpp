@@ -267,6 +267,32 @@ FOSSYND_TEST(Campaign, SelectedLoadoutMapsBoughtEquipmentToSlots)
     const PlayerLoadout one = campaign.selectedLoadout();
     FOSSYND_CHECK_EQ(one.slots.size(), std::size_t{1});
     FOSSYND_CHECK(one.slots[0].weaponId.empty());
+
+    // The bought drug-bar ceilings ride along in the *same* payload (#553,
+    // ADR-0043): `selectedLoadout()` fills `ceilings` parallel to `slots`, so a
+    // deploy path that assigns the loadout cannot forget the ceilings and ship a
+    // bought regulator that is inert in play (the #99/#101 trap).
+    campaign.economy().addFunds(player, 5000.0f);
+    FOSSYND_CHECK(campaign.research().begin(player, "adrenalin-ceiling",
+                                            campaign.researchTree(), campaign.economy()));
+    campaign.research().tick(200.0f); // complete before the next node
+    FOSSYND_CHECK(campaign.research().completed(player, "adrenalin-ceiling"));
+    campaign.equipment().equip(player, 0, "adrenalin-ceiling", campaign.catalogue());
+
+    // A slot with no ceiling still gets a (zero) entry, so `ceilings` stays
+    // parallel to `slots`.
+    FOSSYND_CHECK(campaign.selectMission(0, {0, 1}));
+    const PlayerLoadout withCeilings = campaign.selectedLoadout();
+    FOSSYND_CHECK_EQ(withCeilings.ceilings.size(), withCeilings.slots.size());
+    FOSSYND_CHECK_EQ(withCeilings.ceilings.size(), std::size_t{2});
+    if (withCeilings.ceilings.size() == withCeilings.slots.size() &&
+        withCeilings.ceilings.size() >= 2)
+    {
+        FOSSYND_CHECK_NEAR(withCeilings.ceilings[0].adrenalin, 1.0f);
+        FOSSYND_CHECK_NEAR(withCeilings.ceilings[0].intelligence, 0.0f);
+        FOSSYND_CHECK_NEAR(withCeilings.ceilings[0].physical, 0.0f);
+        FOSSYND_CHECK_NEAR(withCeilings.ceilings[1].adrenalin, 0.0f);
+    }
 }
 
 FOSSYND_TEST(Campaign, SelectedCeilingsFollowTheSquadAndSumPerBar)
