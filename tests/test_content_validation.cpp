@@ -1,10 +1,14 @@
 /* AI/LLM-generated file. Do not treat as human-written source documentation. */
 #include "TestHarness.h"
 #include "core/data/ContentValidation.h"
+#include "core/data/Json.h"
 #include "core/i18n/MissionText.h"
+#include "core/sim/Cybernetic.h"
+#include "core/sim/PlayerLoadout.h"
 
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <string>
 
 using namespace fossynd::core;
@@ -299,6 +303,64 @@ FOSSYND_TEST(ContentValidation, WorldDataWeaponReferenceIsChecked)
     FOSSYND_CHECK(!report.ok());
     FOSSYND_CHECK(reportMentions(report, "equipment item 'ghost' is a weapon"));
     FOSSYND_CHECK(reportMentions(report, "not in the weapon catalogue"));
+}
+
+// A gadget or cybernetic equipment id must be one the mission loader accepts,
+// or `applyLoadout` rejects the whole squad at deploy — after the shop sold it
+// and the player paid (the #369 silent-break class, issue #580). This is the
+// guard that makes a typo a build failure instead of a paid no-op.
+FOSSYND_TEST(ContentValidation, WorldDataGadgetAndCyberneticIdsAreChecked)
+{
+    TempContent content("world_gadget_ref");
+    content.write("weapons.json", kWeaponsJson);
+    content.write("agents.json", kAgentsJson);
+    content.write("world/equipment.json", R"({"items": [
+        {"id": "medkit", "kind": "gadget", "name": "Medkit", "cost": 200},
+        {"id": "med-kit", "kind": "gadget", "name": "Medkit Typo", "cost": 200},
+        {"id": "legs", "kind": "cybernetic", "name": "Legs", "cost": 800},
+        {"id": "wings", "kind": "cybernetic", "name": "Wings", "cost": 800}
+    ]})");
+
+    const ValidationReport report = validateContentDir(content.dir());
+    FOSSYND_CHECK(!report.ok());
+    // The known ids are accepted; only the typos are reported.
+    FOSSYND_CHECK(reportMentions(report, "unknown gadget id 'med-kit'"));
+    FOSSYND_CHECK(reportMentions(report, "unknown cybernetic id 'wings'"));
+    FOSSYND_CHECK(!reportMentions(report, "unknown gadget id 'medkit'"));
+    FOSSYND_CHECK(!reportMentions(report, "unknown cybernetic id 'legs'"));
+}
+
+// The positive half: every id in the shipped equipment catalogue's gadget and
+// cybernetic kinds resolves through the loader vocabulary, so the guard above
+// never fires on the data we actually ship.
+FOSSYND_TEST(ContentValidation, ShippedGadgetAndCyberneticIdsResolve)
+{
+    const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/world/equipment.json";
+    std::ifstream stream(path, std::ios::binary);
+    FOSSYND_CHECK(stream.good());
+    const std::string text((std::istreambuf_iterator<char>(stream)),
+                           std::istreambuf_iterator<char>());
+
+    std::string error;
+    const Json root = Json::parse(text, error);
+    FOSSYND_CHECK(error.empty());
+    const Json& items = root["items"];
+    FOSSYND_CHECK(items.size() > 0);
+    for (std::size_t i = 0; i < items.size(); ++i)
+    {
+        const Json& item = items[i];
+        const std::string id = item["id"].asString();
+        const std::string kind = item["kind"].asString();
+        if (kind == "gadget")
+        {
+            FOSSYND_CHECK(gadgetChargesForId(id) != kUnknownGadget);
+        }
+        else if (kind == "cybernetic")
+        {
+            CyberneticEffect effect;
+            FOSSYND_CHECK(cyberneticEffectForId(id, effect));
+        }
+    }
 }
 
 // A research `unlocks` that names no equipment id is reported too (it gates a
