@@ -43,5 +43,9 @@
   "mission.overpass.name": "Ueberfuehrung",
   "mission.overpass.desc": "Sich durch die Blockade kaempfen und einen lebenden Agenten in die ferne Ecke der Ueberfuehrung bringen.",
   "mission.precinct.name": "Revier",
-  "mission.precinct.desc": "Das Revier stuermen und die Polizeipatrouillen sowie den Saboteur ausschalten, bevor er den Block sprengen kann."
+  "mission.precinct.desc": "Das Revier stuermen und die Polizeipatrouillen sowie den Saboteur ausschalten, bevor er den Block sprengen kann.",
+  "mission.decapitation.name": "Enthauptung",
+  "mission.decapitation.desc": "Der Operation die Spitze abschneiden: den AUFSEHER finden und toeten, waehrend die Garnison weiterkaempft.",
+  "mission.extraction.name": "Bergung",
+  "mission.extraction.desc": "Den Aktenkoffer auf dem fernen Sims greifen und zum Bergungsfeld zurueckbringen."
 }

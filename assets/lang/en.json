@@ -43,5 +43,9 @@
   "mission.overpass.name": "Overpass",
   "mission.overpass.desc": "Fight through the blockade and get a living agent to the far corner of the overpass.",
   "mission.precinct.name": "Precinct",
-  "mission.precinct.desc": "Storm the precinct and eliminate the police patrols and the saboteur before he can rig the block."
+  "mission.precinct.desc": "Storm the precinct and eliminate the police patrols and the saboteur before he can rig the block.",
+  "mission.decapitation.name": "Decapitation",
+  "mission.decapitation.desc": "Cut the head off the operation: find and kill the OVERSEER while the garrison fights on.",
+  "mission.extraction.name": "Extraction",
+  "mission.extraction.desc": "Grab the briefcase on the far ledge and carry it back to the extraction tile."
 }

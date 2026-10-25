@@ -2829,6 +2829,122 @@ FOSSYND_TEST(Mission, ShippedPrecinctPoliceAndSaboteurAreReachableAndWinnable)
     }
 }
 
+// --- Shipped campaign mission set, slice 2 (issues #444/#473) --------------
+//
+// The two new objective kinds (assassinate, retrieve) must be reachable in play
+// through a *shipped* mission, not merely evaluated by the core (#471) and
+// parsed by the loader (#472) — the #99/#101 "landed but never wired in" trap.
+// Each case loads the real file through the real loader, builds the real grid,
+// and drives the objective's own mechanic to the win.
+
+FOSSYND_TEST(Mission, ShippedDecapitationAssassinateIsWinnable)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("decapitation"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Assassinate);
+
+    // The objective must name a real enemy, and specifically the VIP: a missing
+    // or mis-indexed target would make the mission unwinnable or win on the
+    // wrong kill.
+    const int target = data.objective.agentIndex;
+    FOSSYND_CHECK(target >= 0);
+    FOSSYND_CHECK(static_cast<std::size_t>(target) < data.agents.size());
+    FOSSYND_CHECK_EQ(data.agents[static_cast<std::size_t>(target)].team, Team::Enemy);
+    FOSSYND_CHECK_EQ(data.agents[static_cast<std::size_t>(target)].name, std::string("OVERSEER"));
+
+    // The garrison must outnumber the single target, so a win proves the named
+    // kill rather than a wipe (the whole point of the kind).
+    std::size_t enemies = 0;
+    for (const AgentSpec& spec : data.agents)
+    {
+        if (spec.team == Team::Enemy)
+        {
+            ++enemies;
+        }
+    }
+    FOSSYND_CHECK(enemies >= 2);
+
+    TileGrid grid = buildGrid(data);
+    // The VIP must be reachable from the squad, not walled off.
+    const TilePos start{static_cast<int>(data.agents.front().x),
+                        static_cast<int>(data.agents.front().y)};
+    const TilePos vip{static_cast<int>(data.agents[static_cast<std::size_t>(target)].x),
+                      static_cast<int>(data.agents[static_cast<std::size_t>(target)].y)};
+    FOSSYND_CHECK(!findPath(grid, start, vip, /*allowDiagonal=*/true).empty());
+
+    Mission mission(grid, 21u);
+    populateMission(data, mission);
+    FOSSYND_CHECK(mission.objective().kind == ObjectiveSpec::Kind::Assassinate);
+
+    // The player's real action: order the squad onto the VIP. Re-issue the order
+    // so the squad keeps closing as it fights through the garrison.
+    for (int guard = 0; guard < 60 && mission.state() == MissionState::Running; ++guard)
+    {
+        for (std::size_t i = 0; i < mission.agents().size(); ++i)
+        {
+            if (mission.agents()[i].team() == Team::Player &&
+                mission.agents()[i].isAlive())
+            {
+                mission.orderAttack(i, static_cast<std::size_t>(target));
+            }
+        }
+        runUntilDone(mission, 4.0f);
+    }
+
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+    FOSSYND_CHECK(!mission.agents()[static_cast<std::size_t>(target)].isAlive());
+    // The win was the named kill, not a garrison wipe.
+    FOSSYND_CHECK(mission.aliveCount(Team::Enemy) >= static_cast<std::size_t>(1));
+}
+
+FOSSYND_TEST(Mission, ShippedExtractionRetrieveIsWinnable)
+{
+    MissionData data;
+    std::string error;
+    FOSSYND_CHECK(MissionData::loadFromFile(shippedMission("extraction"), data, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(data.objective.kind == ObjectiveSpec::Kind::Retrieve);
+
+    TileGrid grid = buildGrid(data);
+    const TilePos item{data.objective.itemX, data.objective.itemY};
+    const TilePos exit{data.objective.tileX, data.objective.tileY};
+    // Both legs must be walkable and reachable, or the mission is silently
+    // unwinnable (the #212 trap).
+    FOSSYND_CHECK(grid.isWalkable(item.x, item.y));
+    FOSSYND_CHECK(grid.isWalkable(exit.x, exit.y));
+    const TilePos start{static_cast<int>(data.agents.front().x),
+                        static_cast<int>(data.agents.front().y)};
+    FOSSYND_CHECK(!findPath(grid, start, item, /*allowDiagonal=*/true).empty());
+    FOSSYND_CHECK(!findPath(grid, item, exit, /*allowDiagonal=*/true).empty());
+
+    Mission mission(grid, 22u);
+    populateMission(data, mission);
+
+    const auto orderSquadTo = [&mission](TilePos goal) {
+        for (std::size_t i = 0; i < mission.agents().size(); ++i)
+        {
+            if (mission.agents()[i].team() == Team::Player &&
+                mission.agents()[i].isAlive())
+            {
+                mission.orderMove(i, goal);
+            }
+        }
+    };
+
+    // Leg 1: pick the item up. The mission must not end merely on pickup.
+    orderSquadTo(item);
+    runUntilDone(mission, 20.0f);
+    FOSSYND_CHECK(mission.state() == MissionState::Running);
+
+    // Leg 2: carry it to the exit. The mission is won when a living agent stands
+    // on the exit tile *after* the pickup.
+    orderSquadTo(exit);
+    runUntilDone(mission, 40.0f);
+    FOSSYND_CHECK_EQ(mission.state(), MissionState::Won);
+}
+
 // A shipped mission's `vehicles[]` must reach the board (issue #417). The
 // parser (`MissionData::parseVehicle`) filled `data.vehicles` from the start,
 // but `populateMission` never registered them with the `Mission`, so a placed
