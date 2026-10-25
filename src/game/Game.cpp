@@ -14,6 +14,7 @@
 #include "core/data/MissionData.h"
 #include "core/i18n/MissionText.h"
 #include "core/math/Isometric.h"
+#include "core/util/CampaignSave.h"
 #include "game/EmbeddedLang.h"
 #include "game/EmbeddedMission.h"
 #include "game/EmbeddedSprites.h"
@@ -90,6 +91,8 @@ bool mapScreenAllowsKey(int sym)
     {
     case SDLK_ESCAPE: // quit
     case SDLK_F11:    // fullscreen
+    case SDLK_F5:     // save the campaign (issue #527)
+    case SDLK_F9:     // load the campaign (issue #527)
     case SDLK_m:      // leave the map
     case SDLK_d:      // deploy the selected territory
     case SDLK_PLUS:
@@ -1619,6 +1622,272 @@ bool Game::saveLoadSelfTest()
     return campaign_.saveLoadSelfTest();
 }
 
+std::string Game::inGameSavePath() const
+{
+    // The session's file: an explicit `--save` wins, then the file a `--load`
+    // resumed, so the keys continue the same session. With neither, a documented
+    // per-user location (`$XDG_DATA_HOME/FOSSynd/fossynd/` on Linux) that SDL
+    // resolves per platform — writable even when the install tree is read-only.
+    if (!savePath_.empty())
+    {
+        return savePath_;
+    }
+    if (!loadPath_.empty())
+    {
+        return loadPath_;
+    }
+    std::string path;
+    if (char* pref = SDL_GetPrefPath("FOSSynd", "fossynd"))
+    {
+        path = std::string(pref) + "save.json";
+        SDL_free(pref);
+    }
+    return path;
+}
+
+void Game::saveToSlot()
+{
+    // Only the campaign map carries progress (the tactical board is a transient
+    // mission), so the in-game keys act there; on the board they say why instead
+    // of silently doing nothing. Fail soft: a bad path is reported and play
+    // continues (unlike the CLI `--save`, which is fatal).
+    if (!campaign_.visible() || !campaign_.valid())
+    {
+        std::printf("save: open the campaign map (M) to save\n");
+        return;
+    }
+    const std::string path = inGameSavePath();
+    if (path.empty())
+    {
+        std::printf("save: no writable save location\n");
+        return;
+    }
+    std::string error;
+    if (!saveCampaignProgress(path, error))
+    {
+        std::fprintf(stderr, "save error (%s): %s\n", path.c_str(), error.c_str());
+        std::printf("save: failed (%s)\n", error.c_str());
+        return;
+    }
+    std::printf("saved %s\n", path.c_str());
+}
+
+void Game::loadFromSlot()
+{
+    // Mirror of saveToSlot: map-only, and fail soft. A missing or corrupt save
+    // leaves the current campaign untouched (loadProgress rejects it before
+    // applying anything), so a bad key press cannot lose progress.
+    if (!campaign_.visible() || !campaign_.valid())
+    {
+        std::printf("load: open the campaign map (M) to load\n");
+        return;
+    }
+    const std::string path = inGameSavePath();
+    if (path.empty())
+    {
+        std::printf("load: no save location\n");
+        return;
+    }
+    std::string error;
+    if (!loadCampaignProgress(path, error))
+    {
+        std::fprintf(stderr, "load error (%s): %s\n", path.c_str(), error.c_str());
+        std::printf("load: failed (%s)\n", error.c_str());
+        return;
+    }
+    std::printf("loaded %s\n", path.c_str());
+}
+
+bool Game::saveHotkeySelfTest()
+{
+    // Headless guard for the in-game save/load keys (issue #527). Drives the
+    // *real* `handleEvents` dispatch with pushed F5/F9 events, so it catches a
+    // key that is unbound or swallowed by the map allow-list — not just the
+    // handlers. The live campaign is progressed, saved, mutated, and reloaded;
+    // the round-trip must restore it exactly. A bad path must fail soft.
+    if (!campaign_.valid())
+    {
+        std::fprintf(stderr, "save-hotkeys self-test: no campaign loaded (run from the repo root?)\n");
+        return false;
+    }
+
+    // Uniquely named temp files so a concurrent run cannot collide, and the guard
+    // never touches the player's real save (plain C++ only: <filesystem> is
+    // avoided in the game layer for the low-spec size budget, AGENTS.md §1b).
+    static int counter = 0;
+    const char* tmpDir = std::getenv("TMPDIR");
+    const std::string base =
+        std::string(tmpDir != nullptr && tmpDir[0] != '\0' ? tmpDir : "/tmp") +
+        "/fossynd_save_hotkeys_" + std::to_string(++counter);
+    const std::string file = base + ".json";
+    const std::string scratch = base + "_scratch.json";
+    const std::string originalFile = base + "_original.json";
+    const std::string boardFile = base + "_board.json";
+
+    // Everything the guard mutates, so the live state is left as found. The
+    // campaign is restored by re-saving its current progress, then loading it
+    // back — the public Game API, since the screen's core::Campaign is private.
+    const std::string savedSavePath = savePath_;
+    const std::string savedLoadPath = loadPath_;
+    const bool savedVisible = campaign_.visible();
+    std::string error;
+    if (!saveCampaignProgress(originalFile, error))
+    {
+        std::fprintf(stderr, "save-hotkeys self-test: could not snapshot the live campaign: %s\n",
+                     error.c_str());
+        return false;
+    }
+
+    bool ok = true;
+    auto fail = [&](const char* why) {
+        std::fprintf(stderr, "save-hotkeys self-test: %s\n", why);
+        ok = false;
+    };
+
+    // The live campaign's current progress, read back through the real save
+    // format, so two snapshots can be compared field-for-field.
+    auto snapshot = [&](core::CampaignSave& out) {
+        return saveCampaignProgress(scratch, error) &&
+               core::CampaignSave::loadFromFile(scratch, out, error);
+    };
+
+    // Drop any events SDL queued during init, so the first pushed key is the only
+    // one dispatched.
+    {
+        SDL_Event drain;
+        while (SDL_PollEvent(&drain) != 0)
+        {
+        }
+    }
+
+    auto pushKey = [&](int sym) {
+        if (!pushKeyDown(sym))
+        {
+            fail("could not push a key event");
+            return false;
+        }
+        bool alive = true;
+        handleEvents(alive);
+        if (!alive)
+        {
+            fail("a save/load key quit the game");
+            return false;
+        }
+        return true;
+    };
+
+    // On the map: `F5` saves. Then mutate the campaign and `F9` loads it back.
+    savePath_ = file;
+    campaign_.setVisible(true);
+    campaign_.applySyndicateIdentity("Round-Trip Probe", "bolt");
+
+    if (pushKey(SDLK_F5))
+    {
+        core::CampaignSave expected;
+        if (!core::CampaignSave::loadFromFile(file, expected, error))
+        {
+            fail("F5 did not write a readable save");
+        }
+        else
+        {
+            // Mutate a field the save carries, then load it back with F9.
+            campaign_.applySyndicateIdentity("Mutated After Save", "skull");
+            if (pushKey(SDLK_F9))
+            {
+                core::CampaignSave actual;
+                if (!snapshot(actual))
+                {
+                    fail("could not snapshot the state after F9");
+                }
+                else if (!(actual == expected))
+                {
+                    fail("F9 did not restore the state F5 saved");
+                }
+            }
+        }
+    }
+
+    // A bad save path must fail soft: report and leave the campaign unchanged.
+    if (ok)
+    {
+        savePath_ = "/no/such/fossynd-dir/save.json";
+        core::CampaignSave before;
+        if (!snapshot(before))
+        {
+            fail("could not snapshot before a bad-path save");
+        }
+        else if (pushKey(SDLK_F5))
+        {
+            core::CampaignSave after;
+            if (!snapshot(after) || !(after == before))
+            {
+                fail("a bad save path changed the campaign");
+            }
+        }
+    }
+
+    // A missing save file must fail soft too.
+    if (ok)
+    {
+        savePath_ = base + "_does_not_exist.json";
+        core::CampaignSave before;
+        if (!snapshot(before))
+        {
+            fail("could not snapshot before a missing-file load");
+        }
+        else if (pushKey(SDLK_F9))
+        {
+            core::CampaignSave after;
+            if (!snapshot(after) || !(after == before))
+            {
+                fail("a missing save file changed the campaign");
+            }
+        }
+    }
+
+    // On the tactical board the keys are disabled: `F5` must write nothing.
+    if (ok)
+    {
+        campaign_.setVisible(false);
+        savePath_ = boardFile;
+        std::remove(boardFile.c_str());
+        if (pushKey(SDLK_F5) && core::fileExists(boardFile))
+        {
+            fail("F5 saved while the tactical board was up");
+        }
+    }
+
+    // The documented default path (no `--save`/`--load`): the keys must resolve a
+    // real slot rather than an empty string, so a plain interactive run can save.
+    if (ok)
+    {
+        savePath_.clear();
+        loadPath_.clear();
+        const std::string fallback = inGameSavePath();
+        if (fallback.empty())
+        {
+            fail("the default save path is empty (no SDL preference dir?)");
+        }
+    }
+
+    // Leave the live state as it was found.
+    campaign_.setVisible(savedVisible);
+    savePath_ = savedSavePath;
+    loadPath_ = savedLoadPath;
+    std::string restoreError;
+    if (!loadCampaignProgress(originalFile, restoreError))
+    {
+        // Not fatal to the guard's verdict, but the live state is dirty: say so.
+        std::fprintf(stderr, "save-hotkeys self-test: could not restore the live campaign: %s\n",
+                     restoreError.c_str());
+    }
+    std::remove(file.c_str());
+    std::remove(scratch.c_str());
+    std::remove(originalFile.c_str());
+    std::remove(boardFile.c_str());
+    return ok;
+}
+
 bool Game::deploySelfTest()
 {
     // Deploying from the map must (a) resolve the territory's mission to a file,
@@ -2757,6 +3026,15 @@ void Game::handleEvents(bool& running)
             case SDLK_F11:
                 // Toggle fullscreen/windowed at runtime (issue #194).
                 toggleFullscreen();
+                break;
+            case SDLK_F5:
+                // In-game save (issue #527). Acts on the campaign map; on the
+                // tactical board it explains why it does nothing.
+                saveToSlot();
+                break;
+            case SDLK_F9:
+                // In-game load (issue #527). Fails soft on a missing/corrupt file.
+                loadFromSlot();
                 break;
             case SDLK_m:
                 // Toggle the campaign management screen (Milestone B). Only when a

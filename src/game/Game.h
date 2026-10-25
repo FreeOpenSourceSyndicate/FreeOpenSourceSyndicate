@@ -89,6 +89,15 @@ public:
     // and the `game_save_load` ctest.
     bool saveLoadSelfTest();
 
+    // Headless guard for the in-game save/load keys (issue #527): pushes real
+    // `F5`/`F9` events through the real `handleEvents` dispatch and proves they
+    // reach the handlers — a save, then a load after mutating, restores the
+    // campaign's progress exactly (a re-save compares equal field-for-field), and
+    // a bad path is a safe no-op that leaves the campaign intact. Restores the
+    // live campaign and the requested paths before returning. Used by the
+    // `--check-save-hotkeys` guard and the `game_save_hotkeys` ctest.
+    bool saveHotkeySelfTest();
+
     // Starts with the campaign management screen (the world map) up instead of
     // the tactical board. Set by `--map`; `M` toggles it at runtime. Call before
     // init().
@@ -519,6 +528,16 @@ private:
     // (golden rule 1/4). An empty selection is a safe no-op.
     void cycleDrugBar(int delta);
     void adjustActiveDrugBar(float delta);
+
+    // In-game save/load keys (issue #527, `F5`/`F9`). The slot path is resolved
+    // by `inGameSavePath()`; the handlers print a one-line result and fail soft
+    // (a bad path is a no-op, never fatal — unlike the CLI `--load` fail-fast).
+    // Both act only while the campaign map is up: the tactical board has no
+    // persistent progress of its own to save, so a save/load there would be
+    // misleading (the policy the issue asks us to pick and document).
+    void saveToSlot();
+    void loadFromSlot();
+    std::string inGameSavePath() const;
 
     core::Vec2 tileToScreen(const core::Vec2& tile) const;
     core::TilePos screenToTile(int screenX, int screenY) const;
