@@ -10,16 +10,16 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-25T00:19:56Z._
+_As of 2026-10-25T01:07:22Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
 | `tactical` | — | free | — |
 | `missions` | — | free | — |
 | `world` | — | free | — |
-| `render` | re-1-kastenbrot · #424 | stale | 1h |
+| `render` | re-1-kastenbrot · #424 | stale | 19m |
 | `input-ui` | ui-1-kastenbrot · #447 | stale | 2h |
-| `content` | co-1-kastenbrot · #446 | stale | 1h |
+| `content` | co-1-kastenbrot · #446 | stale | 20m |
 | `text` | — | free | — |
 | `metagame` | mg-1-kastenbrot · #448 | stale | 2h |
 | `platform` | — | free | — |
