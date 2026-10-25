@@ -1838,6 +1838,104 @@ FOSSYND_TEST(Mission, LoadoutOverridesPlayerWeapon)
     FOSSYND_CHECK_EQ(mission.agents()[2].weapon().name, std::string("Pistol"));
 }
 
+FOSSYND_TEST(Mission, LoadoutAppliesDrugCeilings)
+{
+    // ADR-0043/#518/#553: the metagame-bought drug-bar ceilings reach the deployed
+    // squad through `applyLoadout`, so the bought regulator is not inert (the
+    // #99/#101 "capability landed but never wired in" trap).
+    const MissionData data = loadoutFixture();
+    TileGrid grid = buildGrid(data);
+    Mission mission(grid, 101u);
+    populateMission(data, mission);
+
+    PlayerLoadout loadout;
+    loadout.slots.resize(2);
+    loadout.ceilings.resize(2);
+    loadout.ceilings[0].physical = 0.6f;
+    loadout.ceilings[0].adrenalin = 0.3f;
+    loadout.ceilings[1].intelligence = 0.4f;
+
+    std::string error;
+    const WeaponCatalogue weapons = loadoutWeapons();
+    FOSSYND_CHECK(applyLoadout(loadout, mission, weapons, error));
+    FOSSYND_CHECK(error.empty());
+
+    // Slot 0 (the first player) gets its two bought ceilings; the bar it did not
+    // name stays unregulated at the default.
+    FOSSYND_CHECK_NEAR(mission.drugCeiling(0u, Drug::Physical), 0.6f);
+    FOSSYND_CHECK_NEAR(mission.drugCeiling(0u, Drug::Adrenalin), 0.3f);
+    FOSSYND_CHECK_NEAR(mission.drugCeiling(0u, Drug::Intelligence), kDrugMaxLevel);
+
+    // Slot 1 (the second player) gets its own ceiling, independently.
+    FOSSYND_CHECK_NEAR(mission.drugCeiling(1u, Drug::Intelligence), 0.4f);
+    FOSSYND_CHECK_NEAR(mission.drugCeiling(1u, Drug::Physical), kDrugMaxLevel);
+
+    // The ceiling is a real clamp, not just a stored number.
+    mission.setDrugLevel(0u, Drug::Physical, 1.0f);
+    FOSSYND_CHECK_NEAR(mission.drugLevel(0u, Drug::Physical), 0.6f);
+}
+
+FOSSYND_TEST(Mission, LoadoutWithoutCeilingsLeavesEveryBarUnregulated)
+{
+    // The additive/defaulted half: a loadout with no `ceilings` entry (and an
+    // all-zero one) changes nothing, so existing callers and missions are
+    // byte-for-byte unchanged (AGENTS.md §1b).
+    const MissionData data = loadoutFixture();
+    TileGrid grid = buildGrid(data);
+    Mission mission(grid, 102u);
+    populateMission(data, mission);
+
+    PlayerLoadout loadout;
+    loadout.slots.resize(2); // no `ceilings` at all
+
+    std::string error;
+    const WeaponCatalogue weapons = loadoutWeapons();
+    FOSSYND_CHECK(applyLoadout(loadout, mission, weapons, error));
+
+    for (std::size_t i = 0; i < 2; ++i)
+    {
+        for (Drug drug : {Drug::Adrenalin, Drug::Intelligence, Drug::Physical})
+        {
+            FOSSYND_CHECK_NEAR(mission.drugCeiling(i, drug), kDrugMaxLevel);
+        }
+    }
+
+    // An all-zero entry is the "no ceiling" sentinel, so it too is a no-op.
+    loadout.ceilings.resize(2); // both default-constructed (all 0.0f)
+    FOSSYND_CHECK(applyLoadout(loadout, mission, weapons, error));
+    FOSSYND_CHECK_NEAR(mission.drugCeiling(0u, Drug::Physical), kDrugMaxLevel);
+    FOSSYND_CHECK_NEAR(mission.drugCeiling(1u, Drug::Intelligence), kDrugMaxLevel);
+}
+
+FOSSYND_TEST(Mission, LoadoutCeilingSlotPastTheSquadIsIgnored)
+{
+    // A ceilings entry with no matching squad slot is ignored, exactly as an
+    // extra `slots` entry is: a full four-slot loadout is safe against a
+    // one-player mission, and a stray ceiling must not leak onto an agent.
+    MissionData data;
+    data.width = 12;
+    data.height = 12;
+    AgentSpec hero;
+    hero.team = Team::Player;
+    hero.x = 2.0f;
+    hero.y = 2.0f;
+    hero.weapon = makePistol();
+    data.agents.push_back(hero);
+    TileGrid grid = buildGrid(data);
+    Mission mission(grid, 103u);
+    populateMission(data, mission);
+
+    PlayerLoadout loadout;
+    loadout.slots.resize(3);            // three slots...
+    loadout.ceilings.resize(3);
+    loadout.ceilings[2].physical = 0.2f; // ...but only one player agent exists
+
+    std::string error;
+    const WeaponCatalogue weapons = loadoutWeapons();
+    FOSSYND_CHECK(applyLoadout(loadout, mission, weapons, error));
+    FOSSYND_CHECK_NEAR(mission.drugCeiling(0u, Drug::Physical), kDrugMaxLevel);
+}
+
 FOSSYND_TEST(Mission, LoadoutWeaponIsWhatTheSimFires)
 {
     // The acceptance bar: the override is not just stored, it is the weapon the
