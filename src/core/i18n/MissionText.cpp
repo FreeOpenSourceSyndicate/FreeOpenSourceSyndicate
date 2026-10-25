@@ -7,10 +7,12 @@ namespace fossynd::core::i18n
 namespace
 {
 
-// True if `id` is usable as a key segment. A mission id becomes a middle segment
-// of a dotted key, so an empty id or one containing a dot, whitespace, or an
-// upper-case letter is rejected: localisation is skipped rather than building an
-// ambiguous key (e.g. an id of "a.b" would collide with a nested key).
+// True if `id` is usable as a key segment. A content id (mission or weapon)
+// becomes a middle segment of a dotted key, so an empty id or one containing a
+// dot, whitespace, or an upper-case letter is rejected: localisation is skipped
+// rather than building an ambiguous key (e.g. an id of "a.b" would collide with
+// a nested key). A hyphen is allowed, so a catalogue id such as "time-bomb" is
+// key-safe.
 bool isKeySafeId(const std::string& id)
 {
     if (id.empty())
@@ -38,6 +40,11 @@ std::string missionNameKey(const std::string& id)
 std::string missionDescKey(const std::string& id)
 {
     return isKeySafeId(id) ? "mission." + id + ".desc" : std::string();
+}
+
+std::string weaponNameKey(const std::string& id)
+{
+    return isKeySafeId(id) ? "weapon." + id + ".name" : std::string();
 }
 
 std::string missionIdFromPath(const std::string& path)

@@ -63,5 +63,19 @@
   "mission.vault.name": "Vault",
   "mission.vault.desc": "Crack the vault on the far shelf and carry the ledger back to the extraction tile through the guard line.",
   "mission.uprising.name": "Uprising",
-  "mission.uprising.desc": "Turn the crowd with the Compliance Beacon and bring five of them over before the riot squad closes in."
+  "mission.uprising.desc": "Turn the crowd with the Compliance Beacon and bring five of them over before the riot squad closes in.",
+
+  "weapon.pistol.name": "Pistol",
+  "weapon.rifle.name": "Rifle",
+  "weapon.uzi.name": "Uzi",
+  "weapon.launcher.name": "Launcher",
+  "weapon.minigun.name": "Minigun",
+  "weapon.flamethrower.name": "Flamethrower",
+  "weapon.laser.name": "Laser",
+  "weapon.shotgun.name": "Shotgun",
+  "weapon.sniper.name": "Sniper",
+  "weapon.gauss.name": "Gauss",
+  "weapon.longshot.name": "Longshot",
+  "weapon.railgun.name": "Railgun",
+  "weapon.time-bomb.name": "Time Bomb"
 }

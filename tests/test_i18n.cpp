@@ -128,6 +128,32 @@ std::vector<std::string> shippedMissionIds()
     return ids;
 }
 
+// Every weapon id in the shared catalogue (assets/data/weapons.json). The id is
+// what `weaponNameKey` derives the localisation key from, so the catalogue file
+// — not a hardcoded list — is the authoritative weapon set: a new weapon cannot
+// be forgotten here (issue #534). Returns empty if the file is missing.
+std::vector<std::string> shippedWeaponIds()
+{
+    const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/weapons.json";
+    std::vector<std::string> ids;
+    std::string error;
+    Json root;
+    if (!Json::parseFile(path, root, error) || !root.has("weapons") || !root["weapons"].isArray())
+    {
+        return ids;
+    }
+    const Json& weapons = root["weapons"];
+    for (std::size_t i = 0; i < weapons.size(); ++i)
+    {
+        if (weapons[i].has("id"))
+        {
+            ids.push_back(weapons[i]["id"].asString());
+        }
+    }
+    std::sort(ids.begin(), ids.end());
+    return ids;
+}
+
 } // namespace
 
 FOSSYND_TEST(I18n, LoadsKeyValuePairs)
@@ -437,6 +463,15 @@ FOSSYND_TEST(I18n, MissionTextKeyDerivation)
                      std::string("escort"));
     FOSSYND_CHECK_EQ(missionIdFromPath("demo"), std::string("demo"));
     FOSSYND_CHECK_EQ(missionIdFromPath(""), std::string(""));
+
+    using fossynd::core::i18n::weaponNameKey;
+    FOSSYND_CHECK_EQ(weaponNameKey("rifle"), std::string("weapon.rifle.name"));
+    // A hyphen is key-safe, so the catalogue's "time-bomb" id derives a key.
+    FOSSYND_CHECK_EQ(weaponNameKey("time-bomb"), std::string("weapon.time-bomb.name"));
+    // An unsafe id yields no key, exactly as for a mission.
+    FOSSYND_CHECK_EQ(weaponNameKey(""), std::string(""));
+    FOSSYND_CHECK_EQ(weaponNameKey("a.b"), std::string(""));
+    FOSSYND_CHECK_EQ(weaponNameKey("Rifle"), std::string(""));
 }
 
 FOSSYND_TEST(I18n, MissionTextFallsBackToAuthoredTextAndIsIdempotent)
@@ -506,6 +541,48 @@ FOSSYND_TEST(I18n, ShippedMissionsHaveLocalisedTextInEveryLocale)
             // Resolution yields a non-empty, renderable string in that locale.
             const std::string name =
                 localizeMissionText(locale, missionNameKey(id), std::string());
+            FOSSYND_CHECK(!name.empty());
+            FOSSYND_CHECK(isRenderableAscii(name));
+        }
+    }
+}
+
+FOSSYND_TEST(I18n, ShippedWeaponsHaveLocalisedNamesInEveryLocale)
+{
+    using fossynd::core::i18n::localizeMissionText;
+    using fossynd::core::i18n::weaponNameKey;
+
+    // The shipped weapons are the entries in assets/data/weapons.json; the id is
+    // the entry's `id`. Deriving the set here (rather than hardcoding it) means a
+    // new weapon without translations fails this test instead of slipping through
+    // (issue #534, the #246 pattern extended to weapons).
+    const std::vector<std::string> weaponIds = shippedWeaponIds();
+    FOSSYND_CHECK(!weaponIds.empty());
+
+    const std::string srcDir = FOSSYND_SOURCE_DIR;
+    StringTable english;
+    std::string error;
+    FOSSYND_CHECK(english.loadFromFile(srcDir + "/assets/lang/en.json", error));
+
+    for (const std::string& id : weaponIds)
+    {
+        // The id must be a safe key segment, or `weaponNameKey` returns "" and
+        // the HUD would show the authored name for a non-English player.
+        const std::string key = weaponNameKey(id);
+        FOSSYND_CHECK(!key.empty());
+
+        // English is the reference: the authored copy is present verbatim.
+        FOSSYND_CHECK(english.has(key));
+
+        // Every shipped locale must localise it; a missing key would silently
+        // show English to a non-English player.
+        for (const std::filesystem::path& localePath : shippedLocaleFiles())
+        {
+            StringTable locale;
+            FOSSYND_CHECK(locale.loadForLocale(localePath.stem().string(), srcDir, english, error));
+            FOSSYND_CHECK(locale.has(key));
+            // Resolution yields a non-empty, renderable string in that locale.
+            const std::string name = localizeMissionText(locale, key, std::string());
             FOSSYND_CHECK(!name.empty());
             FOSSYND_CHECK(isRenderableAscii(name));
         }
