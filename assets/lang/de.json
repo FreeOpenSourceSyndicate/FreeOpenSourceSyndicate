@@ -13,7 +13,7 @@
   "hud.objective.persuade": "ZIEL: {count} GEFOLGTE ANWERBEN",
   "hud.objective.assassinate": "ZIEL: {name} LIQUIDIEREN",
   "hud.objective.retrieve": "ZIEL: OBJEKT ({ix},{iy}) NACH ({x},{y}) BRINGEN",
-  "hud.controls": "[SHIFT+KLICK] REIHEN   [KLICK FEIND/RECHTS] ANGRIFF   [1-4] GRUPPE   [A]LLE   [P] UEBERZEUGEN   [F] FREI   [H] MEDIKIT   [S] SCHILD   [C] SCAN   [B] DROGEN   [/] BALKEN   ;/' STEUERN   [E] ENTERN   [R] NEUSTART",
+  "hud.controls": "[SHIFT+KLICK] REIHEN   [KLICK FEIND/RECHTS] ANGRIFF   [1-4] GRUPPE   [A]LLE   [P] UEBERZEUGEN   [F] FREI   [H] MEDIKIT   [S] SCHILD   [C] SCAN   [B] DROGEN   [/] BALKEN   ;/' STEUERN   [E] ENTERN   [R] NEUSTART   [F5] SICHERN   [F9] LADEN",
   "hud.followers": "GEFOLGTE: {count}",
   "hud.collateral": "KOLLATERAL: {count}",
   "hud.squad": "TRUPPE",
