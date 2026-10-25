@@ -98,6 +98,29 @@ std::vector<std::string> readStringArray(const Json& node, const std::string& wh
     return values;
 }
 
+// Reads an array of strings that may be empty (the roster's unnamed slots). On
+// failure sets `error` and returns an empty vector (the caller checks `error`).
+std::vector<std::string> readStringArrayAllowingEmpty(const Json& node, const std::string& where,
+                                                      std::string& error)
+{
+    std::vector<std::string> values;
+    if (!node.isArray())
+    {
+        error = where + " must be an array";
+        return values;
+    }
+    for (std::size_t i = 0; i < node.size(); ++i)
+    {
+        if (!node[i].isString())
+        {
+            error = where + ": each entry must be a string";
+            return values;
+        }
+        values.push_back(node[i].asString());
+    }
+    return values;
+}
+
 // Reads a required non-negative integer field.
 bool readInt(const Json& node, const char* key, const std::string& where, int& out,
              std::string& error)
@@ -157,6 +180,12 @@ CampaignSave CampaignSave::capture(const Campaign& campaign)
             }
         }
     }
+
+    // The recruited roster (per-slot agent names, #509/#532). Copied as-is and
+    // padded/truncated to the squad size so a round-trip is exact regardless of
+    // whether the campaign has recruited anyone yet.
+    save.roster = campaign.agentNames();
+    save.roster.resize(static_cast<std::size_t>(Equipment::kSquadSlots));
 
     return save;
 }
@@ -266,6 +295,17 @@ bool CampaignSave::serialize(std::string& out, std::string& error) const
     if (!loadouts.empty())
     {
         text += "\n  ";
+    }
+    text += "],\n";
+
+    text += "  \"roster\": [";
+    for (std::size_t i = 0; i < roster.size(); ++i)
+    {
+        if (i != 0)
+        {
+            text += ", ";
+        }
+        writeString(text, roster[i]);
     }
     text += "]\n";
 
@@ -487,6 +527,18 @@ bool CampaignSave::parse(const std::string& text, CampaignSave& out, std::string
         out.loadouts.push_back(std::move(entry));
     }
 
+    // Roster: the per-slot agent names (#509/#532). Optional so a hand-written or
+    // older-tooling file without it still loads (the slots are simply unnamed);
+    // a v3 file always writes it.
+    if (root.has("roster"))
+    {
+        out.roster = readStringArrayAllowingEmpty(root["roster"], "'roster'", error);
+        if (!error.empty())
+        {
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -592,6 +644,10 @@ bool CampaignSave::applyTo(Campaign& campaign, std::string& error) const
         state.remainingSeconds = entry.remainingSeconds;
         campaign.research().restore(entry.syndicate, state);
     }
+
+    // Roster: the recruited agent names (#509/#532). `setAgentNames` sizes and
+    // pads, so a short saved roster cannot leave the roster the wrong length.
+    campaign.setAgentNames(roster);
 
     return true;
 }

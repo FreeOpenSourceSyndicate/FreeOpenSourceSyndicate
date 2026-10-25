@@ -34,8 +34,11 @@ struct CampaignSave
     // player's chosen syndicate identity (`syndicate` became meaningful and a
     // `syndicateLogo` was added): a v1 build would parse a v2 file and silently
     // drop the chosen logo, so the version bump makes it reject the file instead.
+    // v3 added the recruited `roster` (per-slot agent names, #509/#532): a v2
+    // build would drop the names, so it rejects a v3 file rather than reload a
+    // squad whose identities vanished.
     static constexpr const char* kFormat = "fossynd-save";
-    static constexpr int kVersion = 2;
+    static constexpr int kVersion = 3;
 
     // One territory's mutable progress. Names, neighbours, and mission ids are
     // topology and live in the base campaign file, not the save.
@@ -94,12 +97,17 @@ struct CampaignSave
     std::vector<FundsProgress> funds;           // ascending syndicate
     std::vector<ResearchProgress> research;     // ascending syndicate; entries with progress only
     std::vector<LoadoutProgress> loadouts;      // ascending (syndicate, slot); non-empty only
+    // The recruited squad roster: per-slot agent names (#509/#532). Sized to the
+    // squad (Equipment::kSquadSlots); an empty string is an unnamed slot. Always
+    // written so a round-trip is exact.
+    std::vector<std::string> roster;
 
     bool operator==(const CampaignSave& other) const
     {
         return syndicate == other.syndicate && syndicateLogo == other.syndicateLogo &&
                territories == other.territories && funds == other.funds &&
-               research == other.research && loadouts == other.loadouts;
+               research == other.research && loadouts == other.loadouts &&
+               roster == other.roster;
     }
     bool operator!=(const CampaignSave& other) const { return !(*this == other); }
 

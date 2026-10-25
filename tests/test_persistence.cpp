@@ -62,6 +62,11 @@ Campaign progressedCampaign()
     campaign.equipment().assign(player, 0, "medkit");
     campaign.equipment().assign(player, 1, "targeting-implant");
 
+    // A recruited roster (per-slot agent names, #509/#532), so the save has names
+    // to lose. Drawn from the region pools the base campaign loaded.
+    FOSSYND_CHECK(!campaign.recruitAgent(0, 0).empty());
+    FOSSYND_CHECK(!campaign.recruitAgent(1, 2).empty());
+
     return campaign;
 }
 
@@ -168,6 +173,17 @@ FOSSYND_TEST(CampaignSave, CapturesOwnershipTaxFundsResearchAndLoadouts)
     // The player's chosen identity is captured too.
     FOSSYND_CHECK_EQ(save.syndicate, std::string("Nightingale Trust"));
     FOSSYND_CHECK_EQ(save.syndicateLogo, std::string("serpent"));
+
+    // The recruited roster is captured, one entry per squad slot, with the two
+    // recruited slots named (#532). Guard the size before indexing so a regression
+    // fails cleanly rather than reading out of bounds.
+    FOSSYND_CHECK_EQ(save.roster.size(), std::size_t{Equipment::kSquadSlots});
+    if (save.roster.size() == static_cast<std::size_t>(Equipment::kSquadSlots))
+    {
+        FOSSYND_CHECK(!save.roster[0].empty());
+        FOSSYND_CHECK(!save.roster[1].empty());
+        FOSSYND_CHECK(save.roster[2].empty());
+    }
 }
 
 FOSSYND_TEST(CampaignSave, ApplyRestoresProgressOntoAFreshCampaign)
@@ -202,6 +218,55 @@ FOSSYND_TEST(CampaignSave, ApplyRestoresProgressOntoAFreshCampaign)
     // funds are *replaced*, not added to.
     FOSSYND_CHECK_NEAR(fresh.economy().funds(player), save.funds.front().amount);
     FOSSYND_CHECK(fresh.economy().funds(player) < fresh.startingFunds() + save.funds.front().amount);
+
+    // The recruited roster comes back too (#532): the names survive the overlay
+    // and are live state, not just re-serialised.
+    FOSSYND_CHECK(applied.roster == save.roster);
+    if (save.roster.size() >= 2)
+    {
+        FOSSYND_CHECK_EQ(fresh.agentName(0), save.roster[0]);
+        FOSSYND_CHECK_EQ(fresh.agentName(1), save.roster[1]);
+        FOSSYND_CHECK(fresh.agentName(2).empty());
+    }
+}
+
+FOSSYND_TEST(CampaignSave, RosterRoundTripsThroughText)
+{
+    // The roster survives serialize -> parse as well as capture -> applyTo: a save
+    // written to text and read back carries the same per-slot names.
+    const CampaignSave save = CampaignSave::capture(progressedCampaign());
+    std::string text;
+    std::string error;
+    FOSSYND_CHECK(save.serialize(text, error));
+    FOSSYND_CHECK(error.empty());
+
+    CampaignSave parsed;
+    FOSSYND_CHECK(CampaignSave::parse(text, parsed, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(parsed.roster == save.roster);
+    if (!parsed.roster.empty())
+    {
+        FOSSYND_CHECK_EQ(parsed.roster[0], save.roster[0]);
+    }
+}
+
+FOSSYND_TEST(CampaignSave, RosterIsOptionalInTheSchema)
+{
+    // A v3 file that omits `roster` still parses (the slots are simply unnamed):
+    // the field is optional so hand-written and older-tooling files do not break.
+    CampaignSave save;
+    std::string error;
+    FOSSYND_CHECK(CampaignSave::parse(
+        R"({"format": "fossynd-save", "version": 3, "territories": [], "funds": [], "research": [], "loadouts": []})",
+        save, error));
+    FOSSYND_CHECK(error.empty());
+    FOSSYND_CHECK(save.roster.empty());
+
+    // A roster whose entries are the wrong type is still rejected.
+    FOSSYND_CHECK(!CampaignSave::parse(
+        R"({"format": "fossynd-save", "version": 3, "territories": [], "funds": [], "research": [], "loadouts": [], "roster": ["Aldmarch", 7]})",
+        save, error));
+    FOSSYND_CHECK(!error.empty());
 }
 
 FOSSYND_TEST(CampaignSave, ApplyRejectsATerritoryTheCampaignDoesNotHave)
@@ -244,12 +309,13 @@ FOSSYND_TEST(CampaignSave, RejectsWrongFormatTag)
 FOSSYND_TEST(CampaignSave, RejectsOldVersion)
 {
     // The whole point of the version tag: an older file is refused with a
-    // readable error rather than loaded with fields silently missing. Version 1
-    // is the interesting case: it carried the name but no logo, so a v2 build
-    // must refuse it rather than load a game whose chosen logo vanished.
+    // readable error rather than loaded with fields silently missing. Version 2
+    // is the interesting case now: it carried the identity but no roster, so a v3
+    // build must refuse it rather than load a game whose recruited names vanished.
     const char* old[] = {
         R"({"format": "fossynd-save", "version": 0, "territories": [], "funds": [], "research": [], "loadouts": []})",
         R"({"format": "fossynd-save", "version": 1, "syndicate": "Riverside Combine", "territories": [], "funds": [], "research": [], "loadouts": []})",
+        R"({"format": "fossynd-save", "version": 2, "syndicate": "Riverside Combine", "syndicateLogo": "serpent", "territories": [], "funds": [], "research": [], "loadouts": []})",
     };
     for (const char* text : old)
     {
@@ -284,15 +350,15 @@ FOSSYND_TEST(CampaignSave, RejectsMalformedFields)
     // A field of the wrong type must fail the parse, not be silently defaulted.
     const char* bad[] = {
         // territories missing
-        R"({"format": "fossynd-save", "version": 2, "funds": [], "research": [], "loadouts": []})",
+        R"({"format": "fossynd-save", "version": 3, "funds": [], "research": [], "loadouts": []})",
         // a territory with a non-numeric id
-        R"({"format": "fossynd-save", "version": 2, "territories": [{"id": "x", "owner": 0, "taxLevel": 0}], "funds": [], "research": [], "loadouts": []})",
+        R"({"format": "fossynd-save", "version": 3, "territories": [{"id": "x", "owner": 0, "taxLevel": 0}], "funds": [], "research": [], "loadouts": []})",
         // a negative owner
-        R"({"format": "fossynd-save", "version": 2, "territories": [{"id": 0, "owner": -2, "taxLevel": 0}], "funds": [], "research": [], "loadouts": []})",
+        R"({"format": "fossynd-save", "version": 3, "territories": [{"id": 0, "owner": -2, "taxLevel": 0}], "funds": [], "research": [], "loadouts": []})",
         // a loadout slot out of range
-        R"({"format": "fossynd-save", "version": 2, "territories": [], "funds": [], "research": [], "loadouts": [{"syndicate": 0, "slot": 99, "items": ["minigun"]}]})",
+        R"({"format": "fossynd-save", "version": 3, "territories": [], "funds": [], "research": [], "loadouts": [{"syndicate": 0, "slot": 99, "items": ["minigun"]}]})",
         // a negative funds amount
-        R"({"format": "fossynd-save", "version": 2, "territories": [], "funds": [{"syndicate": 0, "amount": -5}], "research": [], "loadouts": []})",
+        R"({"format": "fossynd-save", "version": 3, "territories": [], "funds": [{"syndicate": 0, "amount": -5}], "research": [], "loadouts": []})",
     };
     for (const char* text : bad)
     {
