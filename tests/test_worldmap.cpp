@@ -1,4 +1,6 @@
 /* AI/LLM-generated file. Do not treat as human-written source documentation. */
+#include <algorithm>
+
 #include "TestHarness.h"
 #include "core/economy/WorldMap.h"
 
@@ -229,4 +231,61 @@ FOSSYND_TEST(WorldMap, LoadsShippedWorldFile)
     FOSSYND_CHECK(WorldMap::loadFromFile(path, map, error));
     FOSSYND_CHECK(error.empty());
     FOSSYND_CHECK(map.size() >= std::size_t{3});
+}
+
+// The shipped world map is the v1.0.0 "world map" (issue #448): a larger set of
+// culturally-flavoured regions, each reachable and playable. This pins the
+// structural invariants a hand edit can break: dense ids, symmetric adjacency,
+// no self-loops, a fully connected graph, and a mission on every region (the
+// #418/#420 rule that keeps the campaign winnable).
+FOSSYND_TEST(WorldMap, ShippedWorldIsAConnectedPlayableWorldMap)
+{
+    std::string error;
+    WorldMap map;
+    const std::string path = std::string(FOSSYND_SOURCE_DIR) + "/assets/data/world/world.json";
+    FOSSYND_CHECK(WorldMap::loadFromFile(path, map, error));
+    FOSSYND_CHECK(error.empty());
+
+    // A world map, not a city slice: the v1.0.0 map is materially larger than the
+    // original six-region set.
+    FOSSYND_CHECK(map.size() >= std::size_t{12});
+
+    // Dense ids and the validate() invariants (symmetric adjacency, no unknown
+    // neighbour, unique names) already hold from the load; re-assert explicitly so
+    // a future loader change cannot silently relax them.
+    FOSSYND_CHECK(map.validate(error));
+    FOSSYND_CHECK(error.empty());
+
+    for (const Territory& territory : map.territories())
+    {
+        // Every region is playable: no dead end (a region with no mission can
+        // never be attacked, so the campaign could stall behind it).
+        FOSSYND_CHECK(!territory.missionId.empty());
+        // No self-loop.
+        FOSSYND_CHECK(std::find(territory.neighbours.begin(), territory.neighbours.end(),
+                                territory.id) == territory.neighbours.end());
+    }
+
+    // Fully connected: every region is reachable from region 0, so no region is
+    // stranded off the frontier and unreachable.
+    std::vector<bool> seen(map.size(), false);
+    std::vector<TerritoryId> stack{0};
+    seen[0] = true;
+    while (!stack.empty())
+    {
+        const TerritoryId id = stack.back();
+        stack.pop_back();
+        for (const TerritoryId neighbour : map.neighbours(id))
+        {
+            if (!seen[static_cast<std::size_t>(neighbour)])
+            {
+                seen[static_cast<std::size_t>(neighbour)] = true;
+                stack.push_back(neighbour);
+            }
+        }
+    }
+    for (std::size_t i = 0; i < seen.size(); ++i)
+    {
+        FOSSYND_CHECK(seen[i]);
+    }
 }

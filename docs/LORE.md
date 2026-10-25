@@ -66,6 +66,31 @@ firearm words**, not the originals' invented names; keep new weapons generic
 (`Minigun`, `Flamethrower`) rather than inventing brand names that echo the
 originals.
 
+### 3a. World-map region names (issue #448)
+
+The v1.0.0 world map (`assets/data/world/world.json`) names **twelve regions**,
+each evocative of a real-world culture or geographic cluster — original names,
+never a real country, region, or trademark (`docs/LEGAL.md`). Region `0` is the
+player's home.
+
+| Id | Region | Evokes |
+|----|--------|--------|
+| 0 | **Westmarch** | Western Europe (the player's home) |
+| 1 | **Nordhelm** | Northern Europe |
+| 2 | **Vostara** | Eastern Europe |
+| 3 | **Sahari** | North Africa |
+| 4 | **Khoras** | Middle East / Central Asia |
+| 5 | **Sahelia** | Sub-Saharan Africa |
+| 6 | **Zambara** | Southern Africa |
+| 7 | **Andura** | South America |
+| 8 | **Indara** | South Asia |
+| 9 | **Sinara** | East Asia |
+| 10 | **Sundara** | South-East Asia / the Indies |
+| 11 | **Pelagia** | Oceania / the Pacific |
+
+Keep new regions in the same register: a coined, pronounceable place-name that
+hints at the culture without naming a real one.
+
 ## 4. Writing strings (the string table)
 
 UI text lives in `assets/lang/<lang>.json` and is read through

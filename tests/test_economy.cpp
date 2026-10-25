@@ -285,9 +285,10 @@ FOSSYND_TEST(Economy, ShippedIncomePerTickAtEachTaxLevel)
     }
 
     // The starting position (two owned territories, tax 2) and the fully taxed
-    // end game (six territories, tax 5) bracket the whole campaign.
+    // end game bracket the whole campaign. The world map is twelve regions
+    // (issue #448), so the end-game bracket uses the real region count.
     FOSSYND_CHECK_NEAR(expectedIncome(config, 2, 1) * 2.0f, 240.0f);
-    FOSSYND_CHECK_NEAR(expectedIncome(config, 5, 1) * 6.0f, 1800.0f);
+    FOSSYND_CHECK_NEAR(expectedIncome(config, 5, 1) * 12.0f, 3600.0f);
 }
 
 FOSSYND_TEST(Economy, ShippedRevoltIsARealTradeOffNotAFormality)
