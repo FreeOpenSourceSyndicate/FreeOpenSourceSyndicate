@@ -40,6 +40,7 @@ void printUsage()
         "      --config <path>        Load the given config file.\n"
         "      --save <path>          Save campaign progress to <path> on exit.\n"
         "      --load <path>          Restore campaign progress from <path>.\n"
+        "      --new-game             Name the syndicate and pick a logo first.\n"
         "      --lang <locale>        Set the UI language (e.g. en, de).\n"
         "      --demo                 Attract mode: the AI plays the mission.\n"
         "      --title                Show the title card.\n"
@@ -81,6 +82,7 @@ void printUsage()
         "      --check-deploy         Validate deploying a mission from the map.\n"
         "      --check-campaign-keys  Validate map-screen key isolation.\n"
         "      --check-save-load      Validate the campaign save/load round-trip.\n"
+        "      --check-newgame        Validate the new-game name/logo decision.\n"
         "      --check-lang [locale]  Validate the UI string table.\n"
         "      --check-content [dir]  Validate mission/catalogue references.\n",
         FOSSYND_VERSION);
@@ -210,6 +212,8 @@ int main(int argc, char** argv)
     bool checkDeploy = false;
     bool checkCampaignKeys = false;
     bool checkSaveLoad = false;           // --check-save-load
+    bool checkNewGame = false;            // --check-newgame
+    bool newGame = false;                 // --new-game
     bool showMap = false;                 // --map
     const char* checkLangLocale = nullptr; // --check-lang [<locale>]
     const char* checkContent = nullptr;   // --check-content [<dataDir>]
@@ -394,6 +398,14 @@ int main(int argc, char** argv)
         else if (std::strcmp(argv[i], "--check-save-load") == 0)
         {
             checkSaveLoad = true;
+        }
+        else if (std::strcmp(argv[i], "--check-newgame") == 0)
+        {
+            checkNewGame = true;
+        }
+        else if (std::strcmp(argv[i], "--new-game") == 0)
+        {
+            newGame = true;
         }
         else if (std::strcmp(argv[i], "--map") == 0)
         {
@@ -603,6 +615,11 @@ int main(int argc, char** argv)
     // before init(), which latches the flag into the initial game state.
     const bool interactive = !headless && screenshot == nullptr && !demo;
     game.setShowTitleCard(title || interactive);
+    // The new-game screen (issue #447): the player names the syndicate before the
+    // campaign begins. `--new-game` forces it (scripted/demo); the interactive
+    // start path opens it after the title card. A missing campaign leaves it
+    // inert (it needs an identity to seed from), so it never blocks the game.
+    game.setShowNewGameScreen(newGame || (interactive && !title && cliLoad.empty()));
 
     if (!game.init(width, height, headless, lowSpec))
     {
@@ -933,6 +950,22 @@ int main(int argc, char** argv)
         }
         const bool ok = game.saveLoadSelfTest();
         std::printf(ok ? "save-load: ok\n" : "save-load: FAILED\n");
+        return ok ? 0 : 1;
+    }
+
+    if (checkNewGame)
+    {
+        // Headless guard for the new-game name/logo decision (issue #447): drives
+        // the real NewGameScreen decisions and the real apply-to-campaign path.
+        // Runs from the repo root so the shipped campaign loads. Used by the
+        // game_newgame ctest.
+        if (!game.campaignValid())
+        {
+            std::fprintf(stderr, "new-game: no campaign loaded (run from the repo root?)\n");
+            return 1;
+        }
+        const bool ok = game.newGameSelfTest();
+        std::printf(ok ? "new-game: ok\n" : "new-game: FAILED\n");
         return ok ? 0 : 1;
     }
 

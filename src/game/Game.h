@@ -17,6 +17,7 @@
 #include "game/Font.h"
 #include "game/GroundTiles.h"
 #include "game/Minimap.h"
+#include "game/NewGameScreen.h"
 #include "game/Sprite.h"
 
 namespace fossynd::game
@@ -134,6 +135,16 @@ public:
     // automated runs (smoke tests, screenshots, attract mode) go straight to the
     // map; the interactive player sees it and presses a key to start.
     void setShowTitleCard(bool enabled) { showTitleCard_ = enabled; }
+
+    // Opens the new-game screen (issue #447) after the title card: the player
+    // types the syndicate's name and picks a logo before the campaign begins. Set
+    // by `--new-game`; the interactive start path opens it after the card.
+    void setShowNewGameScreen(bool enabled) { showNewGame_ = enabled; }
+
+    // Headless guard for the new-game decision logic (issue #447): drives the
+    // real NewGameScreen name/logo decisions and the real apply-to-campaign path.
+    // Used by the `--check-newgame` guard and the `game_newgame` ctest.
+    bool newGameSelfTest();
 
     // Renders one frame and saves it to `path` as a BMP. Returns false on
     // failure. Used for headless verification.
@@ -412,6 +423,15 @@ private:
     void renderHud();
     void renderMinimap();
     void renderTitleCard();
+    // Draws the new-game screen (issue #447) over the frame. A no-op when it is
+    // not up.
+    void renderNewGameScreen();
+    // Opens the new-game screen, seeding it from the campaign's current identity.
+    // A no-op when no campaign loaded (the screen needs an identity to seed from).
+    void openNewGameScreen();
+    // Confirms the new-game choice: applies it to the campaign and closes the
+    // screen so play begins.
+    void confirmNewGameScreen();
     // Draws the campaign management screen (Milestone B) over everything. A no-op
     // when the screen is hidden or no campaign loaded.
     void renderCampaignScreen();
@@ -804,6 +824,12 @@ private:
     bool titleCardActive_ = false;
     float titleCardTime_ = 0.0f;
     bool titleCardStartRequested_ = false;
+
+    // The new-game screen (issue #447): the player's syndicate name/logo before
+    // the campaign begins. `showNewGame_` is the `--new-game` request; the screen
+    // opens after the title card finishes (or immediately in a headless run).
+    bool showNewGame_ = false;
+    NewGameScreen newGame_;
 
     bool running_ = false;
 };

@@ -1284,6 +1284,8 @@ Do not start work outside the scope fence (ADR-0024).
   `--headless --check-deploy`,
   `--headless --check-campaign-keys`,
   `--headless --check-save-load`,
+  `--headless --check-newgame`,
+  `--headless --new-game [--screenshot out.bmp]`,
   `--headless --check-objectives`,
   `--headless --check-scanner`,
   `--headless --check-shield`,
@@ -1416,6 +1418,28 @@ Do not start work outside the scope fence (ADR-0024).
   **Input/UI**'s; both are Rule 4 follow-ups, not built here (golden rule 1).
   Tests: `tests/test_campaign.cpp` (defaults, choice, fallback, bad list) and
   `tests/test_persistence.cpp` (identity round-trips through a save).
+- **The new-game screen names the syndicate (issue #447):** `game::NewGameScreen`
+  (`src/game/NewGameScreen.{h,cpp}`, its own translation unit — do not grow the
+  shared `Game.cpp`) is the player-facing half of the #445 identity: the first
+  **SDL text-input** in the tree (it calls `SDL_StartTextInput`, handles
+  `SDL_TEXTINPUT` and backspace, and draws a blinking caret), a **name field** and
+  a **logo picker**. It owns only the *decision* (the typed name, the picked logo
+  id); the engine applies it through the frozen `Campaign::setSyndicateName`/
+  `setSyndicateLogo` (`CampaignScreen::applySyndicateIdentity`), so all rules stay
+  in the core (golden rule 1). The name is **printable ASCII, bounded** to
+  `kMaxNameLength` (24) — a non-ASCII or control byte is dropped, because the 5x7
+  bitmap font draws only ASCII 32..126 (AGENTS.md); an empty name clears the pick
+  so the data-authored default renders again. The logo id is only a stable key
+  here; the logo **art** is a Render follow-up. `--new-game` forces the screen
+  (scripted/demo); the interactive start path opens it after the title card and
+  **skips it when `--load` restores a saved identity**. While it is up it is
+  **modal**: `Game::handleEvents`/`update` freeze the board exactly like the title
+  card, so a tactical hotkey cannot mutate the frozen board (the #364 trap).
+  `--check-newgame` (ctest `game_newgame`) drives the real decisions and the real
+  apply-to-campaign path — sanitisation, the cap, append/backspace, logo cycling
+  with wrap, an unknown-logo fallback, the key-leak guard, and Enter applying the
+  choice — and `--new-game --screenshot` (ctest `game_newgame_screenshot`) renders
+  the screen. `Game.cpp` is shared with Render: serialise, never co-edit.
 - **The campaign's terminal mission is data (issue #456):** `campaign.json` may
   name a `finalMission` (the id of the terminal mission — the original's *final
   confrontation* — which **must** be one of its `missions`) and set

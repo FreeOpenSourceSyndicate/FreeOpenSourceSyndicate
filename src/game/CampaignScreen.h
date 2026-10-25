@@ -65,6 +65,21 @@ public:
     // `game_save_load` ctest.
     bool saveLoadSelfTest();
 
+    // --- new-game identity (issue #447) ---
+
+    // The campaign's current identity and the pickable logo ids, so the new-game
+    // screen can seed its fields from what is already chosen (a data-authored
+    // default, or a restored save). Empty before init() resolves a campaign.
+    const std::string& syndicateName() const { return campaign_.syndicateName(); }
+    const std::string& syndicateLogo() const { return campaign_.syndicateLogo(); }
+    const std::vector<std::string>& syndicateLogos() const { return campaign_.syndicateLogos(); }
+
+    // Applies the player's new-game choice to the campaign through the frozen
+    // #445 setters (an empty name/logo clears the choice, so the data-authored
+    // default renders again). A no-op when no campaign loaded, so a screen before
+    // campaign data is safe.
+    void applySyndicateIdentity(const std::string& name, const std::string& logo);
+
     // Visibility is a view-only toggle (the `M` key). Hidden by default so the
     // tactical mission is what the player sees first.
     void toggle() { visible_ = !visible_; }

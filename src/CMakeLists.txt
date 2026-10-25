@@ -11,6 +11,7 @@ set(FOSSYND_GAME_SOURCES
     game/Font.cpp
     game/Hud.cpp
     game/TitleCard.cpp
+    game/NewGameScreen.cpp
     game/Minimap.cpp
     game/Sprite.cpp
     game/GroundTiles.cpp
@@ -334,6 +335,20 @@ if(BUILD_TESTS)
     add_test(NAME game_save_load
              COMMAND FOSSynd --headless --check-save-load)
     set_tests_properties(game_save_load PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    # New-game screen (issue #447): the name/logo decision logic and the real
+    # apply-to-campaign path, headlessly. Run from the repo root so the shipped
+    # campaign loads.
+    add_test(NAME game_newgame
+             COMMAND FOSSynd --headless --check-newgame)
+    set_tests_properties(game_newgame PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    # `--new-game` opens the screen and must still render and exit cleanly
+    # headlessly (the first SDL text-input path in the tree). Run from the repo
+    # root so the shipped campaign loads, but write the artefact into the build
+    # tree so it never litters the checkout.
+    add_test(NAME game_newgame_screenshot
+             COMMAND FOSSynd --headless --new-game
+                     --screenshot ${CMAKE_CURRENT_BINARY_DIR}/newgame.bmp --frames 2)
+    set_tests_properties(game_newgame_screenshot PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     # An explicit --load naming a missing file must fail fast, like
     # --mission/--campaign/--config (issue #259, #433), not silently start fresh.
     add_test(NAME game_cli_load_missing
