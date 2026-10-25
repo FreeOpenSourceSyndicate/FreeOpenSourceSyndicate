@@ -1,0 +1,38 @@
+{
+  "name": "Caravan",
+  "id": "caravan",
+  "width": 22,
+  "height": 22,
+  "objective": { "kind": "escort", "agentIndex": 3, "tileX": 20, "tileY": 20 },
+  "buildings": [
+    { "x": 7, "y": 7, "width": 3, "height": 3 },
+    { "x": 14, "y": 3, "width": 3, "height": 3 }
+  ],
+  "blocked": [
+    { "x": 11, "y": 9 }, { "x": 11, "y": 10 }, { "x": 11, "y": 11 },
+    { "x": 11, "y": 12 }, { "x": 11, "y": 13 },
+    { "x": 5, "y": 15 }, { "x": 6, "y": 15 }, { "x": 7, "y": 15 }, { "x": 8, "y": 15 }
+  ],
+  "agents": [
+    { "name": "ALPHA", "team": "player", "x": 1.5, "y": 1.5, "health": 120,
+      "weapon": { "name": "Rifle", "damage": 8, "range": 9, "fireRate": 4, "accuracy": 0.65 } },
+    { "name": "BRAVO", "team": "player", "x": 2.5, "y": 1.5, "health": 110,
+      "weapon": { "name": "Laser", "damage": 22, "range": 12, "fireRate": 1, "accuracy": 0.9 } },
+    { "name": "CHARLIE", "team": "player", "x": 1.5, "y": 2.5, "health": 100,
+      "weapon": { "name": "Uzi", "damage": 5, "range": 5, "fireRate": 9, "accuracy": 0.55 } },
+    { "name": "COURIER", "team": "player", "x": 2.5, "y": 2.5, "health": 100,
+      "weapon": { "name": "Pistol", "damage": 10, "range": 6, "fireRate": 2.5, "accuracy": 0.72 } },
+
+    { "name": "BANDIT-1", "team": "enemy", "x": 12.5, "y": 6.5, "health": 65,
+      "weapon": { "name": "Rifle", "damage": 8, "range": 9, "fireRate": 4, "accuracy": 0.65 } },
+    { "name": "BANDIT-2", "team": "enemy", "x": 16.5, "y": 11.5, "health": 65,
+      "weapon": { "name": "Rifle", "damage": 8, "range": 9, "fireRate": 4, "accuracy": 0.65 } },
+    { "name": "BANDIT-3", "team": "enemy", "x": 8.5, "y": 18.5, "health": 60,
+      "weapon": { "name": "Uzi", "damage": 5, "range": 5, "fireRate": 9, "accuracy": 0.55 } },
+    { "name": "BANDIT-4", "team": "enemy", "x": 18.5, "y": 3.5, "health": 60,
+      "weapon": { "name": "Pistol", "damage": 10, "range": 6, "fireRate": 2.5, "accuracy": 0.72 } },
+
+    { "name": "CIVILIAN", "team": "civilian", "x": 6.5, "y": 11.5, "health": 20 },
+    { "name": "CIVILIAN", "team": "civilian", "x": 15.5, "y": 16.5, "health": 20 }
+  ]
+}

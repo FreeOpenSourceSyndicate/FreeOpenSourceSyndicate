@@ -49,5 +49,11 @@
   "mission.decapitation.name": "Enthauptung",
   "mission.decapitation.desc": "Der Operation die Spitze abschneiden: den AUFSEHER finden und toeten, waehrend die Garnison weiterkaempft.",
   "mission.extraction.name": "Bergung",
-  "mission.extraction.desc": "Den Aktenkoffer auf dem fernen Sims greifen und zum Bergungsfeld zurueckbringen."
+  "mission.extraction.desc": "Den Aktenkoffer auf dem fernen Sims greifen und zum Bergungsfeld zurueckbringen.",
+  "mission.holdout.name": "Ausharren",
+  "mission.holdout.desc": "In den Ruinen von Vostara die Stellung halten und den Angriff der Raeuber ueberleben, bis die Zeit ablaeuft.",
+  "mission.caravan.name": "Karawane",
+  "mission.caravan.desc": "Den Kurier durch die Sahari-Duenen geleiten und lebend zum fernen Oasentor bringen.",
+  "mission.relay.name": "Relais",
+  "mission.relay.desc": "Die Relaismauer von Andura durchbrechen und den Sender zerstoeren, bevor die Garnison den Pass sperrt."
 }
