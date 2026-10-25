@@ -526,6 +526,11 @@ void Game::restart()
     // not compared against the previous run's counts (issue #423).
     audioPrevious_ = AudioEvents{};
     audioGunfire_.clear();
+    // Re-baseline the UI-audio state and drop any queued UI cue, so a restart
+    // does not fire a spurious blip for a selection the fresh mission rebuilt
+    // (issue #424).
+    pendingUiCues_.clear();
+    audioUiPrimed_ = false;
     centerOn(mission_.agents().front().position());
 }
 
@@ -3060,10 +3065,10 @@ void Game::update(float frameSeconds)
     updateDrugSnapshot();
 
     // Sound effects (issue #423, ADR-0040): turn this frame's mission events
-    // (new kills, a decided outcome) into cues. View-only, after the sim.
+    // (new kills, a decided outcome) into cues. View-only, after the sim. The
+    // device itself is fed by `pumpAudio`, called from `run` so it also runs on
+    // the screens that return early here (issue #424).
     updateAudio();
-    // Feed any active cue into the device's stream so it keeps playing.
-    audio_.update();
 }
 
 void Game::updateAgentViews(float dt)
@@ -3894,38 +3899,15 @@ void Game::updateAudio()
 {
     // Turns mission events since the last frame into sound cues (issue #423,
     // ADR-0040). The core already computes the counts and the outcome; the view
-    // only snapshots them and derives `anyShot` from a gunfire timer rising. The
-    // event->cue decision itself is the pure, device-free `cuesForFrame`, so the
-    // headless guard exercises the real mapping. Never writes core (rule 1/4).
+    // only snapshots them (through the shared, device-free `snapshotAudioEvents`)
+    // and maps them with `cuesForFrame`, so the headless guard exercises the real
+    // decision. Never writes core (rule 1/4).
     if (!audio_.enabled())
     {
         return;
     }
 
-    AudioEvents current;
-    current.playerKills = mission_.playerKills();
-    current.enemyKills = mission_.enemyKills();
-    current.civilianKills = mission_.civilianKills();
-    current.state = mission_.state();
-
-    // `Agent::beginFireCooldown` raises an agent's gunfire timer to 0.75 the
-    // instant it fires, so a timer that rose since last frame means a shot this
-    // frame (it only ever counts down otherwise).
-    const auto& agents = mission_.agents();
-    if (audioGunfire_.size() != agents.size())
-    {
-        audioGunfire_.assign(agents.size(), 0.0f);
-    }
-    for (std::size_t i = 0; i < agents.size(); ++i)
-    {
-        const float timer = agents[i].gunfireTimer();
-        if (timer > audioGunfire_[i])
-        {
-            current.anyShot = true;
-        }
-        audioGunfire_[i] = timer;
-    }
-
+    const AudioEvents current = snapshotAudioEvents(mission_, audioGunfire_);
     for (Cue cue : cuesForFrame(audioPrevious_, current))
     {
         audio_.play(cue);
@@ -3933,15 +3915,277 @@ void Game::updateAudio()
     audioPrevious_ = current;
 }
 
+void Game::playUiCue(UiAction action)
+{
+    // A no-op when audio is disabled, so an input handler needs no guard. The cue
+    // is queued, not played: a cue raised on a screen that returns early from
+    // `update` still reaches the device on the next `pumpAudio` (issue #424).
+    if (!audio_.enabled())
+    {
+        return;
+    }
+    pendingUiCues_.push_back(cueForUiAction(action));
+}
+
+void Game::drainUiCues()
+{
+    for (Cue cue : pendingUiCues_)
+    {
+        audio_.play(cue);
+    }
+    pendingUiCues_.clear();
+}
+
+void Game::updateUiAudio()
+{
+    // Turns a view-state change into a UI cue (issue #424), in one place rather
+    // than sprinkling `playUiCue` through the input handlers. The decision itself
+    // is the pure, device-free `uiActionsForChange`, so the headless guard
+    // exercises the real mapping. Pure read of view state; never writes the
+    // simulation (golden rule 4).
+    if (!audio_.enabled())
+    {
+        return;
+    }
+
+    UiAudioState current;
+    current.selection = selected_;
+    current.campaignVisible = campaign_.visible();
+    current.shopOpen = campaign_.shopOpen();
+    current.paused = paused_;
+
+    // The first observation just records the baseline, so entering the game (the
+    // initial selection) does not fire a blip.
+    if (!audioUiPrimed_)
+    {
+        audioUiState_ = std::move(current);
+        audioUiPrimed_ = true;
+        return;
+    }
+
+    for (UiAction action : uiActionsForChange(audioUiState_, current))
+    {
+        playUiCue(action);
+    }
+    audioUiState_ = std::move(current);
+}
+
+void Game::pumpAudio()
+{
+    // Called once per `run` frame, after `update`. It observes the view state for
+    // a UI cue, drains any cue the input handlers queued this frame, and then
+    // feeds the device, so sound works on every screen — including the map, title
+    // card, and modal screens, which return early from `update` and would
+    // otherwise never call `audio_.update` (issue #424). A no-op when audio is
+    // disabled.
+    if (!audio_.enabled())
+    {
+        return;
+    }
+    updateUiAudio();
+    drainUiCues();
+    audio_.update();
+}
+
 bool Game::audioSelfTest()
 {
-    // Headless guard for the audio subsystem (issue #423, ADR-0040). The cue
-    // synthesis, mixing, and silent-fallback logic are device-free, so this runs
-    // in CI without a sound card. It fails on a broken invariant a bad subsystem
-    // would violate: an empty or silent cue, non-deterministic synthesis, a
-    // mixer that does not sum cues, a disabled Audio that is not a no-op, or an
-    // outcome mapping that cannot tell a win from a loss.
-    return Audio::selfTest();
+    // Headless guard for the audio subsystem (issues #423/#424, ADR-0040).
+    //
+    // 1. The subsystem's own invariants: the cue table is complete and non-silent
+    //    (UI cues included), synthesis is deterministic, mixing sums cues, a
+    //    disabled Audio is a safe no-op, the event->cue mapping fires on a change,
+    //    and the UI-action mapping is total, injective, and never a combat cue.
+    //    All device-free, so it runs without a sound card.
+    if (!Audio::selfTest())
+    {
+        return false;
+    }
+
+    // 2. Drive the REAL event derivation (`snapshotAudioEvents`) and mapping
+    //    (`cuesForFrame`) on scratch missions, so a shot, a kill, a collateral
+    //    explosion, a victory, and a defeat each provably fire from real
+    //    simulation state — not from a hand-built `AudioEvents`. Headless has no
+    //    device, so `updateAudio` early-returns; exercising the derivation
+    //    directly is what proves the wiring on a real mission (issue #424).
+    auto contains = [](const std::vector<Cue>& cues, Cue cue) {
+        return std::find(cues.begin(), cues.end(), cue) != cues.end();
+    };
+
+    // (a) A short firefight that ends in a win: a shot, a kill, and the victory.
+    {
+        core::TileGrid grid(12, 12);
+        core::Mission mission(grid, 0x424u);
+        core::Agent player(2.0f, 2.0f, 3.0f);
+        player.setTeam(core::Team::Player);
+        player.setWeapon(core::makePistol());
+        core::Agent enemy(5.0f, 2.0f, 3.0f);
+        enemy.setTeam(core::Team::Enemy);
+        enemy.setWeapon(core::makePistol());
+        enemy.setMaxHealth(1.0f); // falls to the first hit
+        mission.addAgent(player);
+        mission.addAgent(enemy);
+
+        std::vector<float> gunfire;
+        AudioEvents previous = snapshotAudioEvents(mission, gunfire);
+        bool sawShoot = false;
+        bool sawHit = false;
+        bool sawVictory = false;
+        for (int step = 0; step < 4000; ++step)
+        {
+            mission.update(0.05f);
+            const AudioEvents current = snapshotAudioEvents(mission, gunfire);
+            const std::vector<Cue> cues = cuesForFrame(previous, current);
+            sawShoot = sawShoot || contains(cues, Cue::Shoot);
+            sawHit = sawHit || contains(cues, Cue::Hit);
+            sawVictory = sawVictory || contains(cues, Cue::Victory);
+            previous = current;
+            if (mission.state() != core::MissionState::Running)
+            {
+                break;
+            }
+        }
+        if (!sawShoot || !sawHit || !sawVictory || mission.state() != core::MissionState::Won)
+        {
+            std::fprintf(stderr,
+                         "audio self-test: a real firefight did not fire Shoot/Hit/Victory "
+                         "(shoot=%d hit=%d victory=%d state=%d)\n",
+                         sawShoot ? 1 : 0, sawHit ? 1 : 0, sawVictory ? 1 : 0,
+                         static_cast<int>(mission.state()));
+            return false;
+        }
+    }
+
+    // (b) A doomed squad: the defeat cue fires when the mission is lost.
+    {
+        core::TileGrid grid(12, 12);
+        core::Mission mission(grid, 0x99u);
+        core::Agent player(2.0f, 2.0f, 3.0f);
+        player.setTeam(core::Team::Player);
+        player.setWeapon(core::makePistol());
+        player.setMaxHealth(1.0f); // falls to the first enemy hit
+        core::Agent enemy(4.0f, 2.0f, 3.0f);
+        enemy.setTeam(core::Team::Enemy);
+        enemy.setWeapon(core::makePistol());
+        mission.addAgent(player);
+        mission.addAgent(enemy);
+
+        std::vector<float> gunfire;
+        AudioEvents previous = snapshotAudioEvents(mission, gunfire);
+        bool sawDefeat = false;
+        for (int step = 0; step < 4000; ++step)
+        {
+            mission.update(0.05f);
+            const AudioEvents current = snapshotAudioEvents(mission, gunfire);
+            sawDefeat = sawDefeat || contains(cuesForFrame(previous, current), Cue::Defeat);
+            previous = current;
+            if (mission.state() != core::MissionState::Running)
+            {
+                break;
+            }
+        }
+        if (!sawDefeat || mission.state() != core::MissionState::Lost)
+        {
+            std::fprintf(stderr, "audio self-test: a lost mission did not fire Defeat (state=%d)\n",
+                         static_cast<int>(mission.state()));
+            return false;
+        }
+    }
+
+    // (c) A collateral kill: a bomb planted by the player kills a civilian in the
+    //     blast, and the explosion cue fires (the loud, consequential event).
+    {
+        core::TileGrid grid(12, 12);
+        core::Mission mission(grid, 0x7u);
+        core::Agent player(2.0f, 2.0f, 3.0f);
+        player.setTeam(core::Team::Player);
+        player.setWeapon(core::makePistol());
+        core::Agent civilian(3.0f, 2.0f, 3.0f);
+        civilian.setTeam(core::Team::Civilian);
+        civilian.setMaxHealth(1.0f); // falls to the blast
+        mission.addAgent(player);
+        mission.addAgent(civilian);
+        // A survive objective keeps the mission Running (no enemy means the
+        // default eliminate-all would win on the first tick and freeze the sim).
+        core::ObjectiveSpec survive;
+        survive.kind = core::ObjectiveSpec::Kind::Survive;
+        survive.seconds = 1000.0f;
+        mission.setObjective(survive);
+
+        if (!mission.orderTimeBomb(0, core::TilePos{3, 2}))
+        {
+            std::fprintf(stderr, "audio self-test: could not plant the demo bomb\n");
+            return false;
+        }
+
+        std::vector<float> gunfire;
+        AudioEvents previous = snapshotAudioEvents(mission, gunfire);
+        bool sawExplosion = false;
+        for (int step = 0; step < 200 && mission.civilianKills() == 0; ++step)
+        {
+            mission.update(0.05f);
+            const AudioEvents current = snapshotAudioEvents(mission, gunfire);
+            sawExplosion = sawExplosion || contains(cuesForFrame(previous, current), Cue::Explosion);
+            previous = current;
+        }
+        if (mission.civilianKills() == 0 || !sawExplosion)
+        {
+            std::fprintf(stderr,
+                         "audio self-test: a collateral kill did not fire Explosion (kills=%d)\n",
+                         mission.civilianKills());
+            return false;
+        }
+    }
+
+    // 3. The UI-action mapping fires on a view-state change (issue #424): a
+    //    selection is a Select, opening an overlay (the map or the R&D shop) or
+    //    pausing is a Navigate, closing one or resuming is a Cancel, and a steady
+    //    state is silent. This is the real decision `updateUiAudio` uses.
+    auto hasAction = [](const std::vector<UiAction>& actions, UiAction action) {
+        return std::find(actions.begin(), actions.end(), action) != actions.end();
+    };
+    const UiAudioState base; // no selection, no overlays
+    if (!uiActionsForChange(base, base).empty())
+    {
+        std::fprintf(stderr, "audio self-test: a steady UI state fired a cue\n");
+        return false;
+    }
+
+    UiAudioState selected = base;
+    selected.selection = {0};
+    if (!hasAction(uiActionsForChange(base, selected), UiAction::Select))
+    {
+        std::fprintf(stderr, "audio self-test: a selection change did not fire Select\n");
+        return false;
+    }
+
+    UiAudioState mapOpen = base;
+    mapOpen.campaignVisible = true;
+    if (!hasAction(uiActionsForChange(base, mapOpen), UiAction::Navigate) ||
+        !hasAction(uiActionsForChange(mapOpen, base), UiAction::Cancel))
+    {
+        std::fprintf(stderr, "audio self-test: opening/closing the map did not fire Navigate/Cancel\n");
+        return false;
+    }
+
+    UiAudioState shopOpen = base;
+    shopOpen.shopOpen = true;
+    if (!hasAction(uiActionsForChange(base, shopOpen), UiAction::Navigate) ||
+        !hasAction(uiActionsForChange(shopOpen, base), UiAction::Cancel))
+    {
+        std::fprintf(stderr, "audio self-test: opening/closing the shop did not fire Navigate/Cancel\n");
+        return false;
+    }
+
+    UiAudioState paused = base;
+    paused.paused = true;
+    if (!hasAction(uiActionsForChange(base, paused), UiAction::Navigate) ||
+        !hasAction(uiActionsForChange(paused, base), UiAction::Cancel))
+    {
+        std::fprintf(stderr, "audio self-test: pausing/resuming did not fire Navigate/Cancel\n");
+        return false;
+    }
+
+    return true;
 }
 
 bool Game::drugsSelfTest()
@@ -4609,6 +4853,9 @@ int Game::run(int maxFrames)
 
         update(dt);
         render();
+        // Feed the audio device every frame, whatever screen `update` took (the
+        // board, the map, the title card, a modal screen) — issue #424.
+        pumpAudio();
 
         ++frame;
         if (maxFrames > 0 && frame >= maxFrames)

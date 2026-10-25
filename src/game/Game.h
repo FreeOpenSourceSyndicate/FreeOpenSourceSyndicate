@@ -789,6 +789,40 @@ private:
     // is a shot (issue #423). View-only.
     std::vector<float> audioGunfire_;
 
+    // UI cues queued this frame (issue #424): a selection, a menu move, a cancel.
+    // Input handlers enqueue through `playUiCue`; `drainUiCues` plays them and
+    // clears the queue. Deferred so a cue raised while the board is frozen (the
+    // map or a modal screen) still reaches the device on the next pump.
+    std::vector<Cue> pendingUiCues_;
+
+    // Queues a UI cue for the next `drainUiCues`. A no-op when audio is disabled,
+    // so callers need no guard (mirrors `Audio::play`). View-only.
+    void playUiCue(UiAction action);
+
+    // Plays every queued UI cue and clears the queue. Called by `pumpAudio`.
+    void drainUiCues();
+
+    // Observes the view state and queues a UI cue when it changes (issue #424):
+    // a selection change is a `Select`, opening an overlay (the map, the R&D shop)
+    // or pausing is a `Navigate`, closing one or resuming is a `Cancel`. This
+    // keeps the audio wiring in one place instead of sprinkling calls through the
+    // input handlers. View-only; it reads `selected_` and the overlay flags and
+    // never writes the simulation (golden rule 4).
+    void updateUiAudio();
+
+    // The view state `updateUiAudio` compares against to spot a change: the
+    // previous selection and overlay flags, plus a primed flag that suppresses a
+    // blip on the very first observation (entering the game, a fresh mission).
+    UiAudioState audioUiState_;
+    bool audioUiPrimed_ = false;
+
+    // Feeds any active cue into the audio device (issue #424). Called once per
+    // `run` frame, *outside* `update`, so the device is fed on every screen — the
+    // tactical board, the campaign map, the title card, and a modal screen all
+    // return early from `update`, and a cue queued on any of them must still
+    // sound. A no-op when audio is disabled.
+    void pumpAudio();
+
     // Picks up mission events since the last frame and plays the matching cue.
     // Called once per `update`; a no-op when audio is disabled.
     void updateAudio();

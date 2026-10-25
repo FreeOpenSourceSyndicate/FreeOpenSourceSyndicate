@@ -1535,7 +1535,8 @@ Do not start work outside the scope fence (ADR-0024).
 - **Sound effects are a hand-rolled SDL2 layer (issue #423, ADR-0040).**
   `game::Audio` (`src/game/Audio.{h,cpp}`, its own translation unit — do not grow
   the shared `Game.cpp`) owns one `SDL_OpenAudioDevice` and a small fixed set of
-  **generated** cues (`Shoot`, `Hit`, `Explosion`, `Victory`, `Defeat`) mixed
+  **generated** cues (`Shoot`, `Hit`, `Explosion`, `Victory`, `Defeat`, and the UI
+  cues `Select`/`Navigate`/`Cancel`) mixed
   into a streaming buffer fed with `SDL_QueueAudio`. **No new dependency** (SDL2
   is already linked, so `SDL_mixer` was rejected) and **no audio asset** — every
   cue is synthesised, so nothing can be copied from the original (golden rule 8).
@@ -1543,18 +1544,37 @@ Do not start work outside the scope fence (ADR-0024).
   driver that cannot provide the baked format) it logs one `audio: disabled (...)`
   line and stays a silent no-op, so `enabled()` is false and every later call is
   harmless — the game always runs (AGENTS.md §1b). `Game::update` calls
-  `updateAudio()` then `audio_.update()`: `updateAudio` snapshots the frame's
+  `updateAudio()`, which snapshots the frame's
   events (the core's kill counts and mission state, plus `anyShot` derived from an
   agent's `gunfireTimer()` *rising* — `Agent::beginFireCooldown` sets it to 0.75
-  on every shot) and turns them into cues through the **pure, device-free
-  `cuesForFrame(previous, current)`**, which fires only on a *change* (a new kill,
+  on every shot) through the **device-free `snapshotAudioEvents(mission, scratch)`**
+  (so the guard drives the *real* derivation, not a copy) and turns them into cues
+  through the **pure, device-free `cuesForFrame(previous, current)`**, which fires
+  only on a *change* (a new kill,
   a decided outcome) so a steady state is silent and a kill/outcome fires once.
   View-only; it never writes core (golden rule 4). A headless run opens no device
   at all. **SFX are in scope for v1.0.0; music is not** (ADR-0024). The
-  `--check-audio` guard (ctest `game_audio`) drives the real synthesis/mixing path
-  and the real `cuesForFrame` mapping with no device: it fails on an empty or
+  `--check-audio` guard (ctest `game_audio`) drives the real synthesis/mixing path,
+  the real `snapshotAudioEvents`+`cuesForFrame` mapping on **scratch missions** (a
+  firefight that ends in a win → Shoot/Hit/Victory, a doomed squad → Defeat, a
+  planted bomb killing a civilian → Explosion), and the real `uiActionsForChange`
+  mapping, with no device: it fails on an empty or
   silent cue, non-deterministic synthesis, a mixer that does not sum cues, a
-  disabled `Audio` that is not a no-op, a steady frame that fires a cue, or a
-  kill/outcome that fires twice or maps to the wrong cue. The `docs/BUILD.md`
+  disabled `Audio` that is not a no-op, a steady frame that fires a cue, a
+  kill/outcome that fires twice or maps to the wrong cue, or a UI action that maps
+  to a combat cue or the wrong blip.
+- **UI cues are observed at the audio call site, not sprinkled through input
+  (issue #424).** The device is fed by **`Game::pumpAudio()`**, called from `run`
+  after `update` — *not* from `update`, which returns early on the map, the title
+  card, the new-game screen, and pause. So a cue queued on any screen still
+  sounds. `pumpAudio` calls `updateUiAudio()` (builds a `UiAudioState` — the
+  selection plus the overlay flags — and maps its change through the pure,
+  device-free **`uiActionsForChange(previous, current)`**: a selection change is
+  `Select`, opening the map/shop or pausing is `Navigate`, closing one or resuming
+  is `Cancel`), then `drainUiCues()`, then `Audio::update()`. Input handlers do
+  not call the audio layer: the observation lives in the audio region of the
+  shared `Game.cpp`, so adding a UI cue does not touch Input/UI's handlers. Add a
+  new UI cue to the `Cue`/`UiAction` enums and the generator, never as an asset.
+  The `docs/BUILD.md`
   audio-troubleshooting note is a **Release**-owned follow-up (a Rule 4 request,
   not an edit from Platform).
