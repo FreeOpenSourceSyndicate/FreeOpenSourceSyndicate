@@ -80,15 +80,18 @@ on the map screen (`src/core/economy/**` + `game::CampaignScreen`). **Milestones
 and B are done**, so the critical path is now **Milestone C**:
 
 ```json
-"critical_path": ["tactical", "metagame", "input-ui", "render"]
+"critical_path": ["tactical", "missions", "metagame", "input-ui", "render"]
 ```
 
-- **`tactical`** — the mission set is the long pole: it unblocks the campaign map
-  content and the content guard, both of which are `blocked-by` it.
-- **`metagame`** — the map wiring and the economy/research balance pass.
-- **`input-ui`** — save/load wiring (#433) and player-syndicate customisation,
-  the release-facing work the next snapshot (v0.9.0) needs.
-- **`render`** — the original sound effects (#424) and art the same release needs.
+- **`tactical`** — the sim rules (objectives, AI, the v1.0 drugs model).
+- **`missions`** — mission authoring is the long pole: it unblocks the campaign
+  map content and the content guard, both of which are `blocked-by` it. Split out
+  of `tactical` (ADR-0042) so authoring runs in parallel with rules work.
+- **`metagame`** — the map wiring, the drug economy, and the balance pass.
+- **`input-ui`** — save/load wiring (#433), player-syndicate customisation, and
+  the drug-bar controls, the release-facing work the next snapshot (v0.9.0) needs.
+- **`render`** — the original sound effects (#424) and the **Syndicate Plus**
+  art-fidelity target the maintainer set for v1.0.0.
 
 `world` **left** the ordered list: its Milestone-C long pole (save/load core,
 #406/#430) has landed, so it has no open work and is inert on the path; it stays

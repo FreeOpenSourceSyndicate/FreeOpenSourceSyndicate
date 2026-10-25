@@ -2562,6 +2562,156 @@ ever wants it gone, the delete is a self-contained removal of the three regexes,
 
 ---
 
+## ADR-0043 — Drugs are a three-bar physiological model, not an inventory item
+
+- **Status:** Accepted (2026-10-25) — v1.0.0 scope, maintainer directive
+- **Date:** 2026-10-25
+- **Context:** v1.0.0 reproduces the 1993 original (ADR-0024). The current
+  implementation treats "performance drugs" as a **single-use gadget**: one dose
+  gives a flat 8 s speed/accuracy buff (`Mission::useDrugs`, ADR-0028). The
+  maintainer has ruled that this is **wrong for v1.0.0**: drugs are **not** an
+  inventory item but a set of **continuously regulated bars**, and there are
+  **three** of them, each with a distinct gameplay effect and a **normalisation**
+  mechanic. This is the original's design and the clone must match it.
+
+  The three drugs, per the maintainer:
+
+  1. **Adrenalin** — low: slow movement, low reaction, high precision, rational
+     AI; high: fast movement, high reaction, low precision, and a **risk of
+     panicking/fleeing** when threatened.
+  2. **Intelligence** — low: poor threat/target recognition (so *less* panic and
+     worse target choice); high: better recognition of threats, of valid targets
+     (e.g. a civilian marked for assassination), and of obstacles/friendlies in
+     the line of fire, so the agent picks better targets and is less likely to
+     kill itself or a bystander with area weapons.
+  3. **Physical (body)** — raises health, movement speed, and **carrying
+     capacity**, and allows **slow self-healing**; lowering it reduces all of
+     those.
+
+  **Normalisation:** each bar's *neutral* point drifts toward the level the agent
+  has been holding, so a permanently-maxed bar yields no benefit and a drop from
+  it is a real penalty. The player is pushed to **hold a bar in reserve and spike
+  it when needed**, not to run everything hot.
+
+- **Options:**
+  1. **Keep the single-use gadget and add a "drug" item.** Rejected: it is the
+     current (wrong) model, it has no bars and no normalisation, and it cannot
+     express "adrenalin high ⇒ panic".
+  2. **Three bars on `core::Agent`.** Rejected: `Agent` is `focus: world` and its
+     contract is frozen (FOCUS_AREAS §2.1); the drugs are **mission/agent policy**
+     (like the medikit/shield/scanner counters), and the regulation rules
+     (normalisation, panic, targeting) are `Mission`/AI policy, which is
+     `focus: tactical`. Extending `Agent` would also put the drift rule in the
+     wrong lane.
+  3. **A `DrugState` on the `Mission`, one slot per agent, with the three bars and
+     their neutral points; the drift, the panic check, and the targeting/obstacle
+     effects implemented in `Mission`/AI.** Chosen: it mirrors the existing
+     per-agent `medikits_`/`shields_`/`scanners_`/`drugs_` vectors (kept in sync
+     by `addAgent`), it keeps `Agent` untouched, and it puts the rules where the
+     other combat/AI rules live.
+- **Decision:** **Option 3.** A per-agent `DrugState` (three bars, each `0..1`
+  with a drifting neutral point) lives on `core::Mission` (`src/core/sim`, tactical
+  lane), addressed exactly like the other gadget state:
+  - `Mission::setDrugLevel(index, Drug, level)` / `drugLevel(index, Drug)`.
+  - The **neutral point** per bar drifts toward the current level each tick
+    (normalisation), so a sustained high level loses its benefit.
+  - The **effects** are applied where the stat is consumed: movement speed and
+    reaction in `Mission::update`, hit chance in `resolveFire`, panic in the AI
+    (`updateCombatantAI`), and target/obstacle choice in the AI's target picker.
+  - The **threat model** (below) is the panic input.
+  - The **bars** are regulated by the **player** from the view (input-ui: keys
+    raise/lower each bar for the selection); the metagame may gate a bar's
+    *maximum* behind research/equipment (metagame lane, follow-up).
+- **Threat model (adrenalin's input), per the maintainer:** every agent has an
+  individual **threat level** derived from its equipment/factors; how *threatened*
+  an agent feels is the sum over visible others of `threatLevel × modifiers`,
+  where the modifiers include distance, "has seen me", "is targeting me", "is
+  targeting a team-mate at distance x" (closer = higher), and "is moving towards
+  me". An agent with **adrenalin at minimum never panics**; the higher the
+  adrenalin, the more likely it reacts to reduce the threat (firing, fleeing,
+  hiding) **while ignoring orders**. Intelligence modulates **recognition** of
+  threats/targets, so it modulates the threat sum itself (low intelligence
+  under-detects).
+- **Consequences:**
+  - **This supersedes the single-dose model of ADR-0028 for drugs** (the scanner
+    half of ADR-0028 is unaffected). `Mission::useDrugs` and `drugs_`/`drugsTimer_`
+    are replaced by the bar model; the `"drugs"` gadget id in
+    `PlayerLoadout`/`equipment.json` becomes a **bar-max upgrade** (metagame), not
+    a consumable. Migration is a `focus: tactical` change with `focus: metagame`
+    (catalogue) and `focus: input-ui` (controls) follow-ups.
+  - **Determinism is preserved:** the drift and the panic check use **no RNG**
+    (golden rule 2); a panic is a threshold on the (deterministic) threat sum and
+    adrenalin, not a dice roll. If a probabilistic read is wanted it must come from
+    the seeded `core::Rng`, never `<random>`.
+  - **Presentation-only rules stay presentation-only:** the bars are drawn by the
+    HUD (render lane) but the *simulation* reads only the core state.
+  - **`Agent` stays frozen.** Carrying capacity and slow healing are consumed
+    through existing/added `Mission`/`Agent` primitives, not by adding drug fields
+    to `Agent`.
+  - **Scope fence:** this is *inside* v1.0.0 — it is the original's design, not a
+    modernisation. It is tracked as several small slices, not one PR.
+
+---
+
+## ADR-0044 — v1.0.0 art target is Syndicate Plus fidelity, not base-1993 chunky
+
+- **Status:** Accepted (2026-10-25) — v1.0.0 scope, maintainer directive
+- **Date:** 2026-10-25
+- **Context:** ADR-0009 fixed v1.0.0 as a **faithful, pixel-art reproduction** and
+  warned against "improved" graphics. The maintainer has now set a sharper target:
+  **"the graphics in V1 should resemble the graphics of Syndicate Plus in style and
+  detail. As of v0.8 this is not the case."** *Syndicate Plus* is the enhanced
+  1993 release of the same game (higher resolution, more detailed sprites and
+  tiles, richer UI) — still **pixel art**, still the original's look, but a more
+  detailed execution than the 320x200 base version the current sheets approximate.
+
+  So the target is not "modernise" (still forbidden, ADR-0024/ADR-0009); it is
+  **raise the authored pixel-art fidelity to the Plus level**: more detail per
+  sprite, a wider palette, larger native tiles, and a UI that reads like Plus.
+
+- **Options:**
+  1. **Keep the current base-1993 chunky look.** Rejected: the maintainer says it
+     does not match the v1.0.0 target.
+  2. **Switch to vector/high-res art.** Rejected: out of scope for v1.0.0
+     (ADR-0009, ADR-0024) and wrong for the era; Plus is still pixel art.
+  3. **Keep the authored-text pixel-art pipeline (ADR-0013) and raise its
+     fidelity: larger frames, more colours, more detail, a Plus-like UI — all
+     still original, palette-based, nearest-neighbour.** Chosen.
+- **Decision:** **Option 3.** The art target for v1.0.0 is **Syndicate Plus
+  style and detail**, produced with the existing **original** pipelines
+  (`assets/sprites/agents.txt`, `assets/tiles/ground.txt`, the text-sheet bakers
+  of ADR-0013) — never traced or copied from either original (golden rule 8,
+  `docs/LEGAL.md`). Concretely, the render lane:
+  - increases the native frame/tile size and palette depth where it reads as
+    "Plus detail" (not a resolution change to the *simulation* — tiles stay
+    logical units);
+  - adds the visual families Plus shows (distinct agent roles, more vehicles,
+    structures, effects) — tracked as `render` issues, sliced small;
+  - keeps the low-spec promise: the *rendering path* stays software-friendly
+    (AGENTS.md 1b); richer *authored* art must not add per-frame cost beyond the
+    existing blit pass.
+- **Consequences:**
+  - **ADR-0009's pixel-art decision stands; this ADR supersedes only its
+    "higher-fidelity rendering is out of scope for v1.0.0" clause** � that clause
+    fenced the *base-1993 chunky* look, and the maintainer has moved the fidelity
+    bar to Plus (still pixel art, still the original's look). Everything else in
+    ADR-0009 and ADR-0024 is untouched: no vector/high-res art, no modernisation,
+    no quality-of-life changes. **The prose in `AGENTS.md` �1 and golden rule 8
+    still says "chunky"; reconciling that wording is the SM's `rules` issue
+    #508** � until it lands, this ADR and that prose disagree and #508 is the
+    fix. Do not read this ADR as permission for vector art or QoL changes.
+  - **`docs/ASSETS.md`** gains the Plus-fidelity note and the new asset rows;
+    `docs/ART_STYLE.md` (if added) records the palette/size rules so slices stay
+    consistent.
+  - **Per-frame cost is unchanged** in shape: the map is still pre-baked, sprites
+    are still blitted from one sheet. A larger sheet costs memory, not per-frame
+    work — watch the low-spec size budget (`scripts/check-size.sh`, #454/#477).
+  - **Slicing:** this is many small art issues, not one PR; each names the asset
+    family it covers and must ship the `game_sprites` guard update so content and
+    art cannot drift.
+
+---
+
 ## ADR-0045 — The v1.0.0 size target is the whole game (~60 MiB), not a tiny binary
 
 - **Status:** Accepted (2026-10-25) — v1.0.0 scope, maintainer directive
