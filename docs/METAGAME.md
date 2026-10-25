@@ -513,7 +513,36 @@ in `tests/test_worldmap.cpp`. The region names are also recorded in
 }
 ```
 
-`kind` is one of `weapon`, `gadget`, `cybernetic`.
+`kind` is one of `weapon`, `gadget`, `cybernetic`, `drug`.
+
+A `drug` item is a **bar ceiling** (ADR-0043): it does not grant a charge like a
+gadget or a one-off stat change like a cybernetic; it raises the maximum a squad
+member may regulate a drug bar to. It adds two fields:
+
+```jsonc
+{ "id": "adrenalin-ceiling", "kind": "drug", "name": "Adrenalin Regulator",
+  "bar": "adrenalin", "ceiling": 1.0, "cost": 700,
+  "requiresResearch": "adrenalin-ceiling" }
+```
+
+- `bar` — one of `adrenalin`, `intelligence`, `physical` (the three bars of
+  ADR-0043). A `drug` whose `bar` is not one of these is a **load error**: it
+  could be bought yet raise nothing.
+- `ceiling` — the maximum level the bar may be raised to, in `(0, 1]`. A value
+  outside that range is a **load error**.
+- `requiresResearch` — **required** and non-empty for a `drug`. A ceiling with no
+  research gate would bypass the tree that paces it.
+
+A slot carries **one ceiling per bar** (unlike a weapon/gadget/cybernetic, where a
+new item of the same kind replaces the old): `Equipment::ceilings(syndicate,
+slot, catalogue)` sums the slot's ceilings into a `DrugCeilings`
+(`adrenalin`/`intelligence`/`physical`, each `0.0` when no ceiling of that bar is
+equipped), and the higher of two ceilings for one bar wins. `Campaign::
+selectedCeilings()` returns one `DrugCeilings` per selected squad slot, parallel
+to `selectedLoadout()`, so the deploy path knows how high each bar may be
+regulated. **Carrying those ceilings onto the deployed agents is a Rule 4 request
+to `focus: tactical`** (the `LoadoutSlot`/`Mission` half, #499): this side only
+sells and resolves them.
 
 ### 5.4 `campaign.json`
 

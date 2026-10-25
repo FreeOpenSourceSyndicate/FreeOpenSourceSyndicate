@@ -208,7 +208,7 @@ FOSSYND_TEST(Research, ShippedTreeIsAThreeTierProgression)
     // The tree must be a real progression, not a flat shopping list: a cheap
     // first tier, a branch, and a top-tier node gated behind both branches.
     const ResearchTree tree = shippedTree();
-    FOSSYND_CHECK_EQ(tree.size(), std::size_t{8});
+    FOSSYND_CHECK_EQ(tree.size(), std::size_t{11});
 
     const ResearchNode* minigun = tree.find("minigun");
     const ResearchNode* gauss = tree.find("gauss");
@@ -233,6 +233,27 @@ FOSSYND_TEST(Research, ShippedTreeIsAThreeTierProgression)
     FOSSYND_CHECK(railgun->timeSeconds > minigun->timeSeconds);
 }
 
+FOSSYND_TEST(Research, ShippedTreeHasTheThreeDrugCeilingNodes)
+{
+    // ADR-0043: the three drug bars (adrenalin/intelligence/physical) are gated
+    // by research, and each node unlocks the matching ceiling item in the
+    // catalogue. A root node per bar means all three are reachable without a
+    // weapon detour, and the tree pins them so a later edit cannot drop one.
+    const ResearchTree tree = shippedTree();
+
+    const char* const bars[] = {"adrenalin", "intelligence", "physical"};
+    for (const char* bar : bars)
+    {
+        const std::string nodeId = std::string(bar) + "-ceiling";
+        const ResearchNode* node = tree.find(nodeId);
+        FOSSYND_CHECK(node != nullptr);
+        FOSSYND_CHECK(node->prerequisites.empty()); // a root: no weapon detour
+        FOSSYND_CHECK_EQ(node->unlocks, nodeId);
+        FOSSYND_CHECK(node->cost > 0.0f);
+        FOSSYND_CHECK(node->timeSeconds > 0.0f);
+    }
+}
+
 FOSSYND_TEST(Research, ShippedTreePacingIsBracketed)
 {
     // Pin the tree's total cost and duration, and that every node sits in a sane
@@ -249,8 +270,8 @@ FOSSYND_TEST(Research, ShippedTreePacingIsBracketed)
         totalCost += node.cost;
         totalTime += node.timeSeconds;
     }
-    FOSSYND_CHECK_NEAR(totalCost, 6100.0f);
-    FOSSYND_CHECK_NEAR(totalTime, 615.0f);
+    FOSSYND_CHECK_NEAR(totalCost, 7600.0f);
+    FOSSYND_CHECK_NEAR(totalTime, 795.0f);
 
     // At the shipped tick length the whole tree is a meaningful number of income
     // ticks (not one) but not a grind (the world map is twelve regions, so the
@@ -308,7 +329,7 @@ FOSSYND_TEST(Research, ShippedResearchAndSquadAreAffordableWithinACampaign)
 {
     // The acceptance target is a *reachable* win: the research tree and the
     // gear it unlocks must be affordable in a number of income ticks that a
-    // six-region campaign actually has — not a walkover, not a grind. Each
+    // twelve-region campaign actually has — not a walkover, not a grind. Each
     // major investment (the whole tree, or a four-agent top-weapon squad) is
     // checked separately; no player needs the theoretical maximum of both.
     const EconomyConfig economy = shippedEconomyConfig();
@@ -341,11 +362,14 @@ FOSSYND_TEST(Research, ShippedResearchAndSquadAreAffordableWithinACampaign)
 
     // Funding the whole tree, or buying the top squad outright, each fits in a
     // bounded window: enough ticks that the player must play the map, few enough
-    // that the campaign is not a grind.
+    // that the campaign is not a grind. The tree grew by the three drug-ceiling
+    // nodes (ADR-0043, #504), so the whole-tree window is a little wider than the
+    // weapon/cybernetic-only tree of #419; the win itself needs neither the whole
+    // tree nor the top squad, so this is the theoretical ceiling, not the route.
     const int treeTicks = ticksToAfford(totalResearch, startingFunds, perTick);
     const int squadTicks = ticksToAfford(squadCost, startingFunds, perTick);
     FOSSYND_CHECK(treeTicks >= 15);
-    FOSSYND_CHECK(treeTicks <= 25);
+    FOSSYND_CHECK(treeTicks <= 30);
     FOSSYND_CHECK(squadTicks >= 15);
     FOSSYND_CHECK(squadTicks <= 30);
 }
