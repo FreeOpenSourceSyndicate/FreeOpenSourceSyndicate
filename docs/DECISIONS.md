@@ -2653,6 +2653,59 @@ ever wants it gone, the delete is a self-contained removal of the three regexes,
 
 ---
 
+## ADR-0044 — v1.0.0 art target is Syndicate Plus fidelity, not base-1993 chunky
+
+- **Status:** Accepted (2026-10-17) — v1.0.0 scope, maintainer directive
+- **Date:** 2026-10-17
+- **Context:** ADR-0009 fixed v1.0.0 as a **faithful, pixel-art reproduction** and
+  warned against "improved" graphics. The maintainer has now set a sharper target:
+  **"the graphics in V1 should resemble the graphics of Syndicate Plus in style and
+  detail. As of v0.8 this is not the case."** *Syndicate Plus* is the enhanced
+  1993 release of the same game (higher resolution, more detailed sprites and
+  tiles, richer UI) — still **pixel art**, still the original's look, but a more
+  detailed execution than the 320x200 base version the current sheets approximate.
+
+  So the target is not "modernise" (still forbidden, ADR-0024/ADR-0009); it is
+  **raise the authored pixel-art fidelity to the Plus level**: more detail per
+  sprite, a wider palette, larger native tiles, and a UI that reads like Plus.
+
+- **Options:**
+  1. **Keep the current base-1993 chunky look.** Rejected: the maintainer says it
+     does not match the v1.0.0 target.
+  2. **Switch to vector/high-res art.** Rejected: out of scope for v1.0.0
+     (ADR-0009, ADR-0024) and wrong for the era; Plus is still pixel art.
+  3. **Keep the authored-text pixel-art pipeline (ADR-0013) and raise its
+     fidelity: larger frames, more colours, more detail, a Plus-like UI — all
+     still original, palette-based, nearest-neighbour.** Chosen.
+- **Decision:** **Option 3.** The art target for v1.0.0 is **Syndicate Plus
+  style and detail**, produced with the existing **original** pipelines
+  (`assets/sprites/agents.txt`, `assets/tiles/ground.txt`, the text-sheet bakers
+  of ADR-0013) — never traced or copied from either original (golden rule 8,
+  `docs/LEGAL.md`). Concretely, the render lane:
+  - increases the native frame/tile size and palette depth where it reads as
+    "Plus detail" (not a resolution change to the *simulation* — tiles stay
+    logical units);
+  - adds the visual families Plus shows (distinct agent roles, more vehicles,
+    structures, effects) — tracked as `render` issues, sliced small;
+  - keeps the low-spec promise: the *rendering path* stays software-friendly
+    (AGENTS.md 1b); richer *authored* art must not add per-frame cost beyond the
+    existing blit pass.
+- **Consequences:**
+  - **ADR-0009 still stands** (pixel art, no modernisation); this ADR only moves
+    the *fidelity bar* from base-1993 to Plus. Do not read it as permission for
+    vector art or QoL changes.
+  - **`docs/ASSETS.md`** gains the Plus-fidelity note and the new asset rows;
+    `docs/ART_STYLE.md` (if added) records the palette/size rules so slices stay
+    consistent.
+  - **Per-frame cost is unchanged** in shape: the map is still pre-baked, sprites
+    are still blitted from one sheet. A larger sheet costs memory, not per-frame
+    work — watch the low-spec size budget (`scripts/check-size.sh`, #454/#477).
+  - **Slicing:** this is many small art issues, not one PR; each names the asset
+    family it covers and must ship the `game_sprites` guard update so content and
+    art cannot drift.
+
+---
+
 ## ADR-0045 — The v1.0.0 size target is the whole game (~60 MiB), not a tiny binary
 
 - **Status:** Accepted (2026-10-25) — v1.0.0 scope, maintainer directive
