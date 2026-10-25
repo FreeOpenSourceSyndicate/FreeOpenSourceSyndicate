@@ -188,13 +188,25 @@ Shipped in **v0.8.0 "Dominion"**.
 Turn the systems into a game.
 
 - [ ] **Mission set**: enough missions to form a campaign (data-driven).
+      _Progress: fifteen missions ship and **every region of the twelve-region map
+      names one** (eight distinct boards are wired today; the rest are playable via
+      `--mission` and are being wired region-by-region, #550/#551)._
 - [ ] **Original art and audio** (`docs/ASSETS.md`); pixel art per ADR-0009.
       _The **audio subsystem** has landed (issue #423, ADR-0040): `game::Audio`
       plays generated SFX cues and degrades to silence when no device is present.
       SFX are in scope for v1.0.0; **music is not**. Authoring per-mission sound
-      content stays on this line._
-- [ ] **Save/load** between sessions (the original saved progress).
-- [ ] **Balance pass** on weapons, economy, and research pacing.
+      content stays on this line. **Art** is at the first **Syndicate Plus**
+      fidelity slice (ADR-0044, #501): agents are re-authored at their native
+      20×28 and `docs/ART_STYLE.md` fixes the target; the remaining asset groups
+      follow (#500)._
+- [x] **Save/load** between sessions (the original saved progress).
+      _Landed for v0.9.0: the versioned `core::CampaignSave` overlay (#406/#430)
+      is driven from the CLI (`--save`/`--load`, #433) **and in play** (`F5`/`F9`
+      on the map screen, #527), with research restored on load (#480)._
+- [x] **Balance pass** on weapons, economy, and research pacing.
+      _Landed: the economy/research pacing is tuned and pinned (#419) and the
+      weapon price ladder tracks combat value, recorded in `docs/BALANCE.md`
+      (#528). Further passes stay welcome; the shipped curve is the v0.9.0 one._
 - [ ] **v1.0.0 release**: tag, GitHub Release, `docs/releases/`, CHANGELOG.
       _A **major version** is gated: it rolls out only after a feature-complete,
       buildable, human-played **candidate** is **approved** (`AGENTS.md` §6a-i,
@@ -202,6 +214,12 @@ Turn the systems into a game.
       [`docs/releases/MAJOR_RELEASE_GATE.md`](releases/MAJOR_RELEASE_GATE.md). This
       item is **not done** until every other box in Milestone C is checked and the
       human gate opens._
+
+Shipped in **v0.9.0 "the campaign is real"**: save/load in play (CLI + `F5`/`F9`),
+sound effects, the twelve-region campaign with a distinct board per region, the
+dedicated final confrontation, the three regulated drug bars, the new-game
+syndicate name/logo, the assassinate/retrieve objective kinds, the time bomb, and
+the first Syndicate Plus art slice.
 
 ---
 

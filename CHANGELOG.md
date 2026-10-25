@@ -8,36 +8,187 @@ contains no original assets, code, names, or trademarks.
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-10-25 — "the campaign is real"
+
+The campaign is real. v0.8.0 gave the war a **map**; v0.9.0 turns it into a game
+you can play across sessions, hear, and finish. **Save/load reaches play** — the
+campaign survives quitting, both from the CLI (`--save`/`--load`) and from the
+keyboard (`F5`/`F9`) — and the map is no longer a handful of reused boards: a
+**dozen regions** each carry a distinct authored mission, the run ends in a
+dedicated **final confrontation**, and the syndicate is yours to **name and
+badge**. Combat and menus now make **sound**. The tactical layer gains the last
+two objective kinds (**assassinate** and **retrieve**), the **time bomb**, and
+the three **regulated drug bars** the maintainer specified.
+
 ### Added
 
-- **Explosions breach destructible walls.** Weapon fire could already open a
-  cracked wall, but only the single tile a *blocked* round landed on: a rocket
-  aimed at a defender in the open left every wall around the impact standing,
-  and a blast never touched walls at all. `Mission::applyAreaDamage` now calls a
-  new `breachTilesInBlast`, which chips every destructible tile whose centre is
-  within the blast radius and opens the ones whose hit points run out — so the
-  launcher (and any future area weapon) breaches a room the way a point shot
-  chips one tile. A vehicle wreck's detonation breaches walls in its own blast
-  too, and a solid wall is still unbreakable. Engine-free and deterministic
-  (no RNG); `focus: tactical`. Issue #411.
+- **Save/load reaches play: `F5` saves, `F9` loads.** The versioned snapshot
+  landed in #406/PR #430 (`core::CampaignSave`, an engine-free overlay that
+  captures territory ownership/tax, the funds ledger, research progress, and
+  squad loadouts as versioned plain-text JSON), but nothing drove it: progress
+  could be captured and never written or restored, so a campaign lasted one
+  sitting. `--save <path>`/`--load <path>` now wire the CLI to it (#433/PR #476),
+  and the in-game keys `F5`/`F9` save and restore **during** play (#527/PR #559).
+  `--load` naming a missing file fails fast (the #259 pattern) and a corrupt or
+  mismatched save is rejected after the base campaign exists; the keys act on the
+  campaign map (a transient mission has no persistent progress to save) and
+  **fail soft** in play — a mis-keyed save prints a message rather than costing
+  progress. The default slot is `SDL_GetPrefPath` (`$XDG_DATA_HOME/FOSSynd/…`),
+  overridden by an explicit `--save`, then by the file a `--load` resumed.
+  Research progress is reapplied on load (#480/PR #481). Guards: `game_save_load`,
+  `game_cli_load_missing`, and `game_save_hotkeys`. Issues #406, #430, #433, #527.
+
+- **A mission on every region — the map is a real campaign.** The campaign was a
+  two-mission demo replayed across a few regions. It is now a **twelve-region
+  world map** (`Westmarch`…`Pelagia`, original cultural names, never real
+  countries — `docs/LEGAL.md`) where **every region names a mission** that
+  resolves to its own authored board (#448/PR #486, #418/PR #443, #522). The
+  mission set grew with it, each board using a different objective kind and
+  proven winnable by a test that loads the real file and drives its own mechanic:
+  **slice 1** — `blackout` (destroy), `assembly` (persuade), `overpass` (reach)
+  (PR #437); **assassinate/retrieve** — `decapitation` (kill the named
+  Overseer while the garrison lives), `extraction` (carry the item out)
+  (#473/PR #489); the **final confrontation** — `conclave` (assassinate the enemy
+  Overseer) (#465/PR #536); and **slice 2** — `cordon` (eliminate), `vault`
+  (retrieve), `uprising` (persuade) (#529/PR #554). Fifteen mission files ship;
+  eight are wired into the twelve-region map today (the rest are playable via
+  `--mission`, and `conclave` becomes the terminal board with #537). The
+  region→mission wiring is pinned by `tests/test_campaign.cpp`
+  (`EveryShippedRegionNamesAMissionThatExists`) and `--check-content`. Issues
+  #416, #418, #437, #444, #448, #465, #473, #511, #529.
+
+- **The campaign ends in a dedicated final confrontation.** Winning used to mean
+  owning every region, with the same victory panel for any last one. The
+  campaign may now name a `finalMission` and set `winCondition: "final-mission"`,
+  so it is won by winning that specific mission — even with neutrals left — and
+  `CampaignScreen` draws a distinct, warmer **`FINAL CONFRONTATION WON`** panel
+  for it (`Campaign::wonFinalConfrontation`). A `finalMission` not in the mission
+  list, or a `final-mission` win condition with no `finalMission`, is a schema
+  error at load, so a typo cannot leave the campaign unwinnable (#467/PR
+  #467). The shipped data points `finalMission` at the dedicated `conclave`
+  board (#537). Issue #456.
+
+- **Your syndicate, named and badged.** A new campaign now opens a **new-game
+  screen** where the player types a syndicate name (printable ASCII, 24 chars —
+  the 5×7 font draws no more) and cycles a **logo** id before the war begins
+  (#447/PR #484). The pick is recorded on the campaign
+  (`Campaign::setSyndicateName`/`setSyndicateLogo`, falling back to the
+  data-authored default when empty or unknown) and **persists in the save** (the
+  schema went to v2), so the identity you choose is the identity you resume.
+  `--new-game` forces the screen; `--load` skips it because the save restores an
+  identity. This is the first SDL text-input path in the tree. Issues #445, #447.
+
+- **The game has sound.** A hand-rolled SDL2 audio layer (`game::Audio`,
+  ADR-0040) plays a small set of **procedurally generated** cues — Shoot, Hit,
+  Explosion, Victory, Defeat, plus Select/Navigate/Cancel — with **no new
+  dependency and no audio asset** (SDL_mixer was rejected; every cue is
+  synthesised, so nothing can be copied from the original). It is never fatal:
+  when no device opens it prints one `audio: disabled` line and runs silently, so
+  headless runs and machines without a sound card still play. The cues are wired
+  to real mission events (kills, a shot, mission outcome) and to UI changes
+  observed from view state, and are fed from `Game::pumpAudio` so they sound on
+  the map, title, new-game, and pause screens too (#423/PR #438, #424/PR #516).
+  SFX are in scope for v1.0.0; **music is not** (ADR-0024). Guard: `game_audio`.
+  Issues #423, #424.
+
+- **The last two objective kinds: assassinate and retrieve.** The Definition of
+  Done names five objective kinds; two were still missing. **Assassinate** wins
+  when the single agent at `agentIndex` is dead — the garrison may survive — and
+  **retrieve** wins when the item on `itemX`/`itemY` is picked up and a living
+  agent then stands on the exit tile, via a latched squad-level flag so any
+  member may carry it out (#444/PR #471; reverses the #281 carve-out as an
+  ADR-0014 amendment). The content parser learns both kinds (#472/PR #488) and
+  the HUD has their banner text (#475/PR #507); both new fields default, so every
+  existing kind and mission is unchanged. Issues #444, #461, #472, #475.
+
+- **The time bomb.** A new fused weapon: `Weapon::fuseSeconds` (additive, default
+  `0` = immediate, so every existing weapon is unchanged) arms a bomb at the
+  impact tile that detonates after the fuse through the existing area-damage
+  path — a raised shield still absorbs it, destructible walls in the blast
+  breach, and civilians caught in it count as collateral. The bomb is
+  snapshotted at arm time and owned by the shooter only (so one agent cannot
+  stack bombs) and is independent of its owner once armed: killing the agent does
+  not defuse it. `Mission::orderTimeBomb` plants one explicitly and
+  `pendingDetonations()` feeds the view (#449/PR #459); the loader parses
+  `fuseSeconds` (#461/PR #487) and `--bomb` makes it reachable in play for a
+  capture (#460/PR #485). The `police` and `saboteur` agent templates ship so the
+  time-bomb family is on the board via the saboteur in `precinct` (#446/PR #464,
+  #462/PR #482). Issues #449, #460, #461, #464, #446.
+
+- **Three regulated drug bars (ADR-0043).** Performance drugs are no longer a
+  single-dose consumable but **three physiological bars** — adrenalin,
+  intelligence, physical — that the player regulates and the simulation reacts
+  to. **S1** lands the per-agent state, drift, and normalisation on `Mission`
+  (a permanently-held high bar adapts away, so dropping it is a real penalty)
+  (#496/PR #515); **S2 adrenalin** adds a pure threat model, latched panic with
+  hysteresis, and speed/reaction/hit-chance effects (#497/PR #521); **S3
+  intelligence** adds threat recognition, target choice, and blast care
+  (PR #531); **S4 physical** adds max-health-from-bar, slow self-heal, and
+  carry capacity, composed multiplicatively with adrenalin speed (PR #540).
+  The player keys `[`/`]` cycle the active bar and `;`/`'` lower/raise it for the
+  selection (#503/PR #525), and the R&D shop sells a **research-gated ceiling**
+  per bar so a deployed squad can be regulated higher (#504/PR #517). The bars
+  are validated end to end (#510/PR #526). Issues #495–#504, #510, #518, #525,
+  #531, #540, #541, #553.
+
+- **Recruited agents have names from their region.** Recruiting an agent (the map
+  screen's `R`) now draws a fixed name from the selected region's pool, so a
+  squad member's identity is tied to the map rather than a placeholder — deterministic,
+  assigned once, and a safe no-op when the pool is missing or exhausted.
+  `core::NamePools` loads `assets/data/world/names.json` (twelve region pools,
+  original ASCII names) with schema validation, and the pool is validated in
+  `--check-content` (#509/PR #530, #510/PR #526). Issues #509, #510.
+
+- **Syndicate Plus art, slice A1.** `docs/ART_STYLE.md` now fixes the art target
+  for v1.0.0 (ADR-0044): native sizes per asset group (**agent 20×28**, tile
+  target 32×16), the four-slot palette with documented hex, shading/outline and
+  stand/step conventions, integer nearest-neighbour scaling, and the
+  original-art-only, pixel-art-only rules. The agent sprite sheet is re-authored
+  at its native 20×28 and the bake **fails on a mis-sized sheet**, so
+  `--check-sprites` catches drift instead of drawing it at the wrong scale
+  (#501/PR #544). Issues #500, #501.
+
+- **Two more weapon families are purchasable, and dangling catalogue references
+  fail CI.** `longshot` and `railgun` are now real `weapons.json` entries (they
+  were sold by the shop but absent from the catalogue, so buying either made
+  `applyLoadout` reject the whole loadout), and `--check-content` cross-checks
+  `assets/data/world/*.json` so a dangling reference fails CI instead of shipping
+  (PR #370). The weapon DPS-vs-range trade-off is pinned by a test so a
+  later retune cannot invert it silently (#539/PR #548). Issues #369, #370, #539.
 
 ### Changed
 
-- **The low-spec binary-size budget rose to 384 KiB** (from 352 KiB): the
-  save/load wiring (#433) links `core::CampaignSave` into the game binary for
-  ~24 KiB, more than one 16 KiB step, so a single step (368 KiB) would have left
-  only ~2 KiB of headroom — less than one 4 KiB ELF page step — and the next real
-  feature PR would fail spuriously rather than on a genuine regression (issue
-  #477). Same remedy as the 288 → 320 KiB (#312/#356), 320 → 336 KiB (#413), and
-  336 → 352 KiB (#468) raises; the guard still fails loudly if the low-spec flags
-  are dropped.
-- **The low-spec binary-size budget rose to 352 KiB** (from 336 KiB): `main` had
-  reached 334 KiB, leaving only ~2 KiB of headroom — less than one 4 KiB ELF page
-  step — so the next real feature PR (the time bomb, #449) failed spuriously
-  rather than on a genuine regression (issue #468). Same remedy as the
-  288 → 320 KiB (#312/#356) and 320 → 336 KiB (#413) raises; the guard still fails
-  loudly if the low-spec flags are dropped.
-- **A major version is now gated behind a feature-complete, human-approved
+- **The campaign economy is tuned, and the weapon price ladder tracks combat
+  value.** The placeholder economy made a fresh campaign a walkover and
+  over-taxation never worth avoiding; `incomePerTaxLevel` 100 → 60 and
+  `revoltChancePerTick` 0.02 → 0.06 make the tax-vs-revolt decision live inside a
+  campaign (max tax pays 2.5× but its expected value falls below the safe path
+  after ~38 ticks), and the opening safe path affords the first research node
+  immediately and the whole tree in ~22 ticks (#419/PR #441). A first balance
+  pass then fixed a price inversion (gauss cost more than longshot while reaching
+  less) so total cost tracks damage×range — minigun 1000 < gauss 1400 < longshot
+  1800 < railgun 3200 — recorded in the new `docs/BALANCE.md` and pinned by a
+  test (PR #538). The values are read from the shipped files by
+  `tests/test_{economy,research}.cpp`, so a silent unbalance fails `ctest`
+  instead of a playtest. Issues #419, #528.
+
+- **The low-spec binary-size budget was raised twice, then reclaimed instead.**
+  It rose to 352 KiB (from 336) when `main` reached 334 KiB (#468) and to 384 KiB
+  (from 352) when the save/load wiring linked `core::CampaignSave` for ~24 KiB
+  (#477). Two PRs that each passed alone then merged 4 s apart and crossed the cap
+  at 386 KiB; the fix **shrank the profile rather than raising the cap again** —
+  function/data sections with `--gc-sections` and gated LTO dropped the binary
+  ~40 KiB (363 → 323 KiB) and the gate now **warns** (still exit 0) when less than
+  one ELF page of headroom remains, so the next author reclaims space or raises
+  the cap deliberately (PR #512). Issues #454, #468, #477, #506, #512.
+
+- **The v1.0.0 size target is the whole game, not a tiny binary.** The maintainer
+  ruled the 384 KiB binary cap too extreme and set the target at **the whole game
+  ≤ ~60 MiB** — the scale of a Syndicate Plus GOG install (~57 MiB incl. DOSBox);
+  a low-spec profile is only needed if the game significantly exceeds it. Recorded
+  as **ADR-0045** (#523); the gate itself is re-scoped by #524. Issue #523.
+
+- **A major version is gated behind a feature-complete, human-approved
   candidate.** `AGENTS.md` §6a defined how to cut *minor* releases (`0.x.0`) but
   said nothing about a **major** version (`X.0.0`), so `v1.0.0` could in
   principle have been tagged the moment CI went green — with no build that
@@ -51,6 +202,41 @@ contains no original assets, code, names, or trademarks.
   never self-approves a major version. Minor releases are unchanged. Recorded in
   **ADR-0036**; see also `docs/ROADMAP.md` (Milestone C) and `docs/FOCUS_AREAS.md`
   (release remit). Issue #402.
+
+### Fixed
+
+- **Research progress is restored on load.** `core::CampaignSave` captured and
+  serialised research progress, but `applyTo` never reapplied it, so loading a
+  save silently lost every funded research node. `applyTo` now calls the
+  `Research::restore` setter (#431/PR #479) and the two stale "research is not
+  restored" comments are gone (#480/PR #481). Issues #431, #480.
+
+- **A mission's `vehicles[]` actually reach the board.** `MissionData` parsed a
+  mission's vehicles into `data.vehicles`, but `populateMission` never applied
+  them, so a mission that placed vehicles got an empty `Mission::vehicles()` and
+  the feature was unreachable from data (only the `--vehicle` demo hook worked).
+  `populateMission` now converts each `VehicleSpec` into a `core::Vehicle` and
+  adds it, guarded by a test that loads the shipped `precinct` mission and asserts
+  the vehicle is on a walkable tile (#417/PR #483). Issue #417.
+
+- **Explosions breach destructible walls around the impact.** Weapon fire could
+  already open a cracked wall, but only the single tile a *blocked* round landed
+  on: a rocket aimed at a defender in the open left every wall around the impact
+  standing, and a blast never touched walls at all. `Mission::applyAreaDamage`
+  now breaches every destructible tile whose centre is in the blast radius, so
+  the launcher (and any future area weapon) opens a room the way a point shot
+  chips one tile; a vehicle wreck's detonation breaches walls in its own blast
+  too. Engine-free and deterministic, no RNG (#411/PR #412). Issue #411.
+
+- **`Rng::nextFloat()` stays inside `[0, 1)`.** The top of the range could
+  return exactly `1.0`, which a consumer indexing by the value could turn into an
+  out-of-range pick; the float draw is now bounded half-open as documented
+  (PR #384). Issue #384.
+
+- **A move route's first waypoint is the start tile centre.** A queued route
+  began at a rounded tile corner instead of the agent's actual start position, so
+  the first leg cut a corner; the start tile's centre is now the first waypoint
+  (PR #398), guarded by a test (#409/PR #410). Issues #398, #409.
 
 ## [0.8.0] — 2026-10-16 — "Dominion"
 
