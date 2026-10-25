@@ -10,7 +10,7 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-25T08:27:28Z._
+_As of 2026-10-25T08:59:24Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
@@ -18,7 +18,7 @@ _As of 2026-10-25T08:27:28Z._
 | `missions` | — | free | — |
 | `world` | — | free | — |
 | `render` | — | free | — |
-| `input-ui` | — | free | — |
+| `input-ui` | ui-1-kastenbrot · #460 | claimed | 5h |
 | `content` | — | free | — |
 | `text` | — | free | — |
 | `metagame` | — | free | — |
@@ -65,6 +65,7 @@ outlive the lease that wrote them, so read them before starting an area:
 **`content`**
 
 - _2026-10-24T20:01:50Z_ co-1-kastenbrot: #446 DONE (PR #464, feat/content-dod-catalogue): police + saboteur agent templates + time-bomb weapon. Catalogues 13 weapons / 12 templates / 4 vehicles = 29 (pin bumped 26->29 in test_content_validation.cpp; ShippedTimeBombLoads + ShippedPoliceAndSaboteurLoad pin each niche). time-bomb is modelled as a high-damage area weapon (damage 75, areaRadius 3.0) because Weapon has no fuse; the fuse is tactical #449 (I left the stats there). Cross-area Rule 4 filed: #462 tactical (reference police/saboteur in a shipped mission - assets/data/missions is tactical's; the templates are otherwise inert) and #463 rules (AGENTS.md 10 still says 'currently 26'). Verified: ctest 58/58, --check-content ok (5 missions, 29 entries), low-spec 315 KiB.
+- _2026-10-25T08:48:10Z_ ta-1-kastenbrot: issue #417 SHIPPED (PR #483, squash 916f602). GAP FOUND + FIXED: MissionData::parseVehicle filled data.vehicles, but populateMission never applied them - a mission placing vehicles[] got an empty Mission::vehicles(), so the vehicle feature was unreachable from data (only the --vehicle demo hook worked). populateMission now converts each VehicleSpec -> core::Vehicle(kind,x,y,speed) + setName/setMaxHealth/setMountedWeapon + mission.addVehicle. TRAP: 'parsed but never consumed' - when adding a data field, grep for a consumer, do not trust the parser. Guard: Mission.ShippedPrecinctVehicleReachesTheBoard (tests/test_mission.cpp, tactical-owned) loads the real mission and asserts the vehicle is on the Mission on a walkable tile; fails if addVehicle is removed.
 
 **`input-ui`**
 
@@ -139,6 +140,7 @@ NEXT PO: check SM agreement on the critical_path fold-in; seed platform issues (
 - _2026-10-17T12:23:14Z_ ta-1-kastenbrot: New file in assets/data/missions/ requires mission.<id>.name/.desc in assets/lang/en.json AND every locale (tests/test_i18n.cpp ShippedMissionsHaveLocalisedTextInEveryLocale + tests/test_i18n_keys.py derive the set from the directory). assets/lang/** is focus: text -> Rule 4 request + claim the free text area as helper. Also: Agent::tile() rounds (int(x+0.5)), so a line-of-fire down a column needs the shooter and target on the SAME tile row (y=N.5 rounds to N). PR #437 shipped blackout(destroy)/assembly(persuade)/overpass(reach).
 - _2026-10-24T20:24:29Z_ ta-1-kastenbrot: issue #449 (time bomb): CORE MECHANIC SHIPPED (PR #459, squash 8971363). Weapon gains additive fuseSeconds (0=immediate, nothing else changes); Mission arms a bomb on fire (resolveWeaponHit), ticks fuses in update (updateDetonations), detonates via the shared detonate() that applyAreaDamage now delegates to, so shields absorb it, walls in the blast breach, civilians count as collateral, and it survives its owner's death (sentinel kNoAttacker). orderTimeBomb(index,tile) = explicit player plant; pendingDetonations() = view count. Refactor: applyAreaDamage -> detonate(); agent weapon hit path -> resolveWeaponHit (behaviour-preserving). 10 tests, 417/417 core, 58/58 ctest, werror clean. TRAP: the low-spec size budget had only 2 KiB headroom (334/336 KiB) so ANY core feature tripped it -> filed #468, raised cap to 352 KiB (PR #469 merged 3c7d6d5). REACHABLE-IN-PLAY IS STILL OPEN: needs #460 (input-ui --bomb demo hook) OR #461 (content parse fuseSeconds) + a shipped mission. Neither area is mine; both live-leased. #449 stays open until one lands (the #99/#101 'landed but never wired in' trap).
 - _2026-10-24T21:03:43Z_ ta-1-kastenbrot: issue #444 (assassinate/retrieve kinds): CORE HALF SHIPPED (PR #471, squash cf6edc1). ObjectiveSpec::Kind gains Assassinate (win when agent at agentIndex is dead) and Retrieve (win when item on itemX/itemY is picked up AND a living player then stands on exit tile tileX/tileY). New fields defaulted -> no existing kind/mission changed. Retrieve uses a latched squad-level flag Mission::itemRetrieved_ (reset by setObjective) -> any member may carry it out; no objective-specific lose condition. Helpers assassinationTargetDead/itemDelivered + per-update updateRetrieval. 10 tests; 436/436 core, 58/58 ctest, werror clean, --check-content ok. REVERSED the #281 carve-out -> ADR-0014 amendment (#444). CROSS-LANE HALVES OPEN (Rule 4): #472 content parse + DATA_FORMAT; #473 missions author 2 files; #474 render HUD banner + objective self-test kind list; #475 text 2 en.json keys. #444 stays open until the missions half lands (#99/#101 trap).
+- _2026-10-25T08:48:11Z_ ta-1-kastenbrot: issue #417 SHIPPED (PR #483, squash 916f602): a mission's vehicles[] now reaches the Mission (populateMission wiring). Test Mission.ShippedPrecinctVehicleReachesTheBoard (tests/test_mission.cpp). Build note: cmake/pkg-config/libsdl2-dev had to be reinstalled in this env (pip install cmake; apt-get install pkg-config libsdl2-dev) - cmake lives at /home/openhands/.local/lib/python3.13/site-packages/cmake/data/bin.
 
 **`text`**
 
