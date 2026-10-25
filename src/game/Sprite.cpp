@@ -136,6 +136,19 @@ bool AgentSprites::build(SDL_Renderer* renderer, const std::string& text, std::s
             destroy();
             return false;
         }
+        // The sheet must author the agent frames at the documented native size
+        // (docs/ART_STYLE.md). A mis-sized sheet is a content error, not a silent
+        // rescale: fail here so `--check-sprites` catches it.
+        if (baked.frames[0].width != kAgentFrameWidth ||
+            baked.frames[0].height != kAgentFrameHeight)
+        {
+            error = "agent frames must be " + std::to_string(kAgentFrameWidth) + "x" +
+                    std::to_string(kAgentFrameHeight) + " (got " +
+                    std::to_string(baked.frames[0].width) + "x" +
+                    std::to_string(baked.frames[0].height) + "); see docs/ART_STYLE.md";
+            destroy();
+            return false;
+        }
         if (!sheets_[role].build(renderer, baked))
         {
             error = "could not upload agent sprite texture";

@@ -11,6 +11,15 @@
 namespace fossynd::game
 {
 
+// Native size, in pixels, of an authored agent frame (docs/ART_STYLE.md). The
+// sheet must author all four agent frames at exactly this size: a stale or
+// mis-sized sheet then fails the `game_sprites` guard at load instead of being
+// silently drawn at the wrong scale (the flat-marker fallback still keeps the
+// game running). Props and vehicles keep their own native sizes until their
+// art slices (A3/A5) raise them.
+static constexpr int kAgentFrameWidth = 20;
+static constexpr int kAgentFrameHeight = 28;
+
 // One uploaded sprite sheet: several frames laid out left to right in a single
 // texture, plus each frame's anchor. The core bakes the pixels (engine-agnostic,
 // unit-tested); this class only uploads them and reports frame geometry. Owned
