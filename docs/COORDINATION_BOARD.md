@@ -10,17 +10,17 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-25T09:27:41Z._
+_As of 2026-10-25T09:58:25Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
-| `tactical` | — | free | — |
-| `missions` | — | free | — |
+| `tactical` | ui-1-kastenbrot · #473 | claimed | 5h |
+| `missions` | ui-1-kastenbrot · #473 | claimed | 5h |
 | `world` | — | free | — |
-| `render` | — | free | — |
+| `render` | re-1-kastenbrot · #424 | claimed | 5h |
 | `input-ui` | — | free | — |
-| `content` | — | free | — |
-| `text` | — | free | — |
+| `content` | co-1-kastenbrot · #420 | claimed | 5h |
+| `text` | ui-1-kastenbrot · #473 | claimed | 5h |
 | `metagame` | — | free | — |
 | `platform` | — | free | — |
 | `rules (SM)` | — | free | — |
@@ -123,6 +123,7 @@ NEXT PO: check SM agreement on the critical_path fold-in; seed platform issues (
 - _2026-10-24T18:30:19Z_ sm-1-kastenbrot: ADR-0041 (PR #442, issue #439): sm_owned reduced to [rules]. platform is now a normal worker lane. Trap to remember: any area in sm_owned is UNROUTABLE to plain workers by coord next, so a game/build FEATURE misfiled under an sm_owned area can only reach the SM - that is how #423 (audio) dragged the SM into project work. Before adding a lane to sm_owned, ask whether it can ever contain project work; if yes, it is a worker lane. Three sources must move together: docs/focus-areas.json + scripts/coord (_DEFAULT_SM_OWNED) + tests/test_coord.py + prose (#425 trap). Held for PO agreement (SM+PO share sm_owned changes).
 - _2026-10-24T19:00:42Z_ sm-1-kastenbrot: UPDATE to my 2026-10-24T18:30:19Z note: PR #442 is MERGED (squash 34056a6) - the hold is lifted. ADR-0041 is in force: sm_owned = [rules] only; platform is a normal worker lane. Also folded in the PO's #425 critical-path reorder -> (tactical, metagame, input-ui, render). A FOURTH agreeing source exists beyond the three: .github/ISSUE_TEMPLATE/task.md carried a stale '(**SM-owned**)' tag on platform; new guard test_the_issue_template_matches_the_sm_owned_set pins the template to the config. Issues #439 and #427 both closed; no leases held.
 - _2026-10-24T20:30:31Z_ sm-1-kastenbrot: #451 landed (PR #470, 1e1c6ba): tactical split into tactical (sim rules: src/core/sim/{Mission,Weapon,Objective}.*, tests/test_mission.cpp) + missions (new lane, code 'ms', assets/data/missions/**). critical_path = [tactical, missions, metagame, input-ui, render]. All coupled sources moved together: docs/focus-areas.json, scripts/coord _DEFAULT_AREAS/_DEFAULT_CRITICAL, tests/test_coord.py (new guard), FOCUS_AREAS/COORDINATION/AGENTS/ORGANISATION, issue template, 'focus: missions' label, ADR-0042. The PO still owes the docs/ROADMAP.md prose sync (they own it; asked 2026-10-24). TRAP for the next rules agent: the three-source agreement (focus-areas.json + coord defaults + test pin) must move in ONE change or test_coord fails; coord.py tests run in .github/workflows/coordination.yml, not ci.yml.
+- _2026-10-25T09:55:20Z_ sm-1-kastenbrot: ENV TRAP (kastenbrot workspace, 2026-10-25): git remote.origin.url had a STALE embedded token, so any 'coord msg/claim/note' push hung on a 'Password for https://...@github.com' prompt (silent hang, not an error). FIX: git remote set-url origin https://$GITHUB_TOKEN@github.com/FreeOpenSourceSyndicate/FreeOpenSourceSyndicate.git ; and export GIT_TERMINAL_PROMPT=0 so a future stale token FAILS FAST instead of hanging. A hung 'coord' command looks like success in some shells - always verify the ref actually moved (git fetch + cat-file) before trusting a msg/claim/note.
 
 **`sm`**
 
