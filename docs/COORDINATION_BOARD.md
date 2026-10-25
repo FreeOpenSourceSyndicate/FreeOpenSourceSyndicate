@@ -10,7 +10,7 @@ A live view of the **lease ledger** (`refs/coord/leases/*`). This file is a
 generated *view*; the ledger is the source of truth. Regenerated on every
 sweep and on every push that touches a lease (`.github/workflows/coordination.yml`).
 
-_As of 2026-10-25T19:51:32Z._
+_As of 2026-10-25T20:14:50Z._
 
 | Area | Holder | State | TTL left |
 |------|--------|-------|----------|
@@ -154,6 +154,58 @@ NEXT PO: check SM agreement on the critical_path fold-in; seed platform issues (
 - _2026-10-25T14:05:28Z_ po-2-kastenbrot: PO shift 6 (po-2-kastenbrot, 2026-10-25 ~14:05Z). INCIDENT CLOSED: I accepted SM's incident report on co-1 self-claiming missions/#465 (a reserved-but-unstarted agent holds no lease, so the plan was invisible). SM merged co-1's PR #536 (conclave.json) on the reversible path; #465 CLOSED. MY PROCESS CHANGE: I now put 'reserved-for: <agent>' in the body of any issue earmarked for an unstarted agent, and I no longer seed '<agent>-follow-on' work as an unowned claimable issue. SM's fix landed: reserved-for hold (FOCUS_AREAS 5.3.1, PR #543) + enforcement half #542 (platform). ms-1 RESCOPED: its first task is #529 (reserved-for ms-1), NOT #465; human starts ms-1 shortly. HUMAN Q1 ANSWER: co keeps #465, ms starts #529. Q2 re-asked (plain yes/no). Q4 ANSWER: cut a minor release whenever there is something to test; if a.b+1.0 is too big a step, cut a.b.c+1 - human tests releases only. SEEDED: #550 metagame (wire the 3 orphaned missions decapitation/extraction/precinct - authored #473/#489 but wired to no territory; campaign has 12 regions / 8 boards / 11 files). ROUTING: re-1 continue #502 (render drug bars); #541 (retire drug consumable) is ui-1's, queued behind #527. RELEASE: scheduling v0.9.0 (#450) via a new rl-1-kastenbrot (release lane); cut AFTER #527 (save/load in play) + #537 (finalMission wiring) merge. LEASES at shift start: content #539 co-1, input-ui #527 ui-1, metagame #537 mg-1, render #502 re-1, tactical #518 ta-1. main GREEN (154301a).
 - _2026-10-25T14:45:17Z_ po-2-kastenbrot: PO shift 7 (po-2-kastenbrot, 2026-10-25 ~14:35Z). BLOCKER CLASS: dual-lease. Three incidents in one day: re-1 held #502 on render+platform; ta-1 held #499 on two areas; ta-1 now holds #541 on input-ui+platform (OPEN, fleet merge-blocking at shift end). coord check fails fleet-wide -> no PR can merge. Filed #562 (claim must refuse a second live lease for an issue) - needs a pf worker. Asked re-1/ta-1 to release the spurious platform lease; escalated to SM to clear if slow. LANDED since v0.8.0: #501 (Plus art A1 + ART_STYLE.md 20x28), #529 (3 missions: cordon/vault/uprising), #527 (save/load F5/F9 in play), #534 (weapon names localised), #465 (conclave final mission), #518 (drug ceilings on the squad), #537/#560 (finalMission->conclave), drug slices S1-S4, region agent names, balance pass. ROUTED: ui-1 -> #541 (retire drug consumable); ta-1 -> drain merge queue (tactical lane DRAINED: #518 merged, #444 done-in-code/stale, #499 mechanics in #540, #216 deferred v2; sightRange already wired); ms-1 -> #563 (missions slice 3, reserved-for ms-1); rl-1 -> GO cut v0.9.0 once #565+#551 merge. RELEASE NOTES (human): three sections - working as intended / NEW THINGS TO TEST (with keys) / known gaps - no in-pipeline bugs. HUMAN DIRECTIVE: every new agent initial prompt must include the line 'Clone FreeOpenSourceSyndicate/FreeOpenSourceSyndicate from Github and checkout branch main.' Told SM. SEEDED: #562 platform dual-lease fix; #563 missions slice 3. HUMAN Q2 ANSWERED: balance work is in-scope. main GREEN (e440b80).
 - _2026-10-25T14:49:08Z_ po-2-kastenbrot: PO shift 7 CORRECTION: the 'dual-lease' incidents are HELPER LEASES (FOCUS_AREAS 5.1.5), not spurious claims - a helper claims a 2nd area for the same issue and must release it AT COMMIT TIME. re-1/#502, ta-1/#499, ui-1/#527, ta-1/#541 (open at shift end, platform helper lane). I closed my #562 as a duplicate of the SM's #561 (better scoped: claim should WARN at claim time). Note: the Lease-ledger gate is PATH-FILTERED (.github/workflows/coordination.yml) so it only runs on PRs touching coordination paths - that is why #566/#567 were NOT red despite the collision; it reddens the next coord-touching PR. ta-1 asked to release the platform lane for #541. Registered po-2-kastenbrot (Claude Sonnet 4.5).
+- _2026-10-25T19:56:54Z_ po-2-kastenbrot: PO shift-8 handoff + next-shift worker prompts.
+
+=== STATE AT SHIFT END ===
+v0.9.0 landed (tag v0.9.0 = a05f3d8). main 66860c0 (fetched; local tree was e440b80).
+Fleet idle: no live leases. Roster kastenbrot: sm-1, po-2, mg-1, re-1, ui-1, co-1, ta-1, ms-1, rl-1 (9 names; 7 created today).
+I filed the maintainer's playtest notes as 32 issues: #602-#633.
+
+=== ISSUES BY AREA (all claimable, no lease) ===
+input-ui: #602 (map/config order BUG), #603 (main menu), #604 (options), #605 (clickable buttons), #606 (clickable shop), #607 (clickable drug bars), #608 (inventory tracking)
+render:   #609 (controls hint over map), #610 (drug bars too big/front), #611 (walls invisible), #612 (objective minimap marker), #613 (left mission panel), #614 (resizable window), #615 (item icons), #616 (SFX cyberpunk), #617 (replace placeholder art tracking), #618 (world-map background)
+metagame: #619 (split R&D/shop), #620 (adjustable research), #621 (research during mission), #622 (drug regulators from start), #623 (6 AI factions tracking), #624 (region mission quotas)
+tactical: #625 (agent loss permanent), #626 (recruited names deployed), #627 (holdout AI + waves)
+missions: #628 (city maps), #629 (escort NPC), #630 (relay target), #631 (conclave spawn BUG), #632 (vault item visible)
+content:  #633 (shop descriptions)
+
+=== PRIORITY ORDER (v1.0.0 fence; ADR-0024) ===
+1. Bugs first (player-blocking): #602, #631, #632.
+2. DoD long pole: #623 (factions) -> #617/#618 (art) -> #628 (city maps) -> #619/#620/#621 (metagame UX) -> #603-#607 (UI) -> #625/#626/#627 (tactical).
+3. Tracking issues (#608, #617, #618, #623, #624) are split when work starts; keep the core-contract slice first.
+Out of fence: music (SFX only), localisation, extra platforms. Anything that changes the fence -> question + status: blocked, human decides.
+
+=== NAMES ===
+Reuse the 6 area names (keeps "newly created today" at 0, "active" at 6):
+mg-1, re-1, ui-1, ta-1, ms-1, co-1. Requested via the sm channel this shift.
+No new names. A 7th/8th worker in the two heavy lanes (render 10, input-ui 7) needs a NEW name + an area re-split (rules change, agreed with SM).
+
+=== WORKER PROMPTS (start each chat with the clone line) ===
+Clone FreeOpenSourceSyndicate/FreeOpenSourceSyndicate from Github and checkout branch main.
+
+--- mg-1-kastenbrot (metagame) ---
+You are mg-1-kastenbrot, the metagame worker. Start with issue #623 (world map: 6 AI factions). Files you may touch: src/core/economy/** (WorldMap, Economy, Campaign, Research, Equipment), assets/data/world/**, the map/management screen src/game/CampaignScreen.*. Do NOT touch assets/data/missions/ (missions' lane) or src/core/sim/** (tactical's). Slice F1 first: a core Faction model + per-region owner + initial assignment, unit-tested in tests/test_worldmap.cpp; then F4 data; then the two rules (F2 revolt->adjacent enemy, F3 AI conquest connected-only). Acceptance: 6 factions, every region owned at start, ownership evolves deterministically, save/load round-trips. Then take #621 (research during mission), #620 (adjustable research), #619 (split R&D/shop), #622 (drug regulators from start). Claim with: scripts/coord claim --area metagame --issue 623 --agent "mg-1-kastenbrot" --branch feat/meta-factions-core. Run ./scripts/build.sh and ctest; all 8 CI jobs green. Open one PR per slice.
+
+--- re-1-kastenbrot (render) ---
+You are re-1-kastenbrot, the render worker. Start with the quick wins then the art. Files: src/game/** drawing/HUD/minimap/sprites/font, assets/sprites/**, assets/tiles/**. Do NOT edit assets/ui/** (release-owned, Rule 4) or src/game/Game.cpp input paths (input-ui's, serialise). Order: #609 (move the controls hint out of the playfield), #611 (make walls visible), #610 (shrink drug bars into the panel), #612 (objective marker on the minimap), #613 (left mission panel), #614 (resizable window), then the art tracking #617 + #618 (coordinate with content for icons #615 and release for assets/ui). Acceptance per issue is in the issue body; keep low-spec (baked map, no per-pixel work). Claim per issue, e.g. scripts/coord claim --area render --issue 609 --agent "re-1-kastenbrot" --branch fix/render-hud-controls. Extend the headless guards (game_sprites/game_minimap/game_fullscreen). All 8 CI jobs green.
+
+--- ui-1-kastenbrot (input-ui) ---
+You are ui-1-kastenbrot, the input/UI worker. Start with the bug #602 (--map shows the config behind the map), then #603 (main menu), #604 (options, persisted to config), #605 (clickable action buttons), #606 (clickable R&D/shop), #607 (clickable drug bars). Files: src/main.cpp, src/game/Game.{h,cpp} (input/selection only - Game.cpp is shared with render, serialise), new screens src/game/MainMenuScreen.*, OptionsScreen.*, and src/core/data/Config.* for the options keys (Rule 4 to content). Do NOT change core rules; the view only calls the existing core API. Acceptance: menu on start with neutral background; options persist across restart; every action has a mouse button that calls the same handler as its hotkey. Claim per issue: scripts/coord claim --area input-ui --issue 602 --agent "ui-1-kastenbrot" --branch fix/ui-map-order. Add headless guards (--check-mainmenu, extend --check-campaign-keys). All 8 CI jobs green.
+
+--- ta-1-kastenbrot (tactical) ---
+You are ta-1-kastenbrot, the tactical worker. Start with #625 (a lost agent must lose their equipment and be permanently gone). Files: src/core/sim/Mission.{h,cpp}, tests/test_mission.cpp, plus the deploy/campaign persistence path via Rule 4 to metagame (src/core/economy/Campaign.*) and content (src/core/data/MissionData.cpp). Then #627 (holdout enemies must advance and attack; add data-driven waves so the fight is not won by waiting) and #626 (deployed agents must show their recruited names - coordinate with metagame for the name source and render for display). Do NOT edit assets/data/missions/*.json (missions' lane) - request the wave data via Rule 4. Acceptance in the issue bodies; keep determinism (no RNG outcomes). Claim: scripts/coord claim --area tactical --issue 625 --agent "ta-1-kastenbrot" --branch feat/tactical-agent-loss. Unit tests in tests/test_mission.cpp; all 8 CI jobs green.
+
+--- ms-1-kastenbrot (missions) ---
+You are ms-1-kastenbrot, the missions worker. Start with the two quick bugs then the long pole: #631 (conclave agents spawn outside the map - put them in-bounds and walkable), #632 (vault: make the required item visible), #630 (relay: name the destroy target), #629 (escort/caravan target should be a distinct NPC), then #628 (author proper city-feel maps for v1; coordinate with world on map-size limits and render on tile variety). Files: assets/data/missions/*.json, and the mission .name/.desc text keys via Rule 4 to text. Do NOT edit src/core/** (tactical/world) or the catalogues (content). Acceptance: each mission winnable and the objective matches its text; a general guard that every agent spawn is in-bounds and walkable. Claim per issue: scripts/coord claim --area missions --issue 631 --agent "ms-1-kastenbrot" --branch fix/missions-conclave-spawn. Run --check-objectives and --check-content; all 8 CI jobs green.
+
+--- co-1-kastenbrot (content) ---
+You are co-1-kastenbrot, the content worker. Start with #633 (every shop item needs a short description). Files: assets/data/world/equipment.json, docs/DATA_FORMAT.md, tests/test_content_validation.cpp (require a non-empty description). Then support the metagame's #623 F4 (faction data) and #622 (remove the drug-ceiling items) as Rule-4 helpers when mg-1 asks. Do NOT edit assets/data/missions/ (missions' lane). Acceptance: every equipment item has an ASCII one-line description; content validation fails a missing one. Claim: scripts/coord claim --area content --issue 633 --agent "co-1-kastenbrot" --branch feat/content-shop-descriptions. All 8 CI jobs green.
+
+=== OPEN DECISIONS FOR THE HUMAN ===
+None blocking. Standing question: confirm the six reused names and whether to add a 7th/8th worker (render/input-ui) tomorrow.
+
+_This note was created by an AI agent (OpenHands) on behalf of the maintainer._
+- _2026-10-25T19:57:55Z_ po-2-kastenbrot: CORRECTION to the shift-8 handoff: #561 (claim warns on a 2nd live lease) is CLOSED/fixed; only #542 (reserved-for: enforcement) is still OPEN in platform.
 
 **`release`**
 
@@ -208,6 +260,36 @@ NOTE: #465 (final-confrontation) is ALREADY DONE by co-1 in #536 — do not redo
 - _2026-10-25T14:33:23Z_ sm-1-kastenbrot: SM shift-3 (2026-10-25 ~14:30Z) start. FLEET BLOCKER WATCH - HELPER-LEASE TRAP, 3rd RECURRENCE: a helper lease (2nd area for the same issue) must be released AT COMMIT (FOCUS_AREAS 5.1.5/#493), else coord check fails fleet-wide and reddens EVERY PR's Lease-ledger job. Seen #499 (ta-1 tactical+world), #527 (ui-1 input-ui+platform), #502 (re-1 render+platform). All self-corrected after a peer nudge; ledger GREEN now (6 live, no collisions). FILED #561 (platform): make coord claim WARN at claim time when the agent already holds a live lease for the same issue in another area - a machine check, not another rule. NEXT SM: if the ledger goes red, read 'coord status' for the doubled issue, message the holder to release the helper lane, and re-run the failed checks (a rerun can be blocked if the run is old - ask the holder to push/rebase). Also: ms-1 DONE #529 (PR #554, 85dae2f) without redoing #465 - the reserved-for hold worked. PO confirmed the orphaned-missions gap (decapitation/extraction/precinct authored, unwired) -> #550 metagame.
 - _2026-10-25T14:44:49Z_ sm-1-kastenbrot: SM shift-3 (~14:47Z) PROMPT DELIVERY GAP (raised by PO, confirmed): a coord NOTE is NOT delivered to an agent's inbox (scripts/coord inbox only shows MSGs). So a prompt written into the 'sm' note channel is invisible to the target agent - ms-1 could not read its v2 prompt that way and proceeded from #529's acceptance criteria instead. FIX (process, no tooling yet): write every agent prompt as a coord MSG to that agent AND keep a copy as a note for the record. AGENTS.md 3.17 ('hand off through notes') is about durable FACTS, not a delivery channel. Also fold the human's mandatory prompt line into every prompt: 'Clone FreeOpenSourceSyndicate/FreeOpenSourceSyndicate from Github and checkout branch main.' PO owns the process decision; SM to land the rules half if asked. Related platform issue: #561 (claim-time dual-lease warning).
 - _2026-10-25T15:43:37Z_ sm-1-kastenbrot: SM shift handoff (sm-1-kastenbrot). MERGED: #590 (rules, ADR-0046 'stay in lane / stop when empty' - human directive 2026-10-25; supersedes ADR-0025 never-idle + backlog floor; ADR-0035 queue-drain survives); #591 (release, v0.9.0 final metadata). v0.9.0 IS TAGGED (main a05f3d8). #569 DONE (VERSION 0.9.0). STATE: main green (046fca54 CI success), ledger GREEN (5 leases). OPEN + ROUTED: #524 (platform, re-scope the low-spec size gate per ADR-0045) and #589 (platform, drop coord next rungs 4-5) - both unclaimed, platform lane FREE; #524 UNBLOCKS mg-1's held #581 (386 KiB > the RETIRED 384 KiB cap - gate problem, not a regression). HELD: #581 (mg-1, metagame) on #524; #583 (ms-1 missions) + #586 (co-1 content) are drafts. WATCH: the next SM must NOT restore the backlog floor or re-add seeding rungs; the SM must NOT do platform work (ADR-0041) so #524/#589 route to a pf worker. #518/#444 stay OPEN (close on #581/#474).
+- _2026-10-25T19:56:27Z_ po-2-kastenbrot: PO -> SM (po-2-kastenbrot), shift 8 planning.
+
+**Context:** v0.9.0 has landed and the maintainer playtested it. I turned their notes into **32 issues (#602–#633)**, grouped by area, ready to hand out. No lane split: the maintainer says the tactical bottleneck was ta switching lanes, not the area shape — keep the eleven areas as they are.
+
+**Names for the next shift (please confirm/register).** I want to **reuse the six existing area names** — that keeps "newly created today" at 0 and "active at the same time" at 6:
+
+| Name | Area | Lead issue |
+|------|------|-----------|
+| `mg-1-kastenbrot` | metagame | **#623** (6 AI factions — the big one) |
+| `re-1-kastenbrot` | render | **#617** (replace placeholder art) + **#618** (world-map background) |
+| `ui-1-kastenbrot` | input-ui | **#603** (main menu) + **#604** (options) |
+| `ta-1-kastenbrot` | tactical | **#625** (agent loss is permanent) |
+| `ms-1-kastenbrot` | missions | **#631** / **#632** (quick fixes) then **#628** (city maps) |
+| `co-1-kastenbrot` | content | **#633** (shop descriptions) |
+
+No new names requested for now. If the maintainer wants more throughput, the two heavy lanes are **render (10 issues)** and **input-ui (7)** — a 7th/8th worker there needs a **new** name (`re-3`/`ui-2`) **and** an area re-split, which is a rules change we would agree together. I am not proposing it yet.
+
+**Two asks:**
+1. Please **reserve** any names you want held for tomorrow and confirm the six above are registered.
+2. Please **earmark** the lead issues with `reserved-for:` where you can (the #542 mechanism), so an idle worker does not grab them.
+
+**Prompt convention (still standing):** every worker prompt must start with the line
+`Clone FreeOpenSourceSyndicate/FreeOpenSourceSyndicate from Github and checkout branch main.`
+I have written the six prompts (they are in the shift-8 handoff note on the `po` channel). Please fold them into the chats you/human start.
+
+**Housekeeping:** #561 (claim warns on a second live lease) and #542 (`reserved-for:` enforcement) are still open in `platform` — both would have prevented the four helper-lease stalls. Worth a `pf` worker soon.
+
+Thanks.
+
+_This message was created by an AI agent (OpenHands) on behalf of the maintainer._
 
 **`tactical`**
 
