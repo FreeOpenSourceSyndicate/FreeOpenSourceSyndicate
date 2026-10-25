@@ -272,6 +272,14 @@ public:
     // on a broken invariant. Used by game_drugs.
     bool drugsSelfTest();
 
+    // Headless guard for the drug-bar controls (issue #503, ADR-0043): `[`/`]`
+    // must cycle the active bar, `;`/`'` must lower/raise it for every selected
+    // agent through `Mission::setDrugLevel`, the level must clamp at the ends, an
+    // empty selection must be a safe no-op, and the map screen must swallow the
+    // keys. Exercises the real handlers. Returns false on a broken invariant.
+    // Used by game_drug_controls.
+    bool drugControlSelfTest();
+
     // Headless guard for vehicle rendering (issue #363): every vehicle in the
     // mission must yield a draw entry at its interpolated tile with the right
     // kind, and a destroyed vehicle must still draw (as a wreck). Returns false
@@ -504,6 +512,14 @@ private:
     void activateScannerOnSelection(); // `C`: ping nearby enemies for a moment
     void useDrugsOnSelection();     // `B`: temporary speed/accuracy boost
 
+    // Drug-bar controls (issue #503, ADR-0043). `[`/`]` cycle which of the three
+    // bars (`Drug::Adrenalin`/`Intelligence`/`Physical`) the adjust keys act on;
+    // `;`/`'` lower/raise the active bar for every selected agent. The view only
+    // picks the agents and the delta — `Mission::setDrugLevel` clamps and stores
+    // (golden rule 1/4). An empty selection is a safe no-op.
+    void cycleDrugBar(int delta);
+    void adjustActiveDrugBar(float delta);
+
     core::Vec2 tileToScreen(const core::Vec2& tile) const;
     core::TilePos screenToTile(int screenX, int screenY) const;
     void centerOn(const core::Vec2& tile);
@@ -687,6 +703,11 @@ private:
     // Pause/resume (issue #210). While true, update() advances no simulation
     // steps, so the fixed-step clock banks nothing and the board is frozen.
     bool paused_ = false;
+
+    // Which drug bar the `;`/`'` adjust keys act on (issue #503, ADR-0043). A
+    // view-only cursor; the levels themselves live on the Mission. Starts on
+    // adrenalin (the first bar). Cycled by `[`/`]`.
+    core::Drug activeDrugBar_ = core::Drug::Adrenalin;
 
     core::TileGrid grid_{kMapWidth, kMapHeight};
     core::Mission mission_{grid_};
